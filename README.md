@@ -1,2 +1,17 @@
 # bazel-remote
-A remote cache for Bazel
+A remote cache for [Bazel](https://bazel.build) using HTTP/1.1.
+
+The cache contents are stored in a directory on disk. One can specify a maximum cache size and bazel-remote will automatically enforce this limit and clean the cache by deleting files based on their last access time. The cache requires Bazel to use SHA256 as its hash function.
+
+## Use with Bazel
+In order to set up Bazel for remote caching, it needs to be passed some special flags.
+
+```
+bazel --host_jvm_args=-Dbazel.DigestFunction=sha256 build --spawn_strategy=remote --strategy=Javac=remote --genrule_strategy=remote --remote_rest_cache=http://<BAZEL-REMOTE-HOST>:<PORT> //foo:target
+```
+
+Specifying these flags on each Bazel invocation can be cumbersome and thus one can also add them to their `~/.bazelrc` file
+```
+startup --host_jvm_args=-Dbazel.DigestFunction=sha256
+build --spawn_strategy=remote --strategy=Javac=remote --genrule_strategy=remote --remote_rest_cache=http://<BAZEL-REMOTE-HOST>:<PORT>
+```
