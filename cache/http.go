@@ -86,7 +86,6 @@ func (h *httpCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.cache.AddCurrSize(written)
 			w.WriteHeader(http.StatusOK)
 		}
-		log.Print(h.cache.CurrSize())
 	case http.MethodHead:
 		// TODO: Use a map or so
 		f, err := os.Open(h.filePath(hash))
