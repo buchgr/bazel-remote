@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -12,7 +14,7 @@ import (
 	"regexp"
 )
 
-var blobNameSHA256 = regexp.MustCompile("^/?([a-f0-9]{64})$")
+var blobNameSHA256 = regexp.MustCompile("^/?(actioncache/|cas/)?([a-f0-9]{64})$")
 
 // HTTPCache ...
 type HTTPCache interface {
@@ -65,11 +67,24 @@ func directorySize(path string) (size int64) {
 }
 
 func (h *httpCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	hash, err := blobName(r.URL.Path)
+	parts, err := parseURL(r.URL.Path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	var hash string
+	var verifyHash bool
+	if len(parts) == 1 {
+		// For backwards compatibiliy with older Bazel version's that don't
+		// support {cas,actioncache} prefixes.
+		verifyHash = false
+		hash = parts[0]
+	} else {
+		verifyHash = parts[0] == "cas/"
+		hash = parts[1]
+	}
+
 	switch m := r.Method; m {
 	case http.MethodGet:
 		http.ServeFile(w, r, h.filePath(hash))
@@ -78,7 +93,7 @@ func (h *httpCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Cache full.", http.StatusInsufficientStorage)
 			return
 		}
-		written, err := h.saveToDisk(r.Body, hash)
+		written, err := h.saveToDisk(r.Body, hash, verifyHash)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		} else {
@@ -105,24 +120,35 @@ func (h *httpCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func blobName(name string) (string, error) {
-	m := blobNameSHA256.FindStringSubmatch(name)
+func parseURL(url string) ([]string, error) {
+	m := blobNameSHA256.FindStringSubmatch(url)
 	if m == nil {
 		msg := fmt.Sprintf("Resource name must be a SHA256 hash in hex. "+
-			"Got '%s'.", name)
-		return "", errors.New(msg)
+			"Got '%s'.", url)
+		return nil, errors.New(msg)
 	}
-	return m[1], nil
+	return m[1:], nil
 }
 
-func (h *httpCache) saveToDisk(content io.Reader, hash string) (written int64,
-	err error) {
+func (h *httpCache) saveToDisk(content io.Reader, hash string, verifyHash bool) (written int64, err error) {
 	f, err := ioutil.TempFile(h.cache.Dir(), "upload")
 	if err != nil {
 		return 0, err
 	}
 	tmpName := f.Name()
-	written, err = io.Copy(f, content)
+	if verifyHash {
+		hasher := sha256.New()
+		written, err = io.Copy(io.MultiWriter(f, hasher), content)
+		actualHash := hex.EncodeToString(hasher.Sum(nil))
+		if hash != actualHash {
+			os.Remove(tmpName)
+			msg := fmt.Sprintf("Hashes don't match. Provided '%s', Actual '%s'.",
+				hash, actualHash)
+			return 0, errors.New(msg)
+		}
+	} else {
+		written, err = io.Copy(f, content)
+	}
 	if err != nil {
 		return 0, err
 	}
