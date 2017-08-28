@@ -18,11 +18,21 @@ Usage of bazel-remote:
 In order to set up Bazel for remote caching, it needs to be passed some special flags.
 
 ```
-bazel --host_jvm_args=-Dbazel.DigestFunction=sha256 build --spawn_strategy=remote --strategy=Javac=remote --genrule_strategy=remote --remote_rest_cache=http://<BAZEL-REMOTE-HOST>:<PORT> //foo:target
+bazel 
+  --host_jvm_args=-Dbazel.DigestFunction=sha256 
+build
+  --spawn_strategy=remote
+  --strategy=Javac=remote
+  --genrule_strategy=remote
+  --remote_rest_cache=http://<BAZEL-REMOTE-HOST>:<PORT>
+//foo:target
 ```
 
 Specifying these flags on each Bazel invocation can be cumbersome and thus one can also add them to their `~/.bazelrc` file
 ```
 startup --host_jvm_args=-Dbazel.DigestFunction=sha256
-build --spawn_strategy=remote --strategy=Javac=remote --genrule_strategy=remote --remote_rest_cache=http://<BAZEL-REMOTE-HOST>:<PORT>
+build --spawn_strategy=remote
+build --strategy=Javac=remote
+build --genrule_strategy=remote
+build --remote_rest_cache=http://<BAZEL-REMOTE-HOST>:<PORT>
 ```
