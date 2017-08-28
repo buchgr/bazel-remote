@@ -30,8 +30,8 @@ type httpCache struct {
 // NewHTTPCache ...
 func NewHTTPCache(listenAddr string, cacheDir string, maxBytes int64, ensureSpacer EnsureSpacer) HTTPCache {
 	ensureCacheDir(cacheDir)
-	initialSize := directorySize(cacheDir)
-	cache := NewCache(cacheDir, maxBytes, initialSize)
+	cache := NewCache(cacheDir, maxBytes)
+	loadFilesIntoCache(cache)
 	return &httpCache{listenAddr, cache, ensureSpacer}
 }
 
@@ -55,15 +55,13 @@ func ensureCacheDir(path string) {
 	d.Close()
 }
 
-func directorySize(path string) (size int64) {
-	size = 0
-	filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+func loadFilesIntoCache(cache Cache) {
+	filepath.Walk(cache.Dir(), func(name string, info os.FileInfo, err error) error {
 		if !info.IsDir() {
-			size += info.Size()
+			cache.AddFile(filepath.Base(name), info.Size())
 		}
 		return nil
 	})
-	return size
 }
 
 func (h *httpCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -87,8 +85,16 @@ func (h *httpCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch m := r.Method; m {
 	case http.MethodGet:
+		if !h.cache.ContainsFile(hash) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		http.ServeFile(w, r, h.filePath(hash))
 	case http.MethodPut:
+		if h.cache.ContainsFile(hash) {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		if !h.ensureSpacer.EnsureSpace(h.cache, r.ContentLength) {
 			http.Error(w, "Cache full.", http.StatusInsufficientStorage)
 			return
@@ -96,23 +102,14 @@ func (h *httpCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		written, err := h.saveToDisk(r.Body, hash, verifyHash)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-		} else {
-			// TODO: Fix if the same file is uploaded twice, the size is incorrect.
-			h.cache.AddCurrSize(written)
-			w.WriteHeader(http.StatusOK)
-		}
-	case http.MethodHead:
-		// TODO: Use a map or so
-		f, err := os.Open(h.filePath(hash))
-		if err != nil {
-			if os.IsNotExist(err) {
-				http.Error(w, err.Error(), http.StatusNotFound)
-			} else {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
 			return
 		}
-		f.Close()
+		h.cache.AddFile(hash, written)
+		w.WriteHeader(http.StatusOK)
+	case http.MethodHead:
+		if !h.cache.ContainsFile(hash) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		}
 		w.WriteHeader(http.StatusOK)
 	default:
 		msg := fmt.Sprintf("Method '%s' not supported.", m)

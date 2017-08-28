@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 
@@ -47,8 +48,7 @@ func (e *ensureSpacer) EnsureSpace(cache Cache, addBytes int64) bool {
 
 	targetBytes := int64(float64(cache.MaxSize()) * e.targetPct)
 	deltaBytes := cache.CurrSize() - targetBytes
-	purgedBytes := purge(cache.Dir(), deltaBytes)
-	cache.AddCurrSize(-purgedBytes)
+	e.purge(cache, deltaBytes)
 
 	e.mux.Lock()
 	e.isPurging = false
@@ -57,8 +57,8 @@ func (e *ensureSpacer) EnsureSpace(cache Cache, addBytes int64) bool {
 	return cache.CurrSize()+addBytes <= cache.MaxSize()
 }
 
-func purge(dir string, deltaBytes int64) int64 {
-	d, err := os.Open(dir)
+func (e *ensureSpacer) purge(cache Cache, deltaBytes int64) int64 {
+	d, err := os.Open(cache.Dir())
 	if err != nil {
 		log.Print(err)
 		return 0
@@ -73,10 +73,11 @@ func purge(dir string, deltaBytes int64) int64 {
 	})
 	var purgedBytes int64
 	for _, fileinfo := range files {
-		path := fmt.Sprintf("%s%c%s", dir, os.PathSeparator, fileinfo.Name())
+		name := fileinfo.Name()
+		path := fmt.Sprintf("%s%c%s", cache.Dir(), os.PathSeparator, name)
 		err := os.Remove(path)
 		if err == nil {
-			purgedBytes += fileinfo.Size()
+			cache.RemoveFile(filepath.Base(name))
 		} else {
 			log.Print(err)
 		}
