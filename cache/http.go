@@ -14,7 +14,7 @@ import (
 	"regexp"
 )
 
-var blobNameSHA256 = regexp.MustCompile("^/?(actioncache/|cas/)?([a-f0-9]{64})$")
+var blobNameSHA256 = regexp.MustCompile("^/?(ac/|cas/)?([a-f0-9]{64})$")
 
 // HTTPCache ...
 type HTTPCache interface {
