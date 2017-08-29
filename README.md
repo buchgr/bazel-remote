@@ -9,7 +9,7 @@ Usage of bazel-remote:
   -dir string
     	Directory path where to store the cache contents
   -max_size int
-    	The maximum size of the remote cache in bytes (default -1)
+    	The maximum size of the remote cache in GiB (default -1)
   -port int
     	The port the HTTP server listens on (default 8080)
 ```
