@@ -149,6 +149,10 @@ func (h *httpCache) saveToDisk(content io.Reader, hash string, verifyHash bool) 
 	if err != nil {
 		return 0, err
 	}
+	err = f.Sync()
+	if err != nil {
+		log.Fatal(err)
+	}
 	f.Close()
 	err2 := os.Rename(tmpName, h.filePath(hash))
 	if err2 != nil {
