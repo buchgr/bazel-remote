@@ -92,6 +92,7 @@ func (h *httpCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, h.filePath(hash))
 	case http.MethodPut:
 		if h.cache.ContainsFile(hash) {
+			io.Copy(ioutil.Discard, r.Body)
 			w.WriteHeader(http.StatusOK)
 			return
 		}
