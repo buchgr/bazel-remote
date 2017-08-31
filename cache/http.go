@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sync"
 )
 
 var blobNameSHA256 = regexp.MustCompile("^/?(ac/|cas/)?([a-f0-9]{64})$")
@@ -22,9 +23,11 @@ type HTTPCache interface {
 }
 
 type httpCache struct {
-	addr         string
-	cache        Cache
-	ensureSpacer EnsureSpacer
+	addr              string
+	cache             Cache
+	ensureSpacer      EnsureSpacer
+	ongoingUploads    map[string]*sync.Mutex
+	ongoingUploadsMux *sync.Mutex
 }
 
 // NewHTTPCache ...
@@ -32,7 +35,7 @@ func NewHTTPCache(listenAddr string, cacheDir string, maxBytes int64, ensureSpac
 	ensureCacheDir(cacheDir)
 	cache := NewCache(cacheDir, maxBytes)
 	loadFilesIntoCache(cache)
-	return &httpCache{listenAddr, cache, ensureSpacer}
+	return &httpCache{listenAddr, cache, ensureSpacer, make(map[string]*sync.Mutex), &sync.Mutex{}}
 }
 
 // Serve ...
@@ -92,12 +95,20 @@ func (h *httpCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, h.filePath(hash))
 	case http.MethodPut:
 		if h.cache.ContainsFile(hash) {
-			io.Copy(ioutil.Discard, r.Body)
-			w.WriteHeader(http.StatusOK)
+			h.discardUpload(w, r.Body)
+			return
+		}
+		uploadMux := h.startUpload(hash)
+		uploadMux.Lock()
+		defer h.stopUpload(hash)
+		defer uploadMux.Unlock()
+		if h.cache.ContainsFile(hash) {
+			h.discardUpload(w, r.Body)
 			return
 		}
 		if !h.ensureSpacer.EnsureSpace(h.cache, r.ContentLength) {
-			http.Error(w, "Cache full.", http.StatusInsufficientStorage)
+			http.Error(w, "The disk is full. File could not be uploaded.",
+				http.StatusInsufficientStorage)
 			return
 		}
 		written, err := h.saveToDisk(r.Body, hash, verifyHash)
@@ -116,6 +127,29 @@ func (h *httpCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		msg := fmt.Sprintf("Method '%s' not supported.", m)
 		http.Error(w, msg, http.StatusMethodNotAllowed)
 	}
+}
+
+func (h *httpCache) startUpload(hash string) *sync.Mutex {
+	h.ongoingUploadsMux.Lock()
+	defer h.ongoingUploadsMux.Unlock()
+	mux, ok := h.ongoingUploads[hash]
+	if !ok {
+		mux = &sync.Mutex{}
+		h.ongoingUploads[hash] = mux
+		return mux
+	}
+	return mux
+}
+
+func (h *httpCache) stopUpload(hash string) {
+	h.ongoingUploadsMux.Lock()
+	defer h.ongoingUploadsMux.Unlock()
+	delete(h.ongoingUploads, hash)
+}
+
+func (h *httpCache) discardUpload(w http.ResponseWriter, r io.Reader) {
+	io.Copy(ioutil.Discard, r)
+	w.WriteHeader(http.StatusOK)
 }
 
 func parseURL(url string) ([]string, error) {
