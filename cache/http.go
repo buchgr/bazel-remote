@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"io/ioutil"
 	"log"
@@ -124,7 +125,7 @@ func (h *httpCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(http.StatusOK)
 	default:
-		msg := fmt.Sprintf("Method '%s' not supported.", m)
+		msg := fmt.Sprintf("Method '%s' not supported.", html.EscapeString(m))
 		http.Error(w, msg, http.StatusMethodNotAllowed)
 	}
 }
@@ -156,7 +157,7 @@ func parseURL(url string) ([]string, error) {
 	m := blobNameSHA256.FindStringSubmatch(url)
 	if m == nil {
 		msg := fmt.Sprintf("Resource name must be a SHA256 hash in hex. "+
-			"Got '%s'.", url)
+			"Got '%s'.", html.EscapeString(url))
 		return nil, errors.New(msg)
 	}
 	return m[1:], nil
@@ -175,7 +176,7 @@ func (h *httpCache) saveToDisk(content io.Reader, hash string, verifyHash bool) 
 		if hash != actualHash {
 			os.Remove(tmpName)
 			msg := fmt.Sprintf("Hashes don't match. Provided '%s', Actual '%s'.",
-				hash, actualHash)
+				hash, html.EscapeString(actualHash))
 			return 0, errors.New(msg)
 		}
 	} else {
