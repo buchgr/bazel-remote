@@ -1,10 +1,6 @@
 package cache
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
-	"io/ioutil"
 	"os"
 	"testing"
 )
@@ -38,12 +34,7 @@ func TestEnsureSpacePurging(t *testing.T) {
 
 	c := NewCache(cacheDir, 100)
 	for i := 0; i < 9; i++ {
-		data := make([]byte, 10)
-		rand.Read(data)
-		filename := hex.EncodeToString(sha256.New().Sum(data))
-		filepath := cacheDir + "/" + filename
-
-		ioutil.WriteFile(filepath, data, 0744)
+		filename := createRandomFile(cacheDir, 10)
 		c.AddFile(filename, 10)
 	}
 
@@ -83,12 +74,4 @@ func TestEnsureSpacePurging(t *testing.T) {
 			"expected", 50,
 			"got", actualCacheSize)
 	}
-}
-
-func createTmpDir(t *testing.T) string {
-	path, err := ioutil.TempDir("", "ensurespacer")
-	if err != nil {
-		t.Error("Couldn't create tmp dir", err)
-	}
-	return path
 }

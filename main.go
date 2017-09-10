@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+	"log"
+	"net/http"
 	"strconv"
 
 	"github.com/buchgr/bazel-remote/cache"
@@ -21,6 +23,10 @@ func main() {
 	}
 
 	e := cache.NewEnsureSpacer(0.8, 0.5)
-	h := cache.NewHTTPCache(":"+strconv.Itoa(*port), *dir, *maxSize*1024*1024*1024, e)
-	h.Serve()
+	h := cache.NewHTTPCache(*dir, *maxSize*1024*1024*1024, e)
+	s := &http.Server{
+		Addr:    ":" + strconv.Itoa(*port),
+		Handler: http.HandlerFunc(h.CacheHandler),
+	}
+	log.Fatal(s.ListenAndServe())
 }

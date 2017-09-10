@@ -20,11 +20,10 @@ var blobNameSHA256 = regexp.MustCompile("^/?(ac/|cas/)?([a-f0-9]{64})$")
 
 // HTTPCache ...
 type HTTPCache interface {
-	Serve()
+	CacheHandler(w http.ResponseWriter, r *http.Request)
 }
 
 type httpCache struct {
-	addr              string
 	cache             Cache
 	ensureSpacer      EnsureSpacer
 	ongoingUploads    map[string]*sync.Mutex
@@ -32,20 +31,11 @@ type httpCache struct {
 }
 
 // NewHTTPCache ...
-func NewHTTPCache(listenAddr string, cacheDir string, maxBytes int64, ensureSpacer EnsureSpacer) HTTPCache {
+func NewHTTPCache(cacheDir string, maxBytes int64, ensureSpacer EnsureSpacer) HTTPCache {
 	ensureCacheDir(cacheDir)
 	cache := NewCache(cacheDir, maxBytes)
 	loadFilesIntoCache(cache)
-	return &httpCache{listenAddr, cache, ensureSpacer, make(map[string]*sync.Mutex), &sync.Mutex{}}
-}
-
-// Serve ...
-func (h *httpCache) Serve() {
-	s := &http.Server{
-		Addr:    h.addr,
-		Handler: h,
-	}
-	log.Fatal(s.ListenAndServe())
+	return &httpCache{cache, ensureSpacer, make(map[string]*sync.Mutex), &sync.Mutex{}}
 }
 
 func ensureCacheDir(path string) {
@@ -68,7 +58,7 @@ func loadFilesIntoCache(cache Cache) {
 	})
 }
 
-func (h *httpCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	parts, err := parseURL(r.URL.Path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
