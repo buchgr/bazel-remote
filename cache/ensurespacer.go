@@ -74,10 +74,17 @@ func (e *ensureSpacer) purge(cache Cache, deltaBytes int64) int64 {
 	var purgedBytes int64
 	for _, fileinfo := range files {
 		name := fileinfo.Name()
+
+		// Ignore any files that the cache does not know about. These are most
+		// likely ongoing uploads.
+		if !cache.ContainsFile(name) {
+			continue
+		}
+
 		path := fmt.Sprintf("%s%c%s", cache.Dir(), os.PathSeparator, name)
 		err := os.Remove(path)
 		if err == nil {
-			cache.RemoveFile(filepath.Base(name))
+			purgedBytes += cache.RemoveFile(filepath.Base(name))
 		} else {
 			log.Print(err)
 		}

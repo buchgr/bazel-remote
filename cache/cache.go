@@ -10,7 +10,7 @@ type Cache interface {
 	CurrSize() int64
 	MaxSize() int64
 	AddFile(hash string, size int64)
-	RemoveFile(hash string)
+	RemoveFile(hash string) int64
 	ContainsFile(hash string) bool
 }
 
@@ -46,11 +46,13 @@ func (c *cache) AddFile(hash string, size int64) {
 	}
 }
 
-func (c *cache) RemoveFile(hash string) {
+func (c *cache) RemoveFile(hash string) int64 {
 	c.mux.Lock()
 	defer c.mux.Unlock()
-	c.currSize -= c.files[hash]
+	size := c.files[hash]
+	c.currSize -= size
 	delete(c.files, hash)
+	return size
 }
 
 func (c *cache) ContainsFile(hash string) bool {
