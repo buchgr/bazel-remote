@@ -80,6 +80,7 @@ func (h *httpCache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 1 {
 		// For backwards compatibiliy with older Bazel version's that don't
 		// support {cas,actioncache} prefixes.
+		// TODO: Remove once Bazel 0.6 was released.
 		verifyHash = false
 		hash = parts[0]
 	} else {
