@@ -116,3 +116,37 @@ func TestUploadFilesConcurrently(t *testing.T) {
 			totalSize)
 	}
 }
+
+func TestUploadSameFileConcurrently(t *testing.T) {
+	cacheDir := createTmpDir(t)
+	defer os.RemoveAll(cacheDir)
+
+	data, hash := randomDataAndHash(1024)
+	r, err := http.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(data))
+	if err != nil {
+		t.Error(err)
+	}
+
+	e := NewEnsureSpacer(1, 1)
+	h := NewHTTPCache(cacheDir, 1024, e)
+	handler := http.HandlerFunc(h.CacheHandler)
+
+	var wg sync.WaitGroup
+	wg.Add(100)
+	for i := 0; i < 100; i++ {
+		go func(request *http.Request) {
+			defer wg.Done()
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, request)
+
+			if status := rr.Code; status != http.StatusOK {
+				t.Error("Handler returned wrong status code",
+					"expected", http.StatusOK,
+					"got", status,
+				)
+			}
+		}(r)
+	}
+
+	wg.Wait()
+}
