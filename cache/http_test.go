@@ -57,7 +57,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 	cacheDir := createTmpDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	const NumUploads = 10000
+	const NumUploads = 1000
 
 	var requests [NumUploads]*http.Request
 	for i := 0; i < NumUploads; i++ {
