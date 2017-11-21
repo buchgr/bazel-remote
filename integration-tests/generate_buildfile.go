@@ -18,15 +18,15 @@ func main() {
 genrule(
 	name = "target_%d",
 	outs = ["target_%d.out"],
-	cmd = "dd if=/dev/urandom of=$@ bs=10240 count=%d",
+	cmd = "dd if=/dev/zero of=$@ bs=10240 count=%d",
 )
 `
 
 	var buffer bytes.Buffer
 	shuffled := rand.Perm(numTargets)
-	for _, num := range shuffled {
+	for i, num := range shuffled {
 		num++
-		genrule := fmt.Sprintf(GenruleTemplate, num, num, num)
+		genrule := fmt.Sprintf(GenruleTemplate, i, i, num)
 		buffer.WriteString(genrule)
 	}
 	err := ioutil.WriteFile("BUILD", buffer.Bytes(), 0666)
