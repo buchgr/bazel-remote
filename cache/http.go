@@ -16,7 +16,7 @@ import (
 	"sync"
 )
 
-var blobNameSHA256 = regexp.MustCompile("^/?(ac/|cas/)?([a-f0-9]{64})$")
+var blobNameSHA256 = regexp.MustCompile("^/?(ac/|cas/)([a-f0-9]{64})$")
 
 // HTTPCache ...
 type HTTPCache interface {
@@ -64,19 +64,15 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	var hash string
-	var verifyHash bool
-	if len(parts) == 1 {
-		// For backwards compatibiliy with older Bazel version's that don't
-		// support {cas,actioncache} prefixes.
-		// TODO: Remove once Bazel 0.6 was released.
-		verifyHash = false
-		hash = parts[0]
-	} else {
-		verifyHash = parts[0] == "cas/"
-		hash = parts[1]
+	if len(parts) != 2 {
+		msg := fmt.Sprintf("The path '%s' is invalid. Expected (ac/|cas/)SHA256.",
+			html.EscapeString(r.URL.Path))
+		http.Error(w, msg, http.StatusBadRequest)
+		return
 	}
+
+	verifyHash := parts[0] == "cas/"
+	hash := parts[1]
 
 	switch m := r.Method; m {
 	case http.MethodGet:
