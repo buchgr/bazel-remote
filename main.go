@@ -22,7 +22,7 @@ func main() {
 		return
 	}
 
-	e := cache.NewEnsureSpacer(0.8, 0.5)
+	e := cache.NewEnsureSpacer(0.95, 0.5)
 	h := cache.NewHTTPCache(*dir, *maxSize*1024*1024*1024, e)
 	s := &http.Server{
 		Addr:    ":" + strconv.Itoa(*port),
