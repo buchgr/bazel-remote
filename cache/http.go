@@ -41,7 +41,8 @@ func NewHTTPCache(cacheDir string, maxBytes int64, ensureSpacer EnsureSpacer) HT
 func ensureCacheDir(path string) {
 	d, err := os.Open(path)
 	if err != nil {
-		err := os.MkdirAll(path, os.FileMode(0644))
+		err := os.MkdirAll(path, os.FileMode(0744))
+
 		if err != nil {
 			log.Fatal(err)
 		}

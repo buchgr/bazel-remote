@@ -3,6 +3,11 @@ A remote cache for [Bazel](https://bazel.build) using HTTP/1.1.
 
 The cache contents are stored in a directory on disk. One can specify a maximum cache size and bazel-remote will automatically enforce this limit and clean the cache by deleting files based on their last access time. The cache requires Bazel to use SHA256 as its hash function.
 
+## Build standalone Linux binary
+```
+./build.sh
+```
+
 ## Using bazel-remote
 ```
 Usage of bazel-remote:
@@ -12,6 +17,8 @@ Usage of bazel-remote:
     	The maximum size of the remote cache in GiB (default -1)
   -port int
     	The port the HTTP server listens on (default 8080)
+  -host addr
+      Address to listen. Defaults to empty : listen on all network interfaces. Can be 'localhost' for example if we want to have a local server.
 ```
 
 ## Configuring Bazel
