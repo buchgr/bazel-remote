@@ -21,6 +21,19 @@ Usage of bazel-remote:
       Address to listen. Defaults to empty : listen on all network interfaces. Can be 'localhost' for example if we want to have a local server.
 ```
 
+## Docker Image
+
+You can also run the remote cache by pulling a prebuilt image from DockerHub and starting the docker container with `docker run`. This will start the remote cache on port `9090` with the default maximum cache size of `5 GiB`.
+
+```bash
+$ docker pull buchgr/bazel-remote-cache
+$ docker run -v /path/to/cache/dir:/data -p 9090:8080 buchgr/bazel-remote-cache
+```
+
+Note that you will need to change `/path/to/cache/dir` to a valid directory where the docker container can write to and read from. If you want the docker container to run in the background pass the `-d` flag right after `docker run`.
+
+You can change the maximum cache size by appending the `--max_size=N` flag with `N` being the max. size in Gibibytes.
+
 ## Configuring Bazel
 In order to set up Bazel for remote caching, it needs to be passed some special flags.
 
