@@ -6,8 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/bajacondor/bazel-remote/cache"
-	//"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/cache"
 )
 
 func main() {
