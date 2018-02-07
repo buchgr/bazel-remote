@@ -1,0 +1,3 @@
+[[constraint]]
+  name = "github.com/djherbis/atime"
+  version = "1.0.0"
