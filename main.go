@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-  host := flag.String("host", "", "Host to bind the http server")
+	host := flag.String("host", "", "Host to bind the http server")
 	port := flag.Int("port", 8080, "The port the HTTP server listens on")
 	dir := flag.String("dir", "",
 		"Directory path where to store the cache contents")
