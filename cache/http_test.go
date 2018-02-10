@@ -10,6 +10,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"strings"
 )
 
 func TestDownloadFile(t *testing.T) {
@@ -149,4 +150,60 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestArtifactInfoFromUrl(t *testing.T) {
+	{
+		info, err := artifactInfoFromUrl("invalid/url", "")
+		if info != nil || err == nil {
+			t.Error("Failed to reject an invalid URL")
+		}
+	}
+
+	{
+		info, err := artifactInfoFromUrl(
+			"cas/fec3be77b8aa0d307ed840581ded3d114c86f36d4914c81e33a72877020c0603",
+			"BASEDIR")
+		if err != nil {
+			t.Error("Failed to parse a valid CAS URL")
+		}
+		if !info.verifyHash {
+			t.Error("CAS requests should have verifyHash == true")
+		}
+		if !strings.HasPrefix(info.hash, "fec3") || !strings.HasSuffix(info.hash, "0603") {
+			t.Error("Hash parsed incorrectly")
+		}
+		if !strings.HasPrefix(info.filePath, "BASEDIR/cas/fec3") ||
+			!strings.HasSuffix(info.filePath, "0603") {
+			t.Error("File path constructed incorrectly")
+		}
+	}
+
+	{
+		info, err := artifactInfoFromUrl(
+			"ac/fec3be77b8aa0d307ed840581ded3d114c86f36d4914c81e33a72877020c0603",
+			"BASEDIR")
+		if err != nil {
+			t.Error("Failed to parse a valid AC URL")
+		}
+		if info.verifyHash {
+			t.Error("AC requests should have verifyHash == false")
+		}
+	}
+
+	{
+		info, err := artifactInfoFromUrl(
+			"prefix/ac/fec3be77b8aa0d307ed840581ded3d114c86f36d4914c81e33a72877020c0603",
+			"BASEDIR")
+		if err != nil {
+			t.Error("Failed to parse a valid AC URL with prefix")
+		}
+		if !strings.HasPrefix(info.hash, "fec3") || !strings.HasSuffix(info.hash, "0603") {
+			t.Error("Hash parsed incorrectly")
+		}
+		if !strings.HasPrefix(info.filePath, "BASEDIR/ac/fec3") ||
+			!strings.HasSuffix(info.filePath, "0603") {
+			t.Error("File path constructed incorrectly")
+		}
+	}
 }

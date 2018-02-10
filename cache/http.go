@@ -16,7 +16,7 @@ import (
 	"sync"
 )
 
-var blobNameSHA256 = regexp.MustCompile("^/?(ac/|cas/)([a-f0-9]{64})$")
+var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{64})$")
 
 // HTTPCache ...
 type HTTPCache interface {
@@ -32,22 +32,50 @@ type httpCache struct {
 
 // NewHTTPCache ...
 func NewHTTPCache(cacheDir string, maxBytes int64, ensureSpacer EnsureSpacer) HTTPCache {
-	ensureCacheDir(cacheDir)
+	for _, subdir := range []string{"cas", "ac"} {
+		ensureDirExists(filepath.Join(cacheDir, subdir))
+	}
 	cache := NewCache(cacheDir, maxBytes)
 	loadFilesIntoCache(cache)
 	return &httpCache{cache, ensureSpacer, make(map[string]*sync.Mutex), &sync.Mutex{}}
 }
 
-func ensureCacheDir(path string) {
-	d, err := os.Open(path)
-	if err != nil {
-		err := os.MkdirAll(path, os.FileMode(0744))
+type artifactInfo struct {
+	hash       string
+	filePath   string // Absolute filesystem path
+	verifyHash bool // true for CAS items, false for AC items
+}
 
+// Parse cache artifact information from the request URL
+func artifactInfoFromUrl(url string, baseDir string) (*artifactInfo, error) {
+	m := blobNameSHA256.FindStringSubmatch(url)
+	if m == nil {
+		msg := fmt.Sprintf("Resource name must be a SHA256 hash in hex. "+
+			"Got '%s'.", html.EscapeString(url))
+		return nil, errors.New(msg)
+	}
+
+	parts := m[2:]
+	if len(parts) != 2 {
+		msg := fmt.Sprintf("The path '%s' is invalid. Expected (ac/|cas/)SHA256.",
+			html.EscapeString(url))
+		return nil, errors.New(msg)
+	}
+
+	return &artifactInfo{
+		verifyHash: parts[0] == "cas/",
+		filePath: filepath.Join(baseDir, parts[0], parts[1]),
+		hash: parts[1],
+	}, nil
+}
+
+func ensureDirExists(path string) {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		err = os.MkdirAll(path, os.FileMode(0744))
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
-	d.Close()
 }
 
 func loadFilesIntoCache(cache Cache) {
@@ -60,38 +88,29 @@ func loadFilesIntoCache(cache Cache) {
 }
 
 func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
-	parts, err := parseURL(r.URL.Path)
+	artInfo, err := artifactInfoFromUrl(r.URL.Path, h.cache.Dir())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if len(parts) != 2 {
-		msg := fmt.Sprintf("The path '%s' is invalid. Expected (ac/|cas/)SHA256.",
-			html.EscapeString(r.URL.Path))
-		http.Error(w, msg, http.StatusBadRequest)
-		return
-	}
-
-	verifyHash := parts[0] == "cas/"
-	hash := parts[1]
 
 	switch m := r.Method; m {
 	case http.MethodGet:
-		if !h.cache.ContainsFile(hash) {
+		if !h.cache.ContainsFile(artInfo.filePath) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		http.ServeFile(w, r, h.filePath(hash))
+		http.ServeFile(w, r, artInfo.filePath)
 	case http.MethodPut:
-		if h.cache.ContainsFile(hash) {
+		if h.cache.ContainsFile(artInfo.filePath) {
 			h.discardUpload(w, r.Body)
 			return
 		}
-		uploadMux := h.startUpload(hash)
+		uploadMux := h.startUpload(artInfo.filePath)
 		uploadMux.Lock()
-		defer h.stopUpload(hash)
+		defer h.stopUpload(artInfo.filePath)
 		defer uploadMux.Unlock()
-		if h.cache.ContainsFile(hash) {
+		if h.cache.ContainsFile(artInfo.filePath) {
 			h.discardUpload(w, r.Body)
 			return
 		}
@@ -100,15 +119,15 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 				http.StatusInsufficientStorage)
 			return
 		}
-		written, err := h.saveToDisk(r.Body, hash, verifyHash)
+		written, err := h.saveToDisk(r.Body, *artInfo)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		h.cache.AddFile(hash, written)
+		h.cache.AddFile(artInfo.filePath, written)
 		w.WriteHeader(http.StatusOK)
 	case http.MethodHead:
-		if !h.cache.ContainsFile(hash) {
+		if !h.cache.ContainsFile(artInfo.filePath) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 		}
 		w.WriteHeader(http.StatusOK)
@@ -141,30 +160,20 @@ func (h *httpCache) discardUpload(w http.ResponseWriter, r io.Reader) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func parseURL(url string) ([]string, error) {
-	m := blobNameSHA256.FindStringSubmatch(url)
-	if m == nil {
-		msg := fmt.Sprintf("Resource name must be a SHA256 hash in hex. "+
-			"Got '%s'.", html.EscapeString(url))
-		return nil, errors.New(msg)
-	}
-	return m[1:], nil
-}
-
-func (h *httpCache) saveToDisk(content io.Reader, hash string, verifyHash bool) (written int64, err error) {
+func (h *httpCache) saveToDisk(content io.Reader, info artifactInfo) (written int64, err error) {
 	f, err := ioutil.TempFile(h.cache.Dir(), "upload")
 	if err != nil {
 		return 0, err
 	}
 	tmpName := f.Name()
-	if verifyHash {
+	if info.verifyHash {
 		hasher := sha256.New()
 		written, err = io.Copy(io.MultiWriter(f, hasher), content)
 		actualHash := hex.EncodeToString(hasher.Sum(nil))
-		if hash != actualHash {
+		if info.hash != actualHash {
 			os.Remove(tmpName)
 			msg := fmt.Sprintf("Hashes don't match. Provided '%s', Actual '%s'.",
-				hash, html.EscapeString(actualHash))
+				info.hash, html.EscapeString(actualHash))
 			return 0, errors.New(msg)
 		}
 	} else {
@@ -173,18 +182,19 @@ func (h *httpCache) saveToDisk(content io.Reader, hash string, verifyHash bool) 
 	if err != nil {
 		return 0, err
 	}
+	// Fsync
 	err = f.Sync()
 	if err != nil {
 		log.Fatal(err)
 	}
 	f.Close()
-	err2 := os.Rename(tmpName, h.filePath(hash))
+	// Rename to the final path
+	err2 := os.Rename(tmpName, info.filePath)
 	if err2 != nil {
+		// Last-ditch attempt to delete the temporary file. No need to report
+		// this failure.
+		_ = os.Remove(info.filePath)
 		return 0, err2
 	}
 	return written, nil
-}
-
-func (h httpCache) filePath(hash string) string {
-	return fmt.Sprintf("%s%c%s", h.cache.Dir(), os.PathSeparator, hash)
 }
