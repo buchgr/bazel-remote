@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/buchgr/bazel-remote/cache"
+        auth "github.com/abbot/go-http-auth"
 )
 
 func main() {
@@ -16,13 +17,10 @@ func main() {
 		"Directory path where to store the cache contents")
 	maxSize := flag.Int64("max_size", -1,
 		"The maximum size of the remote cache in GiB")
-	user := flag.String("user", "",
-		"Username for basic authentication")
-	pass := flag.String("pass", "",
-		"Password for basic authentication")
+        htpasswd_file := flag.String("htpasswd_file", "", "Path to a .htpasswd file")
 	flag.Parse()
 
-	if *maxSize <= 0 {
+	if *dir == "" || *maxSize <= 0 {
 		flag.Usage()
 		return
 	}
@@ -31,24 +29,17 @@ func main() {
 	h := cache.NewHTTPCache(*dir, *maxSize*1024*1024*1024, e)
 	s := &http.Server{
 		Addr:    *host + ":" + strconv.Itoa(*port),
-		Handler: http.HandlerFunc(auth(h.CacheHandler, *user, *pass)),
+		Handler: http.HandlerFunc(maybeAuth(h.CacheHandler, *htpasswd_file, *host)),
 	}
 	log.Fatal(s.ListenAndServe())
 }
 
-func auth(fn http.HandlerFunc, eu, ep string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if ep != "" {
-			user, pass, _ := r.BasicAuth()
-			if !check(user, pass, eu, ep) {
-				http.Error(w, "Unauthorized.", 401)
-				return
-			}
-		}
-		fn(w, r)
-	}
+func maybeAuth(fn http.HandlerFunc, htpasswd_file string, host string) http.HandlerFunc {
+       if htpasswd_file != "" {
+         secrets := auth.HtpasswdFileProvider(htpasswd_file)
+         authenticator := auth.NewBasicAuthenticator(host, secrets)
+         return auth.JustCheck(authenticator, fn)
+       }
+       return fn;
 }
 
-func check(u, p, eu, ep string) bool {
-	return u == eu && p == ep
-}
