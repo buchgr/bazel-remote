@@ -1,5 +1,4 @@
-# bazel-remote
-A remote cache for [Bazel](https://bazel.build) using HTTP/1.1.
+# A remote build cache for [Bazel](https://bazel.build) using HTTP/1.1
 
 The cache contents are stored in a directory on disk. One can specify a maximum cache size and bazel-remote will automatically enforce this limit and clean the cache by deleting files based on their last access time. The cache supports HTTP basic authentication with usernames and passwords being specified by a `.htpasswd` file.
 
