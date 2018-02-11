@@ -19,6 +19,10 @@ Usage of bazel-remote:
     	The port the HTTP server listens on (default 8080)
   -host addr
       Address to listen. Defaults to empty : listen on all network interfaces. Can be 'localhost' for example if we want to have a local server.
+  -user string
+      The expected user for basic authentication (default "")
+  -pass string
+      The expected password for basic authentication (default "") If unset, basic authentication is not checked.
 ```
 
 ## Docker Image
@@ -38,13 +42,13 @@ You can change the maximum cache size by appending the `--max_size=N` flag with 
 In order to set up Bazel for remote caching, it needs to be passed some special flags.
 
 ```
-bazel 
-  --host_jvm_args=-Dbazel.DigestFunction=sha256 
+bazel
+  --host_jvm_args=-Dbazel.DigestFunction=sha256
 build
   --spawn_strategy=remote
   --strategy=Javac=remote
   --genrule_strategy=remote
-  --remote_rest_cache=http://<BAZEL-REMOTE-HOST>:<PORT>
+  --remote_rest_cache=http://<[username:password]><BAZEL-REMOTE-HOST>:<PORT>
 //foo:target
 ```
 
