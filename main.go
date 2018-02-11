@@ -11,13 +11,13 @@ import (
 )
 
 func main() {
-	host := flag.String("host", "", "Host to bind the http server")
+	host := flag.String("host", "", "Host to bind the http server. Binds to all interfaces by default.")
 	port := flag.Int("port", 8080, "The port the HTTP server listens on")
 	dir := flag.String("dir", "",
-		"Directory path where to store the cache contents")
+		"Directory path where to store the cache contents. This flag is required.")
 	maxSize := flag.Int64("max_size", -1,
-		"The maximum size of the remote cache in GiB")
-        htpasswd_file := flag.String("htpasswd_file", "", "Path to a .htpasswd file")
+		"The maximum size of the remote cache in GiB. This flag is required.")
+        htpasswd_file := flag.String("htpasswd_file", "", "Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.")
 	flag.Parse()
 
 	if *dir == "" || *maxSize <= 0 {
