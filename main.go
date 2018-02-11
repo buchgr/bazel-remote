@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strconv"
 
+	auth "github.com/abbot/go-http-auth"
 	"github.com/buchgr/bazel-remote/cache"
-        auth "github.com/abbot/go-http-auth"
 )
 
 func main() {
@@ -17,7 +17,7 @@ func main() {
 		"Directory path where to store the cache contents. This flag is required.")
 	maxSize := flag.Int64("max_size", -1,
 		"The maximum size of the remote cache in GiB. This flag is required.")
-        htpasswd_file := flag.String("htpasswd_file", "", "Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.")
+	htpasswd_file := flag.String("htpasswd_file", "", "Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.")
 	flag.Parse()
 
 	if *dir == "" || *maxSize <= 0 {
@@ -35,11 +35,10 @@ func main() {
 }
 
 func maybeAuth(fn http.HandlerFunc, htpasswd_file string, host string) http.HandlerFunc {
-       if htpasswd_file != "" {
-         secrets := auth.HtpasswdFileProvider(htpasswd_file)
-         authenticator := auth.NewBasicAuthenticator(host, secrets)
-         return auth.JustCheck(authenticator, fn)
-       }
-       return fn;
+	if htpasswd_file != "" {
+		secrets := auth.HtpasswdFileProvider(htpasswd_file)
+		authenticator := auth.NewBasicAuthenticator(host, secrets)
+		return auth.JustCheck(authenticator, fn)
+	}
+	return fn
 }
-
