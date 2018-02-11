@@ -5,7 +5,7 @@ The cache contents are stored in a directory on disk. One can specify a maximum 
 
 ## Build a standalone Linux binary
 ```
-./build.sh
+./linux-build.sh
 ```
 
 ## Using bazel-remote
