@@ -24,7 +24,7 @@ Usage of ./bazel-remote:
 
 ## Docker Image
 
-You can also run the remote cache by pulling a prebuilt image from DockerHub and starting the docker container with `docker run`. This will start the remote cache on port `9090` with the default maximum cache size of `5 GiB`.
+You can also run the remote cache by pulling a prebuilt image from [DockerHub](https://hub.docker.com/r/buchgr/bazel-remote-cache/) and starting the docker container with `docker run`. This will start the remote cache on port `9090` with the default maximum cache size of `5 GiB`.
 
 ```bash
 $ docker pull buchgr/bazel-remote-cache
