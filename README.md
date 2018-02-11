@@ -10,19 +10,17 @@ The cache contents are stored in a directory on disk. One can specify a maximum 
 
 ## Using bazel-remote
 ```
-Usage of bazel-remote:
+Usage of ./bazel-remote:
   -dir string
     	Directory path where to store the cache contents. This flag is required.
+  -host string
+    	Address to listen on. Listens on all network interfaces by default.
+  -htpasswd_file string
+    	Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.
   -max_size int
-    	The maximum size of the remote cache in GiB. There's no limit by default.
+    	The maximum size of the remote cache in GiB. This flag is required. (default -1)
   -port int
-    	The port the HTTP server listens on. Defaults to 8080.
-  -host addr
-      Address to listen on. Listens on all network interfaces by default.
-  -user string
-      The expected user for basic authentication. Disabled by default.
-  -pass string
-      The expected password for basic authentication. Disabled by default.
+    	The port the HTTP server listens on (default 8080)
 ```
 
 ## Docker Image

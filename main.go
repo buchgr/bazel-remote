@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	host := flag.String("host", "", "Host to bind the http server. Binds to all interfaces by default.")
+	host := flag.String("host", "", "Address to listen on. Listens on all network interfaces by default.")
 	port := flag.Int("port", 8080, "The port the HTTP server listens on")
 	dir := flag.String("dir", "",
 		"Directory path where to store the cache contents. This flag is required.")
