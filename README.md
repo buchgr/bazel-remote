@@ -35,6 +35,16 @@ Note that you will need to change `/path/to/cache/dir` to a valid directory wher
 
 You can change the maximum cache size by appending the `--max_size=N` flag with `N` being the max. size in Gibibytes.
 
+### Authentication
+
+In order to pass a `.htpasswd` file to the cache inside a docker container, you first need to mount the file in the container and pass the path to the cache. For example:
+
+```bash
+$ docker run -v /path/to/cache/dir:/data \
+-v /path/to/htpasswd:/etc/bazel-remote/htpasswd \
+-p 9090:8080 buchgr/bazel-remote-cache --htpasswd_file /etc/bazel-remote/htpasswd --max_size=5
+```
+
 ## Configuring Bazel
 
 Please take a look at Bazel's documentation section on [remote caching](https://docs.bazel.build/versions/master/remote-caching.html#run-bazel-using-the-remote-cache)
