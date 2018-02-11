@@ -2,14 +2,35 @@
 
 
 [[projects]]
+  name = "github.com/abbot/go-http-auth"
+  packages = ["."]
+  revision = "0ddd408d5d60ea76e320503cc7dd091992dee608"
+  version = "v0.4.0"
+
+[[projects]]
   name = "github.com/djherbis/atime"
   packages = ["."]
   revision = "8e47e0e01d08df8b9f840d74299c8ab70a024a30"
   version = "v1.0.0"
 
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/crypto"
+  packages = [
+    "bcrypt",
+    "blowfish"
+  ]
+  revision = "5119cf507ed5294cc409c092980c7497ee5d6fd2"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/net"
+  packages = ["context"]
+  revision = "f5dfe339be1d06f81b22525fe34671ee7d2c8904"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a48601b8dae0efdaf0e3733b8d9c15b462b4976fedc09d3f3e7e159331ebf6cc"
+  inputs-digest = "95b67ee97d6a8ef6bd7053b661cddb720818b6c7817e932dd271b37e83e4b900"
   solver-name = "gps-cdcl"
   solver-version = 1
