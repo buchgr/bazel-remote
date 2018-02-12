@@ -17,11 +17,11 @@ Usage of ./bazel-remote:
   -htpasswd_file string
     	Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.
   -tls_enabled bool
-    	Bool specifying wheather or not to start the server with tls.  If true, default port changes to 8443, and server_cert and server_key flags are requred.
-  -server_cert string
-    	Path to a pem encoded certificate file.  Required if tls_enabled is set to true.
-  -server_key string
-    	Path to a pem encoded key file.  Required if tls_enabled is set to true.
+    	Bool specifying wheather or not to start the server with tls.  If true, tls_cert_file and tls_key_file flags are required.
+  -tls_cert_file string
+    	Path to a PEM encoded certificate file.  Required if tls_enabled is set to true.
+  -tls_key_file string
+    	Path to a PEM encoded key file.  Required if tls_enabled is set to true.
   -max_size int
     	The maximum size of the remote cache in GiB. This flag is required. (default -1)
   -port int
@@ -51,7 +51,7 @@ $ docker run -v /path/to/cache/dir:/data \
 -v /path/to/server_cert:/etc/bazel-remote/server_cert \
 -v /path/to/server_key:/etc/bazel-remote/server_key \
 -p 9090:8080 buchgr/bazel-remote-cache --tls_enabled=true \
---server_cert=/etc/bazel-remote/server_cert --server_key=/etc/bazel-remote/server_key \
+--tls_cert_file=/etc/bazel-remote/server_cert --tls_key_file=/etc/bazel-remote/server_key \
 --htpasswd_file /etc/bazel-remote/htpasswd --max_size=5
 ```
 
