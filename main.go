@@ -18,9 +18,9 @@ func main() {
 	maxSize := flag.Int64("max_size", -1,
 		"The maximum size of the remote cache in GiB. This flag is required.")
 	htpasswd_file := flag.String("htpasswd_file", "", "Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.")
-	tls_enabled := flag.Bool("tls_enabled", false, "Bool specifying wheather or not to start the server with tls.  If true, default port changes to 8443, and server_cert and server_key flags are requred.")
-	server_cert := flag.String("server_cert", "", "Path to a pem encoded certificate file.  Required if tls_enabled is set to true.")
-	server_key := flag.String("server_key", "", "Path to a pem encoded key file.  Required if tls_enabled is set to true.")
+	tls_enabled := flag.Bool("tls_enabled", false, "Bool specifying wheather or not to start the server with tls.  If true, server_cert and server_key flags are requred.")
+	tls_cert_file := flag.String("tls_cert_file", "", "Path to a PEM encoded certificate file.  Required if tls_enabled is set to true.")
+	tls_key_file := flag.String("tls_key_file", "", "Path to a PEM encoded key file.  Required if tls_enabled is set to true.")
 
 	flag.Parse()
 
@@ -36,14 +36,11 @@ func main() {
 	var serverErr error
 
 	if *tls_enabled {
-		if len(*server_cert) < 1 || len(*server_key) < 1 {
+		if len(*tls_cert_file) < 1 || len(*tls_key_file) < 1 {
 			flag.Usage()
 			return
 		}
-		if *port == 8080 {
-			*port = 8443
-		}
-		serverErr = http.ListenAndServeTLS(*host+":"+strconv.Itoa(*port), *server_cert, *server_key, nil)
+		serverErr = http.ListenAndServeTLS(*host+":"+strconv.Itoa(*port), *tls_cert_file, *tls_key_file, nil)
 	} else {
 		serverErr = http.ListenAndServe(*host+":"+strconv.Itoa(*port), nil)
 	}
