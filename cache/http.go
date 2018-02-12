@@ -32,18 +32,17 @@ type httpCache struct {
 
 // NewHTTPCache ...
 func NewHTTPCache(cacheDir string, maxBytes int64, ensureSpacer EnsureSpacer) HTTPCache {
-	for _, subdir := range []string{"cas", "ac"} {
-		ensureDirExists(filepath.Join(cacheDir, subdir))
-	}
+	ensureDirExists(filepath.Join(cacheDir, "ac"))
+	ensureDirExists(filepath.Join(cacheDir, "cas"))
 	cache := NewCache(cacheDir, maxBytes)
 	loadFilesIntoCache(cache)
 	return &httpCache{cache, ensureSpacer, make(map[string]*sync.Mutex), &sync.Mutex{}}
 }
 
 type artifactInfo struct {
-	hash       string
-	filePath   string // Absolute filesystem path
-	verifyHash bool // true for CAS items, false for AC items
+	hash        string
+	absFilePath string // Absolute filesystem path
+	verifyHash  bool   // true for CAS items, false for AC items
 }
 
 // Parse cache artifact information from the request URL
@@ -63,9 +62,9 @@ func artifactInfoFromUrl(url string, baseDir string) (*artifactInfo, error) {
 	}
 
 	return &artifactInfo{
-		verifyHash: parts[0] == "cas/",
-		filePath: filepath.Join(baseDir, parts[0], parts[1]),
-		hash: parts[1],
+		verifyHash:  parts[0] == "cas/",
+		absFilePath: filepath.Join(baseDir, parts[0], parts[1]),
+		hash:        parts[1],
 	}, nil
 }
 
@@ -96,21 +95,21 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch m := r.Method; m {
 	case http.MethodGet:
-		if !h.cache.ContainsFile(artInfo.filePath) {
+		if !h.cache.ContainsFile(artInfo.absFilePath) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		http.ServeFile(w, r, artInfo.filePath)
+		http.ServeFile(w, r, artInfo.absFilePath)
 	case http.MethodPut:
-		if h.cache.ContainsFile(artInfo.filePath) {
+		if h.cache.ContainsFile(artInfo.absFilePath) {
 			h.discardUpload(w, r.Body)
 			return
 		}
-		uploadMux := h.startUpload(artInfo.filePath)
+		uploadMux := h.startUpload(artInfo.absFilePath)
 		uploadMux.Lock()
-		defer h.stopUpload(artInfo.filePath)
+		defer h.stopUpload(artInfo.absFilePath)
 		defer uploadMux.Unlock()
-		if h.cache.ContainsFile(artInfo.filePath) {
+		if h.cache.ContainsFile(artInfo.absFilePath) {
 			h.discardUpload(w, r.Body)
 			return
 		}
@@ -124,10 +123,10 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		h.cache.AddFile(artInfo.filePath, written)
+		h.cache.AddFile(artInfo.absFilePath, written)
 		w.WriteHeader(http.StatusOK)
 	case http.MethodHead:
-		if !h.cache.ContainsFile(artInfo.filePath) {
+		if !h.cache.ContainsFile(artInfo.absFilePath) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 		}
 		w.WriteHeader(http.StatusOK)
@@ -182,18 +181,23 @@ func (h *httpCache) saveToDisk(content io.Reader, info artifactInfo) (written in
 	if err != nil {
 		return 0, err
 	}
-	// Fsync
+
 	err = f.Sync()
 	if err != nil {
 		log.Fatal(err)
 	}
 	f.Close()
+
 	// Rename to the final path
-	err2 := os.Rename(tmpName, info.filePath)
+	err2 := os.Rename(tmpName, info.absFilePath)
 	if err2 != nil {
+		log.Printf("Failed renaming %s to its final destination %s: %v", tmpName, info.absFilePath, err2)
 		// Last-ditch attempt to delete the temporary file. No need to report
 		// this failure.
-		_ = os.Remove(info.filePath)
+		err := os.Remove(info.absFilePath)
+		if err != nil {
+			log.Printf("Failed cleaning up %s after a failure to rename it to its final destination: %v", tmpName, err)
+		}
 		return 0, err2
 	}
 	return written, nil

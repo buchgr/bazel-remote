@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
-	"strings"
 )
 
 func TestDownloadFile(t *testing.T) {
@@ -160,49 +160,47 @@ func TestArtifactInfoFromUrl(t *testing.T) {
 		}
 	}
 
+	const aSha256sum = "fec3be77b8aa0d307ed840581ded3d114c86f36d4914c81e33a72877020c0603"
+	const aBaseDir = "/cachedir"
+
 	{
-		info, err := artifactInfoFromUrl(
-			"cas/fec3be77b8aa0d307ed840581ded3d114c86f36d4914c81e33a72877020c0603",
-			"BASEDIR")
+		info, err := artifactInfoFromUrl("cas/"+aSha256sum, aBaseDir)
 		if err != nil {
 			t.Error("Failed to parse a valid CAS URL")
 		}
 		if !info.verifyHash {
 			t.Error("CAS requests should have verifyHash == true")
 		}
-		if !strings.HasPrefix(info.hash, "fec3") || !strings.HasSuffix(info.hash, "0603") {
+		if info.hash != aSha256sum {
 			t.Error("Hash parsed incorrectly")
 		}
-		if !strings.HasPrefix(info.filePath, "BASEDIR/cas/fec3") ||
-			!strings.HasSuffix(info.filePath, "0603") {
+		if info.absFilePath != filepath.Join(aBaseDir, "cas", aSha256sum) {
 			t.Error("File path constructed incorrectly")
 		}
 	}
 
 	{
-		info, err := artifactInfoFromUrl(
-			"ac/fec3be77b8aa0d307ed840581ded3d114c86f36d4914c81e33a72877020c0603",
-			"BASEDIR")
+		info, err := artifactInfoFromUrl("ac/"+aSha256sum, aBaseDir)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL")
 		}
 		if info.verifyHash {
 			t.Error("AC requests should have verifyHash == false")
 		}
+		if info.hash != aSha256sum {
+			t.Error("Has parsed incorrectly")
+		}
 	}
 
 	{
-		info, err := artifactInfoFromUrl(
-			"prefix/ac/fec3be77b8aa0d307ed840581ded3d114c86f36d4914c81e33a72877020c0603",
-			"BASEDIR")
+		info, err := artifactInfoFromUrl("prefix/ac/"+aSha256sum, aBaseDir)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL with prefix")
 		}
-		if !strings.HasPrefix(info.hash, "fec3") || !strings.HasSuffix(info.hash, "0603") {
+		if info.hash != aSha256sum {
 			t.Error("Hash parsed incorrectly")
 		}
-		if !strings.HasPrefix(info.filePath, "BASEDIR/ac/fec3") ||
-			!strings.HasSuffix(info.filePath, "0603") {
+		if info.absFilePath != filepath.Join(aBaseDir, "ac", aSha256sum) {
 			t.Error("File path constructed incorrectly")
 		}
 	}
