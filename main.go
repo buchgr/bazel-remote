@@ -20,7 +20,7 @@ func main() {
 	htpasswd_file := flag.String("htpasswd_file", "", "Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.")
 	tls_enabled := flag.Bool("tls_enabled", false, "Bool specifying wheather or not to start the server with tls.  If true, default port changes to 8443, and server_cert and server_key flags are requred.")
 	server_cert := flag.String("server_cert", "", "Path to a pem encoded certificate file.  Required if tls_enabled is set to true.")
-	server_key := flag.String("server_key", "", "Path to a pem encoded key file.  Requred if tls_enabled is set to true.")
+	server_key := flag.String("server_key", "", "Path to a pem encoded key file.  Required if tls_enabled is set to true.")
 
 	flag.Parse()
 
