@@ -60,6 +60,8 @@ func loadFilesIntoCache(cache Cache) {
 }
 
 func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	
 	parts, err := parseURL(r.URL.Path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
