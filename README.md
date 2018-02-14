@@ -16,6 +16,12 @@ Usage of ./bazel-remote:
     	Address to listen on. Listens on all network interfaces by default.
   -htpasswd_file string
     	Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.
+  -tls_enabled bool
+    	Bool specifying wheather or not to start the server with tls.  If true, tls_cert_file and tls_key_file flags are required.
+  -tls_cert_file string
+    	Path to a PEM encoded certificate file.  Required if tls_enabled is set to true.
+  -tls_key_file string
+    	Path to a PEM encoded key file.  Required if tls_enabled is set to true.
   -max_size int
     	The maximum size of the remote cache in GiB. This flag is required. (default -1)
   -port int
@@ -37,15 +43,18 @@ You can change the maximum cache size by appending the `--max_size=N` flag with 
 
 ### Authentication
 
-In order to pass a `.htpasswd` file to the cache inside a docker container, you first need to mount the file in the container and pass the path to the cache. For example:
+In order to pass a `.htpasswd` and/or server key file(s) to the cache inside a docker container, you first need to mount the file in the container and pass the path to the cache. For example:
 
 ```bash
 $ docker run -v /path/to/cache/dir:/data \
 -v /path/to/htpasswd:/etc/bazel-remote/htpasswd \
--p 9090:8080 buchgr/bazel-remote-cache --htpasswd_file /etc/bazel-remote/htpasswd --max_size=5
+-v /path/to/server_cert:/etc/bazel-remote/server_cert \
+-v /path/to/server_key:/etc/bazel-remote/server_key \
+-p 9090:8080 buchgr/bazel-remote-cache --tls_enabled=true \
+--tls_cert_file=/etc/bazel-remote/server_cert --tls_key_file=/etc/bazel-remote/server_key \
+--htpasswd_file /etc/bazel-remote/htpasswd --max_size=5
 ```
 
 ## Configuring Bazel
 
 Please take a look at Bazel's documentation section on [remote caching](https://docs.bazel.build/versions/master/remote-caching.html#run-bazel-using-the-remote-cache)
-
