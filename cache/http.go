@@ -39,14 +39,14 @@ func NewHTTPCache(cacheDir string, maxBytes int64, ensureSpacer EnsureSpacer) HT
 	return &httpCache{cache, ensureSpacer, make(map[string]*sync.Mutex), &sync.Mutex{}}
 }
 
-type artifactInfo struct {
+type cacheItem struct {
 	hash        string
 	absFilePath string // Absolute filesystem path
 	verifyHash  bool   // true for CAS items, false for AC items
 }
 
 // Parse cache artifact information from the request URL
-func artifactInfoFromUrl(url string, baseDir string) (*artifactInfo, error) {
+func cacheItemFromRequestPath(url string, baseDir string) (*cacheItem, error) {
 	m := blobNameSHA256.FindStringSubmatch(url)
 	if m == nil {
 		msg := fmt.Sprintf("Resource name must be a SHA256 hash in hex. "+
@@ -61,7 +61,7 @@ func artifactInfoFromUrl(url string, baseDir string) (*artifactInfo, error) {
 		return nil, errors.New(msg)
 	}
 
-	return &artifactInfo{
+	return &cacheItem{
 		verifyHash:  parts[0] == "cas/",
 		absFilePath: filepath.Join(baseDir, parts[0], parts[1]),
 		hash:        parts[1],
@@ -80,14 +80,16 @@ func ensureDirExists(path string) {
 func loadFilesIntoCache(cache Cache) {
 	filepath.Walk(cache.Dir(), func(name string, info os.FileInfo, err error) error {
 		if !info.IsDir() {
-			cache.AddFile(filepath.Base(name), info.Size())
+			cache.AddFile(name, info.Size())
 		}
 		return nil
 	})
 }
 
 func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
-	artInfo, err := artifactInfoFromUrl(r.URL.Path, h.cache.Dir())
+	defer r.Body.Close()
+
+	cacheItem, err := cacheItemFromRequestPath(r.URL.Path, h.cache.Dir())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -95,21 +97,21 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch m := r.Method; m {
 	case http.MethodGet:
-		if !h.cache.ContainsFile(artInfo.absFilePath) {
+		if !h.cache.ContainsFile(cacheItem.absFilePath) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		http.ServeFile(w, r, artInfo.absFilePath)
+		http.ServeFile(w, r, cacheItem.absFilePath)
 	case http.MethodPut:
-		if h.cache.ContainsFile(artInfo.absFilePath) {
+		if h.cache.ContainsFile(cacheItem.absFilePath) {
 			h.discardUpload(w, r.Body)
 			return
 		}
-		uploadMux := h.startUpload(artInfo.absFilePath)
+		uploadMux := h.startUpload(cacheItem.absFilePath)
 		uploadMux.Lock()
-		defer h.stopUpload(artInfo.absFilePath)
+		defer h.stopUpload(cacheItem.absFilePath)
 		defer uploadMux.Unlock()
-		if h.cache.ContainsFile(artInfo.absFilePath) {
+		if h.cache.ContainsFile(cacheItem.absFilePath) {
 			h.discardUpload(w, r.Body)
 			return
 		}
@@ -118,15 +120,15 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 				http.StatusInsufficientStorage)
 			return
 		}
-		written, err := h.saveToDisk(r.Body, *artInfo)
+		written, err := h.saveToDisk(r.Body, *cacheItem)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		h.cache.AddFile(artInfo.absFilePath, written)
+		h.cache.AddFile(cacheItem.absFilePath, written)
 		w.WriteHeader(http.StatusOK)
 	case http.MethodHead:
-		if !h.cache.ContainsFile(artInfo.absFilePath) {
+		if !h.cache.ContainsFile(cacheItem.absFilePath) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 		}
 		w.WriteHeader(http.StatusOK)
@@ -159,7 +161,7 @@ func (h *httpCache) discardUpload(w http.ResponseWriter, r io.Reader) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *httpCache) saveToDisk(content io.Reader, info artifactInfo) (written int64, err error) {
+func (h *httpCache) saveToDisk(content io.Reader, info cacheItem) (written int64, err error) {
 	f, err := ioutil.TempFile(h.cache.Dir(), "upload")
 	if err != nil {
 		return 0, err

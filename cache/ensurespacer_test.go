@@ -6,7 +6,7 @@ import (
 )
 
 func TestEnsureSpaceBasics(t *testing.T) {
-	cacheDir := createTmpDir(t)
+	cacheDir := createTmpCacheDirs(t)
 	defer os.RemoveAll(cacheDir)
 
 	e := NewEnsureSpacer(0.9, 0.5)
@@ -29,12 +29,15 @@ func TestEnsureSpaceBasics(t *testing.T) {
 }
 
 func TestEnsureSpacePurging(t *testing.T) {
-	cacheDir := createTmpDir(t)
+	cacheDir := createTmpCacheDirs(t)
 	defer os.RemoveAll(cacheDir)
 
 	c := NewCache(cacheDir, 100)
 	for i := 0; i < 9; i++ {
-		filename := createRandomFile(cacheDir, 10)
+		filename, err := createRandomFile(cacheDir, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
 		c.AddFile(filename, 10)
 	}
 
@@ -56,9 +59,16 @@ func TestEnsureSpacePurging(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	files, err := fd.Readdir(-1)
+	dirEntries, err := fd.Readdir(-1)
 	if err != nil {
 		t.Error(err)
+	}
+
+	files := []os.FileInfo{}
+	for _, entry := range dirEntries {
+		if !entry.IsDir() {
+			files = append(files, entry)
+		}
 	}
 
 	actualNumFiles := len(files)

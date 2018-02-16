@@ -14,15 +14,18 @@ import (
 )
 
 func TestDownloadFile(t *testing.T) {
-	cacheDir := createTmpDir(t)
+	cacheDir := createTmpCacheDirs(t)
 	defer os.RemoveAll(cacheDir)
 
-	hash := createRandomFile(cacheDir, 1024)
+	hash, err := createRandomFile(filepath.Join(cacheDir, "cas"), 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	e := NewEnsureSpacer(1, 1)
 	h := NewHTTPCache(cacheDir, 1024, e)
 
-	req, err := http.NewRequest("GET", "/cas/"+hash, nil)
+	req, err := http.NewRequest("GET", "/cas/"+hash, bytes.NewReader([]byte{}))
 	if err != nil {
 		t.Error(err)
 	}
@@ -55,7 +58,7 @@ func TestDownloadFile(t *testing.T) {
 }
 
 func TestUploadFilesConcurrently(t *testing.T) {
-	cacheDir := createTmpDir(t)
+	cacheDir := createTmpCacheDirs(t)
 	defer os.RemoveAll(cacheDir)
 
 	const NumUploads = 1000
@@ -104,11 +107,13 @@ func TestUploadFilesConcurrently(t *testing.T) {
 	}
 	var totalSize int64
 	for _, fileinfo := range files {
-		size := fileinfo.Size()
-		if size != 1024 {
-			t.Error("Expected all files to be 1024 bytes.", "Got", size)
+		if !fileinfo.IsDir() {
+			size := fileinfo.Size()
+			if size != 1024 {
+				t.Error("Expected all files to be 1024 bytes.", "Got", size)
+			}
+			totalSize += fileinfo.Size()
 		}
-		totalSize += fileinfo.Size()
 	}
 
 	// Test that purging worked and kept cache size in check.
@@ -119,7 +124,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 }
 
 func TestUploadSameFileConcurrently(t *testing.T) {
-	cacheDir := createTmpDir(t)
+	cacheDir := createTmpCacheDirs(t)
 	defer os.RemoveAll(cacheDir)
 
 	data, hash := randomDataAndHash(1024)
@@ -154,7 +159,7 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 
 func TestArtifactInfoFromUrl(t *testing.T) {
 	{
-		info, err := artifactInfoFromUrl("invalid/url", "")
+		info, err := cacheItemFromRequestPath("invalid/url", "")
 		if info != nil || err == nil {
 			t.Error("Failed to reject an invalid URL")
 		}
@@ -164,7 +169,7 @@ func TestArtifactInfoFromUrl(t *testing.T) {
 	const aBaseDir = "/cachedir"
 
 	{
-		info, err := artifactInfoFromUrl("cas/"+aSha256sum, aBaseDir)
+		info, err := cacheItemFromRequestPath("cas/"+aSha256sum, aBaseDir)
 		if err != nil {
 			t.Error("Failed to parse a valid CAS URL")
 		}
@@ -180,7 +185,7 @@ func TestArtifactInfoFromUrl(t *testing.T) {
 	}
 
 	{
-		info, err := artifactInfoFromUrl("ac/"+aSha256sum, aBaseDir)
+		info, err := cacheItemFromRequestPath("ac/"+aSha256sum, aBaseDir)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL")
 		}
@@ -193,7 +198,7 @@ func TestArtifactInfoFromUrl(t *testing.T) {
 	}
 
 	{
-		info, err := artifactInfoFromUrl("prefix/ac/"+aSha256sum, aBaseDir)
+		info, err := cacheItemFromRequestPath("prefix/ac/"+aSha256sum, aBaseDir)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL with prefix")
 		}

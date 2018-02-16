@@ -6,14 +6,14 @@ import (
 	"encoding/hex"
 	"io/ioutil"
 	"testing"
+	"path/filepath"
 )
 
-func createRandomFile(dir string, size int64) string {
+func createRandomFile(dir string, size int64) (string, error) {
 	data, filename := randomDataAndHash(size)
 	filepath := dir + "/" + filename
 
-	ioutil.WriteFile(filepath, data, 0744)
-	return filename
+	return filename, ioutil.WriteFile(filepath, data, 0744)
 }
 
 func randomDataAndHash(size int64) ([]byte, string) {
@@ -24,10 +24,13 @@ func randomDataAndHash(size int64) ([]byte, string) {
 	return data, hashStr
 }
 
-func createTmpDir(t *testing.T) string {
+func createTmpCacheDirs(t *testing.T) string {
 	path, err := ioutil.TempDir("", "ensurespacer")
 	if err != nil {
 		t.Error("Couldn't create tmp dir", err)
 	}
+	ensureDirExists(filepath.Join(path, "ac"))
+	ensureDirExists(filepath.Join(path, "cas"))
+
 	return path
 }
