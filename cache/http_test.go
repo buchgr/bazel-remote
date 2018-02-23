@@ -157,6 +157,47 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 	wg.Wait()
 }
 
+func TestUploadCorruptedFile(t *testing.T) {
+	cacheDir := createTmpCacheDirs(t)
+	defer os.RemoveAll(cacheDir)
+
+	data, hash := randomDataAndHash(1024)
+	corruptedData := data[:999]
+
+	r, err := http.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(corruptedData))
+	if err != nil {
+		t.Error(err)
+	}
+
+	e := NewEnsureSpacer(1, 1)
+	h := NewHTTPCache(cacheDir, 2048, e)
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(h.CacheHandler)
+	handler.ServeHTTP(rr, r)
+
+	if status := rr.Code; status != http.StatusInternalServerError {
+		t.Error("Handler returned wrong status code",
+			"expected ", http.StatusInternalServerError,
+			"got ", status)
+	}
+
+	// Check that no file was saved in the cache
+	f, err := os.Open(cacheDir)
+	defer f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries, err := f.Readdir(-1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fileEntry := range entries {
+		if ! fileEntry.IsDir() {
+			t.Error("Unexpected file in the cache ", fileEntry.Name())
+		}
+	}
+}
+
 func TestArtifactInfoFromUrl(t *testing.T) {
 	{
 		info, err := cacheItemFromRequestPath("invalid/url", "")
