@@ -1,6 +1,7 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 load("@bazel_gazelle//:def.bzl", "gazelle")
-
+load("@io_bazel_rules_docker//go:image.bzl", "go_image")
+load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_push")
 gazelle(
     name = "gazelle",
     prefix = "github.com/buchgr/bazel-remote",
@@ -22,3 +23,35 @@ go_binary(
     embed = [":go_default_library"],
     visibility = ["//visibility:public"],
 )
+
+go_image(
+    name = "bazel-remote-base",
+    embed = [":go_default_library"],
+    gc_linkopts = [
+        "-linkmode",
+        "external",
+        "-extldflags",
+        "-static",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+container_image(
+    name = "bazel-remote-image",
+    base = ":bazel-remote-base",
+    ports = ["80"],
+    entrypoint = ["/app/bazel-remote-base.binary", "--port=80", "--dir=/data"],
+    cmd = ["--max_size=5"],
+    visibility = ["//visibility:public"],
+)
+
+container_push(
+   name = "push_to_dockerhub",
+   image = ":bazel-remote-image",
+   format = "Docker",
+   registry = "index.docker.io",
+   repository = "buchgr/bazel-remote-cache",
+   tag = "latest",
+   visibility = ["//visibility:public"],
+)
+

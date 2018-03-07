@@ -10,6 +10,19 @@ http_archive(
     sha256 = "6228d9618ab9536892aa69082c063207c91e777e51bd3c5544c9c060cafe1bd8",
 )
 
+git_repository(
+    name = "io_bazel_rules_docker",
+    remote = "https://github.com/bazelbuild/rules_docker.git",
+    tag = "v0.4.0",
+)
+
+load(
+    "@io_bazel_rules_docker//go:image.bzl",
+    _go_image_repos = "repositories",
+)
+
+_go_image_repos()
+
 load("@io_bazel_rules_go//go:def.bzl", "go_register_toolchains", "go_repository", "go_rules_dependencies")
 
 go_rules_dependencies()
