@@ -2,6 +2,8 @@ package cache
 
 import (
 	"testing"
+	"os"
+	"path/filepath"
 )
 
 func TestCache(t *testing.T) {
@@ -22,6 +24,15 @@ func TestCache(t *testing.T) {
 			"For cache directory",
 			"expected", cacheDir,
 			"got", actualDir,
+		)
+	}
+
+	actualNumFiles := cache.NumFiles()
+	if actualNumFiles != 0 {
+		t.Error(
+			"For number of files",
+			"expected", 0,
+			"got", actualNumFiles,
 		)
 	}
 
@@ -62,6 +73,15 @@ func TestCache(t *testing.T) {
 		)
 	}
 
+	actualNumFiles = cache.NumFiles()
+	if actualNumFiles != 1 {
+		t.Error(
+			"For number of files",
+			"expected", 1,
+			"got", actualNumFiles,
+		)
+	}
+
 	cache.RemoveFile("does-exist-hash")
 	actualSize = cache.CurrSize()
 	if actualSize != 0 {
@@ -69,6 +89,42 @@ func TestCache(t *testing.T) {
 			"For cache size after removing a file",
 			"expected", 0,
 			"got", actualSize,
+		)
+	}
+}
+
+func TestLoadExistingFiles(t *testing.T) {
+	cacheDir := createTmpCacheDirs(t)
+	defer os.RemoveAll(cacheDir)
+
+	cache := NewCache(cacheDir, 100)
+
+	// Create a file in the cache directory
+	_, err := createRandomFile(filepath.Join(cacheDir, "cas"), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The cache should still be empty
+	actualNumFiles := cache.NumFiles()
+	if actualNumFiles != 0 {
+		t.Error(
+			"For number of files",
+			"expected", 0,
+			"got", actualNumFiles,
+		)
+	}
+
+	// Now re-index disk contents
+	cache.LoadExistingFiles()
+
+	// The cache should have 1 item now
+	actualNumFiles = cache.NumFiles()
+	if actualNumFiles != 1 {
+		t.Error(
+			"For number of files",
+			"expected", 1,
+			"got", actualNumFiles,
 		)
 	}
 }
