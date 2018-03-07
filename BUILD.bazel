@@ -1,0 +1,24 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@bazel_gazelle//:def.bzl", "gazelle")
+
+gazelle(
+    name = "gazelle",
+    prefix = "github.com/buchgr/bazel-remote",
+)
+
+go_library(
+    name = "go_default_library",
+    srcs = ["main.go"],
+    importpath = "github.com/buchgr/bazel-remote",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//cache:go_default_library",
+        "@com_github_abbot_go_http_auth//:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "bazel-remote",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)
