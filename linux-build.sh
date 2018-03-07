@@ -2,4 +2,4 @@
 
 # Build static binary
 
-CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' .
+go get -d ./... && CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' .
