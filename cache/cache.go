@@ -2,6 +2,8 @@ package cache
 
 import (
 	"sync"
+	"path/filepath"
+	"os"
 )
 
 // Cache ...
@@ -12,6 +14,8 @@ type Cache interface {
 	AddFile(hash string, size int64)
 	RemoveFile(hash string) int64
 	ContainsFile(hash string) bool
+	NumFiles() int
+	LoadExistingFiles()
 }
 
 type cache struct {
@@ -60,6 +64,23 @@ func (c *cache) ContainsFile(hash string) bool {
 	defer c.mux.Unlock()
 	_, ok := c.files[hash]
 	return ok
+}
+
+func (c *cache) NumFiles() int {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	return len(c.files)
+}
+
+// LoadExistingFiles walks the filesystem for existing files, and adds them to the
+// in-memory index.
+func (c* cache) LoadExistingFiles() {
+	filepath.Walk(c.Dir(), func(name string, info os.FileInfo, err error) error {
+		if !info.IsDir() {
+			c.AddFile(name, info.Size())
+		}
+		return nil
+	})
 }
 
 // NewCache ...

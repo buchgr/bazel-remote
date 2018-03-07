@@ -35,7 +35,7 @@ func NewHTTPCache(cacheDir string, maxBytes int64, ensureSpacer EnsureSpacer) HT
 	ensureDirExists(filepath.Join(cacheDir, "ac"))
 	ensureDirExists(filepath.Join(cacheDir, "cas"))
 	cache := NewCache(cacheDir, maxBytes)
-	loadFilesIntoCache(cache)
+	cache.LoadExistingFiles()
 	return &httpCache{cache, ensureSpacer, make(map[string]*sync.Mutex), &sync.Mutex{}}
 }
 
@@ -75,15 +75,6 @@ func ensureDirExists(path string) {
 			log.Fatal(err)
 		}
 	}
-}
-
-func loadFilesIntoCache(cache Cache) {
-	filepath.Walk(cache.Dir(), func(name string, info os.FileInfo, err error) error {
-		if !info.IsDir() {
-			cache.AddFile(name, info.Size())
-		}
-		return nil
-	})
 }
 
 func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
