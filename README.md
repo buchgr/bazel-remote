@@ -34,7 +34,7 @@ You can also run the remote cache by pulling a prebuilt image from [DockerHub](h
 
 ```bash
 $ docker pull buchgr/bazel-remote-cache
-$ docker run -v /path/to/cache/dir:/data -p 9090:8080 buchgr/bazel-remote-cache
+$ docker run -v /path/to/cache/dir:/data -p 9090:80 buchgr/bazel-remote-cache
 ```
 
 Note that you will need to change `/path/to/cache/dir` to a valid directory where the docker container can write to and read from. If you want the docker container to run in the background pass the `-d` flag right after `docker run`.
