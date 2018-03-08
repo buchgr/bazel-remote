@@ -1,0 +1,12 @@
+---
+platforms:
+  ubuntu1404:
+    build_targets:
+    - "..."
+    test_targets:
+    - "..."
+  ubuntu1604:
+    build_targets:
+    - "..."
+    test_targets:
+    - "..."
