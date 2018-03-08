@@ -8,9 +8,15 @@ size and bazel-remote will automatically enforce this limit and clean the cache 
 last access time. The cache supports HTTP basic authentication with usernames and passwords being specified by a
 `.htpasswd` file.
 
-## Build a standalone Linux binary ``` ./linux-build.sh ```
+## Build a standalone Linux binary 
+```
+./linux-build.sh
+```
 
-## Using bazel-remote ``` Usage of ./bazel-remote:
+## Using bazel-remote
+
+```
+Usage of ./bazel-remote:
   -dir string
 	Directory path where to store the cache contents. This flag is required.
   -host string
