@@ -18,16 +18,16 @@ Usage of ./bazel-remote:
     	Address to listen on. Listens on all network interfaces by default.
   -htpasswd_file string
     	Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.
-  -tls_enabled bool
-    	Bool specifying wheather or not to start the server with tls.  If true, tls_cert_file and tls_key_file flags are required.
-  -tls_cert_file string
-    	Path to a PEM encoded certificate file.  Required if tls_enabled is set to true.
-  -tls_key_file string
-    	Path to a PEM encoded key file.  Required if tls_enabled is set to true.
   -max_size int
     	The maximum size of the remote cache in GiB. This flag is required. (default -1)
   -port int
     	The port the HTTP server listens on (default 8080)
+  -tls_cert_file string
+    	Path to a PEM encoded certificate file.  Required if tls_enabled is set to true.
+  -tls_enabled
+    	Bool specifying whether or not to start the server with tls.  If true, server_cert and server_key flags are requred.
+  -tls_key_file string
+    	Path to a PEM encoded key file.  Required if tls_enabled is set to true.
 ```
 
 ## Docker Image
