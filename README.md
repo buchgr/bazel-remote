@@ -37,7 +37,7 @@ Usage of ./bazel-remote:
 	Path to a PEM encoded key file.  Required if tls_enabled is set to true.
 ```
 
-## Docker Image
+## Docker
 
 ### Prebuilt Image
 
