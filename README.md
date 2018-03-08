@@ -36,7 +36,7 @@ You can also run the remote cache by pulling a prebuilt image from [DockerHub](h
 
 ```bash
 $ docker pull buchgr/bazel-remote-cache
-$ docker run -v /path/to/cache/dir:/data -p 9090:80 buchgr/bazel-remote-cache
+$ docker run -v /path/to/cache/dir:/data -p 9090:8080 buchgr/bazel-remote-cache
 ```
 
 Note that you will need to change `/path/to/cache/dir` to a valid directory where the docker container can write to and read from. If you want the docker container to run in the background pass the `-d` flag right after `docker run`.
@@ -52,7 +52,7 @@ $ docker run -v /path/to/cache/dir:/data \
 -v /path/to/htpasswd:/etc/bazel-remote/htpasswd \
 -v /path/to/server_cert:/etc/bazel-remote/server_cert \
 -v /path/to/server_key:/etc/bazel-remote/server_key \
--p 9090:80 buchgr/bazel-remote-cache --tls_enabled=true \
+-p 9090:8080 buchgr/bazel-remote-cache --tls_enabled=true \
 --tls_cert_file=/etc/bazel-remote/server_cert --tls_key_file=/etc/bazel-remote/server_key \
 --htpasswd_file /etc/bazel-remote/htpasswd --max_size=5
 ```
