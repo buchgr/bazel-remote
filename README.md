@@ -8,11 +8,6 @@ size and bazel-remote will automatically enforce this limit and clean the cache 
 last access time. The cache supports HTTP basic authentication with usernames and passwords being specified by a
 `.htpasswd` file.
 
-## Build a standalone Linux binary 
-```
-./linux-build.sh
-```
-
 ## Using bazel-remote
 
 ```
@@ -61,6 +56,12 @@ The below command will build a docker image from source and install it into your
 
 ```bash
 $ bazel run :bazel-remote-image
+```
+
+## Build a standalone Linux binary
+
+```bash
+$ bazel build :bazel-remote
 ```
 
 ### Authentication
