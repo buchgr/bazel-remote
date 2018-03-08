@@ -39,8 +39,8 @@ go_image(
 container_image(
     name = "bazel-remote-image",
     base = ":bazel-remote-base",
-    ports = ["80"],
-    entrypoint = ["/app/bazel-remote-base.binary", "--port=80", "--dir=/data"],
+    ports = ["8080"],
+    entrypoint = ["/app/bazel-remote-base.binary", "--port=8080", "--dir=/data"],
     cmd = ["--max_size=5"],
     visibility = ["//visibility:public"],
 )
