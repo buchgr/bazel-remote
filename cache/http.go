@@ -3,6 +3,7 @@ package cache
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
@@ -14,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sync"
+	"time"
 )
 
 var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{64})$")
@@ -21,6 +23,7 @@ var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{64})$")
 // HTTPCache ...
 type HTTPCache interface {
 	CacheHandler(w http.ResponseWriter, r *http.Request)
+	StatusPageHandler(w http.ResponseWriter, r *http.Request)
 }
 
 type httpCache struct {
@@ -28,6 +31,13 @@ type httpCache struct {
 	ensureSpacer      EnsureSpacer
 	ongoingUploads    map[string]*sync.Mutex
 	ongoingUploadsMux *sync.Mutex
+}
+
+type statusPageData struct {
+	CurrSize   int64
+	MaxSize    int64
+	NumFiles   int
+	ServerTime int64
 }
 
 // NewHTTPCache ...
@@ -194,4 +204,19 @@ func (h *httpCache) saveToDisk(content io.Reader, info cacheItem) (written int64
 		return 0, err2
 	}
 	return written, nil
+}
+
+// Produce a debugging page with some stats about the cache.
+func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	w.Header().Set("Content-Type", "application/json")
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", " ")
+	enc.Encode(statusPageData{
+		CurrSize:   h.cache.CurrSize(),
+		MaxSize:    h.cache.MaxSize(),
+		NumFiles:   h.cache.NumFiles(),
+		ServerTime: time.Now().Unix(),
+	})
 }
