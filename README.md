@@ -1,4 +1,4 @@
-![Build status](https://badge.buildkite.com/c11240e6e9519111f2380dfcf5fcb49e69fd5b2326c11a3059.svg)
+![Build status](https://badge.buildkite.com/c11240e6e9519111f2380dfcf5fcb49e69fd5b2326c11a3059.svg?branch=master)
 
 # A remote build cache for [Bazel](https://bazel.build)
 
