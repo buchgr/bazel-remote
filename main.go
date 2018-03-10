@@ -32,7 +32,7 @@ func main() {
 	e := cache.NewEnsureSpacer(0.95, 0.5)
 	h := cache.NewHTTPCache(*dir, *maxSize*1024*1024*1024, e)
 
-	http.HandleFunc("/status", maybeAuth(h.StatusPageHandler, *htpasswd_file, *host))
+	http.HandleFunc("/status", h.StatusPageHandler)
 	http.HandleFunc("/", maybeAuth(h.CacheHandler, *htpasswd_file, *host))
 	var serverErr error
 
