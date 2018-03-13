@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"encoding/json"
 )
 
 func TestDownloadFile(t *testing.T) {
@@ -195,6 +196,40 @@ func TestUploadCorruptedFile(t *testing.T) {
 		if ! fileEntry.IsDir() {
 			t.Error("Unexpected file in the cache ", fileEntry.Name())
 		}
+	}
+}
+
+func TestStatusPage(t *testing.T) {
+	cacheDir := createTmpCacheDirs(t)
+	defer os.RemoveAll(cacheDir)
+
+	r, err := http.NewRequest("GET", "/status", bytes.NewReader([]byte{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := NewEnsureSpacer(1, 1)
+	h := NewHTTPCache(cacheDir, 2048, e)
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(h.StatusPageHandler)
+	handler.ServeHTTP(rr, r)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Error("StatusPageHandler returned wrong status code",
+			"expected ", http.StatusOK,
+			"got ", status)
+	}
+
+	var data statusPageData
+	err = json.Unmarshal(rr.Body.Bytes(), &data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if numFiles := data.NumFiles; numFiles != 0 {
+		t.Error("StatusPageHandler returned wrong number of files",
+			"expected ", 0,
+			"got ", numFiles)
 	}
 }
 
