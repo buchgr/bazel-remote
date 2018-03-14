@@ -24,7 +24,7 @@ func TestDownloadFile(t *testing.T) {
 	}
 
 	e := NewEnsureSpacer(1, 1)
-	h := NewHTTPCache(cacheDir, 1024, e, newSilentLogger())
+	h := NewHTTPCache(cacheDir, 1024, e, newSilentLogger(), newSilentLogger())
 
 	req, err := http.NewRequest("GET", "/cas/"+hash, bytes.NewReader([]byte{}))
 	if err != nil {
@@ -75,7 +75,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 	}
 
 	e := NewEnsureSpacer(0.8, 0.5)
-	h := NewHTTPCache(cacheDir, 1000*1024, e, newSilentLogger())
+	h := NewHTTPCache(cacheDir, 1000*1024, e, newSilentLogger(), newSilentLogger())
 	handler := http.HandlerFunc(h.CacheHandler)
 
 	var wg sync.WaitGroup
@@ -135,7 +135,7 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 	}
 
 	e := NewEnsureSpacer(1, 1)
-	h := NewHTTPCache(cacheDir, 1024, e, newSilentLogger())
+	h := NewHTTPCache(cacheDir, 1024, e, newSilentLogger(), newSilentLogger())
 	handler := http.HandlerFunc(h.CacheHandler)
 
 	var wg sync.WaitGroup
@@ -171,7 +171,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 	}
 
 	e := NewEnsureSpacer(1, 1)
-	h := NewHTTPCache(cacheDir, 2048, e, newSilentLogger())
+	h := NewHTTPCache(cacheDir, 2048, e, newSilentLogger(), newSilentLogger())
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.CacheHandler)
 	handler.ServeHTTP(rr, r)
@@ -209,7 +209,7 @@ func TestStatusPage(t *testing.T) {
 	}
 
 	e := NewEnsureSpacer(1, 1)
-	h := NewHTTPCache(cacheDir, 2048, e, newSilentLogger())
+	h := NewHTTPCache(cacheDir, 2048, e, newSilentLogger(), newSilentLogger())
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.StatusPageHandler)
 	handler.ServeHTTP(rr, r)

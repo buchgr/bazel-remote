@@ -1,4 +1,4 @@
-![Build status](https://badge.buildkite.com/c11240e6e9519111f2380dfcf5fcb49e69fd5b2326c11a3059.svg)
+![Build status](https://badge.buildkite.com/c11240e6e9519111f2380dfcf5fcb49e69fd5b2326c11a3059.svg?branch=master)
 
 # A remote build cache for [Bazel](https://bazel.build)
 
@@ -67,7 +67,7 @@ $ bazel build :bazel-remote
 ### Authentication
 
 In order to pass a `.htpasswd` and/or server key file(s) to the cache inside a docker container, you first need
-to mount the file in the container and pass the path to the cache. For example:
+to mount the file in the container and pass the path to the cache. The below example also configures TLS which is technically optional but highly recommended in order to not send passwords in plain text.
 
 ```bash
 $ docker run -v /path/to/cache/dir:/data \
