@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"sync"
 	"time"
+	"net"
 )
 
 var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{64})$")
@@ -29,6 +30,8 @@ type HTTPCache interface {
 type httpCache struct {
 	cache             Cache
 	ensureSpacer      EnsureSpacer
+	accessLogger      log.Logger
+	errorLogger       log.Logger
 	ongoingUploads    map[string]*sync.Mutex
 	ongoingUploadsMux *sync.Mutex
 }
@@ -40,13 +43,25 @@ type statusPageData struct {
 	ServerTime int64
 }
 
-// NewHTTPCache ...
-func NewHTTPCache(cacheDir string, maxBytes int64, ensureSpacer EnsureSpacer) HTTPCache {
+// NewHTTPCache returns a new instance of the cache.
+// accessLogger will print one line for each HTTP request to the cache.
+// errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
+// be reported.
+func NewHTTPCache(cacheDir string, maxBytes int64, ensureSpacer EnsureSpacer, accessLogger log.Logger, errorLogger log.Logger) HTTPCache {
 	ensureDirExists(filepath.Join(cacheDir, "ac"))
 	ensureDirExists(filepath.Join(cacheDir, "cas"))
 	cache := NewCache(cacheDir, maxBytes)
 	cache.LoadExistingFiles()
-	return &httpCache{cache, ensureSpacer, make(map[string]*sync.Mutex), &sync.Mutex{}}
+	hc := &httpCache{
+		cache:             cache,
+		accessLogger:      accessLogger,
+		errorLogger:       errorLogger,
+		ensureSpacer:      ensureSpacer,
+		ongoingUploads:    make(map[string]*sync.Mutex),
+		ongoingUploadsMux: &sync.Mutex{},
+	}
+	hc.errorLogger.Printf("Loaded %d existing cache items.", hc.cache.NumFiles())
+	return hc
 }
 
 type cacheItem struct {
@@ -90,9 +105,20 @@ func ensureDirExists(path string) {
 func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
+	// Helper function for logging responses
+	logResponse := func(code int) {
+		// Parse the client ip
+		clientIp, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			h.errorLogger.Fatal("Failed parsing RemoteAddr %s: %s", r.RemoteAddr, err.Error())
+		}
+		h.accessLogger.Printf("%4s %d %15s %s", r.Method, code, clientIp, r.URL.Path)
+	}
+
 	cacheItem, err := cacheItemFromRequestPath(r.URL.Path, h.cache.Dir())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		logResponse(http.StatusBadRequest)
 		return
 	}
 
@@ -100,12 +126,15 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		if !h.cache.ContainsFile(cacheItem.absFilePath) {
 			w.WriteHeader(http.StatusNotFound)
+			logResponse(http.StatusNotFound)
 			return
 		}
 		http.ServeFile(w, r, cacheItem.absFilePath)
+		logResponse(http.StatusOK)
 	case http.MethodPut:
 		if h.cache.ContainsFile(cacheItem.absFilePath) {
 			h.discardUpload(w, r.Body)
+			logResponse(http.StatusOK)
 			return
 		}
 		uploadMux := h.startUpload(cacheItem.absFilePath)
@@ -114,28 +143,36 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		defer uploadMux.Unlock()
 		if h.cache.ContainsFile(cacheItem.absFilePath) {
 			h.discardUpload(w, r.Body)
+			logResponse(http.StatusOK)
 			return
 		}
 		if !h.ensureSpacer.EnsureSpace(h.cache, r.ContentLength) {
 			http.Error(w, "The disk is full. File could not be uploaded.",
 				http.StatusInsufficientStorage)
+			h.errorLogger.Printf(
+				"The disk is full (%d/%d bytes used)", h.cache.CurrSize(), h.cache.MaxSize())
 			return
 		}
 		written, err := h.saveToDisk(r.Body, *cacheItem)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			h.errorLogger.Printf("Error saving file: %s", err.Error())
 			return
 		}
 		h.cache.AddFile(cacheItem.absFilePath, written)
 		w.WriteHeader(http.StatusOK)
+		logResponse(http.StatusOK)
 	case http.MethodHead:
 		if !h.cache.ContainsFile(cacheItem.absFilePath) {
 			http.Error(w, err.Error(), http.StatusNotFound)
+			logResponse(http.StatusNotFound)
 		}
 		w.WriteHeader(http.StatusOK)
+		logResponse(http.StatusOK)
 	default:
 		msg := fmt.Sprintf("Method '%s' not supported.", html.EscapeString(m))
 		http.Error(w, msg, http.StatusMethodNotAllowed)
+		logResponse(http.StatusMethodNotAllowed)
 	}
 }
 
