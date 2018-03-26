@@ -105,14 +105,4 @@ func TestRejectBigItem(t *testing.T) {
 	}
 
 	checkSizeAndNumItems(t, lru, 0, 0)
-
-	// Unbounded caches should accept all items
-	lru = NewSizedLRU(0)
-
-	ok = lru.Add("hello", &testSizedItem{1000, "hello"})
-	if !ok {
-		t.Fatalf("Add failed, expected if to suceed")
-	}
-
-	checkSizeAndNumItems(t, lru, 1000, 1)
 }

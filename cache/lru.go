@@ -9,7 +9,7 @@ type SizedItem interface {
 }
 
 // SizedLRU is an LRU cache that will keep its total size below maxSize by evicting
-// items. If maxSize is zero, eviction is disabled.
+// items.
 // SizedLRU is not thread-safe.
 type SizedLRU struct {
 	// Eviction double-linked list. Most recently accessed elements are at the front.
@@ -41,7 +41,7 @@ func NewSizedLRU(maxSize int64) *SizedLRU {
 // Add adds a (key, value) to the cache, evicting items as necessary. Add returns false (
 // and does not add the item) if the item size is larger than the maximum size of the cache.
 func (c *SizedLRU) Add(key Key, value SizedItem) (ok bool) {
-	if c.maxSize != 0 && value.Size() > c.maxSize {
+	if value.Size() > c.maxSize {
 		return false
 	}
 
@@ -58,7 +58,7 @@ func (c *SizedLRU) Add(key Key, value SizedItem) (ok bool) {
 
 	// Eviction. This is needed even if the key was already present, since the size of the
 	// value might have changed, pushing the total size over maxSize.
-	for c.maxSize != 0 && c.currentSize+sizeDelta > c.maxSize {
+	for c.currentSize+sizeDelta > c.maxSize {
 		ele := c.ll.Back()
 		if ele != nil {
 			c.removeElement(ele)
