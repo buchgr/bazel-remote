@@ -38,7 +38,6 @@ func createTmpCacheDirs(t *testing.T) string {
 
 // newSilentLogger returns a cheap logger that doesn't print anything, useful
 // for tests.
-func newSilentLogger() (l log.Logger) {
-	l = *log.New(ioutil.Discard, "", 0)
-	return
+func newSilentLogger() *log.Logger {
+	return log.New(ioutil.Discard, "", 0)
 }

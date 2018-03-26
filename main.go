@@ -33,7 +33,7 @@ func main() {
 	accessLogger := log.New(os.Stdout, "", log.Ldate | log.Ltime | log.LUTC)
 	errorLogger := log.New(os.Stdout, "", log.Ldate | log.Ltime | log.LUTC)
 	e := cache.NewEnsureSpacer(0.95, 0.5)
-	h := cache.NewHTTPCache(*dir, *maxSize*1024*1024*1024, e, *accessLogger, *errorLogger)
+	h := cache.NewHTTPCache(*dir, *maxSize*1024*1024*1024, e, accessLogger, errorLogger)
 
 	http.HandleFunc("/status", h.StatusPageHandler)
 	http.HandleFunc("/", maybeAuth(h.CacheHandler, *htpasswd_file, *host))

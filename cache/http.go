@@ -27,11 +27,16 @@ type HTTPCache interface {
 	StatusPageHandler(w http.ResponseWriter, r *http.Request)
 }
 
+// The logger interface is designed to be satisfied by log.Logger
+type logger interface {
+	Printf(format string, v ...interface{})
+}
+
 type httpCache struct {
 	cache             Cache
 	ensureSpacer      EnsureSpacer
-	accessLogger      log.Logger
-	errorLogger       log.Logger
+	accessLogger      logger
+	errorLogger       logger
 	ongoingUploads    map[string]*sync.Mutex
 	ongoingUploadsMux *sync.Mutex
 }
@@ -47,7 +52,7 @@ type statusPageData struct {
 // accessLogger will print one line for each HTTP request to the cache.
 // errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
 // be reported.
-func NewHTTPCache(cacheDir string, maxBytes int64, ensureSpacer EnsureSpacer, accessLogger log.Logger, errorLogger log.Logger) HTTPCache {
+func NewHTTPCache(cacheDir string, maxBytes int64, ensureSpacer EnsureSpacer, accessLogger logger, errorLogger logger) HTTPCache {
 	ensureDirExists(filepath.Join(cacheDir, "ac"))
 	ensureDirExists(filepath.Join(cacheDir, "cas"))
 	cache := NewCache(cacheDir, maxBytes)
@@ -107,12 +112,14 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Helper function for logging responses
 	logResponse := func(code int) {
-		// Parse the client ip
-		clientIp, _, err := net.SplitHostPort(r.RemoteAddr)
+		// Parse the client ip:port
+		var clientAddress string
+		var err error
+		clientAddress, _, err = net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
-			h.errorLogger.Fatal("Failed parsing RemoteAddr %s: %s", r.RemoteAddr, err.Error())
+			clientAddress = r.RemoteAddr
 		}
-		h.accessLogger.Printf("%4s %d %15s %s", r.Method, code, clientIp, r.URL.Path)
+		h.accessLogger.Printf("%4s %d %15s %s", r.Method, code, clientAddress, r.URL.Path)
 	}
 
 	cacheItem, err := cacheItemFromRequestPath(r.URL.Path, h.cache.Dir())
