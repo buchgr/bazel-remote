@@ -22,35 +22,38 @@ go_library(
 go_binary(
     name = "bazel-remote",
     embed = [":go_default_library"],
-    static = "on",
     pure = "on",
+    static = "on",
     visibility = ["//visibility:public"],
 )
 
 go_image(
     name = "bazel-remote-base",
     embed = [":go_default_library"],
-    static = "on",
     pure = "on",
+    static = "on",
     visibility = ["//visibility:private"],
 )
 
 container_image(
     name = "bazel-remote-image",
     base = ":bazel-remote-base",
-    ports = ["8080"],
-    entrypoint = ["/app/bazel-remote-base.binary", "--port=8080", "--dir=/data"],
     cmd = ["--max_size=5"],
+    entrypoint = [
+        "/app/bazel-remote-base.binary",
+        "--port=8080",
+        "--dir=/data",
+    ],
+    ports = ["8080"],
     visibility = ["//visibility:public"],
 )
 
 container_push(
-   name = "push_to_dockerhub",
-   image = ":bazel-remote-image",
-   format = "Docker",
-   registry = "index.docker.io",
-   repository = "buchgr/bazel-remote-cache",
-   tag = "latest",
-   visibility = ["//visibility:public"],
+    name = "push_to_dockerhub",
+    format = "Docker",
+    image = ":bazel-remote-image",
+    registry = "index.docker.io",
+    repository = "buchgr/bazel-remote-cache",
+    tag = "latest",
+    visibility = ["//visibility:public"],
 )
-
