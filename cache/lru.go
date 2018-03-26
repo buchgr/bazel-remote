@@ -1,7 +1,4 @@
-// Package sizedlru implements an LRU cache that bounds the total space occupied
-// by the items it contains.
-
-package sizedlru
+package cache
 
 import (
 	"container/list"

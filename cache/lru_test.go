@@ -1,4 +1,4 @@
-package sizedlru
+package cache
 
 import (
 	"testing"

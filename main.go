@@ -31,7 +31,7 @@ func main() {
 	}
 
 	accessLogger := log.New(os.Stdout, "", log.Ldate | log.Ltime | log.LUTC)
-	errorLogger := log.New(os.Stdout, "", log.Ldate | log.Ltime | log.LUTC)
+	errorLogger := log.New(os.Stderr, "", log.Ldate | log.Ltime | log.LUTC)
 	e := cache.NewEnsureSpacer(0.95, 0.5)
 	h := cache.NewHTTPCache(*dir, *maxSize*1024*1024*1024, e, accessLogger, errorLogger)
 
