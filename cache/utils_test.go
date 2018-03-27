@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"testing"
 	"path/filepath"
+	"log"
 )
 
 func createRandomFile(dir string, size int64) (string, error) {
@@ -33,4 +34,10 @@ func createTmpCacheDirs(t *testing.T) string {
 	ensureDirExists(filepath.Join(path, "cas"))
 
 	return path
+}
+
+// newSilentLogger returns a cheap logger that doesn't print anything, useful
+// for tests.
+func newSilentLogger() *log.Logger {
+	return log.New(ioutil.Discard, "", 0)
 }
