@@ -5,9 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io/ioutil"
-	"testing"
-	"path/filepath"
 	"log"
+	"path/filepath"
+	"testing"
 )
 
 func createRandomFile(dir string, size int64) (string, error) {

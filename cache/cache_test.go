@@ -1,9 +1,9 @@
 package cache
 
 import (
-	"testing"
 	"os"
 	"path/filepath"
+	"testing"
 )
 
 func TestCache(t *testing.T) {

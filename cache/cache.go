@@ -1,9 +1,9 @@
 package cache
 
 import (
-	"sync"
-	"path/filepath"
 	"os"
+	"path/filepath"
+	"sync"
 )
 
 // Cache ...
@@ -74,7 +74,7 @@ func (c *cache) NumFiles() int {
 
 // LoadExistingFiles walks the filesystem for existing files, and adds them to the
 // in-memory index.
-func (c* cache) LoadExistingFiles() {
+func (c *cache) LoadExistingFiles() {
 	filepath.Walk(c.Dir(), func(name string, info os.FileInfo, err error) error {
 		if !info.IsDir() {
 			c.AddFile(name, info.Size())
