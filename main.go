@@ -18,10 +18,10 @@ func main() {
 		"Directory path where to store the cache contents. This flag is required.")
 	maxSize := flag.Int64("max_size", -1,
 		"The maximum size of the remote cache in GiB. This flag is required.")
-	htpasswd_file := flag.String("htpasswd_file", "", "Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.")
-	tls_enabled := flag.Bool("tls_enabled", false, "Bool specifying whether or not to start the server with tls.  If true, server_cert and server_key flags are requred.")
-	tls_cert_file := flag.String("tls_cert_file", "", "Path to a PEM encoded certificate file.  Required if tls_enabled is set to true.")
-	tls_key_file := flag.String("tls_key_file", "", "Path to a PEM encoded key file.  Required if tls_enabled is set to true.")
+	htpasswdFile := flag.String("htpasswd_file", "", "Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.")
+	tlsEnabled := flag.Bool("tls_enabled", false, "Bool specifying whether or not to start the server with tls.  If true, server_cert and server_key flags are requred.")
+	tlsCertFile := flag.String("tls_cert_file", "", "Path to a PEM encoded certificate file.  Required if tls_enabled is set to true.")
+	tlsKeyFile := flag.String("tls_key_file", "", "Path to a PEM encoded key file.  Required if tls_enabled is set to true.")
 
 	flag.Parse()
 
@@ -30,21 +30,21 @@ func main() {
 		return
 	}
 
-	accessLogger := log.New(os.Stdout, "", log.Ldate | log.Ltime | log.LUTC)
-	errorLogger := log.New(os.Stderr, "", log.Ldate | log.Ltime | log.LUTC)
+	accessLogger := log.New(os.Stdout, "", log.Ldate|log.Ltime|log.LUTC)
+	errorLogger := log.New(os.Stderr, "", log.Ldate|log.Ltime|log.LUTC)
 	e := cache.NewEnsureSpacer(0.95, 0.5)
 	h := cache.NewHTTPCache(*dir, *maxSize*1024*1024*1024, e, accessLogger, errorLogger)
 
 	http.HandleFunc("/status", h.StatusPageHandler)
-	http.HandleFunc("/", maybeAuth(h.CacheHandler, *htpasswd_file, *host))
+	http.HandleFunc("/", maybeAuth(h.CacheHandler, *htpasswdFile, *host))
 	var serverErr error
 
-	if *tls_enabled {
-		if len(*tls_cert_file) < 1 || len(*tls_key_file) < 1 {
+	if *tlsEnabled {
+		if len(*tlsCertFile) < 1 || len(*tlsKeyFile) < 1 {
 			flag.Usage()
 			return
 		}
-		serverErr = http.ListenAndServeTLS(*host+":"+strconv.Itoa(*port), *tls_cert_file, *tls_key_file, nil)
+		serverErr = http.ListenAndServeTLS(*host+":"+strconv.Itoa(*port), *tlsCertFile, *tlsKeyFile, nil)
 	} else {
 		serverErr = http.ListenAndServe(*host+":"+strconv.Itoa(*port), nil)
 	}
@@ -53,9 +53,9 @@ func main() {
 	}
 }
 
-func maybeAuth(fn http.HandlerFunc, htpasswd_file string, host string) http.HandlerFunc {
-	if htpasswd_file != "" {
-		secrets := auth.HtpasswdFileProvider(htpasswd_file)
+func maybeAuth(fn http.HandlerFunc, htpasswdFile string, host string) http.HandlerFunc {
+	if htpasswdFile != "" {
+		secrets := auth.HtpasswdFileProvider(htpasswdFile)
 		authenticator := auth.NewBasicAuthenticator(host, secrets)
 		return auth.JustCheck(authenticator, fn)
 	}

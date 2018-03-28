@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +12,6 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
-	"encoding/json"
 )
 
 func TestDownloadFile(t *testing.T) {
@@ -193,7 +193,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, fileEntry := range entries {
-		if ! fileEntry.IsDir() {
+		if !fileEntry.IsDir() {
 			t.Error("Unexpected file in the cache ", fileEntry.Name())
 		}
 	}

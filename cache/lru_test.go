@@ -1,12 +1,12 @@
 package cache
 
 import (
-	"testing"
 	"fmt"
+	"testing"
 )
 
 type testSizedItem struct {
-	s int64
+	s       int64
 	payload string
 }
 
@@ -69,18 +69,18 @@ func TestBasics(t *testing.T) {
 func TestEviction(t *testing.T) {
 	lru := NewSizedLRU(10)
 
-	expectedSizesNumItems := []struct{
-		expSize int64
+	expectedSizesNumItems := []struct {
+		expSize     int64
 		expNumItems int
 	}{
-		{0, 1}, // 0
-		{1, 2}, // 0, 1
-		{3, 3}, // 0, 1, 2
-		{6, 4}, // 0, 1, 2, 3
+		{0, 1},  // 0
+		{1, 2},  // 0, 1
+		{3, 3},  // 0, 1, 2
+		{6, 4},  // 0, 1, 2, 3
 		{10, 5}, // 0, 1, 2, 3, 4
-		{9, 2}, // 4, 5
-		{6, 1}, // 6
-		{7, 1}, // 7
+		{9, 2},  // 4, 5
+		{6, 1},  // 6
+		{7, 1},  // 7
 
 	}
 

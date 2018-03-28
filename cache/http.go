@@ -10,13 +10,13 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sync"
 	"time"
-	"net"
 )
 
 var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{64})$")
