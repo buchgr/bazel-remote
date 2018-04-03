@@ -2,6 +2,7 @@ package cache
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -38,7 +39,7 @@ func TestEnsureSpacePurging(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		c.AddFile(filename, 10)
+		c.AddFile(filepath.Join(cacheDir, filename), 10)
 	}
 
 	if c.CurrSize() != 90 {
@@ -59,6 +60,7 @@ func TestEnsureSpacePurging(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	defer fd.Close()
 	dirEntries, err := fd.Readdir(-1)
 	if err != nil {
 		t.Error(err)

@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -48,7 +47,7 @@ func (e *ensureSpacer) EnsureSpace(cache Cache, addBytes int64) bool {
 
 	targetBytes := int64(float64(cache.MaxSize()) * e.targetPct)
 	deltaBytes := cache.CurrSize() - targetBytes
-	e.purge(cache, deltaBytes)
+	log.Printf("Removed %v bytes from cache\n", e.purge(cache, deltaBytes))
 
 	e.mux.Lock()
 	e.isPurging = false
@@ -58,38 +57,38 @@ func (e *ensureSpacer) EnsureSpace(cache Cache, addBytes int64) bool {
 }
 
 func (e *ensureSpacer) purge(cache Cache, deltaBytes int64) int64 {
-	d, err := os.Open(cache.Dir())
+	type file struct {
+		Path string
+		Info os.FileInfo
+	}
+	files := make([]file, cache.NumFiles())[:0]
+	err := filepath.Walk(
+		cache.Dir(),
+		func(path string, info os.FileInfo, err error) error {
+			// Ignore any files that the cache does not know about. These are most
+			// likely directories or ongoing uploads.
+			if cache.ContainsFile(path) {
+				files = append(files, file{path, info})
+			}
+			return nil
+		})
 	if err != nil {
-		log.Print(err)
 		return 0
 	}
-	files, err := d.Readdir(-1)
-	if err != nil {
-		log.Print(err)
-		return 0
-	}
+
 	sort.Slice(files, func(i, j int) bool {
-		return atime.Get(files[i]).Before(atime.Get(files[j]))
+		return atime.Get(files[i].Info).Before(atime.Get(files[j].Info))
 	})
+
 	var purgedBytes int64
-	for _, fileinfo := range files {
-		name := fileinfo.Name()
-
-		// Ignore any files that the cache does not know about. These are most
-		// likely ongoing uploads.
-		if !cache.ContainsFile(name) {
-			continue
+	for _, file := range files {
+		if err := os.Remove(file.Path); err != nil {
+			log.Printf("Could not remove %v: %v\n", file.Path, err)
 		}
 
-		path := fmt.Sprintf("%s%c%s", cache.Dir(), os.PathSeparator, name)
-		err := os.Remove(path)
-		if err == nil {
-			purgedBytes += cache.RemoveFile(filepath.Base(name))
-		} else {
-			log.Print(err)
-		}
+		purgedBytes += cache.RemoveFile(file.Path)
 		if purgedBytes >= deltaBytes {
-			break
+			return purgedBytes
 		}
 	}
 	return purgedBytes
