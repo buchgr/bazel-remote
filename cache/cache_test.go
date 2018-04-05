@@ -9,6 +9,7 @@ import (
 	"testing"
 	"net/http/httptest"
 	"bytes"
+	"time"
 )
 
 func tempDir(t *testing.T) string {
@@ -139,6 +140,8 @@ func TestCacheExistingFiles(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// Wait a bit to account for atime granularity
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	const expectedSize = 3 * int64(len(CONTENTS))
