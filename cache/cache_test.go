@@ -134,18 +134,31 @@ func TestCacheExistingFiles(t *testing.T) {
 		"ac/733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
 	}
 
-	actualCacheSize := int64(0)
 	for _, it := range items {
-		err := ioutil.WriteFile(filepath.Join(cacheDir, it), []byte(it), os.ModePerm)
+		err := ioutil.WriteFile(filepath.Join(cacheDir, it), []byte(CONTENTS), os.ModePerm)
 		if err != nil {
 			t.Fatal(err)
 		}
-		actualCacheSize += int64(len(it))
 	}
 
-	cache := NewFsCache(cacheDir, 10000)
+	const expectedSize = 3 * int64(len(CONTENTS))
+	cache := NewFsCache(cacheDir, expectedSize)
 
-	checkItems(t, cache, actualCacheSize, 3)
+	checkItems(t, cache, expectedSize, 3)
+
+	// Adding a new file should evict items[0] (the oldest)
+	err := cache.Put("a-key", int64(len(CONTENTS)), CONTENTS_HASH, strings.NewReader(CONTENTS))
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkItems(t, cache, expectedSize, 3)
+	found, err := cache.Contains(items[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found {
+		t.Fatalf("%s should have been evicted", items[0])
+	}
 }
 
 // Make sure that Cache returns ErrTooBig when trying to upload an item that's bigger
@@ -155,14 +168,14 @@ func TestCacheTooBig(t *testing.T) {
 	defer os.RemoveAll(cacheDir)
 	cache := NewFsCache(cacheDir, 100)
 
-	err := cache.Put("a-key", 10000, "", strings.NewReader("hello"))
+	err := cache.Put("a-key", 10000, "", strings.NewReader(CONTENTS))
 	if err == nil {
-		t.Fatal()
+		t.Fatal(err)
 	}
 	switch err.(type) {
 	case *ErrTooBig:
 	default:
-		t.Fatal()
+		t.Fatal("expected ErrTooBig")
 	}
 }
 
