@@ -16,6 +16,8 @@ import (
 
 var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{64})$")
 
+const SHA256_OF_NULL = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
 // HTTPCache ...
 type HTTPCache interface {
 	CacheHandler(w http.ResponseWriter, r *http.Request)
@@ -128,7 +130,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		logResponse(http.StatusOK)
 	case http.MethodPut:
-		if r.ContentLength == 0 {
+		if r.ContentLength == 0 && cacheKey != SHA256_OF_NULL {
 			// We need the content-length header to make sure we have enough disk space.
 			msg := "put without content-length header"
 			http.Error(w, msg, http.StatusBadRequest)
