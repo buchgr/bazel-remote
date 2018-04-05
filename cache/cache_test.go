@@ -1,13 +1,13 @@
 package cache
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"net/http/httptest"
 )
 
 func tempDir(t *testing.T) string {
@@ -57,7 +57,8 @@ func TestCacheBasics(t *testing.T) {
 	checkItems(t, cache, 0, 0)
 
 	// Non-existing item
-	found, err := cache.Get(KEY, ioutil.Discard)
+	rr := httptest.NewRecorder()
+	found, err := cache.Get(KEY, rr)
 	if err != nil {
 		t.Fatal()
 	}
@@ -76,8 +77,8 @@ func TestCacheBasics(t *testing.T) {
 	checkItems(t, cache, int64(len(CONTENTS)), 1)
 
 	// Get the item back
-	var readBuf bytes.Buffer
-	found, err = cache.Get(KEY, &readBuf)
+	rr = httptest.NewRecorder()
+	found, err = cache.Get(KEY, rr)
 	if err != nil {
 		t.Fatal()
 	}
