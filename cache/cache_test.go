@@ -47,10 +47,11 @@ func checkItems(t *testing.T, cache *fsCache, expSize int64, expNum int) {
 	}
 }
 
-func TestCacheBasics(t *testing.T) {
-	const KEY = "a-key"
-	const CONTENTS = "hello"
+const KEY = "a-key"
+const CONTENTS = "hello"
+const CONTENTS_HASH = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
 
+func TestCacheBasics(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
 	cache := NewFsCache(cacheDir, 100)
@@ -68,9 +69,9 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Add an item
-	err = cache.Put(KEY, int64(len(CONTENTS)), "", strings.NewReader(CONTENTS))
+	err = cache.Put(KEY, int64(len(CONTENTS)), CONTENTS_HASH, strings.NewReader(CONTENTS))
 	if err != nil {
-		t.Fatal()
+		t.Fatal(err)
 	}
 
 	// Dig into the internals to make sure that the cache state has been
@@ -162,5 +163,17 @@ func TestCacheTooBig(t *testing.T) {
 	case *ErrTooBig:
 	default:
 		t.Fatal()
+	}
+}
+
+// Make sure that Cache rejects an upload whose hashsum doesn't match
+func TestCacheCorruptedFile(t * testing.T) {
+	cacheDir := tempDir(t)
+	defer os.RemoveAll(cacheDir)
+	cache := NewFsCache(cacheDir, 1000)
+
+	err := cache.Put(KEY, int64(len(CONTENTS)), strings.Repeat("x", 64), strings.NewReader(CONTENTS))
+	if err == nil {
+		t.Fatal("expected hash mismatch error")
 	}
 }
