@@ -122,10 +122,11 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		if !found {
 			w.WriteHeader(http.StatusNotFound)
 			logResponse(http.StatusNotFound)
-		} else {
-			w.WriteHeader(http.StatusOK)
-			logResponse(http.StatusOK)
+			return
 		}
+
+		w.WriteHeader(http.StatusOK)
+		logResponse(http.StatusOK)
 	case http.MethodPut:
 		if r.ContentLength == 0 {
 			// We need the content-length header to make sure we have enough disk space.
@@ -155,6 +156,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			http.Error(w, "Not found", http.StatusNotFound)
 			logResponse(http.StatusNotFound)
+			return
 		}
 
 		w.WriteHeader(http.StatusOK)
