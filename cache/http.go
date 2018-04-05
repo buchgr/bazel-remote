@@ -129,8 +129,9 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPut:
 		if r.ContentLength == 0 {
 			// We need the content-length header to make sure we have enough disk space.
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			h.errorLogger.Printf("put without content-length header")
+			msg := "put without content-length header"
+			http.Error(w, msg, http.StatusBadRequest)
+			h.errorLogger.Printf("%s", msg)
 			return
 		}
 
