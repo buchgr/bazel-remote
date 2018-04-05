@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"net/http/httptest"
+	"bytes"
 )
 
 func tempDir(t *testing.T) string {
@@ -83,6 +84,9 @@ func TestCacheBasics(t *testing.T) {
 		t.Fatal()
 	}
 	if found != true {
+		t.Fatal()
+	}
+	if bytes.Compare(rr.Body.Bytes(), []byte(CONTENTS)) != 0 {
 		t.Fatal()
 	}
 }
