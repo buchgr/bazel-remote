@@ -122,12 +122,10 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if !found {
-			w.WriteHeader(http.StatusNotFound)
 			logResponse(http.StatusNotFound)
 			return
 		}
 
-		w.WriteHeader(http.StatusOK)
 		logResponse(http.StatusOK)
 	case http.MethodPut:
 		if r.ContentLength == 0 && cacheKey != SHA256_OF_NULL {
@@ -145,7 +143,6 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		w.WriteHeader(http.StatusOK)
 		logResponse(http.StatusOK)
 	case http.MethodHead:
 		ok, err := h.cache.Contains(cacheKey)
