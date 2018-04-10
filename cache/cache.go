@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"strconv"
 )
 
 // ErrTooBig is returned by Cache::Put when when the item size is bigger than the
@@ -221,11 +222,20 @@ func (c *fsCache) Get(key string, w http.ResponseWriter) (ok bool, err error) {
 	}
 
 	blobPath := c.pathForKey(key)
+
+	fileInfo, err := os.Stat(blobPath)
+	if err != nil {
+		return
+	}
+
 	f, err := os.Open(blobPath)
 	if err != nil {
 		return
 	}
 	defer f.Close()
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Length",strconv.FormatInt(fileInfo.Size(), 10))
 
 	_, err = io.Copy(w, f)
 	return

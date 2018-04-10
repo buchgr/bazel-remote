@@ -41,11 +41,11 @@ func TestDownloadFile(t *testing.T) {
 	}
 
 	rsp := rr.Result()
-	//if contentLen := rsp.ContentLength; contentLen != 1024 {
-	//	t.Error("Handler returned file with wrong content length",
-	//		"expected", 1024,
-	//		"got", contentLen)
-	//}
+	if contentLen := rsp.ContentLength; contentLen != 1024 {
+		t.Error("Handler returned file with wrong content length",
+			"expected", 1024,
+			"got", contentLen)
+	}
 
 	hasher := sha256.New()
 	io.Copy(hasher, rsp.Body)
