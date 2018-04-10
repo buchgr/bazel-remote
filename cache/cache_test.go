@@ -63,10 +63,10 @@ func TestCacheBasics(t *testing.T) {
 	rr := httptest.NewRecorder()
 	found, err := cache.Get(KEY, rr)
 	if err != nil {
-		t.Fatal()
+		t.Fatal(err)
 	}
-	if found != false {
-		t.Fatal()
+	if found {
+		t.Fatal("expected the item not to exist")
 	}
 
 	// Add an item
@@ -83,13 +83,14 @@ func TestCacheBasics(t *testing.T) {
 	rr = httptest.NewRecorder()
 	found, err = cache.Get(KEY, rr)
 	if err != nil {
-		t.Fatal()
+		t.Fatal(err)
 	}
-	if found != true {
-		t.Fatal()
+	if !found {
+		t.Fatal("expected the item to exist")
 	}
 	if bytes.Compare(rr.Body.Bytes(), []byte(CONTENTS)) != 0 {
-		t.Fatal()
+		t.Fatalf("expected response '%s', but received '%s'",
+			rr.Body.Bytes(), CONTENTS)
 	}
 }
 
@@ -124,7 +125,7 @@ func TestCacheEviction(t *testing.T) {
 
 func TestCacheExistingFiles(t *testing.T) {
 	cacheDir := tempDir(t)
-	//defer os.RemoveAll(cacheDir)
+	defer os.RemoveAll(cacheDir)
 
 	ensureDirExists(filepath.Join(cacheDir, "cas"))
 	ensureDirExists(filepath.Join(cacheDir, "ac"))
@@ -173,7 +174,7 @@ func TestCacheTooBig(t *testing.T) {
 
 	err := cache.Put("a-key", 10000, "", strings.NewReader(CONTENTS))
 	if err == nil {
-		t.Fatal(err)
+		t.Fatal("expected ErrTooBig")
 	}
 	switch err.(type) {
 	case *ErrTooBig:

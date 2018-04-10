@@ -115,7 +115,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		found, err := h.cache.Get(cacheKey, w)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			h.errorLogger.Printf("get %s: %s", cacheKey, err)
+			h.errorLogger.Printf("GET %s: %s", cacheKey, err)
 			return
 		}
 
@@ -137,7 +137,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		err := h.cache.Put(cacheKey, r.ContentLength, expectedHash, r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			h.errorLogger.Printf("put %s: %s", cacheKey, err)
+			h.errorLogger.Printf("PUT %s: %s", cacheKey, err)
 			return
 		}
 
@@ -146,7 +146,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		ok, err := h.cache.Contains(cacheKey)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			h.errorLogger.Printf("head %s: %s", cacheKey, err)
+			h.errorLogger.Printf("HEAD %s: %s", cacheKey, err)
 			return
 		}
 
