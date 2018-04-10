@@ -1,14 +1,14 @@
 package cache
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"net/http/httptest"
-	"bytes"
 	"time"
 )
 
@@ -184,7 +184,7 @@ func TestCacheTooBig(t *testing.T) {
 }
 
 // Make sure that Cache rejects an upload whose hashsum doesn't match
-func TestCacheCorruptedFile(t * testing.T) {
+func TestCacheCorruptedFile(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
 	cache := NewFsCache(cacheDir, 1000)

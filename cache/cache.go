@@ -9,11 +9,11 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"sync"
-	"net/http"
 )
 
 // ErrTooBig is returned by Cache::Put when when the item size is bigger than the
