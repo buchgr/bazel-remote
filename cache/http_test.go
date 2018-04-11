@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -127,10 +128,6 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 	defer os.RemoveAll(cacheDir)
 
 	data, hash := randomDataAndHash(1024)
-	r, err := http.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(data))
-	if err != nil {
-		t.Error(err)
-	}
 
 	h := NewHTTPCache(cacheDir, 1024, newSilentLogger(), newSilentLogger())
 	handler := http.HandlerFunc(h.CacheHandler)
@@ -138,18 +135,27 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(100)
 	for i := 0; i < 100; i++ {
-		go func(request *http.Request) {
+		go func() {
 			defer wg.Done()
+
 			rr := httptest.NewRecorder()
+
+			request, err := http.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(data))
+			if err != nil {
+				t.Error(err)
+			}
+
 			handler.ServeHTTP(rr, request)
 
 			if status := rr.Code; status != http.StatusOK {
+				resp, _ := ioutil.ReadAll(rr.Body)
 				t.Error("Handler returned wrong status code",
 					"expected", http.StatusOK,
 					"got", status,
+					string(resp),
 				)
 			}
-		}(r)
+		}()
 	}
 
 	wg.Wait()

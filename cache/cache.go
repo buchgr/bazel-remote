@@ -13,8 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"sync"
 	"strconv"
+	"sync"
 )
 
 // ErrTooBig is returned by Cache::Put when when the item size is bigger than the
@@ -128,11 +128,13 @@ func (c *fsCache) loadExistingFiles() {
 func (c *fsCache) Put(key string, size int64, expectedSha256 string, r io.Reader) (err error) {
 	c.mux.Lock()
 
-	// If `key` is already in the LRU, do nothing. This applied to both
-	// committed an uncommitted files (we don't want to upload again if an upload
-	// of the same file is already in progress).
-	if _, exists := c.lru.Get(key); exists {
+	// If `key` is already in the LRU, don't touch the cache and just discard
+	// the incoming stream. This applies to both committed an uncommitted files
+	// (we don't want to upload again if an upload of the same file is already
+	// in progress).
+	if _, found := c.lru.Get(key); found {
 		c.mux.Unlock()
+		io.Copy(ioutil.Discard, r)
 		return
 	}
 
@@ -235,7 +237,7 @@ func (c *fsCache) Get(key string, w http.ResponseWriter) (ok bool, err error) {
 	defer f.Close()
 
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Length",strconv.FormatInt(fileInfo.Size(), 10))
+	w.Header().Set("Content-Length", strconv.FormatInt(fileInfo.Size(), 10))
 
 	_, err = io.Copy(w, f)
 	return
