@@ -46,6 +46,7 @@ type statusPageData struct {
 // be reported.
 func NewHTTPCache(cacheDir string, maxBytes int64, accessLogger logger, errorLogger logger) HTTPCache {
 	cache := NewFsCache(cacheDir, maxBytes)
+	errorLogger.Printf("Loaded %d existing cache items.", cache.NumFiles())
 
 	hc := &httpCache{
 		cache:        cache,
