@@ -50,7 +50,7 @@ type Cache interface {
 	// Stats
 	MaxSize() int64
 	CurrentSize() int64
-	NumFiles() int
+	NumItems() int
 }
 
 // NewFsCache returns a new instance of a filesystem-based cache rooted at `dir`,
@@ -251,7 +251,7 @@ func (c *fsCache) Contains(key string) (ok bool, err error) {
 	return found && val.(*lruItem).committed, nil
 }
 
-func (c *fsCache) NumFiles() int {
+func (c *fsCache) NumItems() int {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 	return c.lru.Len()

@@ -46,7 +46,7 @@ type statusPageData struct {
 // be reported.
 func NewHTTPCache(cacheDir string, maxBytes int64, accessLogger logger, errorLogger logger) HTTPCache {
 	cache := NewFsCache(cacheDir, maxBytes)
-	errorLogger.Printf("Loaded %d existing cache items.", cache.NumFiles())
+	errorLogger.Printf("Loaded %d existing cache items.", cache.NumItems())
 
 	hc := &httpCache{
 		cache:        cache,
@@ -176,7 +176,7 @@ func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 	enc.Encode(statusPageData{
 		CurrSize:   h.cache.CurrentSize(),
 		MaxSize:    h.cache.MaxSize(),
-		NumFiles:   h.cache.NumFiles(),
+		NumFiles:   h.cache.NumItems(),
 		ServerTime: time.Now().Unix(),
 	})
 }
