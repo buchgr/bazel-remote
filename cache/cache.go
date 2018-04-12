@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/djherbis/atime"
 	"io"
 	"io/ioutil"
 	"log"
@@ -15,6 +14,8 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+
+	"github.com/djherbis/atime"
 )
 
 // ErrTooBig is returned by Cache::Put when when the item size is bigger than the
@@ -73,7 +74,7 @@ func NewFsCache(dir string, maxSizeBytes int64) *fsCache {
 	}
 
 	cache := &fsCache{
-		dir: dir,
+		dir: filepath.Clean(dir),
 		mux: &sync.RWMutex{},
 		lru: NewSizedLRU(maxSizeBytes, onEvict),
 	}
