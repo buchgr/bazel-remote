@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -23,8 +24,7 @@ func TestDownloadFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	e := NewEnsureSpacer(1, 1)
-	h := NewHTTPCache(cacheDir, 1024, e, newSilentLogger(), newSilentLogger())
+	h := NewHTTPCache(cacheDir, 1024, newSilentLogger(), newSilentLogger())
 
 	req, err := http.NewRequest("GET", "/cas/"+hash, bytes.NewReader([]byte{}))
 	if err != nil {
@@ -74,8 +74,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 		requests[i] = r
 	}
 
-	e := NewEnsureSpacer(0.8, 0.5)
-	h := NewHTTPCache(cacheDir, 1000*1024, e, newSilentLogger(), newSilentLogger())
+	h := NewHTTPCache(cacheDir, 1000*1024, newSilentLogger(), newSilentLogger())
 	handler := http.HandlerFunc(h.CacheHandler)
 
 	var wg sync.WaitGroup
@@ -129,30 +128,34 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 	defer os.RemoveAll(cacheDir)
 
 	data, hash := randomDataAndHash(1024)
-	r, err := http.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(data))
-	if err != nil {
-		t.Error(err)
-	}
 
-	e := NewEnsureSpacer(1, 1)
-	h := NewHTTPCache(cacheDir, 1024, e, newSilentLogger(), newSilentLogger())
+	h := NewHTTPCache(cacheDir, 1024, newSilentLogger(), newSilentLogger())
 	handler := http.HandlerFunc(h.CacheHandler)
 
 	var wg sync.WaitGroup
 	wg.Add(100)
 	for i := 0; i < 100; i++ {
-		go func(request *http.Request) {
+		go func() {
 			defer wg.Done()
+
 			rr := httptest.NewRecorder()
+
+			request, err := http.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(data))
+			if err != nil {
+				t.Error(err)
+			}
+
 			handler.ServeHTTP(rr, request)
 
 			if status := rr.Code; status != http.StatusOK {
+				resp, _ := ioutil.ReadAll(rr.Body)
 				t.Error("Handler returned wrong status code",
 					"expected", http.StatusOK,
 					"got", status,
+					string(resp),
 				)
 			}
-		}(r)
+		}()
 	}
 
 	wg.Wait()
@@ -170,8 +173,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 		t.Error(err)
 	}
 
-	e := NewEnsureSpacer(1, 1)
-	h := NewHTTPCache(cacheDir, 2048, e, newSilentLogger(), newSilentLogger())
+	h := NewHTTPCache(cacheDir, 2048, newSilentLogger(), newSilentLogger())
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.CacheHandler)
 	handler.ServeHTTP(rr, r)
@@ -208,8 +210,7 @@ func TestStatusPage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	e := NewEnsureSpacer(1, 1)
-	h := NewHTTPCache(cacheDir, 2048, e, newSilentLogger(), newSilentLogger())
+	h := NewHTTPCache(cacheDir, 2048, newSilentLogger(), newSilentLogger())
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.StatusPageHandler)
 	handler.ServeHTTP(rr, r)
@@ -233,56 +234,53 @@ func TestStatusPage(t *testing.T) {
 	}
 }
 
-func TestArtifactInfoFromUrl(t *testing.T) {
+func TestCacheKeyFromRequestPath(t *testing.T) {
 	{
-		info, err := cacheItemFromRequestPath("invalid/url", "")
-		if info != nil || err == nil {
+		_, _, err := cacheKeyFromRequestPath("invalid/url")
+		if err == nil {
 			t.Error("Failed to reject an invalid URL")
 		}
 	}
 
 	const aSha256sum = "fec3be77b8aa0d307ed840581ded3d114c86f36d4914c81e33a72877020c0603"
-	const aBaseDir = "/cachedir"
 
 	{
-		info, err := cacheItemFromRequestPath("cas/"+aSha256sum, aBaseDir)
+		cacheKey, shasum, err := cacheKeyFromRequestPath("cas/" + aSha256sum)
 		if err != nil {
 			t.Error("Failed to parse a valid CAS URL")
 		}
-		if !info.verifyHash {
-			t.Error("CAS requests should have verifyHash == true")
+		if cacheKey != "cas/"+aSha256sum {
+			t.Error("Cache key parsed incorrectly")
 		}
-		if info.hash != aSha256sum {
-			t.Error("Hash parsed incorrectly")
-		}
-		if info.absFilePath != filepath.Join(aBaseDir, "cas", aSha256sum) {
-			t.Error("File path constructed incorrectly")
+		if shasum != aSha256sum {
+			t.Log(shasum)
+			t.Error("Hashsum parsed incorrectly")
 		}
 	}
 
 	{
-		info, err := cacheItemFromRequestPath("ac/"+aSha256sum, aBaseDir)
+		cacheKey, shasum, err := cacheKeyFromRequestPath("ac/" + aSha256sum)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL")
 		}
-		if info.verifyHash {
-			t.Error("AC requests should have verifyHash == false")
+		if cacheKey != "ac/"+aSha256sum {
+			t.Error("Cache key parsed incorrectly")
 		}
-		if info.hash != aSha256sum {
-			t.Error("Has parsed incorrectly")
+		if shasum != "" {
+			t.Error("Hashsum parsed incorrectly")
 		}
 	}
 
 	{
-		info, err := cacheItemFromRequestPath("prefix/ac/"+aSha256sum, aBaseDir)
+		cacheKey, shasum, err := cacheKeyFromRequestPath("prefix/ac/" + aSha256sum)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL with prefix")
 		}
-		if info.hash != aSha256sum {
-			t.Error("Hash parsed incorrectly")
+		if cacheKey != "ac/"+aSha256sum {
+			t.Error("Cache key parsed incorrectly")
 		}
-		if info.absFilePath != filepath.Join(aBaseDir, "ac", aSha256sum) {
-			t.Error("File path constructed incorrectly")
+		if shasum != "" {
+			t.Error("Hashsum parsed incorrectly")
 		}
 	}
 }

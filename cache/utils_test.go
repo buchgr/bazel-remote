@@ -26,7 +26,7 @@ func randomDataAndHash(size int64) ([]byte, string) {
 }
 
 func createTmpCacheDirs(t *testing.T) string {
-	path, err := ioutil.TempDir("", "ensurespacer")
+	path, err := ioutil.TempDir("", "bazel-remote-test")
 	if err != nil {
 		t.Error("Couldn't create tmp dir", err)
 	}
