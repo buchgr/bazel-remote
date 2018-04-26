@@ -41,10 +41,10 @@ container_image(
     cmd = ["--max_size=5"],
     entrypoint = [
         "/app/bazel-remote-base.binary",
-        "--port=8080",
+        "--port=80",
         "--dir=/data",
     ],
-    ports = ["8080"],
+    ports = ["80"],
     visibility = ["//visibility:public"],
 )
 

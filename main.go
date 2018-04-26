@@ -13,7 +13,7 @@ import (
 
 func main() {
 	host := flag.String("host", "", "Address to listen on. Listens on all network interfaces by default.")
-	port := flag.Int("port", 8080, "The port the HTTP server listens on")
+	port := flag.Int("port", 80, "The port the HTTP server listens on")
 	dir := flag.String("dir", "",
 		"Directory path where to store the cache contents. This flag is required.")
 	maxSize := flag.Int64("max_size", -1,

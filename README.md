@@ -22,7 +22,7 @@ Usage of ./bazel-remote:
   -max_size int
 	The maximum size of the remote cache in GiB. This flag is required. (default -1)
   -port int
-	The port the HTTP server listens on (default 8080)
+	The port the HTTP server listens on (default 80)
   -tls_cert_file string
 	Path to a PEM encoded certificate file.  Required if tls_enabled is set to true.
   -tls_enabled
@@ -42,7 +42,7 @@ We publish docker images to [DockerHub](https://hub.docker.com/r/buchgr/bazel-re
 
 ```bash
 $ docker pull buchgr/bazel-remote-cache
-$ docker run -v /path/to/cache/dir:/data -p 9090:8080 buchgr/bazel-remote-cache
+$ docker run -v /path/to/cache/dir:/data -p 9090:80 buchgr/bazel-remote-cache
 ```
 
 Note that you will need to change `/path/to/cache/dir` to a valid directory where the docker container can write to
@@ -74,7 +74,7 @@ $ docker run -v /path/to/cache/dir:/data \
 -v /path/to/htpasswd:/etc/bazel-remote/htpasswd \
 -v /path/to/server_cert:/etc/bazel-remote/server_cert \
 -v /path/to/server_key:/etc/bazel-remote/server_key \
--p 9090:8080 buchgr/bazel-remote-cache --tls_enabled=true \
+-p 9090:80 buchgr/bazel-remote-cache --tls_enabled=true \
 --tls_cert_file=/etc/bazel-remote/server_cert --tls_key_file=/etc/bazel-remote/server_key \
 --htpasswd_file /etc/bazel-remote/htpasswd --max_size=5
 ```
