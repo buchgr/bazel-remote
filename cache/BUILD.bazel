@@ -6,7 +6,6 @@ go_library(
         "cache.go",
         "http.go",
         "lru.go",
-        "stats.go",
     ],
     importpath = "github.com/buchgr/bazel-remote/cache",
     visibility = ["//visibility:public"],
