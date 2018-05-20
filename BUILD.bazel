@@ -15,8 +15,13 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//cache:go_default_library",
-        "@com_github_abbot_go_http_auth//:go_default_library",
-        "@com_github_urfave_cli//:go_default_library",
+        "//cache/disk:go_default_library",
+        "//cache/gcs:go_default_library",
+        "//cache/http:go_default_library",
+        "//config:go_default_library",
+        "//server:go_default_library",
+        "//vendor/github.com/abbot/go-http-auth:go_default_library",
+        "//vendor/github.com/urfave/cli:go_default_library",
     ],
 )
 

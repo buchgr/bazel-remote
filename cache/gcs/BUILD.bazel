@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["gcs.go"],
+    importpath = "github.com/buchgr/bazel-remote/cache/gcs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cache:go_default_library",
+        "//cache/http:go_default_library",
+        "//vendor/golang.org/x/oauth2:go_default_library",
+        "//vendor/golang.org/x/oauth2/google:go_default_library",
+    ],
+)

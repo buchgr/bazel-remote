@@ -54,12 +54,54 @@ go_repository(
 
 go_repository(
     name = "org_golang_x_crypto",
-    commit = "5119cf507ed5294cc409c092980c7497ee5d6fd2",
+    commit = "ab813273cd59e1333f7ae7bff5d027d4aadf528c",
     importpath = "golang.org/x/crypto",
 )
 
 go_repository(
     name = "org_golang_x_net",
-    commit = "f5dfe339be1d06f81b22525fe34671ee7d2c8904",
+    commit = "1e491301e022f8f977054da4c2d852decd59571f",
     importpath = "golang.org/x/net",
+)
+
+go_repository(
+    name = "com_github_golang_protobuf",
+    commit = "b4deda0973fb4c70b50d226b1af49f3da59f5265",
+    importpath = "github.com/golang/protobuf",
+)
+
+go_repository(
+    name = "com_google_cloud_go",
+    commit = "0fd7230b2a7505833d5f69b75cbd6c9582401479",
+    importpath = "cloud.google.com/go",
+)
+
+go_repository(
+    name = "in_gopkg_yaml_v2",
+    commit = "5420a8b6744d3b0345ab293f6fcba19c978f1183",
+    importpath = "gopkg.in/yaml.v2",
+)
+
+go_repository(
+    name = "org_golang_google_appengine",
+    commit = "150dc57a1b433e64154302bdc40b6bb8aefa313a",
+    importpath = "google.golang.org/appengine",
+)
+
+go_repository(
+    name = "org_golang_x_oauth2",
+    commit = "ec22f46f877b4505e0117eeaab541714644fdd28",
+    importpath = "golang.org/x/oauth2",
+)
+
+go_repository(
+    name = "com_github_urfave_cli",
+    commit = "cfb38830724cc34fedffe9a2a29fb54fa9169cd1",
+    importpath = "github.com/urfave/cli",
+)
+
+go_repository(
+    name = "com_github_google_go_cmp",
+    commit = "3af367b6b30c263d47e8895973edcca9a49cf029",
+    importpath = "github.com/google/go-cmp",
 )

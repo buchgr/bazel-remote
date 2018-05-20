@@ -1,4 +1,4 @@
-package cache
+package server
 
 import (
 	"bytes"
@@ -13,18 +13,22 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+
+	"github.com/buchgr/bazel-remote/cache/disk"
+	"github.com/buchgr/bazel-remote/utils"
 )
 
 func TestDownloadFile(t *testing.T) {
-	cacheDir := createTmpCacheDirs(t)
+	cacheDir := testutils.CreateTmpCacheDirs(t)
 	defer os.RemoveAll(cacheDir)
 
-	hash, err := createRandomFile(filepath.Join(cacheDir, "cas"), 1024)
+	hash, err := testutils.CreateRandomFile(filepath.Join(cacheDir, "cas"), 1024)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	h := NewHTTPCache(cacheDir, 1024, newSilentLogger(), newSilentLogger())
+	c := disk.New(cacheDir, 1024)
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger())
 
 	req, err := http.NewRequest("GET", "/cas/"+hash, bytes.NewReader([]byte{}))
 	if err != nil {
@@ -59,14 +63,14 @@ func TestDownloadFile(t *testing.T) {
 }
 
 func TestUploadFilesConcurrently(t *testing.T) {
-	cacheDir := createTmpCacheDirs(t)
+	cacheDir := testutils.CreateTmpCacheDirs(t)
 	defer os.RemoveAll(cacheDir)
 
 	const NumUploads = 1000
 
 	var requests [NumUploads]*http.Request
 	for i := 0; i < NumUploads; i++ {
-		data, hash := randomDataAndHash(1024)
+		data, hash := testutils.RandomDataAndHash(1024)
 		r, err := http.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(data))
 		if err != nil {
 			t.Error(err)
@@ -74,7 +78,8 @@ func TestUploadFilesConcurrently(t *testing.T) {
 		requests[i] = r
 	}
 
-	h := NewHTTPCache(cacheDir, 1000*1024, newSilentLogger(), newSilentLogger())
+	c := disk.New(cacheDir, 1000*1024)
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger())
 	handler := http.HandlerFunc(h.CacheHandler)
 
 	var wg sync.WaitGroup
@@ -124,12 +129,13 @@ func TestUploadFilesConcurrently(t *testing.T) {
 }
 
 func TestUploadSameFileConcurrently(t *testing.T) {
-	cacheDir := createTmpCacheDirs(t)
+	cacheDir := testutils.CreateTmpCacheDirs(t)
 	defer os.RemoveAll(cacheDir)
 
-	data, hash := randomDataAndHash(1024)
+	data, hash := testutils.RandomDataAndHash(1024)
 
-	h := NewHTTPCache(cacheDir, 1024, newSilentLogger(), newSilentLogger())
+	c := disk.New(cacheDir, 1024)
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger())
 	handler := http.HandlerFunc(h.CacheHandler)
 
 	var wg sync.WaitGroup
@@ -162,10 +168,10 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 }
 
 func TestUploadCorruptedFile(t *testing.T) {
-	cacheDir := createTmpCacheDirs(t)
+	cacheDir := testutils.CreateTmpCacheDirs(t)
 	defer os.RemoveAll(cacheDir)
 
-	data, hash := randomDataAndHash(1024)
+	data, hash := testutils.RandomDataAndHash(1024)
 	corruptedData := data[:999]
 
 	r, err := http.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(corruptedData))
@@ -173,7 +179,8 @@ func TestUploadCorruptedFile(t *testing.T) {
 		t.Error(err)
 	}
 
-	h := NewHTTPCache(cacheDir, 2048, newSilentLogger(), newSilentLogger())
+	c := disk.New(cacheDir, 2048)
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger())
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.CacheHandler)
 	handler.ServeHTTP(rr, r)
@@ -202,7 +209,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 }
 
 func TestStatusPage(t *testing.T) {
-	cacheDir := createTmpCacheDirs(t)
+	cacheDir := testutils.CreateTmpCacheDirs(t)
 	defer os.RemoveAll(cacheDir)
 
 	r, err := http.NewRequest("GET", "/status", bytes.NewReader([]byte{}))
@@ -210,7 +217,8 @@ func TestStatusPage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h := NewHTTPCache(cacheDir, 2048, newSilentLogger(), newSilentLogger())
+	c := disk.New(cacheDir, 2048)
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger())
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.StatusPageHandler)
 	handler.ServeHTTP(rr, r)

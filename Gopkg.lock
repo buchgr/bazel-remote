@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "cloud.google.com/go"
+  packages = ["compute/metadata"]
+  revision = "0fd7230b2a7505833d5f69b75cbd6c9582401479"
+  version = "v0.23.0"
+
+[[projects]]
   name = "github.com/abbot/go-http-auth"
   packages = ["."]
   revision = "0ddd408d5d60ea76e320503cc7dd091992dee608"
@@ -12,6 +18,23 @@
   packages = ["."]
   revision = "8e47e0e01d08df8b9f840d74299c8ab70a024a30"
   version = "v1.0.0"
+
+[[projects]]
+  name = "github.com/golang/protobuf"
+  packages = ["proto"]
+  revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
+  version = "v1.1.0"
+
+[[projects]]
+  name = "github.com/google/go-cmp"
+  packages = [
+    "cmp",
+    "cmp/internal/diff",
+    "cmp/internal/function",
+    "cmp/internal/value"
+  ]
+  revision = "3af367b6b30c263d47e8895973edcca9a49cf029"
+  version = "v0.2.0"
 
 [[projects]]
   name = "github.com/urfave/cli"
@@ -26,17 +49,55 @@
     "bcrypt",
     "blowfish"
   ]
-  revision = "5119cf507ed5294cc409c092980c7497ee5d6fd2"
+  revision = "ab813273cd59e1333f7ae7bff5d027d4aadf528c"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
-  packages = ["context"]
-  revision = "f5dfe339be1d06f81b22525fe34671ee7d2c8904"
+  packages = [
+    "context",
+    "context/ctxhttp"
+  ]
+  revision = "1e491301e022f8f977054da4c2d852decd59571f"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/oauth2"
+  packages = [
+    ".",
+    "google",
+    "internal",
+    "jws",
+    "jwt"
+  ]
+  revision = "ec22f46f877b4505e0117eeaab541714644fdd28"
+
+[[projects]]
+  name = "google.golang.org/appengine"
+  packages = [
+    ".",
+    "internal",
+    "internal/app_identity",
+    "internal/base",
+    "internal/datastore",
+    "internal/log",
+    "internal/modules",
+    "internal/remote_api",
+    "internal/urlfetch",
+    "urlfetch"
+  ]
+  revision = "150dc57a1b433e64154302bdc40b6bb8aefa313a"
+  version = "v1.0.0"
+
+[[projects]]
+  name = "gopkg.in/yaml.v2"
+  packages = ["."]
+  revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
+  version = "v2.2.1"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "95b67ee97d6a8ef6bd7053b661cddb720818b6c7817e932dd271b37e83e4b900"
+  inputs-digest = "3d4dba210844ea80da3cbfa7863333a2692648f1a7dc4ab92be2e3ce86d05464"
   solver-name = "gps-cdcl"
   solver-version = 1

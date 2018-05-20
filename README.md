@@ -8,7 +8,7 @@ size and bazel-remote will automatically enforce this limit and clean the cache 
 last access time. The cache supports HTTP basic authentication with usernames and passwords being specified by a
 `.htpasswd` file.
 
-Cache entries are set and retrieved by key, and there are two types of key that can be used:
+Cache entries are set and retrieved by key, and there are two types of keys that can be used:
 1. Content addressed storage (CAS), where the key is the lowercase SHA256 hash of the stored value.
    The REST API for these entries is: `/cas/<key>` or with an optional but ignored cache pool name: `/<pool>/cas/<key>`.
 2. Action cache, where the key is an arbitrary 64 character lowercase hexadecimal string.
@@ -19,28 +19,36 @@ Values are stored via HTTP PUT requests, and retrieved via GET requests.
 **Project status**: bazel-remote has been serving TBs of cache artifacts per day since April 2018, both on
 commodity hardware and AWS servers. Outgoing bandwidth can exceed 15 Gbit/s on the right AWS instance type.
 
-## Using bazel-remote
+## Usage
+
+The cache can be configured via command line flags, environment variables or a YAML configuration
+file. See `./config/config_test.go` for the configuration format.
 
 ```
-Usage of ./bazel-remote:
-  -dir string
-	Directory path where to store the cache contents. This flag is required.
-  -host string
-	Address to listen on. Listens on all network interfaces by default.
-  -htpasswd_file string
-	Path to a .htpasswd file. This flag is optional. Please read
-	https://httpd.apache.org/docs/2.4/programs/htpasswd.html.
-  -max_size int
-	The maximum size of the remote cache in GiB. This flag is required. (default -1)
-  -port int
-	The port the HTTP server listens on (default 8080)
-  -tls_cert_file string
-	Path to a PEM encoded certificate file.  Required if tls_enabled is set to true.
-  -tls_enabled
-	Bool specifying whether or not to start the server with tls.  If true, server_cert and server_key flags
-	are required.
-  -tls_key_file string
-	Path to a PEM encoded key file.  Required if tls_enabled is set to true.
+$ ./bazel-remote --help
+NAME:
+   bazel-remote - A remote build cache for Bazel
+
+USAGE:
+   bazel-remote [global options] command [command options] [arguments...]
+
+DESCRIPTION:
+   A remote build cache for Bazel.
+
+COMMANDS:
+     help, h  Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+   --config_file value    Path to a YAML configuration file. If this flag is specified then all other flags are ignored. [$BAZEL_REMOTE_CONFIG_FILE]
+   --dir value            Directory path where to store the cache contents. This flag is required. [$BAZEL_REMOTE_DIR]
+   --max_size value       The maximum size of the remote cache in GiB. This flag is required. (default: -1) [$BAZEL_REMOTE_MAX_SIZE]
+   --host value           Address to listen on. Listens on all network interfaces by default. [$BAZEL_REMOTE_HOST]
+   --port value           The port the HTTP server listens on. (default: 8080) [$BAZEL_REMOTE_PORT]
+   --htpasswd_file value  Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html. [$BAZEL_REMOTE_HTPASSWD_FILE]
+   --tls_enabled          This flag has been deprecated. Specify tls_cert_file and tls_key_file instead. [$BAZEL_REMOTE_TLS_ENABLED]
+   --tls_cert_file value  Path to a pem encoded certificate file. [$BAZEL_REMOTE_TLS_CERT_FILE]
+   --tls_key_file value   Path to a pem encoded key file. [$BAZEL_REMOTE_TLS_KEY_FILE]
+   --help, -h             show help
 ```
 
 ## Docker
