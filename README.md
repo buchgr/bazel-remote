@@ -8,6 +8,9 @@ size and bazel-remote will automatically enforce this limit and clean the cache 
 last access time. The cache supports HTTP basic authentication with usernames and passwords being specified by a
 `.htpasswd` file.
 
+**Project status**: bazel-remote has been serving TBs of cache artifacts per day since April 2018, both on
+commodity hardware and AWS servers. Outgoing bandwidth can exceed 15 Gbit/s on the right AWS instance type.
+
 ## Using bazel-remote
 
 ```
