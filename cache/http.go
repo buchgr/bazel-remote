@@ -34,11 +34,15 @@ type httpCache struct {
 }
 
 type statusPageData struct {
-	CurrSize   int64
-	MaxSize    int64
-	NumFiles   int
-	ServerTime int64
+	CurrSize      int64
+	MaxSize       int64
+	NumFiles      int
+	ServerTime    int64
+	ServerVersion string
 }
+
+// Version stamp for the server. The value of this var is set through linker options.
+var ServerVersion string
 
 // NewHTTPCache returns a new instance of the cache.
 // accessLogger will print one line for each HTTP request to the cache.
@@ -174,9 +178,10 @@ func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", " ")
 	enc.Encode(statusPageData{
-		CurrSize:   h.cache.CurrentSize(),
-		MaxSize:    h.cache.MaxSize(),
-		NumFiles:   h.cache.NumItems(),
-		ServerTime: time.Now().Unix(),
+		CurrSize:      h.cache.CurrentSize(),
+		MaxSize:       h.cache.MaxSize(),
+		NumFiles:      h.cache.NumItems(),
+		ServerTime:    time.Now().Unix(),
+		ServerVersion: ServerVersion,
 	})
 }
