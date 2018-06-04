@@ -48,6 +48,21 @@ func checkItems(t *testing.T, cache *fsCache, expSize int64, expNum int) {
 	}
 }
 
+func expectContentEquals(t *testing.T, c Cache, key string, content []byte) {
+	rr := httptest.NewRecorder()
+	found, err := c.Get(key, rr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found {
+		t.Fatalf("expected item at key %s to exist", key)
+	}
+	if bytes.Compare(rr.Body.Bytes(), []byte(content)) != 0 {
+		t.Fatalf("expected item at key %s to contain '%s', but got '%s'",
+			rr.Body.Bytes(), content)
+	}
+}
+
 const KEY = "a-key"
 const CONTENTS = "hello"
 const CONTENTS_HASH = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
@@ -80,18 +95,7 @@ func TestCacheBasics(t *testing.T) {
 	checkItems(t, cache, int64(len(CONTENTS)), 1)
 
 	// Get the item back
-	rr = httptest.NewRecorder()
-	found, err = cache.Get(KEY, rr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !found {
-		t.Fatal("expected the item to exist")
-	}
-	if bytes.Compare(rr.Body.Bytes(), []byte(CONTENTS)) != 0 {
-		t.Fatalf("expected response '%s', but received '%s'",
-			rr.Body.Bytes(), CONTENTS)
-	}
+	expectContentEquals(t, cache, KEY, []byte(CONTENTS))
 }
 
 func TestCacheEviction(t *testing.T) {
@@ -121,6 +125,33 @@ func TestCacheEviction(t *testing.T) {
 
 		checkItems(t, cache, thisExp.expSize, thisExp.expNum)
 	}
+}
+
+// Make sure that we can overwrite items if we upload the same key again.
+func TestOverwrite(t *testing.T) {
+	cacheDir := tempDir(t)
+	defer os.RemoveAll(cacheDir)
+	cache := NewFsCache(cacheDir, 10)
+
+	oldContent := "Hello"
+	newContent := "World"
+
+	err := cache.Put(KEY, 1, "", strings.NewReader(oldContent));
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Get the item back
+	expectContentEquals(t, cache, KEY, []byte(oldContent))
+
+	// Overwrite
+	err = cache.Put(KEY, 1, "", strings.NewReader(newContent));
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Get the item back again
+	expectContentEquals(t, cache, KEY, []byte(newContent))
 }
 
 func TestCacheExistingFiles(t *testing.T) {
