@@ -1,53 +1,107 @@
 package main
 
 import (
-	"flag"
 	"log"
 	"net/http"
 	"strconv"
 
 	auth "github.com/abbot/go-http-auth"
 	"github.com/buchgr/bazel-remote/cache"
+	"github.com/urfave/cli"
 	"os"
 )
 
 func main() {
-	host := flag.String("host", "", "Address to listen on. Listens on all network interfaces by default.")
-	port := flag.Int("port", 8080, "The port the HTTP server listens on")
-	dir := flag.String("dir", "",
-		"Directory path where to store the cache contents. This flag is required.")
-	maxSize := flag.Int64("max_size", -1,
-		"The maximum size of the remote cache in GiB. This flag is required.")
-	htpasswdFile := flag.String("htpasswd_file", "", "Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.")
-	tlsEnabled := flag.Bool("tls_enabled", false, "Bool specifying whether or not to start the server with tls.  If true, server_cert and server_key flags are requred.")
-	tlsCertFile := flag.String("tls_cert_file", "", "Path to a PEM encoded certificate file.  Required if tls_enabled is set to true.")
-	tlsKeyFile := flag.String("tls_key_file", "", "Path to a PEM encoded key file.  Required if tls_enabled is set to true.")
 
-	flag.Parse()
+	app := cli.NewApp()
+	app.Description = "A remote build cache for Bazel."
+	app.Usage = "A remote build cache for Bazel"
+	app.HideHelp = true
+	app.HideVersion = true
 
-	if *dir == "" || *maxSize <= 0 {
-		flag.Usage()
-		return
+	app.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:   "host",
+			Value:  "",
+			Usage:  "Address to listen on. Listens on all network interfaces by default.",
+			EnvVar: "BAZEL_REMOTE_HOST",
+		},
+		cli.IntFlag{
+			Name:   "port",
+			Value:  8080,
+			Usage:  "The port the HTTP server listens on.",
+			EnvVar: "BAZEL_REMOTE_PORT",
+		},
+		cli.StringFlag{
+			Name:   "dir",
+			Value:  "",
+			Usage:  "Directory path where to store the cache contents. This flag is required.",
+			EnvVar: "BAZEL_REMOTE_DIR",
+		},
+		cli.Int64Flag{
+			Name:   "max_size",
+			Value:  -1,
+			Usage:  "The maximum size of the remote cache in GiB. This flag is required.",
+			EnvVar: "BAZEL_REMOTE_MAX_SIZE",
+		},
+		cli.StringFlag{
+			Name:   "htpasswd_file",
+			Value:  "",
+			Usage:  "Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.",
+			EnvVar: "BAZEL_REMOTE_HTPASSWD_FILE",
+		},
+		cli.BoolFlag{
+			Name:   "tls_enabled",
+			Usage:  "Bool specifying whether or not to start the server with tls. If true, server_cert and server_key flags are required.",
+			EnvVar: "BAZEL_REMOTE_TLS_ENABLED",
+		},
+		cli.StringFlag{
+			Name:   "tls_cert_file",
+			Value:  "",
+			Usage:  "Path to a pem encoded certificate file. Required if tls_enabled is set to true.",
+			EnvVar: "BAZEL_REMOTE_TLS_CERT_FILE",
+		},
+		cli.StringFlag{
+			Name:   "tls_key_file",
+			Value:  "",
+			Usage:  "Path to a pem encoded key file. Required if tls_enabled is set to true.",
+			EnvVar: "BAZEL_REMOTE_TLS_KEY_FILE",
+		},
 	}
 
-	log.SetFlags(log.Ldate | log.Ltime | log.LUTC | log.Lshortfile)
-	accessLogger := log.New(os.Stdout, "", log.Ldate|log.Ltime|log.LUTC)
-	errorLogger := log.New(os.Stderr, "", log.Ldate|log.Ltime|log.LUTC)
-	h := cache.NewHTTPCache(*dir, *maxSize*1024*1024*1024, accessLogger, errorLogger)
+	app.Action = func(c *cli.Context) error {
 
-	http.HandleFunc("/status", h.StatusPageHandler)
-	http.HandleFunc("/", maybeAuth(h.CacheHandler, *htpasswdFile, *host))
-	var serverErr error
+		host := c.String("host")
+		port := c.Int("port")
+		dir := c.String("dir")
+		maxSize := c.Int64("max_size")
+		htpasswdFile := c.String("htpasswd_file")
+		tlsEnabled := c.Bool("tls_enabled")
+		tlsCertFile := c.String("tls_cert_file")
+		tlsKeyFile := c.String("tls_key_file")
 
-	if *tlsEnabled {
-		if len(*tlsCertFile) < 1 || len(*tlsKeyFile) < 1 {
-			flag.Usage()
-			return
+		if dir == "" || maxSize <= 0 {
+			return cli.ShowAppHelp(c)
 		}
-		serverErr = http.ListenAndServeTLS(*host+":"+strconv.Itoa(*port), *tlsCertFile, *tlsKeyFile, nil)
-	} else {
-		serverErr = http.ListenAndServe(*host+":"+strconv.Itoa(*port), nil)
+
+		log.SetFlags(log.Ldate | log.Ltime | log.LUTC | log.Lshortfile)
+		accessLogger := log.New(os.Stdout, "", log.Ldate|log.Ltime|log.LUTC)
+		errorLogger := log.New(os.Stderr, "", log.Ldate|log.Ltime|log.LUTC)
+		h := cache.NewHTTPCache(dir, maxSize*1024*1024*1024, accessLogger, errorLogger)
+
+		http.HandleFunc("/status", h.StatusPageHandler)
+		http.HandleFunc("/", maybeAuth(h.CacheHandler, htpasswdFile, host))
+
+		if tlsEnabled {
+			if len(tlsCertFile) < 1 || len(tlsKeyFile) < 1 {
+				return cli.ShowAppHelp(c)
+			}
+			return http.ListenAndServeTLS(host+":"+strconv.Itoa(port), tlsCertFile, tlsKeyFile, nil)
+		}
+		return http.ListenAndServe(host+":"+strconv.Itoa(port), nil)
 	}
+
+	serverErr := app.Run(os.Args)
 	if serverErr != nil {
 		log.Fatal("ListenAndServe: ", serverErr)
 	}

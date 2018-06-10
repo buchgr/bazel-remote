@@ -40,6 +40,12 @@ go_repository(
 )
 
 go_repository(
+    name = "com_github_urfave_cli",
+    commit = "cfb38830724cc34fedffe9a2a29fb54fa9169cd1",
+    importpath = "github.com/urfave/cli",
+)
+
+go_repository(
     name = "com_github_djherbis_atime",
     commit = "8e47e0e01d08df8b9f840d74299c8ab70a024a30",
     importpath = "github.com/djherbis/atime",
