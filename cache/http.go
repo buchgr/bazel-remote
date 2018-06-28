@@ -2,7 +2,6 @@ package cache
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"html"
 	"log"
@@ -28,7 +27,7 @@ type logger interface {
 }
 
 type httpCache struct {
-	cache        Cache
+	blobStore    BlobStore
 	accessLogger logger
 	errorLogger  logger
 }
@@ -40,16 +39,15 @@ type statusPageData struct {
 	ServerTime int64
 }
 
-// NewHTTPCache returns a new instance of the cache.
-// accessLogger will print one line for each HTTP request to the cache.
+// NewHTTPCache returns a new instance of the HTTP cache.
+// accessLogger will print one line for each HTTP request to the blobStore.
 // errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
 // be reported.
-func NewHTTPCache(cacheDir string, maxBytes int64, accessLogger logger, errorLogger logger) HTTPCache {
-	cache := NewFsCache(cacheDir, maxBytes)
-	errorLogger.Printf("Loaded %d existing cache items.", cache.NumItems())
+func NewHTTPCache(backend BlobStore, accessLogger logger, errorLogger logger) HTTPCache {
+	errorLogger.Printf("Loaded %d existing blobStore items.", backend.NumItems())
 
 	hc := &httpCache{
-		cache:        cache,
+		blobStore:    backend,
 		accessLogger: accessLogger,
 		errorLogger:  errorLogger,
 	}
@@ -60,15 +58,15 @@ func NewHTTPCache(cacheDir string, maxBytes int64, accessLogger logger, errorLog
 func cacheKeyFromRequestPath(url string) (cacheKey string, sha256sum string, err error) {
 	m := blobNameSHA256.FindStringSubmatch(url)
 	if m == nil {
-		err = errors.New(fmt.Sprintf("Resource name must be a SHA256 hash in hex. "+
-			"Got '%s'.", html.EscapeString(url)))
+		err = fmt.Errorf("Resource name must be a SHA256 hash in hex. "+
+			"Got '%s'.", html.EscapeString(url))
 		return
 	}
 
 	parts := m[2:]
 	if len(parts) != 2 {
-		err = errors.New(fmt.Sprintf("The path '%s' is invalid. Expected (ac/|cas/)SHA256.",
-			html.EscapeString(url)))
+		err = fmt.Errorf("The path '%s' is invalid. Expected (ac/|cas/)SHA256.",
+			html.EscapeString(url))
 		return
 	}
 
@@ -113,7 +111,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch m := r.Method; m {
 	case http.MethodGet:
-		found, err := h.cache.Get(cacheKey, w)
+		found, err := h.blobStore.Get(cacheKey, w)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			h.errorLogger.Printf("GET %s: %s", cacheKey, err)
@@ -135,7 +133,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err := h.cache.Put(cacheKey, r.ContentLength, expectedHash, r.Body)
+		err := h.blobStore.Put(cacheKey, r.ContentLength, expectedHash, r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			h.errorLogger.Printf("PUT %s: %s", cacheKey, err)
@@ -144,7 +142,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 		logResponse(http.StatusOK)
 	case http.MethodHead:
-		ok, err := h.cache.Contains(cacheKey)
+		ok, err := h.blobStore.Contains(cacheKey)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			h.errorLogger.Printf("HEAD %s: %s", cacheKey, err)
@@ -166,7 +164,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Produce a debugging page with some stats about the cache.
+// Produce a debugging page with some stats about the blobStore.
 func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -174,9 +172,9 @@ func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", " ")
 	enc.Encode(statusPageData{
-		CurrSize:   h.cache.CurrentSize(),
-		MaxSize:    h.cache.MaxSize(),
-		NumFiles:   h.cache.NumItems(),
+		CurrSize:   h.blobStore.CurrentSize(),
+		MaxSize:    h.blobStore.MaxSize(),
+		NumFiles:   h.blobStore.NumItems(),
 		ServerTime: time.Now().Unix(),
 	})
 }

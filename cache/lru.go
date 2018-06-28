@@ -13,8 +13,9 @@ type Key interface{}
 // EvictCallback is the type of callbacks that are invoked when items are evicted.
 type EvictCallback func(key Key, value SizedItem)
 
-// SizedLRU is an LRU cache that will keep its total size below maxSize by evicting
-// items.
+// SizedLRU is an LRU key-value (KV) store. When inserting items, the caller specifies
+// their size. SizedLRU will keep the sum of sizes of all items below maxSize by evicting
+// items with a Least Recently Used (LRU) policy.
 // SizedLRU is not thread-safe.
 type SizedLRU interface {
 	Add(key Key, value SizedItem) (ok bool)
@@ -31,7 +32,7 @@ type sizedLRU struct {
 	// Map to access the items in O(1) time
 	cache       map[interface{}]*list.Element
 	currentSize int64
-	// SizedLRU will evict items as needed to maintain the total size of the cache
+	// SizedLRU will evict items as needed to maintain the total size of the store
 	// below maxSize.
 	maxSize int64
 	onEvict EvictCallback
@@ -42,7 +43,7 @@ type entry struct {
 	value SizedItem
 }
 
-// NewSizedLRU returns a new sizedLRU cache
+// NewSizedLRU returns a new SizedLRU key-value store.
 func NewSizedLRU(maxSize int64, onEvict EvictCallback) SizedLRU {
 	return &sizedLRU{
 		maxSize: maxSize,
@@ -52,8 +53,8 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback) SizedLRU {
 	}
 }
 
-// Add adds a (key, value) to the cache, evicting items as necessary. Add returns false (
-// and does not add the item) if the item size is larger than the maximum size of the cache.
+// Add adds a (key, value) to the store, evicting items as necessary. Add returns false (
+// and does not add the item) if the item size is larger than the maximum size of the store.
 func (c *sizedLRU) Add(key Key, value SizedItem) (ok bool) {
 	if value.Size() > c.maxSize {
 		return false
@@ -84,7 +85,7 @@ func (c *sizedLRU) Add(key Key, value SizedItem) (ok bool) {
 	return true
 }
 
-// Get looks up a key in the cache
+// Get looks up a key in the SizedLRU.
 func (c *sizedLRU) Get(key Key) (value SizedItem, ok bool) {
 	if ele, hit := c.cache[key]; hit {
 		c.ll.MoveToFront(ele)
@@ -94,14 +95,14 @@ func (c *sizedLRU) Get(key Key) (value SizedItem, ok bool) {
 	return
 }
 
-// Remove removes a (key, value) from the cache
+// Remove removes a (key, value) from the SizedLRU.
 func (c *sizedLRU) Remove(key Key) {
 	if ele, hit := c.cache[key]; hit {
 		c.removeElement(ele)
 	}
 }
 
-// Len returns the number of items in the cache
+// Len returns the number of items in the SizedLRU.
 func (c *sizedLRU) Len() int {
 	return len(c.cache)
 }

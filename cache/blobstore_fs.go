@@ -18,14 +18,6 @@ import (
 	"github.com/djherbis/atime"
 )
 
-// ErrTooBig is returned by Cache::Put when when the item size is bigger than the
-// cache size limit.
-type ErrTooBig struct{}
-
-func (e *ErrTooBig) Error() string {
-	return "item bigger than the cache size limit"
-}
-
 // lruItem is the type of the values stored in SizedLRU to keep track of items.
 // It implements the SizedItem interface.
 type lruItem struct {
@@ -37,26 +29,9 @@ func (i *lruItem) Size() int64 {
 	return i.size
 }
 
-// Cache is the interface for a generic blob storage backend. Implementers should handle
-// locking internally.
-type Cache interface {
-	// Put stores a stream of `size` bytes from `r` into the cache. If `expectedSha256` is
-	// not the empty string, and the contents don't match it, an error is returned
-	Put(key string, size int64, expectedSha256 string, r io.Reader) error
-	// Get writes the content of the cache item stored under `key` to `w`. If the item is
-	// not found, it returns ok = false.
-	Get(key string, w http.ResponseWriter) (ok bool, err error)
-	Contains(key string) (ok bool, err error)
-
-	// Stats
-	MaxSize() int64
-	CurrentSize() int64
-	NumItems() int
-}
-
-// NewFsCache returns a new instance of a filesystem-based cache rooted at `dir`,
+// NewFsBlobStore returns a new instance of a filesystem-based BlobStore rooted at `dir`,
 // with a maximum size of `maxSizeBytes` bytes.
-func NewFsCache(dir string, maxSizeBytes int64) *fsCache {
+func NewFsBlobStore(dir string, maxSizeBytes int64) *fsBlobStore {
 	// Create the directory structure
 	ensureDirExists(filepath.Join(dir, "cas"))
 	ensureDirExists(filepath.Join(dir, "ac"))
@@ -73,7 +48,7 @@ func NewFsCache(dir string, maxSizeBytes int64) *fsCache {
 		}
 	}
 
-	cache := &fsCache{
+	cache := &fsBlobStore{
 		dir: filepath.Clean(dir),
 		mux: &sync.RWMutex{},
 		lru: NewSizedLRU(maxSizeBytes, onEvict),
@@ -84,21 +59,21 @@ func NewFsCache(dir string, maxSizeBytes int64) *fsCache {
 	return cache
 }
 
-// fsCache is an implementation of the cache backed by files on a filesystem.
-type fsCache struct {
+// fsBlobStore is a BlobStore implementation backed by files on a filesystem.
+type fsBlobStore struct {
 	dir string
 	mux *sync.RWMutex
 	lru SizedLRU
 }
 
-func (c *fsCache) pathForKey(key string) string {
+func (c *fsBlobStore) pathForKey(key string) string {
 	return filepath.Join(c.dir, key)
 }
 
-// loadExistingFiles lists all files in the cache directory, and adds them to the
+// loadExistingFiles lists all files in the blobStore directory, and adds them to the
 // LRU index so that they can be served. Files are sorted by access time first,
 // so that the eviction behavior is preserved across server restarts.
-func (c *fsCache) loadExistingFiles() {
+func (c *fsBlobStore) loadExistingFiles() {
 	// Walk the directory tree
 	type NameAndInfo struct {
 		info os.FileInfo
@@ -126,10 +101,10 @@ func (c *fsCache) loadExistingFiles() {
 	}
 }
 
-func (c *fsCache) Put(key string, size int64, expectedSha256 string, r io.Reader) (err error) {
+func (c *fsBlobStore) Put(key string, size int64, expectedSha256 string, r io.Reader) (err error) {
 	c.mux.Lock()
 
-	// If there's an ongoing upload (i.e. cache key is present in uncommitted state),
+	// If there's an ongoing upload (i.e. the blob key is present in uncommitted state),
 	// we drop the upload and discard the incoming stream. We do accept uploads
 	// of existing keys, as it should happen relatively rarely (e.g. race
 	// condition on the bazel side) but it's useful to overwrite poisoned items.
@@ -211,7 +186,7 @@ func (c *fsCache) Put(key string, size int64, expectedSha256 string, r io.Reader
 	return
 }
 
-func (c *fsCache) Get(key string, w http.ResponseWriter) (ok bool, err error) {
+func (c *fsBlobStore) Get(key string, w http.ResponseWriter) (ok bool, err error) {
 	ok = func() bool {
 		c.mux.Lock()
 		defer c.mux.Unlock()
@@ -246,7 +221,7 @@ func (c *fsCache) Get(key string, w http.ResponseWriter) (ok bool, err error) {
 	return
 }
 
-func (c *fsCache) Contains(key string) (ok bool, err error) {
+func (c *fsBlobStore) Contains(key string) (ok bool, err error) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -254,19 +229,19 @@ func (c *fsCache) Contains(key string) (ok bool, err error) {
 	return found && val.(*lruItem).committed, nil
 }
 
-func (c *fsCache) NumItems() int {
+func (c *fsBlobStore) NumItems() int {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 	return c.lru.Len()
 }
 
-func (c *fsCache) MaxSize() int64 {
+func (c *fsBlobStore) MaxSize() int64 {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 	return c.lru.MaxSize()
 }
 
-func (c *fsCache) CurrentSize() int64 {
+func (c *fsBlobStore) CurrentSize() int64 {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 	return c.lru.CurrentSize()

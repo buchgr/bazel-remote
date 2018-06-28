@@ -24,7 +24,7 @@ func TestDownloadFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h := NewHTTPCache(cacheDir, 1024, newSilentLogger(), newSilentLogger())
+	h := NewHTTPCache(NewFsBlobStore(cacheDir, 2048), newSilentLogger(), newSilentLogger())
 
 	req, err := http.NewRequest("GET", "/cas/"+hash, bytes.NewReader([]byte{}))
 	if err != nil {
@@ -74,7 +74,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 		requests[i] = r
 	}
 
-	h := NewHTTPCache(cacheDir, 1000*1024, newSilentLogger(), newSilentLogger())
+	h := NewHTTPCache(NewFsBlobStore(cacheDir, 2048), newSilentLogger(), newSilentLogger())
 	handler := http.HandlerFunc(h.CacheHandler)
 
 	var wg sync.WaitGroup
@@ -116,9 +116,9 @@ func TestUploadFilesConcurrently(t *testing.T) {
 		}
 	}
 
-	// Test that purging worked and kept cache size in check.
+	// Test that purging worked and kept blobStore size in check.
 	if upperBound := int64(NumUploads) * 1024 * 1024; totalSize > upperBound {
-		t.Error("Cache size too big. Expected at most", upperBound, "got",
+		t.Error("BlobStore size too big. Expected at most", upperBound, "got",
 			totalSize)
 	}
 }
@@ -129,7 +129,7 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 
 	data, hash := randomDataAndHash(1024)
 
-	h := NewHTTPCache(cacheDir, 1024, newSilentLogger(), newSilentLogger())
+	h := NewHTTPCache(NewFsBlobStore(cacheDir, 2048), newSilentLogger(), newSilentLogger())
 	handler := http.HandlerFunc(h.CacheHandler)
 
 	var wg sync.WaitGroup
@@ -173,7 +173,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 		t.Error(err)
 	}
 
-	h := NewHTTPCache(cacheDir, 2048, newSilentLogger(), newSilentLogger())
+	h := NewHTTPCache(NewFsBlobStore(cacheDir, 2048), newSilentLogger(), newSilentLogger())
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.CacheHandler)
 	handler.ServeHTTP(rr, r)
@@ -184,7 +184,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 			"got ", status)
 	}
 
-	// Check that no file was saved in the cache
+	// Check that no file was saved in the blobStore
 	f, err := os.Open(cacheDir)
 	defer f.Close()
 	if err != nil {
@@ -196,7 +196,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 	}
 	for _, fileEntry := range entries {
 		if !fileEntry.IsDir() {
-			t.Error("Unexpected file in the cache ", fileEntry.Name())
+			t.Error("Unexpected file in the blobStore ", fileEntry.Name())
 		}
 	}
 }
@@ -210,7 +210,7 @@ func TestStatusPage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h := NewHTTPCache(cacheDir, 2048, newSilentLogger(), newSilentLogger())
+	h := NewHTTPCache(NewFsBlobStore(cacheDir, 2048), newSilentLogger(), newSilentLogger())
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.StatusPageHandler)
 	handler.ServeHTTP(rr, r)
@@ -250,7 +250,7 @@ func TestCacheKeyFromRequestPath(t *testing.T) {
 			t.Error("Failed to parse a valid CAS URL")
 		}
 		if cacheKey != "cas/"+aSha256sum {
-			t.Error("Cache key parsed incorrectly")
+			t.Error("BlobStore key parsed incorrectly")
 		}
 		if shasum != aSha256sum {
 			t.Log(shasum)
@@ -264,7 +264,7 @@ func TestCacheKeyFromRequestPath(t *testing.T) {
 			t.Error("Failed to parse a valid AC URL")
 		}
 		if cacheKey != "ac/"+aSha256sum {
-			t.Error("Cache key parsed incorrectly")
+			t.Error("BlobStore key parsed incorrectly")
 		}
 		if shasum != "" {
 			t.Error("Hashsum parsed incorrectly")
@@ -277,7 +277,7 @@ func TestCacheKeyFromRequestPath(t *testing.T) {
 			t.Error("Failed to parse a valid AC URL with prefix")
 		}
 		if cacheKey != "ac/"+aSha256sum {
-			t.Error("Cache key parsed incorrectly")
+			t.Error("BlobStore key parsed incorrectly")
 		}
 		if shasum != "" {
 			t.Error("Hashsum parsed incorrectly")

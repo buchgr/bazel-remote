@@ -87,7 +87,10 @@ func main() {
 		log.SetFlags(log.Ldate | log.Ltime | log.LUTC | log.Lshortfile)
 		accessLogger := log.New(os.Stdout, "", log.Ldate|log.Ltime|log.LUTC)
 		errorLogger := log.New(os.Stderr, "", log.Ldate|log.Ltime|log.LUTC)
-		h := cache.NewHTTPCache(dir, maxSize*1024*1024*1024, accessLogger, errorLogger)
+
+		blobStore := cache.NewFsBlobStore(dir, maxSize*1024*1024*1024)
+
+		h := cache.NewHTTPCache(blobStore, accessLogger, errorLogger)
 
 		http.HandleFunc("/status", h.StatusPageHandler)
 		http.HandleFunc("/", maybeAuth(h.CacheHandler, htpasswdFile, host))
