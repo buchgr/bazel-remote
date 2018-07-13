@@ -20,4 +20,6 @@ FROM alpine:latest
 WORKDIR /root
 EXPOSE 80
 COPY --from=0 /go/src/github.com/buchgr/bazel-remote/bazel-remote .
-ENTRYPOINT ["./bazel-remote", "--port=80", "--dir=/data"]
+ENV BAZEL_REMOTE_DIR=/data \
+    BAZEL_REMOTE_PORT=80
+ENTRYPOINT ["./bazel-remote"]

@@ -15,24 +15,14 @@ commodity hardware and AWS servers. Outgoing bandwidth can exceed 15 Gbit/s on t
 
 ```
 Usage of ./bazel-remote:
-  -dir string
-	Directory path where to store the cache contents. This flag is required.
-  -host string
-	Address to listen on. Listens on all network interfaces by default.
-  -htpasswd_file string
-	Path to a .htpasswd file. This flag is optional. Please read
-	https://httpd.apache.org/docs/2.4/programs/htpasswd.html.
-  -max_size int
-	The maximum size of the remote cache in GiB. This flag is required. (default -1)
-  -port int
-	The port the HTTP server listens on (default 8080)
-  -tls_cert_file string
-	Path to a PEM encoded certificate file.  Required if tls_enabled is set to true.
-  -tls_enabled
-	Bool specifying whether or not to start the server with tls.  If true, server_cert and server_key flags
-	are requred.
-  -tls_key_file string
-	Path to a PEM encoded key file.  Required if tls_enabled is set to true.
+   --host value           Address to listen on. Listens on all network interfaces by default. [$BAZEL_REMOTE_HOST]
+   --port value           The port the HTTP server listens on. (default: 8080) [$BAZEL_REMOTE_PORT]
+   --dir value            Directory path where to store the cache contents. This flag is required. [$BAZEL_REMOTE_DIR]
+   --max_size value       The maximum size of the remote cache in GiB. This flag is required. (default: -1) [$BAZEL_REMOTE_MAX_SIZE]
+   --htpasswd_file value  Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html. [$BAZEL_REMOTE_HTPASSWD_FILE]
+   --tls_enabled          Bool specifying whether or not to start the server with tls. If true, server_cert and server_key flags are required. [$BAZEL_REMOTE_TLS_ENABLED]
+   --tls_cert_file value  Path to a pem encoded certificate file. Required if tls_enabled is set to true. [$BAZEL_REMOTE_TLS_CERT_FILE]
+   --tls_key_file value   Path to a pem encoded key file. Required if tls_enabled is set to true. [$BAZEL_REMOTE_TLS_KEY_FILE]
 ```
 
 ## Docker
