@@ -204,12 +204,7 @@ func TestCacheTooBig(t *testing.T) {
 	cache := NewFsCache(cacheDir, 100)
 
 	err := cache.Put("a-key", 10000, "", strings.NewReader(CONTENTS))
-	if err == nil {
-		t.Fatal("expected ErrTooBig")
-	}
-	switch err.(type) {
-	case *ErrTooBig:
-	default:
+	if err != ErrTooBig {
 		t.Fatal("expected ErrTooBig")
 	}
 }
