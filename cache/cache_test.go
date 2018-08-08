@@ -136,7 +136,7 @@ func TestOverwrite(t *testing.T) {
 	oldContent := "Hello"
 	newContent := "World"
 
-	err := cache.Put(KEY, 1, "", strings.NewReader(oldContent));
+	err := cache.Put(KEY, 1, "", strings.NewReader(oldContent))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestOverwrite(t *testing.T) {
 	expectContentEquals(t, cache, KEY, []byte(oldContent))
 
 	// Overwrite
-	err = cache.Put(KEY, 1, "", strings.NewReader(newContent));
+	err = cache.Put(KEY, 1, "", strings.NewReader(newContent))
 	if err != nil {
 		t.Fatal(err)
 	}
