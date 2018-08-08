@@ -18,13 +18,11 @@ import (
 	"github.com/djherbis/atime"
 )
 
-// ErrTooBig is returned by Cache::Put when when the item size is bigger than the
-// cache size limit.
-type ErrTooBig struct{}
-
-func (e *ErrTooBig) Error() string {
-	return "item bigger than the cache size limit"
-}
+var (
+	// ErrTooBig is returned by Cache::Put when when the item size is bigger than the
+	// cache size limit.
+	ErrTooBig = errors.New("item bigger than the cache size limit")
+)
 
 // lruItem is the type of the values stored in SizedLRU to keep track of items.
 // It implements the SizedItem interface.
@@ -149,7 +147,7 @@ func (c *fsCache) Put(key string, size int64, expectedSha256 string, r io.Reader
 	ok := c.lru.Add(key, newItem)
 	c.mux.Unlock()
 	if !ok {
-		return &ErrTooBig{}
+		return ErrTooBig
 	}
 
 	// By the time this function exits, we should either mark the LRU item as committed
