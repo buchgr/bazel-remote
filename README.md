@@ -30,7 +30,7 @@ Usage of ./bazel-remote:
 	Path to a PEM encoded certificate file.  Required if tls_enabled is set to true.
   -tls_enabled
 	Bool specifying whether or not to start the server with tls.  If true, server_cert and server_key flags
-	are requred.
+	are required.
   -tls_key_file string
 	Path to a PEM encoded key file.  Required if tls_enabled is set to true.
 ```
