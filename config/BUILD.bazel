@@ -5,12 +5,12 @@ go_library(
     srcs = ["config.go"],
     importpath = "github.com/buchgr/bazel-remote/config",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/gopkg.in/yaml.v2:go_default_library"],
+    deps = ["@in_gopkg_yaml_v2//:go_default_library"],
 )
 
 go_test(
     name = "go_default_test",
     srcs = ["config_test.go"],
     embed = [":go_default_library"],
-    deps = ["//vendor/github.com/google/go-cmp/cmp:go_default_library"],
+    deps = ["@com_github_google_go_cmp//cmp:go_default_library"],
 )

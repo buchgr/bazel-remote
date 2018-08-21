@@ -10,7 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cache:go_default_library",
-        "//vendor/github.com/djherbis/atime:go_default_library",
+        "@com_github_djherbis_atime//:go_default_library",
     ],
 )
 

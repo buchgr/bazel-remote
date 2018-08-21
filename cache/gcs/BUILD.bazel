@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//cache:go_default_library",
         "//cache/http:go_default_library",
-        "//vendor/golang.org/x/oauth2:go_default_library",
-        "//vendor/golang.org/x/oauth2/google:go_default_library",
+        "@org_golang_x_oauth2//:go_default_library",
+        "@org_golang_x_oauth2//google:go_default_library",
     ],
 )
