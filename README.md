@@ -15,7 +15,7 @@ Cache entries are set and retrieved by key, and there are two types of keys that
    Bazel uses the SHA256 hash of an action as the key, to store the metadata created by the action.
    The REST API for these entries is: `/ac/<key>` or with an optional cache pool name: `/<pool>/ac/<key>`.
 
-Values are stored via HTTP PUT requests, and retrieved via GET requests.  HEAD requests can be used to confirm
+Values are stored via HTTP PUT requests, and retrieved via GET requests. HEAD requests can be used to confirm
 whether a key exists or not.
 
 **Project status**: bazel-remote has been serving TBs of cache artifacts per day since April 2018, both on
