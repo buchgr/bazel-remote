@@ -10,6 +10,13 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+type S3CloudStorageConfig struct {
+	Bucket          string `yaml:"bucket"`
+	Location        string `yaml:"location"`
+	AccessKeyID     string `yaml:"access_key_id"`
+	SecretAccessKey string `yaml:"secret_access_key"`
+}
+
 type GoogleCloudStorageConfig struct {
 	Bucket                string `yaml:"bucket"`
 	UseDefaultCredentials bool   `yaml:"use_default_credentials"`
@@ -29,6 +36,7 @@ type Config struct {
 	HtpasswdFile       string                    `yaml:"htpasswd_file"`
 	TLSCertFile        string                    `yaml:"tls_cert_file"`
 	TLSKeyFile         string                    `yaml:"tls_key_file"`
+	S3CloudStorage     *S3CloudStorageConfig     `yaml:"s3_proxy"`
 	GoogleCloudStorage *GoogleCloudStorageConfig `yaml:"gcs_proxy"`
 	HTTPBackend        *HTTPBackendConfig        `yaml:"http_proxy"`
 	IdleTimeout        time.Duration             `yaml:"idle_timeout"`
@@ -105,7 +113,7 @@ func validateConfig(c *Config) error {
 			"'tls_key_file' and 'tls_cert_file'")
 	}
 
-	if c.GoogleCloudStorage != nil && c.HTTPBackend != nil {
+	if c.GoogleCloudStorage != nil && c.HTTPBackend != nil && c.S3CloudStorage != nil {
 		return errors.New("One can specify at most one proxying backend")
 	}
 
