@@ -1,13 +1,15 @@
 http_archive(
     name = "io_bazel_rules_go",
-    url = "https://github.com/bazelbuild/rules_go/releases/download/0.12.1/rules_go-0.12.1.tar.gz",
-    sha256 = "8b68d0630d63d95dacc0016c3bb4b76154fe34fca93efd65d1c366de3fcb4294",
+    url = "https://github.com/bazelbuild/rules_go/releases/download/0.16.1/rules_go-0.16.1.tar.gz",
+    sha256 = "f5127a8f911468cd0b2d7a141f17253db81177523e4429796e14d429f5444f5f",
 )
+
+
 
 http_archive(
     name = "bazel_gazelle",
-    url = "https://github.com/bazelbuild/bazel-gazelle/releases/download/0.12.0/bazel-gazelle-0.12.0.tar.gz",
-    sha256 = "ddedc7aaeb61f2654d7d7d4fd7940052ea992ccdb031b8f9797ed143ac7e8d43",
+    url = "https://github.com/bazelbuild/bazel-gazelle/releases/download/0.15.0/bazel-gazelle-0.15.0.tar.gz",
+    sha256 = "6e875ab4b6bf64a38c352887760f21203ab054676d9c1b274963907e0768740d",
 )
 
 git_repository(
@@ -23,7 +25,11 @@ load(
 
 _go_image_repos()
 
-load("@io_bazel_rules_go//go:def.bzl", "go_register_toolchains", "go_rules_dependencies")
+load(
+    "@io_bazel_rules_go//go:def.bzl",
+    "go_register_toolchains",
+    "go_rules_dependencies",
+)
 
 go_rules_dependencies()
 
@@ -50,6 +56,40 @@ go_repository(
     name = "com_github_djherbis_atime",
     commit = "8e47e0e01d08df8b9f840d74299c8ab70a024a30",
     importpath = "github.com/djherbis/atime",
+)
+
+go_repository(
+    # minio has this dependency
+    name = "com_github_go_ini_ini",
+    importpath="github.com/go-ini/ini",
+    commit="9c8236e659b76e87bf02044d06fde8683008ff3e",
+)
+
+go_repository(
+    # minio has this dependency
+    name = "org_golang_x_net",
+    commit = "c39426892332e1bb5ec0a434a079bf82f5d30c54",
+    importpath = "golang_org/x/net",
+)
+
+go_repository(
+    # minio has this dependency
+    name = "org_golang_x_sys",
+    commit = "d69651ed3497faee15a5363a89578e9991f6d5e2",
+    importpath = "golang.org/x/sys",
+)
+
+go_repository(
+    # minio has this dependency
+    name = "com_github_mitchellh_go_homedir",
+    commit = "ae18d6b8b3205b561c79e8e5f69bff09736185f4",
+    importpath = "github.com/mitchellh/go-homedir",
+)
+
+go_repository(
+    name = "com_github_minio_go",
+    commit = "55c9b2e90ef38c5962d872ebc34b5d7c0e04974c",
+    importpath = "github.com/minio/minio-go",
 )
 
 go_repository(
