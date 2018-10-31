@@ -10,6 +10,7 @@ import (
 )
 
 type S3CloudStorageConfig struct {
+	Endpoint        string `yaml:"endpoint"`
 	Bucket          string `yaml:"bucket"`
 	Location        string `yaml:"location"`
 	AccessKeyID     string `yaml:"access_key_id"`
