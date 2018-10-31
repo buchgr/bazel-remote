@@ -134,6 +134,7 @@ port: 8080
 dir: /opt/cache-dir
 max_size: 100
 s3_proxy:
+  endpoint: minio.example.com:9000
   bucket: test-bucket
   location: test-location
   access_key_id: EXAMPLE_ACCESS_KEY
@@ -150,6 +151,7 @@ s3_proxy:
 		Dir:     "/opt/cache-dir",
 		MaxSize: 100,
 		S3CloudStorage: &S3CloudStorageConfig{
+			Endpoint:        "minio.example.com:9000",
 			Bucket:          "test-bucket",
 			Location:        "test-location",
 			AccessKeyID:     "EXAMPLE_ACCESS_KEY",
