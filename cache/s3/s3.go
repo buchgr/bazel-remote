@@ -1,10 +1,11 @@
 package s3
 
 import (
-	"github.com/buchgr/bazel-remote/cache"
-	"github.com/minio/minio-go"
 	"io"
 	"log"
+
+	"github.com/buchgr/bazel-remote/cache"
+	"github.com/minio/minio-go"
 )
 
 type s3Cache struct {
@@ -81,24 +82,32 @@ func (c *s3Cache) Get(key string, actionCache bool) (data io.ReadCloser, sizeByt
 
 // Contains returns true if the `key` exists.
 func (c *s3Cache) Contains(key string, actionCache bool) (ok bool) {
-
-	return true
+	objInfo, err := c.mclient.StatObject(
+		c.bucket, // bucketName
+		key,      // objectName
+		minio.StatObjectOptions{}, // opts
+	)
+	if err == nil {
+		return true
+	}
+	return false
 }
 
 // MaxSize returns the maximum cache size in bytes.
 func (c *s3Cache) MaxSize() int64 {
-
-	return 0
+	// In order to return the max size, we will need to iterate over all the
+	// objects in a bucket via s3. Each object will be an API call.
+	// Since this can take a long time, and there are other ways (see AWS/Minio
+	// dashboards) to get the same information, these are not implemented.
+	return -1
 }
 
 // CurrentSize returns the current cache size in bytes.
 func (c *s3Cache) CurrentSize() int64 {
-
-	return 0
+	return -1
 }
 
 // NumItems returns the number of items stored in the cache.
 func (c *s3Cache) NumItems() int {
-
-	return 0
+	return -1
 }
