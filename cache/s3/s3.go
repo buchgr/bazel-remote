@@ -61,8 +61,22 @@ func (c *s3Cache) Put(key string, size int64, expectedSha256 string, r io.Reader
 // Get writes the content of the cache item stored under `key` to `w`. If the item is
 // not found, it returns ok = false.
 func (c *s3Cache) Get(key string, actionCache bool) (data io.ReadCloser, sizeBytes int64, err error) {
+	objInfo, err := c.mclient.StatObject(
+		c.bucket, // bucketName
+		key,      // objectName
+		minio.StatObjectOptions{}, // opts
+	)
+	if err != nil {
+		return nil, 0, err
+	}
 
-	return nil, 0, nil
+	object, err := c.mclient.GetObject(
+		c.bucket, // bucketName
+		key,      // objectName
+		minio.GetObjectOptions{}, // opts
+	)
+
+	return object, objInfo.Size, err
 }
 
 // Contains returns true if the `key` exists.
