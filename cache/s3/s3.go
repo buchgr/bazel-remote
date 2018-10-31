@@ -1,0 +1,90 @@
+package s3
+
+import (
+	"github.com/buchgr/bazel-remote/cache"
+	"github.com/minio/minio-go"
+	"io"
+	"log"
+)
+
+type s3Cache struct {
+	mclient  *minio.Client
+	location string
+	bucket   string
+}
+
+// New erturns a new instance of the S3-API based cached
+func New(endpoint string, bucket string, location string,
+	accessKeyId string, secretAccessKey string) cache.Cache {
+	// For now, do not use SSL in the test POC stage.
+	useSSL := false
+
+	// Initialize minio client object.
+	minioClient, err := minio.New(endpoint, accessKeyId, secretAccessKey, useSSL)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	log.Printf("%#v\n", minioClient) // minioClient is now setup
+
+	cache := &s3Cache{
+		mclient:  minioClient,
+		location: location,
+		bucket:   bucket,
+	}
+	return cache
+}
+
+// Put stores a stream of `size` bytes from `r` into the cache. If `expectedSha256` is
+// not the empty string, and the contents don't match it, an error is returned
+func (c *s3Cache) Put(key string, size int64, expectedSha256 string, r io.Reader) error {
+
+	// Upload the zip file with PutObject
+	// PutObject(bucketName, objectName string, reader io.Reader, objectSize int64,opts PutObjectOptions) (n int, err error)
+	n, err := c.mclient.PutObject(
+		c.bucket, // bucketName
+		key,      // objectName
+		r,        // reader
+		size,     // objectSize
+		minio.PutObjectOptions{
+			ContentType: "application/octet-stream",
+		}, // opts
+	)
+	if err != nil {
+		log.Fatalln(err)
+		return err
+	}
+	log.Printf("Successfully uploaded %s of size %d (%d)\n", key, n, size)
+	return nil
+}
+
+// Get writes the content of the cache item stored under `key` to `w`. If the item is
+// not found, it returns ok = false.
+func (c *s3Cache) Get(key string, actionCache bool) (data io.ReadCloser, sizeBytes int64, err error) {
+
+	return nil, 0, nil
+}
+
+// Contains returns true if the `key` exists.
+func (c *s3Cache) Contains(key string, actionCache bool) (ok bool) {
+
+	return true
+}
+
+// MaxSize returns the maximum cache size in bytes.
+func (c *s3Cache) MaxSize() int64 {
+
+	return 0
+}
+
+// CurrentSize returns the current cache size in bytes.
+func (c *s3Cache) CurrentSize() int64 {
+
+	return 0
+}
+
+// NumItems returns the number of items stored in the cache.
+func (c *s3Cache) NumItems() int {
+
+	return 0
+}

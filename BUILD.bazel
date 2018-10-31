@@ -14,10 +14,11 @@ go_library(
     importpath = "github.com/buchgr/bazel-remote",
     visibility = ["//visibility:private"],
     deps = [
-        "//cache:go_default_library",
         "//cache/disk:go_default_library",
         "//cache/gcs:go_default_library",
         "//cache/http:go_default_library",
+        "//cache/s3:go_default_library",
+        "//cache:go_default_library",
         "//config:go_default_library",
         "//server:go_default_library",
         "@com_github_abbot_go_http_auth//:go_default_library",
