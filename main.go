@@ -12,6 +12,7 @@ import (
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
 	"github.com/buchgr/bazel-remote/cache/gcs"
+	"github.com/buchgr/bazel-remote/cache/s3"
 
 	cachehttp "github.com/buchgr/bazel-remote/cache/http"
 
@@ -126,6 +127,10 @@ func main() {
 			}
 			proxyCache = cachehttp.New(baseURL, diskCache,
 				httpClient, accessLogger, errorLogger)
+		} else if c.S3CloudStorage != nil {
+			proxyCache = s3.New(c.S3CloudStorage.Endpoint, c.S3CloudStorage.Bucket,
+				c.S3CloudStorage.Location, c.S3CloudStorage.AccessKeyID,
+				c.S3CloudStorage.SecretAccessKey)
 		} else {
 			proxyCache = diskCache
 		}
