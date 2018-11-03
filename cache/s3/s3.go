@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/config"
 	"github.com/minio/minio-go"
 )
 
@@ -15,13 +16,14 @@ type s3Cache struct {
 }
 
 // New erturns a new instance of the S3-API based cached
-func New(endpoint string, bucket string, location string,
-	accessKeyId string, secretAccessKey string) cache.Cache {
+func New(s3Config *config.S3CloudStorageConfig) cache.Cache {
 	// For now, do not use SSL in the test POC stage.
 	useSSL := false
 
 	// Initialize minio client object.
-	minioClient, err := minio.New(endpoint, accessKeyId, secretAccessKey, useSSL)
+	minioClient, err := minio.New(
+		s3Config.Endpoint, s3Config.AccessKeyID, s3Config.SecretAccessKey,
+		useSSL)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -30,8 +32,8 @@ func New(endpoint string, bucket string, location string,
 
 	cache := &s3Cache{
 		mclient:  minioClient,
-		location: location,
-		bucket:   bucket,
+		location: s3Config.Location,
+		bucket:   s3Config.Bucket,
 	}
 	return cache
 }
@@ -39,10 +41,7 @@ func New(endpoint string, bucket string, location string,
 // Put stores a stream of `size` bytes from `r` into the cache. If `expectedSha256` is
 // not the empty string, and the contents don't match it, an error is returned
 func (c *s3Cache) Put(key string, size int64, expectedSha256 string, r io.Reader) error {
-
-	// Upload the zip file with PutObject
-	// PutObject(bucketName, objectName string, reader io.Reader, objectSize int64,opts PutObjectOptions) (n int, err error)
-	n, err := c.mclient.PutObject(
+	_, err := c.mclient.PutObject(
 		c.bucket, // bucketName
 		key,      // objectName
 		r,        // reader
@@ -55,7 +54,6 @@ func (c *s3Cache) Put(key string, size int64, expectedSha256 string, r io.Reader
 		log.Fatalln(err)
 		return err
 	}
-	log.Printf("Successfully uploaded %s of size %d (%d)\n", key, n, size)
 	return nil
 }
 
@@ -82,7 +80,7 @@ func (c *s3Cache) Get(key string, actionCache bool) (data io.ReadCloser, sizeByt
 
 // Contains returns true if the `key` exists.
 func (c *s3Cache) Contains(key string, actionCache bool) (ok bool) {
-	objInfo, err := c.mclient.StatObject(
+	_, err := c.mclient.StatObject(
 		c.bucket, // bucketName
 		key,      // objectName
 		minio.StatObjectOptions{}, // opts
@@ -96,7 +94,7 @@ func (c *s3Cache) Contains(key string, actionCache bool) (ok bool) {
 // MaxSize returns the maximum cache size in bytes.
 func (c *s3Cache) MaxSize() int64 {
 	// In order to return the max size, we will need to iterate over all the
-	// objects in a bucket via s3. Each object will be an API call.
+	// objects in a bucket via S3. Each object will be an API call.
 	// Since this can take a long time, and there are other ways (see AWS/Minio
 	// dashboards) to get the same information, these are not implemented.
 	return -1
