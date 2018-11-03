@@ -7,17 +7,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cache:go_default_library",
+        "//config:go_default_library",
         "@com_github_minio_go//:go_default_library"
     ],
 )
 
-go_test(
-    name = "go_default_test",
-    srcs = ["s3_test.go"],
-    embed = [":go_default_library"],
-    deps = [
-        "//cache:go_default_library",
-        "//cache/disk:go_default_library",
-        "//utils:go_default_library",
-    ],
-)
