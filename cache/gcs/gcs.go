@@ -1,5 +1,5 @@
-// A cache that proxies requests to Google Cloud Storage.
-
+// Package gcs provides cache implementation that proxies requests to/from
+// Google Cloud Storage (GCS).
 package gcs
 
 import (

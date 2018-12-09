@@ -23,8 +23,6 @@ func TestProxyReadWorks(t *testing.T) {
 	// disk cache.
 
 	expectedData := []byte("hello world")
-	hash := sha256.Sum256(expectedData)
-
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write(expectedData)
 	}))
@@ -41,13 +39,13 @@ func TestProxyReadWorks(t *testing.T) {
 	proxy := New(baseURL, diskCache, &http.Client{}, testutils.NewSilentLogger(),
 		testutils.NewSilentLogger())
 
-	cacheKey := hex.EncodeToString(hash[:])
-
-	if diskCache.Contains(cacheKey, false) {
+	hashBytes := sha256.Sum256(expectedData)
+	hash := hex.EncodeToString(hashBytes[:])
+	if diskCache.Contains(cache.CAS, hash) {
 		t.Fatalf("Expected the local cache to be empty")
 	}
 
-	readBytes, actualSizeBytes, err := proxy.Get(cacheKey, false)
+	readBytes, actualSizeBytes, err := proxy.Get(cache.CAS, hash)
 	if err != nil {
 		t.Fatalf("Failed to get the blob via the http proxy: '%v'", err)
 	}
@@ -66,7 +64,7 @@ func TestProxyReadWorks(t *testing.T) {
 			len(expectedData))
 	}
 
-	if !diskCache.Contains(cacheKey, false) {
+	if !diskCache.Contains(cache.CAS, hash) {
 		t.Fatalf("Expected the blob to be cached locally.")
 	}
 }
@@ -76,15 +74,15 @@ func TestProxyWriteWorks(t *testing.T) {
 	// disk cache.
 
 	data := []byte("hello world")
-	hash := sha256.Sum256(data)
-	cacheKey := hex.EncodeToString(hash[:])
+	hashBytes := sha256.Sum256(data)
+	hash := hex.EncodeToString(hashBytes[:])
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 
-		if !strings.Contains(r.URL.Path, cacheKey) {
+		if !strings.Contains(r.URL.Path, hash) {
 			http.Error(w, fmt.Sprintf("Expected the request URL to contain the key '%s' but was '%s'",
-				cacheKey, r.URL.Path), http.StatusInternalServerError)
+				hash, r.URL.Path), http.StatusInternalServerError)
 			return
 		}
 
@@ -108,17 +106,17 @@ func TestProxyWriteWorks(t *testing.T) {
 	proxy := New(baseURL, diskCache, &http.Client{}, testutils.NewSilentLogger(),
 		testutils.NewSilentLogger())
 
-	if diskCache.Contains(cacheKey, false) {
+	if diskCache.Contains(cache.CAS, hash) {
 		t.Fatalf("Expected the local cache to be empty")
 	}
 
-	err = proxy.Put(cacheKey, int64(len(data)), cacheKey, bytes.NewReader(data))
+	err = proxy.Put(cache.CAS, hash, int64(len(data)), bytes.NewReader(data))
 	if err != nil {
 		t.Errorf("Failed to write to the proxy: '%v'", err)
 	}
 
-	if !diskCache.Contains(cacheKey, false) {
-		t.Fatalf("Expected the local cache to contain '%s'", cacheKey)
+	if !diskCache.Contains(cache.CAS, hash) {
+		t.Fatalf("Expected the local cache to contain '%s'", hash)
 	}
 }
 
@@ -127,7 +125,8 @@ func TestProxyReadErrorsArePropagated(t *testing.T) {
 	// the client.
 
 	expectedData := []byte("hello world")
-	hash := sha256.Sum256(expectedData)
+	hashBytes := sha256.Sum256(expectedData)
+	hash := hex.EncodeToString(hashBytes[:])
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Foo bar error", http.StatusForbidden)
@@ -145,8 +144,7 @@ func TestProxyReadErrorsArePropagated(t *testing.T) {
 	proxy := New(baseURL, diskCache, &http.Client{}, testutils.NewSilentLogger(),
 		testutils.NewSilentLogger())
 
-	cacheKey := hex.EncodeToString(hash[:])
-	_, _, err = proxy.Get(cacheKey, false)
+	_, _, err = proxy.Get(cache.CAS, hash)
 	if cerr, ok := err.(*cache.Error); ok {
 		if cerr.Code != http.StatusForbidden {
 			t.Errorf("Expected error code '%d' but got '%d'", http.StatusForbidden, cerr.Code)
@@ -166,7 +164,8 @@ func TestProxyWriteErrorsAreNotPropagated(t *testing.T) {
 	// basis.
 
 	data := []byte("hello world")
-	hash := sha256.Sum256(data)
+	hashBytes := sha256.Sum256(data)
+	hash := hex.EncodeToString(hashBytes[:])
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Foo bar error", http.StatusForbidden)
@@ -184,14 +183,12 @@ func TestProxyWriteErrorsAreNotPropagated(t *testing.T) {
 	proxy := New(baseURL, diskCache, &http.Client{}, testutils.NewSilentLogger(),
 		testutils.NewSilentLogger())
 
-	cacheKey := hex.EncodeToString(hash[:])
-
-	err = proxy.Put(cacheKey, int64(len(data)), cacheKey, bytes.NewReader(data))
+	err = proxy.Put(cache.CAS, hash, int64(len(data)), bytes.NewReader(data))
 	if err != nil {
 		t.Error("Expected the error on put to not be propagated")
 	}
 
-	if !diskCache.Contains(cacheKey, false) {
+	if !diskCache.Contains(cache.CAS, hash) {
 		t.Error("Expected the blob to be stored locally")
 	}
 }

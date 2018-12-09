@@ -14,6 +14,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/buchgr/bazel-remote/cache"
+
 	"github.com/buchgr/bazel-remote/cache/disk"
 	"github.com/buchgr/bazel-remote/utils"
 )
@@ -242,9 +244,9 @@ func TestStatusPage(t *testing.T) {
 	}
 }
 
-func TestCacheKeyFromRequestPath(t *testing.T) {
+func TestParseRequestURL(t *testing.T) {
 	{
-		_, _, err := cacheKeyFromRequestPath("invalid/url")
+		_, _, err := parseRequestURL("invalid/url")
 		if err == nil {
 			t.Error("Failed to reject an invalid URL")
 		}
@@ -253,42 +255,41 @@ func TestCacheKeyFromRequestPath(t *testing.T) {
 	const aSha256sum = "fec3be77b8aa0d307ed840581ded3d114c86f36d4914c81e33a72877020c0603"
 
 	{
-		cacheKey, shasum, err := cacheKeyFromRequestPath("cas/" + aSha256sum)
+		kind, hash, err := parseRequestURL("cas/" + aSha256sum)
 		if err != nil {
 			t.Error("Failed to parse a valid CAS URL")
 		}
-		if cacheKey != "cas/"+aSha256sum {
+		if hash != aSha256sum {
 			t.Error("Cache key parsed incorrectly")
 		}
-		if shasum != aSha256sum {
-			t.Log(shasum)
-			t.Error("Hashsum parsed incorrectly")
+		if kind != cache.CAS {
+			t.Errorf("Expected kind CAS but got AC")
 		}
 	}
 
 	{
-		cacheKey, shasum, err := cacheKeyFromRequestPath("ac/" + aSha256sum)
+		kind, hash, err := parseRequestURL("ac/" + aSha256sum)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL")
 		}
-		if cacheKey != "ac/"+aSha256sum {
+		if hash != aSha256sum {
 			t.Error("Cache key parsed incorrectly")
 		}
-		if shasum != "" {
-			t.Error("Hashsum parsed incorrectly")
+		if kind != cache.AC {
+			t.Error("Expected kind AC but got CAS")
 		}
 	}
 
 	{
-		cacheKey, shasum, err := cacheKeyFromRequestPath("prefix/ac/" + aSha256sum)
+		kind, hash, err := parseRequestURL("prefix/ac/" + aSha256sum)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL with prefix")
 		}
-		if cacheKey != "ac/"+aSha256sum {
+		if hash != aSha256sum {
 			t.Error("Cache key parsed incorrectly")
 		}
-		if shasum != "" {
-			t.Error("Hashsum parsed incorrectly")
+		if kind != cache.AC {
+			t.Error("Expected kind AC but got CAS")
 		}
 	}
 }

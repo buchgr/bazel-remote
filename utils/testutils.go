@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -20,10 +19,12 @@ func TempDir(t *testing.T) string {
 }
 
 func CreateRandomFile(dir string, size int64) (string, error) {
-	data, filename := RandomDataAndHash(size)
-	filepath := dir + "/" + filename
+	data, hash := RandomDataAndHash(size)
+	subdir := dir + "/" + hash[0:2]
+	os.MkdirAll(subdir, os.FileMode(0744))
+	filepath := subdir + "/" + hash
 
-	return filename, ioutil.WriteFile(filepath, data, 0744)
+	return hash, ioutil.WriteFile(filepath, data, 0744)
 }
 
 func RandomDataAndHash(size int64) ([]byte, string) {
@@ -39,9 +40,7 @@ func CreateTmpCacheDirs(t *testing.T) string {
 	if err != nil {
 		t.Error("Couldn't create tmp dir", err)
 	}
-	EnsureDirExists(filepath.Join(path, "ac"))
-	EnsureDirExists(filepath.Join(path, "cas"))
-
+	os.MkdirAll(path, os.FileMode(0744))
 	return path
 }
 
@@ -49,13 +48,4 @@ func CreateTmpCacheDirs(t *testing.T) string {
 // for tests.
 func NewSilentLogger() *log.Logger {
 	return log.New(ioutil.Discard, "", 0)
-}
-
-func EnsureDirExists(path string) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		err = os.MkdirAll(path, os.FileMode(0744))
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
 }

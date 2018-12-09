@@ -1,4 +1,5 @@
-// A Cache implementation that can read and write through artifacts to another remote http cache.
+// Package http is a cache implementation that can proxy artifacts from/to another
+// HTTP-based remote cache
 package http
 
 import (
@@ -17,9 +18,8 @@ const numUploaders = 100
 const maxQueuedUploads = 1000000
 
 type uploadReq struct {
-	key string
-	// true if it's an action cache entry.
-	ac bool
+	hash string
+	kind cache.EntryKind
 }
 
 type remoteHTTPProxyCache struct {
@@ -32,8 +32,8 @@ type remoteHTTPProxyCache struct {
 }
 
 func uploadFile(remote *http.Client, baseURL *url.URL, local cache.Cache, accessLogger cache.Logger,
-	errorLogger cache.Logger, key string, ac bool) {
-	data, size, err := local.Get(key, ac)
+	errorLogger cache.Logger, hash string, kind cache.EntryKind) {
+	data, size, err := local.Get(kind, hash)
 	if err != nil {
 		return
 	}
@@ -42,7 +42,7 @@ func uploadFile(remote *http.Client, baseURL *url.URL, local cache.Cache, access
 		// See https://github.com/golang/go/issues/20257#issuecomment-299509391
 		data = http.NoBody
 	}
-	url := requestURL(baseURL, key, ac)
+	url := requestURL(baseURL, hash, kind)
 	req, err := http.NewRequest(http.MethodPut, url, data)
 	if err != nil {
 		return
@@ -66,7 +66,7 @@ func New(baseURL *url.URL, local cache.Cache, remote *http.Client, accessLogger 
 		go func(remote *http.Client, baseURL *url.URL, local cache.Cache, accessLogger cache.Logger,
 			errorLogger cache.Logger) {
 			for item := range uploadQueue {
-				uploadFile(remote, baseURL, local, accessLogger, errorLogger, item.key, item.ac)
+				uploadFile(remote, baseURL, local, accessLogger, errorLogger, item.hash, item.kind)
 			}
 		}(remote, baseURL, local, accessLogger, errorLogger)
 	}
@@ -85,18 +85,17 @@ func logResponse(log cache.Logger, method string, code int, url string) {
 	log.Printf("%4s %d %15s %s", method, code, "", url)
 }
 
-func (r *remoteHTTPProxyCache) Put(key string, size int64, expectedSha256 string, data io.Reader) (err error) {
-	actionCache := expectedSha256 == ""
-	if r.local.Contains(key, actionCache) {
+func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64, data io.Reader) (err error) {
+	if r.local.Contains(kind, hash) {
 		io.Copy(ioutil.Discard, data)
 		return nil
 	}
-	r.local.Put(key, size, expectedSha256, data)
+	r.local.Put(kind, hash, size, data)
 
 	select {
 	case r.uploadQueue <- &uploadReq{
-		key: key,
-		ac:  actionCache,
+		hash: hash,
+		kind: kind,
 	}:
 	default:
 		r.errorLogger.Printf("too many uploads queued")
@@ -104,15 +103,15 @@ func (r *remoteHTTPProxyCache) Put(key string, size int64, expectedSha256 string
 	return
 }
 
-func (r *remoteHTTPProxyCache) Get(key string, actionCache bool) (data io.ReadCloser, sizeBytes int64, err error) {
-	if r.local.Contains(key, actionCache) {
-		return r.local.Get(key, actionCache)
+func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
+	if r.local.Contains(kind, hash) {
+		return r.local.Get(kind, hash)
 	}
 
-	url := requestURL(r.baseURL, key, actionCache)
+	url := requestURL(r.baseURL, hash, kind)
 	rsp, err := r.remote.Get(url)
 	if err != nil {
-		return
+		return nil, -1, err
 	}
 	defer rsp.Body.Close()
 
@@ -136,24 +135,24 @@ func (r *remoteHTTPProxyCache) Get(key string, actionCache bool) (data io.ReadCl
 	sizeBytesStr := rsp.Header.Get("Content-Length")
 	if sizeBytesStr == "" {
 		err = errors.New("Missing Content-Length header")
-		return
+		return nil, -1, err
 	}
 	sizeBytesInt, err := strconv.Atoi(sizeBytesStr)
 	if err != nil {
-		return
+		return nil, -1, err
 	}
-	sizeBytes = int64(sizeBytesInt)
+	sizeBytes := int64(sizeBytesInt)
 
-	err = r.local.Put(key, sizeBytes, "", rsp.Body)
+	err = r.local.Put(kind, hash, sizeBytes, rsp.Body)
 	if err != nil {
-		return
+		return nil, -1, err
 	}
 
-	return r.local.Get(key, actionCache)
+	return r.local.Get(kind, hash)
 }
 
-func (r *remoteHTTPProxyCache) Contains(key string, actionCache bool) (ok bool) {
-	return r.local.Contains(key, actionCache)
+func (r *remoteHTTPProxyCache) Contains(kind cache.EntryKind, hash string) bool {
+	return r.local.Contains(kind, hash)
 }
 
 func (r *remoteHTTPProxyCache) MaxSize() int64 {
@@ -168,11 +167,19 @@ func (r *remoteHTTPProxyCache) NumItems() int {
 	return r.local.NumItems()
 }
 
-func requestURL(baseURL *url.URL, key string, actionCache bool) string {
+func requestURL(baseURL *url.URL, hash string, kind cache.EntryKind) string {
 	url := baseURL.String()
 	if !strings.HasSuffix(url, "/") {
 		url += "/"
 	}
-	url += key
+	url += kindToStr(kind) + "/"
+	url += hash
 	return url
+}
+
+func kindToStr(kind cache.EntryKind) string {
+	if kind == cache.AC {
+		return "ac"
+	}
+	return "cas"
 }

@@ -7,7 +7,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"time"
@@ -52,26 +51,27 @@ func NewHTTPCache(cache cache.Cache, accessLogger cache.Logger, errorLogger cach
 }
 
 // Parse cache artifact information from the request URL
-func cacheKeyFromRequestPath(url string) (cacheKey string, sha256sum string, err error) {
+func parseRequestURL(url string) (cache.EntryKind, string, error) {
 	m := blobNameSHA256.FindStringSubmatch(url)
 	if m == nil {
-		err = fmt.Errorf("resource name must be a SHA256 hash in hex. "+
+		err := fmt.Errorf("resource name must be a SHA256 hash in hex. "+
 			"got '%s'", html.EscapeString(url))
-		return
+		return 0, "", err
 	}
 
 	parts := m[2:]
 	if len(parts) != 2 {
-		err = fmt.Errorf("the path '%s' is invalid. expected (ac/|cas/)sha256",
+		err := fmt.Errorf("the path '%s' is invalid. expected (ac/|cas/)sha256",
 			html.EscapeString(url))
-		return
+		return 0, "", err
 	}
 
-	cacheKey = filepath.Join(parts...)
+	// The regex ensures that parts[0] can only be "ac/" or "cas/"
+	hash := parts[1]
 	if parts[0] == "cas/" {
-		sha256sum = parts[1]
+		return cache.CAS, hash, nil
 	}
-	return
+	return cache.AC, hash, nil
 }
 
 func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
@@ -89,22 +89,19 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		h.accessLogger.Printf("%4s %d %15s %s", r.Method, code, clientAddress, r.URL.Path)
 	}
 
-	// Extract cache key from request URL
-	cacheKey, expectedHash, err := cacheKeyFromRequestPath(r.URL.Path)
+	kind, hash, err := parseRequestURL(r.URL.Path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		logResponse(http.StatusBadRequest)
 		return
 	}
 
-	fromActionCache := expectedHash == ""
-
 	switch m := r.Method; m {
 	case http.MethodGet:
-		data, sizeBytes, err := h.cache.Get(cacheKey, fromActionCache)
+		data, sizeBytes, err := h.cache.Get(kind, hash)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			h.errorLogger.Printf("GET %s: %s", cacheKey, err)
+			h.errorLogger.Printf("GET %s: %s", path(kind, hash), err)
 			return
 		}
 
@@ -123,26 +120,26 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPut:
 		if r.ContentLength == -1 {
 			// We need the content-length header to make sure we have enough disk space.
-			msg := fmt.Sprintf("PUT without Content-Length (key = %s)", cacheKey)
+			msg := fmt.Sprintf("PUT without Content-Length (key = %s)", path(kind, hash))
 			http.Error(w, msg, http.StatusBadRequest)
 			h.errorLogger.Printf("%s", msg)
 			return
 		}
 
-		err := h.cache.Put(cacheKey, r.ContentLength, expectedHash, r.Body)
+		err := h.cache.Put(kind, hash, r.ContentLength, r.Body)
 		if err != nil {
 			if cerr, ok := err.(*cache.Error); ok {
 				http.Error(w, err.Error(), cerr.Code)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
-			h.errorLogger.Printf("PUT %s: %s", cacheKey, err)
+			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), err)
 		} else {
 			logResponse(http.StatusOK)
 		}
 
 	case http.MethodHead:
-		ok := h.cache.Contains(cacheKey, fromActionCache)
+		ok := h.cache.Contains(kind, hash)
 		if !ok {
 			http.Error(w, "Not found", http.StatusNotFound)
 			logResponse(http.StatusNotFound)
@@ -171,4 +168,11 @@ func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 		NumFiles:   h.cache.NumItems(),
 		ServerTime: time.Now().Unix(),
 	})
+}
+
+func path(kind cache.EntryKind, hash string) string {
+	if kind == cache.AC {
+		return "/ac/" + hash
+	}
+	return "/cas/" + hash
 }

@@ -4,6 +4,16 @@ import (
 	"io"
 )
 
+// EntryKind describes the kind of cache entry
+type EntryKind int
+
+const (
+	// AC stands for Action Cache
+	AC EntryKind = iota
+	// CAS stands for Content Addressable Storage
+	CAS
+)
+
 // Logger is designed to be satisfied by log.Logger.
 type Logger interface {
 	Printf(format string, v ...interface{})
@@ -27,14 +37,14 @@ type Cache interface {
 
 	// Put stores a stream of `size` bytes from `r` into the cache. If `expectedSha256` is
 	// not the empty string, and the contents don't match it, an error is returned
-	Put(key string, size int64, expectedSha256 string, r io.Reader) error
+	Put(kind EntryKind, hash string, size int64, r io.Reader) error
 
 	// Get writes the content of the cache item stored under `key` to `w`. If the item is
 	// not found, it returns ok = false.
-	Get(key string, actionCache bool) (data io.ReadCloser, sizeBytes int64, err error)
+	Get(kind EntryKind, hash string) (data io.ReadCloser, sizeBytes int64, err error)
 
 	// Contains returns true if the `key` exists.
-	Contains(key string, actionCache bool) (ok bool)
+	Contains(kind EntryKind, hash string) (ok bool)
 
 	// MaxSize returns the maximum cache size in bytes.
 	MaxSize() int64
