@@ -245,15 +245,46 @@ func TestCacheCorruptedFile(t *testing.T) {
 	}
 }
 
+func TestMigrateFromOldDirectoryStructure(t *testing.T) {
+	cacheDir := testutils.TempDir(t)
+	defer os.RemoveAll(cacheDir)
+
+	acHash, err := testutils.CreateRandomFile(cacheDir+"/ac/", 512)
+	if err != nil {
+		t.Fatal(err)
+	}
+	casHash1, err := testutils.CreateRandomFile(cacheDir+"/cas/", 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	casHash2, err := testutils.CreateRandomFile(cacheDir+"/cas/", 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testCache := New(cacheDir, 2560)
+	if testCache.NumItems() != 3 {
+		t.Fatalf("Expected test cache size 3 but was %d", testCache.NumItems())
+	}
+	if !testCache.Contains(cache.AC, acHash) {
+		t.Fatalf("Expected cache to contain AC entry '%s'", acHash)
+	}
+	if !testCache.Contains(cache.CAS, casHash1) {
+		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash1)
+	}
+	if !testCache.Contains(cache.CAS, casHash2) {
+		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash2)
+	}
+}
+
 func TestLoadExistingEntries(t *testing.T) {
 	// Test that loading existing items works
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
-	acHash, err := testutils.CreateRandomFile(cacheDir+"/ac/", 1024)
+	acHash, err := testutils.CreateCacheFile(cacheDir+"/ac/", 1024)
 	if err != nil {
 		t.Fatal(err)
 	}
-	casHash, err := testutils.CreateRandomFile(cacheDir+"/cas/", 1024)
+	casHash, err := testutils.CreateCacheFile(cacheDir+"/cas/", 1024)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +297,6 @@ func TestLoadExistingEntries(t *testing.T) {
 		t.Fatalf("Expected cache to contain AC entry '%s'", acHash)
 	}
 	if !testCache.Contains(cache.CAS, casHash) {
-		t.Fatalf("Expected cache to contain CAS entry '%s'", acHash)
+		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash)
 	}
-
 }

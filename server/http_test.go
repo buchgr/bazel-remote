@@ -24,7 +24,7 @@ func TestDownloadFile(t *testing.T) {
 	cacheDir := testutils.CreateTmpCacheDirs(t)
 	defer os.RemoveAll(cacheDir)
 
-	hash, err := testutils.CreateRandomFile(filepath.Join(cacheDir, "cas"), 1024)
+	hash, err := testutils.CreateCacheFile(filepath.Join(cacheDir, "cas"), 1024)
 	if err != nil {
 		t.Fatal(err)
 	}

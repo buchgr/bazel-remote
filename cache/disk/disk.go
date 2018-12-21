@@ -43,11 +43,11 @@ func New(dir string, maxSizeBytes int64) cache.Cache {
 	for _, c1 := range hexLetters {
 		for _, c2 := range hexLetters {
 			subDir := string(c1) + string(c2)
-			err := os.MkdirAll(filepath.Join(dir, "cas", subDir), os.FileMode(0744))
+			err := os.MkdirAll(filepath.Join(dir, cache.CAS.String(), subDir), os.FileMode(0744))
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = os.MkdirAll(filepath.Join(dir, "ac", subDir), os.FileMode(0744))
+			err = os.MkdirAll(filepath.Join(dir, cache.AC.String(), subDir), os.FileMode(0744))
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -71,27 +71,64 @@ func New(dir string, maxSizeBytes int64) cache.Cache {
 		lru: NewSizedLRU(maxSizeBytes, onEvict),
 	}
 
-	cache.loadExistingFiles()
+	err := cache.migrateDirectories()
+	if err != nil {
+		log.Fatalf("Attempting to migrate the old directory structure to the new structure failed "+
+			"with error: %v", err)
+	}
+	err = cache.loadExistingFiles()
+	if err != nil {
+		log.Fatalf("Loading of existing cache entries failed due to error: %v", err)
+	}
 
 	return cache
+}
+
+func (c *diskCache) migrateDirectories() error {
+	err := migrateDirectory(filepath.Join(c.dir, cache.AC.String()))
+	if err != nil {
+		return err
+	}
+	err = migrateDirectory(filepath.Join(c.dir, cache.CAS.String()))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func migrateDirectory(dir string) error {
+	return filepath.Walk(dir, func(name string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			if name == dir {
+				return nil
+			}
+			return filepath.SkipDir
+		}
+		hash := filepath.Base(name)
+		newName := filepath.Join(filepath.Dir(name), hash[:2], hash)
+		return os.Rename(name, newName)
+	})
 }
 
 // loadExistingFiles lists all files in the cache directory, and adds them to the
 // LRU index so that they can be served. Files are sorted by access time first,
 // so that the eviction behavior is preserved across server restarts.
-func (c *diskCache) loadExistingFiles() {
+func (c *diskCache) loadExistingFiles() error {
 	// Walk the directory tree
 	type NameAndInfo struct {
 		info os.FileInfo
 		name string
 	}
 	var files []NameAndInfo
-	filepath.Walk(c.dir, func(name string, info os.FileInfo, err error) error {
+	err := filepath.Walk(c.dir, func(name string, info os.FileInfo, err error) error {
 		if !info.IsDir() {
 			files = append(files, NameAndInfo{info, name})
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
 
 	// Sort in increasing order of atime
 	sort.Slice(files, func(i int, j int) bool {
@@ -105,6 +142,7 @@ func (c *diskCache) loadExistingFiles() {
 			committed: true,
 		})
 	}
+	return nil
 }
 
 func (c *diskCache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) (err error) {

@@ -20,6 +20,14 @@ func TempDir(t *testing.T) string {
 
 func CreateRandomFile(dir string, size int64) (string, error) {
 	data, hash := RandomDataAndHash(size)
+	os.MkdirAll(dir, os.FileMode(0744))
+	filepath := dir + "/" + hash
+
+	return hash, ioutil.WriteFile(filepath, data, 0744)
+}
+
+func CreateCacheFile(dir string, size int64) (string, error) {
+	data, hash := RandomDataAndHash(size)
 	subdir := dir + "/" + hash[0:2]
 	os.MkdirAll(subdir, os.FileMode(0744))
 	filepath := subdir + "/" + hash
