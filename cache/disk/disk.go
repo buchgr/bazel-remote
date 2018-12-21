@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/buchgr/bazel-remote/cache"
@@ -59,9 +58,7 @@ func New(dir string, maxSizeBytes int64) cache.Cache {
 	onEvict := func(key Key, value SizedItem) {
 		// Only remove committed items (as temporary files have a different filename)
 		if value.(*lruItem).committed {
-			components := strings.SplitN(key.(string), "-", 2)
-			filePath := cacheFilePath(strToKind(components[0]), dir, components[1])
-			err := os.Remove(filePath)
+			err := os.Remove(filepath.Join(dir, key.(string)))
 			if err != nil {
 				log.Println(err)
 			}
@@ -103,14 +100,7 @@ func (c *diskCache) loadExistingFiles() {
 
 	for _, f := range files {
 		relPath := f.name[len(c.dir)+1:]
-		var key string
-		if strings.HasPrefix(relPath, "ac/") {
-			key = "ac-"
-		} else {
-			key = "cas-"
-		}
-		key = key + relPath[len(key)+3:]
-		c.lru.Add(key, &lruItem{
+		c.lru.Add(relPath, &lruItem{
 			size:      f.info.Size(),
 			committed: true,
 		})
@@ -265,18 +255,11 @@ func ensureDirExists(path string) {
 }
 
 func cacheKey(kind cache.EntryKind, hash string) string {
-	if kind == cache.AC {
-		return kindToStr(kind) + "-" + hash
-	}
-	return kindToStr(kind) + "-" + hash
-}
-
-func cacheDirPath(cacheDir string, kind cache.EntryKind, hash string) string {
-	return filepath.Join(cacheDir, kindToStr(kind), hash[:2])
+	return filepath.Join(kindToStr(kind), hash[:2], hash)
 }
 
 func cacheFilePath(kind cache.EntryKind, cacheDir string, hash string) string {
-	return filepath.Join(cacheDirPath(cacheDir, kind, hash), hash)
+	return filepath.Join(cacheDir, cacheKey(kind, hash))
 }
 
 func strToKind(str string) cache.EntryKind {
