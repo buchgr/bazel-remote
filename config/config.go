@@ -89,8 +89,12 @@ func validateConfig(c *Config) error {
 		return errors.New("The 'dir' flag/key is required")
 	}
 
-	if c.MaxSize == 0 {
-		return errors.New("The 'max_size' flag/key is required")
+	if c.MaxSize <= 0 {
+		return errors.New("The 'max_size' flag/key must be set to a value > 0")
+	}
+
+	if c.Port == 0 {
+		return errors.New("A valid 'port' flag/key must be specified")
 	}
 
 	if (c.TLSCertFile != "" && c.TLSKeyFile == "") || (c.TLSCertFile == "" && c.TLSKeyFile != "") {

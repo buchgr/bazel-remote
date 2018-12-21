@@ -2,6 +2,7 @@ package config
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -94,5 +95,35 @@ http_proxy:
 
 	if !cmp.Equal(config, expectedConfig) {
 		t.Fatalf("Expected '%+v' but got '%+v'", expectedConfig, config)
+	}
+}
+
+func TestDirRequired(t *testing.T) {
+	testConfig := &Config{
+		Host:    "localhost",
+		Port:    8080,
+		MaxSize: 100,
+	}
+	err := validateConfig(testConfig)
+	if err == nil {
+		t.Fatal("Expected an error because no 'dir' was specified")
+	}
+	if !strings.Contains(err.Error(), "'dir'") {
+		t.Fatal("Expected the error message to mention the missing 'dir' key/flag")
+	}
+}
+
+func TestMaxSizeRequired(t *testing.T) {
+	testConfig := &Config{
+		Host: "localhost",
+		Port: 8080,
+		Dir:  "/opt/cache-dir",
+	}
+	err := validateConfig(testConfig)
+	if err == nil {
+		t.Fatal("Expected an error because no 'max_size' was specified")
+	}
+	if !strings.Contains(err.Error(), "'max_size'") {
+		t.Fatal("Expected the error message to mention the missing 'max_size' key/flag")
 	}
 }
