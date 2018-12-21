@@ -171,8 +171,5 @@ func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func path(kind cache.EntryKind, hash string) string {
-	if kind == cache.AC {
-		return "/ac/" + hash
-	}
-	return "/cas/" + hash
+	return fmt.Sprintf("/%s/%s", kind, hash)
 }

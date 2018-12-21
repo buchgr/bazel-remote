@@ -255,23 +255,9 @@ func ensureDirExists(path string) {
 }
 
 func cacheKey(kind cache.EntryKind, hash string) string {
-	return filepath.Join(kindToStr(kind), hash[:2], hash)
+	return filepath.Join(kind.String(), hash[:2], hash)
 }
 
 func cacheFilePath(kind cache.EntryKind, cacheDir string, hash string) string {
 	return filepath.Join(cacheDir, cacheKey(kind, hash))
-}
-
-func strToKind(str string) cache.EntryKind {
-	if str == "ac" {
-		return cache.AC
-	}
-	return cache.CAS
-}
-
-func kindToStr(kind cache.EntryKind) string {
-	if kind == cache.AC {
-		return "ac"
-	}
-	return "cas"
 }

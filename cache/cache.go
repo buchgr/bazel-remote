@@ -14,6 +14,13 @@ const (
 	CAS
 )
 
+func (e EntryKind) String() string {
+	if e == AC {
+		return "ac"
+	}
+	return "cas"
+}
+
 // Logger is designed to be satisfied by log.Logger.
 type Logger interface {
 	Printf(format string, v ...interface{})

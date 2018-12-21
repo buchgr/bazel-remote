@@ -4,12 +4,12 @@ package http
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 
 	"github.com/buchgr/bazel-remote/cache"
 )
@@ -168,18 +168,5 @@ func (r *remoteHTTPProxyCache) NumItems() int {
 }
 
 func requestURL(baseURL *url.URL, hash string, kind cache.EntryKind) string {
-	url := baseURL.String()
-	if !strings.HasSuffix(url, "/") {
-		url += "/"
-	}
-	url += kindToStr(kind) + "/"
-	url += hash
-	return url
-}
-
-func kindToStr(kind cache.EntryKind) string {
-	if kind == cache.AC {
-		return "ac"
-	}
-	return "cas"
+	return fmt.Sprintf("%s/%s/%s", baseURL, kind, hash)
 }
