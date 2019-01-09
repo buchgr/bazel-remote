@@ -33,13 +33,20 @@ type statusPageData struct {
 	MaxSize    int64
 	NumFiles   int
 	ServerTime int64
+	GitCommit  string
 }
+
+// GitCommit is the version stamp for the server. The value of this var is set through linker options.
+var GitCommit string
 
 // NewHTTPCache returns a new instance of the cache.
 // accessLogger will print one line for each HTTP request to stdout.
 // errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
 // be reported.
 func NewHTTPCache(cache cache.Cache, accessLogger cache.Logger, errorLogger cache.Logger) HTTPCache {
+	if len(GitCommit) > 0 {
+		errorLogger.Printf("Server built from git commit %s.", GitCommit)
+	}
 	errorLogger.Printf("Loaded %d existing disk cache items.", cache.NumItems())
 
 	hc := &httpCache{
@@ -167,6 +174,7 @@ func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 		MaxSize:    h.cache.MaxSize(),
 		NumFiles:   h.cache.NumItems(),
 		ServerTime: time.Now().Unix(),
+		GitCommit:  GitCommit,
 	})
 }
 
