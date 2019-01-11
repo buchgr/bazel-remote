@@ -196,7 +196,12 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, size int64, r io.Read
 	if err != nil {
 		return
 	}
-	defer os.Remove(f.Name())
+	defer func() {
+		if !shouldCommit {
+			// Only delete the temp file if moving it didn't succeed.
+			os.Remove(f.Name())
+		}
+	}()
 
 	if kind == cache.CAS {
 		hasher := sha256.New()
