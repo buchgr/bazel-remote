@@ -220,10 +220,6 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, size int64, r io.Read
 		}
 	}
 
-	if err := f.Sync(); err != nil {
-		return err
-	}
-
 	if err := f.Close(); err != nil {
 		return err
 	}
