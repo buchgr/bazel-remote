@@ -2,10 +2,13 @@ package cache
 
 import (
 	"io"
+	"time"
 )
 
 // EntryKind describes the kind of cache entry
 type EntryKind int
+
+var LastRequestTime time.Time
 
 const (
 	// AC stands for Action Cache

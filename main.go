@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"time"
+	"context"
 
 	auth "github.com/abbot/go-http-auth"
 	"github.com/buchgr/bazel-remote/cache"
@@ -81,6 +83,12 @@ func main() {
 			Usage:  "Path to a pem encoded key file.",
 			EnvVar: "BAZEL_REMOTE_TLS_KEY_FILE",
 		},
+		cli.Int64Flag{
+			Name:   "idle_timeout",
+			Value:  0,
+			Usage:  "The max server idle time in seconds before bazel-remote exit",
+			EnvVar: "BAZEL_REMOTE_IDLE_TIMEOUT",
+		},
 	}
 
 	app.Action = func(ctx *cli.Context) error {
@@ -134,12 +142,31 @@ func main() {
 
 		http.HandleFunc("/status", h.StatusPageHandler)
 		http.HandleFunc("/", maybeAuth(h.CacheHandler, c.HtpasswdFile, c.Host))
+		httpServer := &http.Server{Addr: c.Host+":"+strconv.Itoa(c.Port), Handler: nil}
+
+		if c.IdleTimeout > 0 {
+			cache.LastRequestTime = time.Now()
+			ticker := time.NewTicker(time.Second)
+			go func() {
+				for {
+					select {
+					case <-ticker.C:
+						currentTime := time.Now()
+						lastRequestTime := cache.LastRequestTime
+						if int64(currentTime.Sub(lastRequestTime).Seconds()) > c.IdleTimeout {
+							accessLogger.Printf("Shutting down server after idling for more than %d seconds", c.IdleTimeout)
+							httpServer.Shutdown(context.Background())
+						}
+					}
+				}
+			}()
+		}
 
 		if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
-			return http.ListenAndServeTLS(c.Host+":"+strconv.Itoa(c.Port), c.TLSCertFile,
-				c.TLSKeyFile, nil)
+			return httpServer.ListenAndServeTLS(c.TLSCertFile,
+				c.TLSKeyFile)
 		}
-		return http.ListenAndServe(c.Host+":"+strconv.Itoa(c.Port), nil)
+		return httpServer.ListenAndServe()
 	}
 
 	serverErr := app.Run(os.Args)

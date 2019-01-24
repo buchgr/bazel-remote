@@ -30,6 +30,7 @@ type Config struct {
 	TLSKeyFile         string                    `yaml:"tls_key_file"`
 	GoogleCloudStorage *GoogleCloudStorageConfig `yaml:"gcs_proxy"`
 	HTTPBackend        *HTTPBackendConfig        `yaml:"http_proxy"`
+	IdleTimeout        int64                     `yaml:"idle_timeout"`
 }
 
 // New ...
@@ -40,6 +41,7 @@ func New(dir string, maxSize int, host string, port int, htpasswdFile string,
 		Port:               port,
 		Dir:                dir,
 		MaxSize:            maxSize,
+		IdleTimeout:        0,
 		HtpasswdFile:       htpasswdFile,
 		TLSCertFile:        tlsCertFile,
 		TLSKeyFile:         tlsKeyFile,

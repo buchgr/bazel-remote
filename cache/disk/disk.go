@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/djherbis/atime"
@@ -146,6 +147,7 @@ func (c *diskCache) loadExistingFiles() error {
 }
 
 func (c *diskCache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) (err error) {
+	cache.LastRequestTime = time.Now()
 	c.mux.Lock()
 
 	key := cacheKey(kind, hash)
@@ -241,6 +243,7 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, size int64, r io.Read
 }
 
 func (c *diskCache) Get(kind cache.EntryKind, hash string) (data io.ReadCloser, sizeBytes int64, err error) {
+	cache.LastRequestTime = time.Now()
 	if !c.Contains(kind, hash) {
 		return
 	}
@@ -262,6 +265,7 @@ func (c *diskCache) Get(kind cache.EntryKind, hash string) (data io.ReadCloser, 
 }
 
 func (c *diskCache) Contains(kind cache.EntryKind, hash string) (ok bool) {
+	cache.LastRequestTime = time.Now()
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
