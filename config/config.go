@@ -3,11 +3,9 @@ package config
 import (
 	"errors"
 	"fmt"
+	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
-	"time"
-
-	yaml "gopkg.in/yaml.v2"
 )
 
 type GoogleCloudStorageConfig struct {
@@ -31,12 +29,12 @@ type Config struct {
 	TLSKeyFile         string                    `yaml:"tls_key_file"`
 	GoogleCloudStorage *GoogleCloudStorageConfig `yaml:"gcs_proxy"`
 	HTTPBackend        *HTTPBackendConfig        `yaml:"http_proxy"`
-	IdleTimeout        time.Duration             `yaml:"idle_timeout"`
+	IdleTimeout        int64                     `yaml:"idle_timeout"`
 }
 
 // New ...
 func New(dir string, maxSize int, host string, port int, htpasswdFile string,
-	tlsCertFile string, tlsKeyFile string, idleTimeout time.Duration) (*Config, error) {
+	tlsCertFile string, tlsKeyFile string, idleTimeout int64) (*Config, error) {
 	c := Config{
 		Host:               host,
 		Port:               port,

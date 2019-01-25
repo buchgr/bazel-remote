@@ -84,10 +84,10 @@ func main() {
 			Usage:  "Path to a pem encoded key file.",
 			EnvVar: "BAZEL_REMOTE_TLS_KEY_FILE",
 		},
-		cli.DurationFlag{
+		cli.Int64Flag{
 			Name:   "idle_timeout",
 			Value:  0,
-			Usage:  "The maximum period of having received no request after which the server will shut itself down. Disabled by default.",
+			Usage:  "The maximum time in seconds of receiving no request before the server shut itself down. Disabled by default.",
 			EnvVar: "BAZEL_REMOTE_IDLE_TIMEOUT",
 		},
 	}
@@ -106,7 +106,7 @@ func main() {
 				ctx.String("htpasswd_file"),
 				ctx.String("tls_cert_file"),
 				ctx.String("tls_key_file"),
-				ctx.Duration("idle_timeout"))
+				ctx.Int64("idle_timeout"))
 		}
 
 		if err != nil {
@@ -169,7 +169,7 @@ func main() {
 	}
 }
 
-func wrapIdleHandler(handler http.HandlerFunc, idleTimeout time.Duration, accessLogger cache.Logger, httpServer *http.Server) http.HandlerFunc {
+func wrapIdleHandler(handler http.HandlerFunc, idleTimeout int64, accessLogger cache.Logger, httpServer *http.Server) http.HandlerFunc {
 	lastRequest := time.Now()
 	ticker := time.NewTicker(time.Second)
 	var m sync.Mutex
@@ -178,7 +178,7 @@ func wrapIdleHandler(handler http.HandlerFunc, idleTimeout time.Duration, access
 			select {
 			case now := <-ticker.C:
 				m.Lock()
-				elapsed := now.Sub(lastRequest)
+				elapsed := int64(now.Sub(lastRequest).Seconds())
 				m.Unlock()
 				if elapsed > idleTimeout {
 					ticker.Stop()
