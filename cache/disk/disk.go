@@ -147,9 +147,11 @@ func (c *diskCache) loadExistingFiles() error {
 }
 
 func (c *diskCache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) (err error) {
+	cache.CacheMutex.Lock()
 	cache.LastRequestTime = time.Now()
-	c.mux.Lock()
+	cache.CacheMutex.Unlock()
 
+	c.mux.Lock()
 	key := cacheKey(kind, hash)
 
 	// If there's an ongoing upload (i.e. cache key is present in uncommitted state),
@@ -243,7 +245,6 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, size int64, r io.Read
 }
 
 func (c *diskCache) Get(kind cache.EntryKind, hash string) (data io.ReadCloser, sizeBytes int64, err error) {
-	cache.LastRequestTime = time.Now()
 	if !c.Contains(kind, hash) {
 		return
 	}
@@ -265,7 +266,9 @@ func (c *diskCache) Get(kind cache.EntryKind, hash string) (data io.ReadCloser, 
 }
 
 func (c *diskCache) Contains(kind cache.EntryKind, hash string) (ok bool) {
+	cache.CacheMutex.Lock()
 	cache.LastRequestTime = time.Now()
+	cache.CacheMutex.Unlock()
 	c.mux.Lock()
 	defer c.mux.Unlock()
 

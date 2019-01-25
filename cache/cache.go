@@ -3,12 +3,14 @@ package cache
 import (
 	"io"
 	"time"
+	"sync"
 )
 
 // EntryKind describes the kind of cache entry
 type EntryKind int
 
 var LastRequestTime time.Time
+var CacheMutex = &sync.Mutex{}
 
 const (
 	// AC stands for Action Cache

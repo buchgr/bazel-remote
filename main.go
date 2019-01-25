@@ -145,14 +145,18 @@ func main() {
 		httpServer := &http.Server{Addr: c.Host+":"+strconv.Itoa(c.Port), Handler: nil}
 
 		if c.IdleTimeout > 0 {
+			cache.CacheMutex.Lock()
 			cache.LastRequestTime = time.Now()
+			cache.CacheMutex.Unlock()
 			ticker := time.NewTicker(time.Second)
 			go func() {
 				for {
 					select {
 					case <-ticker.C:
 						currentTime := time.Now()
+						cache.CacheMutex.Lock()
 						lastRequestTime := cache.LastRequestTime
+						cache.CacheMutex.Unlock()
 						if int64(currentTime.Sub(lastRequestTime).Seconds()) > c.IdleTimeout {
 							accessLogger.Printf("Shutting down server after idling for more than %d seconds", c.IdleTimeout)
 							httpServer.Shutdown(context.Background())
