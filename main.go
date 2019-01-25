@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
+	"sync"
+	"time"
 
 	auth "github.com/abbot/go-http-auth"
 	"github.com/buchgr/bazel-remote/cache"
@@ -81,6 +84,12 @@ func main() {
 			Usage:  "Path to a pem encoded key file.",
 			EnvVar: "BAZEL_REMOTE_TLS_KEY_FILE",
 		},
+		cli.DurationFlag{
+			Name:   "idle_timeout",
+			Value:  0,
+			Usage:  "The maximum period of having received no request after which the server will shut itself down. Disabled by default.",
+			EnvVar: "BAZEL_REMOTE_IDLE_TIMEOUT",
+		},
 	}
 
 	app.Action = func(ctx *cli.Context) error {
@@ -96,7 +105,8 @@ func main() {
 				ctx.Int("port"),
 				ctx.String("htpasswd_file"),
 				ctx.String("tls_cert_file"),
-				ctx.String("tls_key_file"))
+				ctx.String("tls_key_file"),
+				ctx.Duration("idle_timeout"))
 		}
 
 		if err != nil {
@@ -130,29 +140,65 @@ func main() {
 			proxyCache = diskCache
 		}
 
+		mux := http.NewServeMux()
+		httpServer := &http.Server{
+			Addr:    c.Host + ":" + strconv.Itoa(c.Port),
+			Handler: mux,
+		}
 		h := server.NewHTTPCache(proxyCache, accessLogger, errorLogger)
+		mux.HandleFunc("/status", h.StatusPageHandler)
 
-		http.HandleFunc("/status", h.StatusPageHandler)
-		http.HandleFunc("/", maybeAuth(h.CacheHandler, c.HtpasswdFile, c.Host))
+		cacheHandler := h.CacheHandler
+		if c.HtpasswdFile != "" {
+			cacheHandler = wrapAuthHandler(cacheHandler, c.HtpasswdFile, c.Host)
+		}
+		if c.IdleTimeout > 0 {
+			cacheHandler = wrapIdleHandler(cacheHandler, c.IdleTimeout, accessLogger, httpServer)
+		}
+		mux.HandleFunc("/", cacheHandler)
 
 		if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
-			return http.ListenAndServeTLS(c.Host+":"+strconv.Itoa(c.Port), c.TLSCertFile,
-				c.TLSKeyFile, nil)
+			return httpServer.ListenAndServeTLS(c.TLSCertFile, c.TLSKeyFile)
 		}
-		return http.ListenAndServe(c.Host+":"+strconv.Itoa(c.Port), nil)
+		return httpServer.ListenAndServe()
 	}
 
 	serverErr := app.Run(os.Args)
 	if serverErr != nil {
-		log.Fatal("ListenAndServe: ", serverErr)
+		log.Fatal("bazel-remote terminated: ", serverErr)
 	}
 }
 
-func maybeAuth(fn http.HandlerFunc, htpasswdFile string, host string) http.HandlerFunc {
-	if htpasswdFile != "" {
-		secrets := auth.HtpasswdFileProvider(htpasswdFile)
-		authenticator := auth.NewBasicAuthenticator(host, secrets)
-		return auth.JustCheck(authenticator, fn)
-	}
-	return fn
+func wrapIdleHandler(handler http.HandlerFunc, idleTimeout time.Duration, accessLogger cache.Logger, httpServer *http.Server) http.HandlerFunc {
+	lastRequest := time.Now()
+	ticker := time.NewTicker(time.Second)
+	var m sync.Mutex
+	go func() {
+		for {
+			select {
+			case now := <-ticker.C:
+				m.Lock()
+				elapsed := now.Sub(lastRequest)
+				m.Unlock()
+				if elapsed > idleTimeout {
+					ticker.Stop()
+					accessLogger.Printf("Shutting down server after having been idle for %v", idleTimeout)
+					httpServer.Shutdown(context.Background())
+				}
+			}
+		}
+	}()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		now := time.Now()
+		m.Lock()
+		lastRequest = now
+		m.Unlock()
+		handler(w, r)
+	})
+}
+
+func wrapAuthHandler(handler http.HandlerFunc, htpasswdFile string, host string) http.HandlerFunc {
+	secrets := auth.HtpasswdFileProvider(htpasswdFile)
+	authenticator := auth.NewBasicAuthenticator(host, secrets)
+	return auth.JustCheck(authenticator, handler)
 }
