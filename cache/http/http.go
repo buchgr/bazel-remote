@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/buchgr/bazel-remote/cache"
 )
@@ -33,6 +34,7 @@ type remoteHTTPProxyCache struct {
 
 func uploadFile(remote *http.Client, baseURL *url.URL, local cache.Cache, accessLogger cache.Logger,
 	errorLogger cache.Logger, hash string, kind cache.EntryKind) {
+	cache.LastRequestTime = time.Now()
 	data, size, err := local.Get(kind, hash)
 	if err != nil {
 		return
