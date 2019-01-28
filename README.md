@@ -51,6 +51,7 @@ GLOBAL OPTIONS:
    --tls_cert_file value  Path to a pem encoded certificate file. [$BAZEL_REMOTE_TLS_CERT_FILE]
    --tls_key_file value   Path to a pem encoded key file. [$BAZEL_REMOTE_TLS_KEY_FILE]
    --idle_timeout value   The maximum period of having received no request after which the server will shut itself down. Disabled by default. (default: 0s) [$BAZEL_REMOTE_IDLE_TIMEOUT]
+   --kill_old_pid value   This will kill the existing running bazel-remote process before starting a new bazel-remote process. This is when user want to upgrade with a new version
    --help, -h             show help
 ```
 

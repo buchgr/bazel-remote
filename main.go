@@ -3,12 +3,16 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	auth "github.com/abbot/go-http-auth"
@@ -90,6 +94,12 @@ func main() {
 			Usage:  "The maximum period of having received no request after which the server will shut itself down. Disabled by default.",
 			EnvVar: "BAZEL_REMOTE_IDLE_TIMEOUT",
 		},
+		cli.BoolFlag{
+			Name:   "kill_old_pid",
+			Hidden: false,
+			Usage:  "This will kill the existing running bazel-remote process before starting a new bazel-remote process. This is when user want to upgrade with a new version",
+			EnvVar: "BAZEL_REMOTE_KILL_OLD",
+		},
 	}
 
 	app.Action = func(ctx *cli.Context) error {
@@ -106,7 +116,8 @@ func main() {
 				ctx.String("htpasswd_file"),
 				ctx.String("tls_cert_file"),
 				ctx.String("tls_key_file"),
-				ctx.Duration("idle_timeout"))
+				ctx.Duration("idle_timeout"),
+				ctx.Bool("kill_old_pid"))
 		}
 
 		if err != nil {
@@ -117,6 +128,8 @@ func main() {
 
 		accessLogger := log.New(os.Stdout, "", log.Ldate|log.Ltime|log.LUTC)
 		errorLogger := log.New(os.Stderr, "", log.Ldate|log.Ltime|log.LUTC)
+
+		writePidFile(c, accessLogger)
 
 		diskCache := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024)
 
@@ -201,4 +214,38 @@ func wrapAuthHandler(handler http.HandlerFunc, htpasswdFile string, host string)
 	secrets := auth.HtpasswdFileProvider(htpasswdFile)
 	authenticator := auth.NewBasicAuthenticator(host, secrets)
 	return auth.JustCheck(authenticator, handler)
+}
+
+func writePidFile(c *config.Config, accessLogger cache.Logger) error {
+	// create a "pid" directory under cache directory and clean up inactive pid file
+	pidPath := filepath.Join(c.Dir, "pid")
+	err := os.MkdirAll(pidPath, os.FileMode(0744))
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+	err = filepath.Walk(pidPath, func(name string, fileInfo os.FileInfo, err error) error {
+		if !fileInfo.IsDir() {
+			pid, _ := strconv.Atoi(fileInfo.Name())
+			bazelRemoteProcess, err := os.FindProcess(pid)
+			if err != nil {
+				accessLogger.Printf("Error to find pid: %d", bazelRemoteProcess)
+			} else {
+				err = bazelRemoteProcess.Signal(syscall.Signal(0))
+				if err != nil && strings.Contains(err.Error(), "process already finished") {
+					accessLogger.Printf("Removing pid file: %s", fileInfo.Name())
+					err = os.Remove(filepath.Join(c.Dir, "pid", fileInfo.Name()))
+				} else if c.KillOldPid {
+					accessLogger.Printf("Killing existing bazel remote process: %d", pid)
+					err = bazelRemoteProcess.Signal(syscall.Signal(syscall.SIGKILL))
+				}
+			}
+		}
+		return err
+	})
+	// create a file with pid number as the name and write critical server info into the file
+	pidFile := filepath.Join(c.Dir, "pid", strconv.Itoa(os.Getpid()))
+	port := []byte("port: " + strconv.Itoa(c.Port) + "\n")
+	err = ioutil.WriteFile(pidFile, port, 0744)
+	return err
 }

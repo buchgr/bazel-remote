@@ -32,11 +32,12 @@ type Config struct {
 	GoogleCloudStorage *GoogleCloudStorageConfig `yaml:"gcs_proxy"`
 	HTTPBackend        *HTTPBackendConfig        `yaml:"http_proxy"`
 	IdleTimeout        time.Duration             `yaml:"idle_timeout"`
+	KillOldPid         bool                      `yaml:"kill_old_pid"`
 }
 
 // New ...
 func New(dir string, maxSize int, host string, port int, htpasswdFile string,
-	tlsCertFile string, tlsKeyFile string, idleTimeout time.Duration) (*Config, error) {
+	tlsCertFile string, tlsKeyFile string, idleTimeout time.Duration, killOldPid bool) (*Config, error) {
 	c := Config{
 		Host:               host,
 		Port:               port,
@@ -48,6 +49,7 @@ func New(dir string, maxSize int, host string, port int, htpasswdFile string,
 		GoogleCloudStorage: nil,
 		HTTPBackend:        nil,
 		IdleTimeout:        idleTimeout,
+		KillOldPid:         killOldPid,
 	}
 
 	err := validateConfig(&c)
