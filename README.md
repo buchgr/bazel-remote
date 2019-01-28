@@ -105,3 +105,9 @@ $ docker run -v /path/to/cache/dir:/data \
 
 Please take a look at Bazel's documentation section on [remote
 caching](https://docs.bazel.build/versions/master/remote-caching.html#run-bazel-using-the-remote-cache)
+
+## Contributing to Bazel-Remote
+
+Step 1. Install Go tools: <https://golang.org/doc/install#install>
+Step 2. Since Bazel-Remote is a Bazel project, follow the link to set up Bazel: <https://bazel.build/contributing.html>
+Step 3. Set up IDE. Visual Studio Code is easy to set up for Go language: <https://code.visualstudio.com/>
