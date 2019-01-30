@@ -108,6 +108,6 @@ caching](https://docs.bazel.build/versions/master/remote-caching.html#run-bazel-
 
 ## Contributing to Bazel-Remote
 
-Step 1. Install Go tools: <https://golang.org/doc/install#install>
-Step 2. Since Bazel-Remote is a Bazel project, follow the link to set up Bazel: <https://bazel.build/contributing.html>
-Step 3. Set up IDE. Visual Studio Code is easy to set up for Go language: <https://code.visualstudio.com/>
+Step 1. Install [Go](https://golang.org/doc/install#install) tools
+Step 2. Set up [Bazel](https://bazel.build/contributing.html)
+Step 3. Set up IDE. [Visual Studio Code](https://code.visualstudio.com/) with Go extension has good support for development with Go language. Other IDE tools may work too.
