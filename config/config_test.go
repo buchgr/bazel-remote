@@ -47,6 +47,7 @@ gcs_proxy:
   bucket: gcs-bucket
   use_default_credentials: false
   json_credentials_file: /opt/creds.json
+  disable_writes: true
 `
 	config, err := newFromYaml([]byte(yaml))
 	if err != nil {
@@ -62,6 +63,7 @@ gcs_proxy:
 			Bucket:                "gcs-bucket",
 			UseDefaultCredentials: false,
 			JSONCredentialsFile:   "/opt/creds.json",
+			DisableWrites:         true,
 		},
 	}
 
@@ -77,6 +79,7 @@ dir: /opt/cache-dir
 max_size: 100
 http_proxy:
   url: https://remote-cache.com:8080/cache
+  disable_reads: true
 `
 	config, err := newFromYaml([]byte(yaml))
 	if err != nil {
@@ -89,7 +92,8 @@ http_proxy:
 		Dir:     "/opt/cache-dir",
 		MaxSize: 100,
 		HTTPBackend: &HTTPBackendConfig{
-			BaseURL: "https://remote-cache.com:8080/cache",
+			BaseURL:      "https://remote-cache.com:8080/cache",
+			DisableReads: true,
 		},
 	}
 
@@ -125,5 +129,49 @@ func TestMaxSizeRequired(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "'max_size'") {
 		t.Fatal("Expected the error message to mention the missing 'max_size' key/flag")
+	}
+}
+
+func TestCannotDisableBothReadAndWriteInGCSProxyConfig(t *testing.T) {
+	testConfig := &Config{
+		Host:    "localhost",
+		Port:    8080,
+		Dir:     "/opt/cache-dir",
+		MaxSize: 100,
+		GoogleCloudStorage: &GoogleCloudStorageConfig{
+			Bucket:                "gcs-bucket",
+			UseDefaultCredentials: false,
+			JSONCredentialsFile:   "/opt/creds.json",
+			DisableReads:          true,
+			DisableWrites:         true,
+		},
+	}
+	err := validateConfig(testConfig)
+	if err == nil {
+		t.Fatal("Expected an error because both 'disable_reads' and 'disable_writes' were set")
+	}
+	if !strings.Contains(err.Error(), "'disable_reads'") || !strings.Contains(err.Error(), "'disable_writes'") {
+		t.Fatal("Expected the error message to mention the conflicting 'disable_reads' and 'disable_writes' key/flag")
+	}
+}
+
+func TestCannotDisableBothReadAndWriteInHttpProxyConfig(t *testing.T) {
+	testConfig := &Config{
+		Host:    "localhost",
+		Port:    8080,
+		Dir:     "/opt/cache-dir",
+		MaxSize: 100,
+		HTTPBackend: &HTTPBackendConfig{
+			BaseURL:       "https://remote-cache.com:8080/cache",
+			DisableReads:  true,
+			DisableWrites: true,
+		},
+	}
+	err := validateConfig(testConfig)
+	if err == nil {
+		t.Fatal("Expected an error because both 'disable_reads' and 'disable_writes' were set")
+	}
+	if !strings.Contains(err.Error(), "'disable_reads'") || !strings.Contains(err.Error(), "'disable_writes'") {
+		t.Fatal("Expected the error message to mention the conflicting 'disable_reads' and 'disable_writes' key/flag")
 	}
 }

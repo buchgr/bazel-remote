@@ -14,10 +14,14 @@ type GoogleCloudStorageConfig struct {
 	Bucket                string `yaml:"bucket"`
 	UseDefaultCredentials bool   `yaml:"use_default_credentials"`
 	JSONCredentialsFile   string `yaml:"json_credentials_file"`
+	DisableReads          bool   `yaml:"disable_reads"`
+	DisableWrites         bool   `yaml:"disable_writes"`
 }
 
 type HTTPBackendConfig struct {
-	BaseURL string `yaml:"url"`
+	BaseURL       string `yaml:"url"`
+	DisableReads  bool   `yaml:"disable_reads"`
+	DisableWrites bool   `yaml:"disable_writes"`
 }
 
 // Config provides the configuration
@@ -113,11 +117,17 @@ func validateConfig(c *Config) error {
 		if c.GoogleCloudStorage.Bucket == "" {
 			return errors.New("The 'bucket' field is required for 'gcs_proxy'")
 		}
+		if c.GoogleCloudStorage.DisableReads && c.GoogleCloudStorage.DisableWrites {
+			return errors.New("'disable_reads' and 'disable_writes' cannot be set at the same time for 'gcs_proxy'")
+		}
 	}
 
 	if c.HTTPBackend != nil {
 		if c.HTTPBackend.BaseURL == "" {
 			return errors.New("The 'url' field is required for 'http_proxy'")
+		}
+		if c.HTTPBackend.DisableReads && c.HTTPBackend.DisableWrites {
+			return errors.New("'disable_reads' and 'disable_writes' cannot be set at the same time for 'http_proxy'")
 		}
 	}
 	return nil

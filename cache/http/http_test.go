@@ -36,7 +36,7 @@ func TestProxyReadWorks(t *testing.T) {
 		t.Error(err)
 	}
 
-	proxy := New(baseURL, diskCache, &http.Client{}, testutils.NewSilentLogger(),
+	proxy := New(baseURL, diskCache, &http.Client{}, Read, testutils.NewSilentLogger(),
 		testutils.NewSilentLogger())
 
 	hashBytes := sha256.Sum256(expectedData)
@@ -103,7 +103,86 @@ func TestProxyWriteWorks(t *testing.T) {
 		t.Error(err)
 	}
 
-	proxy := New(baseURL, diskCache, &http.Client{}, testutils.NewSilentLogger(),
+	proxy := New(baseURL, diskCache, &http.Client{}, Write, testutils.NewSilentLogger(),
+		testutils.NewSilentLogger())
+
+	if diskCache.Contains(cache.CAS, hash) {
+		t.Fatalf("Expected the local cache to be empty")
+	}
+
+	err = proxy.Put(cache.CAS, hash, int64(len(data)), bytes.NewReader(data))
+	if err != nil {
+		t.Errorf("Failed to write to the proxy: '%v'", err)
+	}
+
+	if !diskCache.Contains(cache.CAS, hash) {
+		t.Fatalf("Expected the local cache to contain '%s'", hash)
+	}
+}
+
+func TestProxyDisablingReadWorks(t *testing.T) {
+	// Test that reading a blob from a proxy works and doesn't pass through if disabled.
+
+	expectedData := []byte("hello world")
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(expectedData)
+	}))
+
+	cacheDir := testutils.TempDir(t)
+	defer os.RemoveAll(cacheDir)
+	diskCache := disk.New(cacheDir, 100)
+
+	baseURL, err := url.Parse(ts.URL)
+	if err != nil {
+		t.Error(err)
+	}
+
+	proxy := New(baseURL, diskCache, &http.Client{}, Write, testutils.NewSilentLogger(),
+		testutils.NewSilentLogger())
+
+	hashBytes := sha256.Sum256(expectedData)
+	hash := hex.EncodeToString(hashBytes[:])
+	if diskCache.Contains(cache.CAS, hash) {
+		t.Fatalf("Expected the local cache to be empty")
+	}
+
+	readBytes, _, err := proxy.Get(cache.CAS, hash)
+	if err != nil {
+		t.Fatalf("Failed to get the blob via the http proxy: '%v'", err)
+	}
+
+	if readBytes != nil {
+		t.Fatalf("Expected the cache to not return a blob.")
+	}
+
+	if diskCache.Contains(cache.CAS, hash) {
+		t.Fatalf("Expected the blob to not be cached locally.")
+	}
+}
+
+func TestProxyDisablingWriteWorks(t *testing.T) {
+	// Test that writing to the proxy works and doesn't write through if disabled.
+
+	data := []byte("hello world")
+	hashBytes := sha256.Sum256(data)
+	hash := hex.EncodeToString(hashBytes[:])
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		http.Error(w, fmt.Sprintf("Expected the upstream cache to not receive any requests but received '%s'",
+			r.URL.Path), http.StatusInternalServerError)
+	}))
+
+	cacheDir := testutils.TempDir(t)
+	defer os.RemoveAll(cacheDir)
+	diskCache := disk.New(cacheDir, 100)
+
+	baseURL, err := url.Parse(ts.URL)
+	if err != nil {
+		t.Error(err)
+	}
+
+	proxy := New(baseURL, diskCache, &http.Client{}, Read, testutils.NewSilentLogger(),
 		testutils.NewSilentLogger())
 
 	if diskCache.Contains(cache.CAS, hash) {
@@ -141,7 +220,7 @@ func TestProxyReadErrorsArePropagated(t *testing.T) {
 		t.Error(err)
 	}
 
-	proxy := New(baseURL, diskCache, &http.Client{}, testutils.NewSilentLogger(),
+	proxy := New(baseURL, diskCache, &http.Client{}, Read, testutils.NewSilentLogger(),
 		testutils.NewSilentLogger())
 
 	_, _, err = proxy.Get(cache.CAS, hash)
@@ -180,7 +259,7 @@ func TestProxyWriteErrorsAreNotPropagated(t *testing.T) {
 		t.Error(err)
 	}
 
-	proxy := New(baseURL, diskCache, &http.Client{}, testutils.NewSilentLogger(),
+	proxy := New(baseURL, diskCache, &http.Client{}, Write, testutils.NewSilentLogger(),
 		testutils.NewSilentLogger())
 
 	err = proxy.Put(cache.CAS, hash, int64(len(data)), bytes.NewReader(data))
