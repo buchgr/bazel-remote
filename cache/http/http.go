@@ -17,7 +17,7 @@ import (
 const numUploaders = 100
 const maxQueuedUploads = 1000000
 
-type Mode int
+type AccessMode int
 
 const (
 	Read = iota + 1
@@ -34,7 +34,7 @@ type remoteHTTPProxyCache struct {
 	remote       *http.Client
 	baseURL      *url.URL
 	local        cache.Cache
-	mode         Mode
+	accessMode   AccessMode
 	uploadQueue  chan<- (*uploadReq)
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
@@ -68,7 +68,7 @@ func uploadFile(remote *http.Client, baseURL *url.URL, local cache.Cache, access
 }
 
 // New creates a cache that proxies requests to a HTTP remote cache.
-func New(baseURL *url.URL, local cache.Cache, remote *http.Client, mode Mode, accessLogger cache.Logger,
+func New(baseURL *url.URL, local cache.Cache, remote *http.Client, accessMode AccessMode, accessLogger cache.Logger,
 	errorLogger cache.Logger) cache.Cache {
 	uploadQueue := make(chan *uploadReq, maxQueuedUploads)
 	for uploader := 0; uploader < numUploaders; uploader++ {
@@ -83,7 +83,7 @@ func New(baseURL *url.URL, local cache.Cache, remote *http.Client, mode Mode, ac
 		remote:       remote,
 		baseURL:      baseURL,
 		local:        local,
-		mode:         mode,
+		accessMode:   accessMode,
 		uploadQueue:  uploadQueue,
 		accessLogger: accessLogger,
 		errorLogger:  errorLogger,
@@ -102,7 +102,7 @@ func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64
 	}
 	r.local.Put(kind, hash, size, data)
 
-	if r.mode&Write == 0 {
+	if r.accessMode&Write == 0 {
 		return nil
 	}
 
@@ -122,7 +122,7 @@ func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCl
 		return r.local.Get(kind, hash)
 	}
 
-	if r.mode&Read == 0 {
+	if r.accessMode&Read == 0 {
 		return nil, 0, nil
 	}
 
