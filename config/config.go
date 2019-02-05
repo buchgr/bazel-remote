@@ -16,6 +16,7 @@ type S3CloudStorageConfig struct {
 	Location        string `yaml:"location"`
 	AccessKeyID     string `yaml:"access_key_id"`
 	SecretAccessKey string `yaml:"secret_access_key"`
+	DisableSSL      bool   `yaml:"disable_ssl"`
 }
 
 type GoogleCloudStorageConfig struct {

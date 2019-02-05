@@ -138,7 +138,7 @@ func main() {
 			proxyCache = cachehttp.New(baseURL, diskCache,
 				httpClient, accessLogger, errorLogger)
 		} else if c.S3CloudStorage != nil {
-			proxyCache = s3.New(c.S3CloudStorage)
+			proxyCache = s3.New(c.S3CloudStorage, diskCache, accessLogger, errorLogger)
 		} else {
 			proxyCache = diskCache
 		}
