@@ -92,7 +92,9 @@ func (c *s3Cache) uploadFile(hash string, kind cache.EntryKind) {
 			ContentType: "application/octet-stream",
 		}, // opts
 	)
-	data.Close()
+	if data != nil {
+		data.Close()
+	}
 	logResponse(c.accessLogger, "PUT", c.bucket, c.objectKey(hash, kind), err)
 }
 
