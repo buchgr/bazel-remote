@@ -136,7 +136,7 @@ max_size: 100
 s3_proxy:
   endpoint: minio.example.com:9000
   bucket: test-bucket
-  location: test-location
+  prefix: test-prefix
   access_key_id: EXAMPLE_ACCESS_KEY
   secret_access_key: EXAMPLE_SECRET_KEY
 `
@@ -153,7 +153,7 @@ s3_proxy:
 		S3CloudStorage: &S3CloudStorageConfig{
 			Endpoint:        "minio.example.com:9000",
 			Bucket:          "test-bucket",
-			Location:        "test-location",
+			Prefix:          "test-prefix",
 			AccessKeyID:     "EXAMPLE_ACCESS_KEY",
 			SecretAccessKey: "EXAMPLE_SECRET_KEY",
 		},

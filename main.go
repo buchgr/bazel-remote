@@ -91,6 +91,41 @@ func main() {
 			Usage:  "The maximum period of having received no request after which the server will shut itself down. Disabled by default.",
 			EnvVar: "BAZEL_REMOTE_IDLE_TIMEOUT",
 		},
+		cli.StringFlag{
+			Name:   "s3.endpoint",
+			Value:  "",
+			Usage:  "The S3/minio endpoint to use when using S3 cache backend.",
+			EnvVar: "BAZEL_REMOTE_S3_ENDPOINT",
+		},
+		cli.StringFlag{
+			Name:   "s3.bucket",
+			Value:  "",
+			Usage:  "The S3/minio bucket to use when using S3 cache backend.",
+			EnvVar: "BAZEL_REMOTE_S3_BUCKET",
+		},
+		cli.StringFlag{
+			Name:   "s3.prefix",
+			Value:  "",
+			Usage:  "The S3/minio object prefix to use when using S3 cache backend.",
+			EnvVar: "BAZEL_REMOTE_S3_PREFIX",
+		},
+		cli.StringFlag{
+			Name:   "s3.access_key_id",
+			Value:  "",
+			Usage:  "The S3/minio access key to use when using S3 cache backend.",
+			EnvVar: "BAZEL_REMOTE_S3_ACCESS_KEY_ID",
+		},
+		cli.StringFlag{
+			Name:   "s3.secret_access_key",
+			Value:  "",
+			Usage:  "The S3/minio secret access key to use when using S3 cache backend.",
+			EnvVar: "BAZEL_REMOTE_S3_SECRET_ACCESS_KEY",
+		},
+		cli.BoolFlag{
+			Name:   "s3.disable_ssl",
+			Usage:  "Whether to disable TLS/SSL when using the S3 cache backend.  Default is false (enable TLS/SSL).",
+			EnvVar: "BAZEL_REMOTE_S3_DISABLE_SSL",
+		},
 	}
 
 	app.Action = func(ctx *cli.Context) error {
@@ -100,14 +135,28 @@ func main() {
 		if configFile != "" {
 			c, err = config.NewFromYamlFile(configFile)
 		} else {
-			c, err = config.New(ctx.String("dir"),
+			var s3 *config.S3CloudStorageConfig
+			if ctx.String("s3.bucket") != "" {
+				s3 = &config.S3CloudStorageConfig{
+					Endpoint:        ctx.String("s3.endpoint"),
+					Bucket:          ctx.String("s3.bucket"),
+					Prefix:          ctx.String("s3.prefix"),
+					AccessKeyID:     ctx.String("s3.access_key_id"),
+					SecretAccessKey: ctx.String("s3.secret_access_key"),
+					DisableSSL:      ctx.Bool("s3.disable_ssl"),
+				}
+			}
+			c, err = config.New(
+				ctx.String("dir"),
 				ctx.Int("max_size"),
 				ctx.String("host"),
 				ctx.Int("port"),
 				ctx.String("htpasswd_file"),
 				ctx.String("tls_cert_file"),
 				ctx.String("tls_key_file"),
-				ctx.Duration("idle_timeout"))
+				ctx.Duration("idle_timeout"),
+				s3,
+			)
 		}
 
 		if err != nil {

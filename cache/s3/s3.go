@@ -33,6 +33,8 @@ type s3Cache struct {
 func New(s3Config *config.S3CloudStorageConfig, local cache.Cache, accessLogger cache.Logger,
 	errorLogger cache.Logger) cache.Cache {
 
+	fmt.Println("Using S3 backend.")
+
 	// Initialize minio client object.
 	minioClient, err := minio.New(
 		s3Config.Endpoint,
@@ -48,7 +50,7 @@ func New(s3Config *config.S3CloudStorageConfig, local cache.Cache, accessLogger 
 	c := &s3Cache{
 		mclient:      minioClient,
 		local:        local,
-		prefix:       s3Config.Location,
+		prefix:       s3Config.Prefix,
 		bucket:       s3Config.Bucket,
 		uploadQueue:  uploadQueue,
 		accessLogger: accessLogger,
@@ -123,7 +125,11 @@ func (c *s3Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, 
 		minio.StatObjectOptions{}, // opts
 	)
 	if err != nil {
-		return nil, 0, nil // not found
+		if minio.ToErrorResponse(err).Code == "NoSuchKey" {
+			return nil, 0, nil // not found
+
+		}
+		return nil, 0, err
 	}
 
 	object, err := c.mclient.GetObject(

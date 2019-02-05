@@ -13,7 +13,7 @@ import (
 type S3CloudStorageConfig struct {
 	Endpoint        string `yaml:"endpoint"`
 	Bucket          string `yaml:"bucket"`
-	Location        string `yaml:"location"`
+	Prefix          string `yaml:"prefix"`
 	AccessKeyID     string `yaml:"access_key_id"`
 	SecretAccessKey string `yaml:"secret_access_key"`
 	DisableSSL      bool   `yaml:"disable_ssl"`
@@ -46,7 +46,8 @@ type Config struct {
 
 // New ...
 func New(dir string, maxSize int, host string, port int, htpasswdFile string,
-	tlsCertFile string, tlsKeyFile string, idleTimeout time.Duration) (*Config, error) {
+	tlsCertFile string, tlsKeyFile string, idleTimeout time.Duration,
+	s3 *S3CloudStorageConfig) (*Config, error) {
 	c := Config{
 		Host:               host,
 		Port:               port,
@@ -55,6 +56,7 @@ func New(dir string, maxSize int, host string, port int, htpasswdFile string,
 		HtpasswdFile:       htpasswdFile,
 		TLSCertFile:        tlsCertFile,
 		TLSKeyFile:         tlsKeyFile,
+		S3CloudStorage:     s3,
 		GoogleCloudStorage: nil,
 		HTTPBackend:        nil,
 		IdleTimeout:        idleTimeout,
