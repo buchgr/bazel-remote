@@ -43,11 +43,11 @@ func New(dir string, maxSizeBytes int64) cache.Cache {
 	for _, c1 := range hexLetters {
 		for _, c2 := range hexLetters {
 			subDir := string(c1) + string(c2)
-			err := os.MkdirAll(filepath.Join(dir, cache.CAS.String(), subDir), os.FileMode(0744))
+			err := os.MkdirAll(filepath.Join(dir, cache.CAS.String(), subDir), os.FileMode(0755))
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = os.MkdirAll(filepath.Join(dir, cache.AC.String(), subDir), os.FileMode(0744))
+			err = os.MkdirAll(filepath.Join(dir, cache.AC.String(), subDir), os.FileMode(0755))
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -290,7 +290,7 @@ func (c *diskCache) CurrentSize() int64 {
 
 func ensureDirExists(path string) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		err = os.MkdirAll(path, os.FileMode(0744))
+		err = os.MkdirAll(path, os.FileMode(0755))
 		if err != nil {
 			log.Fatal(err)
 		}
