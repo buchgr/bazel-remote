@@ -20,7 +20,7 @@ type uploadReq struct {
 }
 
 type s3Cache struct {
-	mclient      *minio.Client
+	mcore        *minio.Core
 	local        cache.Cache
 	prefix       string
 	bucket       string
@@ -36,7 +36,7 @@ func New(s3Config *config.S3CloudStorageConfig, local cache.Cache, accessLogger 
 	fmt.Println("Using S3 backend.")
 
 	// Initialize minio client object.
-	minioClient, err := minio.New(
+	minioCore, err := minio.NewCore(
 		s3Config.Endpoint,
 		s3Config.AccessKeyID,
 		s3Config.SecretAccessKey,
@@ -48,7 +48,7 @@ func New(s3Config *config.S3CloudStorageConfig, local cache.Cache, accessLogger 
 
 	uploadQueue := make(chan *uploadReq, maxQueuedUploads)
 	c := &s3Cache{
-		mclient:      minioClient,
+		mcore:        minioCore,
 		local:        local,
 		prefix:       s3Config.Prefix,
 		bucket:       s3Config.Bucket,
@@ -83,14 +83,22 @@ func (c *s3Cache) uploadFile(hash string, kind cache.EntryKind) {
 		return
 	}
 
-	_, err = c.mclient.PutObject(
+	uploadDigest := ""
+	if kind == cache.CAS {
+		uploadDigest = hash
+	}
+
+	_, err = c.mcore.PutObject(
 		c.bucket,                // bucketName
 		c.objectKey(hash, kind), // objectName
 		data,                    // reader
 		size,                    // objectSize
-		minio.PutObjectOptions{
-			ContentType: "application/octet-stream",
-		}, // opts
+		"",                      // md5base64
+		uploadDigest,            // sha256
+		map[string]string{
+			"Content-Type": "application/octet-stream",
+		}, // metadata
+		nil, // sse
 	)
 	if data != nil {
 		data.Close()
@@ -121,10 +129,10 @@ func (c *s3Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, 
 		return c.local.Get(kind, hash)
 	}
 
-	objInfo, err := c.mclient.StatObject(
-		c.bucket,                  // bucketName
-		c.objectKey(hash, kind),   // objectName
-		minio.StatObjectOptions{}, // opts
+	object, info, err := c.mcore.GetObject(
+		c.bucket,                 // bucketName
+		c.objectKey(hash, kind),  // objectName
+		minio.GetObjectOptions{}, // opts
 	)
 	if err != nil {
 		if minio.ToErrorResponse(err).Code == "NoSuchKey" {
@@ -133,17 +141,11 @@ func (c *s3Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, 
 		}
 		return nil, 0, err
 	}
-
-	object, err := c.mclient.GetObject(
-		c.bucket,                 // bucketName
-		c.objectKey(hash, kind),  // objectName
-		minio.GetObjectOptions{}, // opts
-	)
 	defer object.Close()
 
 	logResponse(c.accessLogger, "GET", c.bucket, c.objectKey(hash, kind), err)
 
-	err = c.local.Put(kind, hash, objInfo.Size, object)
+	err = c.local.Put(kind, hash, info.Size, object)
 	if err != nil {
 		return nil, -1, err
 	}
