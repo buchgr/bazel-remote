@@ -39,8 +39,8 @@ gazelle_dependencies()
 
 go_repository(
     name = "com_github_abbot_go_http_auth",
-    commit = "0ddd408d5d60ea76e320503cc7dd091992dee608",
     importpath = "github.com/abbot/go-http-auth",
+    tag = "v0.4.0",
 )
 
 go_repository(
@@ -51,49 +51,49 @@ go_repository(
 
 go_repository(
     name = "com_github_djherbis_atime",
-    commit = "8e47e0e01d08df8b9f840d74299c8ab70a024a30",
     importpath = "github.com/djherbis/atime",
+    tag = "v1.0.0",
 )
 
 go_repository(
     name = "org_golang_x_crypto",
-    commit = "ab813273cd59e1333f7ae7bff5d027d4aadf528c",
+    commit = "ab813273cd59",
     importpath = "golang.org/x/crypto",
 )
 
 go_repository(
     name = "org_golang_x_net",
-    commit = "1e491301e022f8f977054da4c2d852decd59571f",
+    commit = "1e491301e022",
     importpath = "golang.org/x/net",
 )
 
 go_repository(
     name = "com_github_golang_protobuf",
-    commit = "b4deda0973fb4c70b50d226b1af49f3da59f5265",
     importpath = "github.com/golang/protobuf",
+    tag = "v1.1.0",
 )
 
 go_repository(
     name = "com_google_cloud_go",
-    commit = "0fd7230b2a7505833d5f69b75cbd6c9582401479",
     importpath = "cloud.google.com/go",
+    tag = "v0.23.0",
 )
 
 go_repository(
     name = "in_gopkg_yaml_v2",
-    commit = "5420a8b6744d3b0345ab293f6fcba19c978f1183",
     importpath = "gopkg.in/yaml.v2",
+    tag = "v2.2.1",
 )
 
 go_repository(
     name = "org_golang_google_appengine",
-    commit = "150dc57a1b433e64154302bdc40b6bb8aefa313a",
     importpath = "google.golang.org/appengine",
+    tag = "v1.0.0",
 )
 
 go_repository(
     name = "org_golang_x_oauth2",
-    commit = "ec22f46f877b4505e0117eeaab541714644fdd28",
+    commit = "ec22f46f877b",
     importpath = "golang.org/x/oauth2",
 )
 
@@ -105,6 +105,18 @@ go_repository(
 
 go_repository(
     name = "com_github_google_go_cmp",
-    commit = "3af367b6b30c263d47e8895973edcca9a49cf029",
     importpath = "github.com/google/go-cmp",
+    tag = "v0.2.0",
+)
+
+go_repository(
+    name = "com_github_nightlyone_lockfile",
+    commit = "0ad87eef1443",
+    importpath = "github.com/nightlyone/lockfile",
+)
+
+go_repository(
+    name = "in_gopkg_check_v1",
+    commit = "20d25e280405",
+    importpath = "gopkg.in/check.v1",
 )

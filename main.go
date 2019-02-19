@@ -3,12 +3,18 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	auth "github.com/abbot/go-http-auth"
@@ -20,8 +26,48 @@ import (
 
 	"github.com/buchgr/bazel-remote/config"
 	"github.com/buchgr/bazel-remote/server"
+	"github.com/nightlyone/lockfile"
 	"github.com/urfave/cli"
 )
+
+const (
+	bazelRemotePortFile = "bazel-remote.port"
+	bazelRemotePidFile  = "bazel-remote.pid"
+)
+
+var signalHandlers []func(os.Signal)
+var signalHandlersMutex sync.Mutex
+
+//http server.go doesn't export tcpKeepAliveListener so we have to do the same here
+type tcpKeepAliveListener struct {
+	*net.TCPListener
+}
+
+func (ln tcpKeepAliveListener) Accept() (net.Conn, error) {
+	tc, err := ln.AcceptTCP()
+	if err != nil {
+		return nil, err
+	}
+	tc.SetKeepAlive(true)
+	tc.SetKeepAlivePeriod(3 * time.Minute)
+	return tc, nil
+}
+
+func init() {
+	// set up a signal handler to clean up if we are interrupted
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		select {
+		case sig := <-c:
+			signalHandlersMutex.Lock()
+			defer signalHandlersMutex.Unlock()
+			for _, fn := range signalHandlers {
+				fn(sig)
+			}
+		}
+	}()
+}
 
 func main() {
 	app := cli.NewApp()
@@ -118,6 +164,45 @@ func main() {
 		accessLogger := log.New(os.Stdout, "", log.Ldate|log.Ltime|log.LUTC)
 		errorLogger := log.New(os.Stderr, "", log.Ldate|log.Ltime|log.LUTC)
 
+		if err := os.MkdirAll(c.Dir, 0755); err != nil {
+			return err
+		}
+		lockAbsPath, err := filepath.Abs(filepath.Join(c.Dir, bazelRemotePidFile))
+		if err != nil {
+			return err
+		}
+		pidFileLock, err := lockfile.New(lockAbsPath)
+		if err != nil {
+			return err
+		}
+		portFile := filepath.Join(c.Dir, bazelRemotePortFile)
+		err = pidFileLock.TryLock()
+		if err != nil {
+			if err == lockfile.ErrBusy {
+				pid, _ := ioutil.ReadFile(lockAbsPath)
+				port, err := ioutil.ReadFile(portFile)
+				if err != nil {
+					// the other process just started, give it time to write the port file
+					retry := 3
+					for err != nil && retry > 0 {
+						time.Sleep(time.Second)
+						port, err = ioutil.ReadFile(portFile)
+						retry--
+					}
+				}
+				return fmt.Errorf(
+					"Already locked by pid %v, listening on %v",
+					strings.Trim(string(pid), "\n"),
+					strings.Trim(string(port), "\n"),
+				)
+			}
+			return fmt.Errorf("Could not lock %v: %v", c.Dir, err)
+		}
+		defer func() {
+			os.Remove(portFile)
+			pidFileLock.Unlock()
+		}()
+
 		diskCache := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024)
 
 		var proxyCache cache.Cache
@@ -142,9 +227,24 @@ func main() {
 
 		mux := http.NewServeMux()
 		httpServer := &http.Server{
-			Addr:    c.Host + ":" + strconv.Itoa(c.Port),
 			Handler: mux,
 		}
+
+		// graceful shutdown on signal
+		func() {
+			signalHandlersMutex.Lock()
+			defer signalHandlersMutex.Unlock()
+			signalHandlers = append(signalHandlers, func(sig os.Signal) {
+				errorLogger.Printf("Shutting down server due to signal: %v", sig)
+				if error := os.Remove(filepath.Join(c.Dir, bazelRemotePortFile)); error != nil {
+					errorLogger.Printf("Failed to remove %v", c.Dir)
+				}
+				if err := httpServer.Shutdown(context.Background()); err != nil {
+					errorLogger.Printf("Failed to shutdown http server: %v", err)
+				}
+			})
+		}()
+
 		h := server.NewHTTPCache(proxyCache, accessLogger, errorLogger)
 		mux.HandleFunc("/status", h.StatusPageHandler)
 
@@ -152,17 +252,28 @@ func main() {
 		if c.HtpasswdFile != "" {
 			cacheHandler = wrapAuthHandler(cacheHandler, c.HtpasswdFile, c.Host)
 		}
+
 		if c.IdleTimeout > 0 {
 			cacheHandler = wrapIdleHandler(cacheHandler, c.IdleTimeout, accessLogger, httpServer)
 		}
+
 		mux.HandleFunc("/", cacheHandler)
-
-		if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
-			return httpServer.ListenAndServeTLS(c.TLSCertFile, c.TLSKeyFile)
+		ln, err := net.Listen("tcp", c.Host+":"+strconv.Itoa(c.Port))
+		if err != nil {
+			return err
 		}
-		return httpServer.ListenAndServe()
+		defer ln.Close()
+		// now it's safe to write the port file since we're already listening
+		s := fmt.Sprintf("%s\n", ln.Addr().String())
+		err = ioutil.WriteFile(filepath.Join(c.Dir, bazelRemotePortFile), []byte(s), 0644)
+		if err != nil {
+			return err
+		}
+		if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
+			return httpServer.ServeTLS(tcpKeepAliveListener{ln.(*net.TCPListener)}, c.TLSCertFile, c.TLSKeyFile)
+		}
+		return httpServer.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)})
 	}
-
 	serverErr := app.Run(os.Args)
 	if serverErr != nil {
 		log.Fatal("bazel-remote terminated: ", serverErr)
