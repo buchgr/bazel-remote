@@ -198,10 +198,7 @@ func main() {
 			}
 			return fmt.Errorf("Could not lock %v: %v", c.Dir, err)
 		}
-		defer func() {
-			os.Remove(portFile)
-			pidFileLock.Unlock()
-		}()
+		defer pidFileLock.Unlock()
 
 		diskCache := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024)
 
@@ -262,10 +259,12 @@ func main() {
 		defer ln.Close()
 		// now it's safe to write the port file since we're already listening
 		s := fmt.Sprintf("%s\n", ln.Addr().String())
-		err = ioutil.WriteFile(filepath.Join(c.Dir, bazelRemotePortFile), []byte(s), 0644)
+		err = ioutil.WriteFile(portFile, []byte(s), 0666)
 		if err != nil {
 			return err
 		}
+		defer os.Remove(portFile)
+
 		if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
 			return httpServer.ServeTLS(tcpKeepAliveListener{ln.(*net.TCPListener)}, c.TLSCertFile, c.TLSKeyFile)
 		}
