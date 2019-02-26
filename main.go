@@ -236,9 +236,6 @@ func main() {
 			defer signalHandlersMutex.Unlock()
 			signalHandlers = append(signalHandlers, func(sig os.Signal) {
 				errorLogger.Printf("Shutting down server due to signal: %v", sig)
-				if error := os.Remove(filepath.Join(c.Dir, bazelRemotePortFile)); error != nil {
-					errorLogger.Printf("Failed to remove %v", c.Dir)
-				}
 				if err := httpServer.Shutdown(context.Background()); err != nil {
 					errorLogger.Printf("Failed to shutdown http server: %v", err)
 				}
