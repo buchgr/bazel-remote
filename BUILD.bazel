@@ -39,6 +39,8 @@ go_image(
     embed = [":go_default_library"],
     pure = "on",
     static = "on",
+    goarch = "amd64",
+    goos = "linux",
     visibility = ["//visibility:private"],
 )
 
