@@ -30,10 +30,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-const (
-	bazelRemotePortFile = "bazel-remote.port"
-	bazelRemotePidFile  = "bazel-remote.pid"
-)
+const bazelRemotePidFile = "bazel-remote.pid"
 
 var signalHandlers []func(os.Signal)
 var signalHandlersMutex sync.Mutex
@@ -175,25 +172,13 @@ func main() {
 		if err != nil {
 			return err
 		}
-		portFile := filepath.Join(c.Dir, bazelRemotePortFile)
 		err = pidFileLock.TryLock()
 		if err != nil {
 			if err == lockfile.ErrBusy {
 				pid, _ := ioutil.ReadFile(lockAbsPath)
-				port, err := ioutil.ReadFile(portFile)
-				if err != nil {
-					// the other process just started, give it time to write the port file
-					retry := 3
-					for err != nil && retry > 0 {
-						time.Sleep(time.Second)
-						port, err = ioutil.ReadFile(portFile)
-						retry--
-					}
-				}
 				return fmt.Errorf(
-					"Already locked by pid %v, listening on %v",
+					"Already locked by pid %v",
 					strings.Trim(string(pid), "\n"),
-					strings.Trim(string(port), "\n"),
 				)
 			}
 			return fmt.Errorf("Could not lock %v: %v", c.Dir, err)
@@ -257,13 +242,14 @@ func main() {
 			return err
 		}
 		defer ln.Close()
-		// now it's safe to write the port file since we're already listening
-		s := fmt.Sprintf("%s\n", ln.Addr().String())
-		err = ioutil.WriteFile(portFile, []byte(s), 0666)
+
+		// create a unix domain socket and respond with the port when asked
+		sock, err := net.Listen("unix", lockAbsPath+".sock")
 		if err != nil {
 			return err
 		}
-		defer os.Remove(portFile)
+		defer os.Remove(lockAbsPath + ".sock")
+		go handlePortRequest(sock, ln.Addr(), errorLogger)
 
 		if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
 			return httpServer.ServeTLS(tcpKeepAliveListener{ln.(*net.TCPListener)}, c.TLSCertFile, c.TLSKeyFile)
@@ -273,6 +259,22 @@ func main() {
 	serverErr := app.Run(os.Args)
 	if serverErr != nil {
 		log.Fatal("bazel-remote terminated: ", serverErr)
+	}
+}
+
+func handlePortRequest(sock net.Listener, addr net.Addr, errorLogger *log.Logger) {
+	for {
+		fd, err := sock.Accept()
+		if err != nil {
+			errorLogger.Printf("sock: %v", err)
+			continue
+		}
+		if _, err := fd.Write([]byte(addr.String() + "\n")); err != nil {
+			errorLogger.Printf("sock write: %v", err)
+		}
+		if err := fd.Close(); err != nil {
+			errorLogger.Printf("sock close: %v", err)
+		}
 	}
 }
 
