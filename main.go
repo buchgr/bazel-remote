@@ -244,11 +244,12 @@ func main() {
 		defer ln.Close()
 
 		// create a unix domain socket and respond with the port when asked
-		sock, err := net.Listen("unix", lockAbsPath+".sock")
+		bazelRemoteSocketPath := filepath.Join(c.Dir, fmt.Sprintf("bazel-remote.%d.sock", os.Getpid()))
+		sock, err := net.Listen("unix", bazelRemoteSocketPath)
 		if err != nil {
 			return err
 		}
-		defer os.Remove(lockAbsPath + ".sock")
+		defer os.Remove(bazelRemoteSocketPath)
 		go handlePortRequest(sock, ln.Addr(), errorLogger)
 
 		if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
