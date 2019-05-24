@@ -5,10 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
@@ -291,5 +293,78 @@ func TestParseRequestURL(t *testing.T) {
 		if kind != cache.AC {
 			t.Error("Expected kind AC but got CAS")
 		}
+	}
+}
+
+type fakeCache struct {
+}
+
+func (f *fakeCache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) error {
+	return nil
+}
+
+func (f *fakeCache) Get(kind cache.EntryKind, hash string) (data io.ReadCloser, sizeBytes int64, err error) {
+	return nil, -1, &cache.Error{
+		Code: http.StatusNotFound,
+		Text: fmt.Sprintf("Not found\n"),
+	}
+}
+
+func (f *fakeCache) Contains(kind cache.EntryKind, hash string) (ok bool) {
+	return false
+}
+
+func (f *fakeCache) MaxSize() int64 {
+	return 0
+}
+
+func (f *fakeCache) CurrentSize() int64 {
+	return 0
+}
+func (f *fakeCache) NumItems() int {
+	return 0
+}
+
+type fakeResponseWriter struct {
+	statusCode *int
+	response   string
+}
+
+func (r fakeResponseWriter) Header() http.Header {
+	return http.Header{}
+}
+
+func (r fakeResponseWriter) Write(data []byte) (int, error) {
+	r.response = string(data)
+	return 0, nil
+}
+
+func (r fakeResponseWriter) WriteHeader(statusCode int) {
+	*r.statusCode = statusCode
+}
+
+func TestRemoteReturnsNotFound(t *testing.T) {
+	fake := &fakeCache{}
+	h := NewHTTPCache(fake, testutils.NewSilentLogger(), testutils.NewSilentLogger())
+	// create a fake http.Request
+	_, hash := testutils.RandomDataAndHash(1024)
+	url, _ := url.Parse(fmt.Sprintf("http://localhost:8080/ac/%s", hash))
+	reader := bytes.NewReader([]byte{})
+	body := ioutil.NopCloser(reader)
+	req := &http.Request{
+		Method:     "GET",
+		URL:        url,
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		Body:       body,
+	}
+	statusCode := 0
+	respWriter := fakeResponseWriter{
+		statusCode: &statusCode,
+	}
+	h.CacheHandler(respWriter, req)
+	if statusCode != http.StatusNotFound {
+		t.Errorf("Wrong status code, expected %d, got %d", http.StatusNotFound, statusCode)
 	}
 }

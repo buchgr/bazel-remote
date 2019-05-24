@@ -107,7 +107,11 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		data, sizeBytes, err := h.cache.Get(kind, hash)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			if e, ok := err.(*cache.Error); ok {
+				http.Error(w, e.Error(), e.Code)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
 			h.errorLogger.Printf("GET %s: %s", path(kind, hash), err)
 			return
 		}
