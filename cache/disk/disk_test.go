@@ -132,10 +132,10 @@ func expectContentEquals(t *testing.T, data io.ReadCloser, sizeBytes int64, expe
 	}
 	if bytes.Compare(dataBytes, expectedContent) != 0 {
 		t.Fatalf("expected response '%s', but received '%s'",
-			dataBytes, CONTENTS)
+			expectedContent, dataBytes)
 	}
 	if int64(len(dataBytes)) != sizeBytes {
-		t.Fatalf("Expected sizeBytes to be '%d' but was '%d'", len(dataBytes), sizeBytes)
+		t.Fatalf("Expected sizeBytes to be '%d' but was '%d'", sizeBytes, len(dataBytes))
 	}
 }
 
