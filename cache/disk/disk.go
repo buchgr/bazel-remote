@@ -273,7 +273,7 @@ func (c *diskCache) Get(kind cache.EntryKind, hash string) (data io.ReadCloser, 
 	if kind == cache.AC {
 		c.acmux.RLock()
 		if acData, hit := c.ac[key]; hit {
-			defer c.acmux.Unlock()
+			defer c.acmux.RUnlock()
 			return ioutil.NopCloser(bytes.NewReader(acData)), (int64)(len(acData)), nil
 		}
 		c.acmux.RUnlock()
