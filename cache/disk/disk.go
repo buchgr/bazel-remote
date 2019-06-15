@@ -271,12 +271,12 @@ func (c *diskCache) Get(kind cache.EntryKind, hash string) (data io.ReadCloser, 
 	}
 	key := cacheKey(kind, hash)
 	if kind == cache.AC {
-		c.acmux.Lock()
+		c.acmux.RLock()
 		if acData, hit := c.ac[key]; hit {
 			defer c.acmux.Unlock()
 			return ioutil.NopCloser(bytes.NewReader(acData)), (int64)(len(acData)), nil
 		}
-		c.acmux.Unlock()
+		c.acmux.RUnlock()
 	}
 
 	blobPath := cacheFilePath(kind, c.dir, hash)
