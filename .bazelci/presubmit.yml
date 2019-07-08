@@ -1,17 +1,13 @@
 ---
 platforms:
-  ubuntu1604:
+  ubuntu1604: &anchor
+    build_flags:
+    - "--host_force_python=PY2"
     build_targets:
     - "..."
+    test_flags:
+    - "--host_force_python=PY2"
     test_targets:
     - "..."
-  ubuntu1804:
-    build_targets:
-    - "..."
-    test_targets:
-    - "..."
-  macos:
-    build_targets:
-    - "..."
-    test_targets:
-    - "..."
+  ubuntu1804: *anchor
+  macos: *anchor
