@@ -1,6 +1,7 @@
 package disk
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -33,6 +34,8 @@ type diskCache struct {
 	dir string
 	mux *sync.RWMutex
 	lru SizedLRU
+	ac map[Key][]byte
+	acmux *sync.RWMutex
 }
 
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
@@ -54,6 +57,13 @@ func New(dir string, maxSizeBytes int64) cache.Cache {
 		}
 	}
 
+	cache := &diskCache{
+		dir: filepath.Clean(dir),
+		mux: &sync.RWMutex{},
+		ac: map[Key][]byte{},
+		acmux: &sync.RWMutex{},
+	}
+
 	// The eviction callback deletes the file from disk.
 	onEvict := func(key Key, value SizedItem) {
 		// Only remove committed items (as temporary files have a different filename)
@@ -63,13 +73,15 @@ func New(dir string, maxSizeBytes int64) cache.Cache {
 				log.Println(err)
 			}
 		}
+		cache.acmux.Lock()
+		// It may be CAS key but anyway.
+		if _, hit := cache.ac[key]; hit {
+			delete(cache.ac, key)
+		}
+		cache.acmux.Unlock()
 	}
 
-	cache := &diskCache{
-		dir: filepath.Clean(dir),
-		mux: &sync.RWMutex{},
-		lru: NewSizedLRU(maxSizeBytes, onEvict),
-	}
+	cache.lru = NewSizedLRU(maxSizeBytes, onEvict)
 
 	err := cache.migrateDirectories()
 	if err != nil {
@@ -181,13 +193,22 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, size int64, r io.Read
 	// but this stuff is really easy to get wrong without defer().
 	shouldCommit := false
 	defer func() {
-		c.mux.Lock()
-		defer c.mux.Unlock()
 
 		if shouldCommit {
+			c.mux.Lock()
 			newItem.committed = true
+			c.mux.Unlock()
 		} else {
+			c.mux.Lock()
 			c.lru.Remove(key)
+			c.mux.Unlock()
+			if kind == cache.AC {
+				c.acmux.Lock()
+				if _, hit := c.ac[key]; hit {
+					delete(c.ac, key)
+				}
+				c.acmux.Unlock()
+			}
 		}
 	}()
 
@@ -215,9 +236,13 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, size int64, r io.Read
 			return
 		}
 	} else {
-		if _, err = io.Copy(f, r); err != nil {
+		var bytesBuffer bytes.Buffer
+		if _, err = io.Copy(io.MultiWriter(f, &bytesBuffer), r); err != nil {
 			return
 		}
+		c.acmux.Lock()
+		c.ac[key] = bytesBuffer.Bytes()
+		c.acmux.Unlock()
 	}
 
 	if err := f.Sync(); err != nil {
@@ -244,6 +269,15 @@ func (c *diskCache) Get(kind cache.EntryKind, hash string) (data io.ReadCloser, 
 	if !c.Contains(kind, hash) {
 		return
 	}
+	key := cacheKey(kind, hash)
+	if kind == cache.AC {
+		c.acmux.RLock()
+		if acData, hit := c.ac[key]; hit {
+			defer c.acmux.RUnlock()
+			return ioutil.NopCloser(bytes.NewReader(acData)), (int64)(len(acData)), nil
+		}
+		c.acmux.RUnlock()
+	}
 
 	blobPath := cacheFilePath(kind, c.dir, hash)
 
@@ -256,6 +290,16 @@ func (c *diskCache) Get(kind cache.EntryKind, hash string) (data io.ReadCloser, 
 	data, err = os.Open(blobPath)
 	if err != nil {
 		return
+	}
+	if kind == cache.AC {
+		var acData []byte
+		if acData, err = ioutil.ReadAll(data); err != nil {
+			return
+		}
+		c.acmux.Lock()
+		c.ac[key] = acData
+		c.acmux.Unlock()
+		data = ioutil.NopCloser(bytes.NewReader(acData))
 	}
 
 	return
