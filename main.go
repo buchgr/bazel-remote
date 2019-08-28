@@ -19,6 +19,7 @@ import (
 	cachehttp "github.com/buchgr/bazel-remote/cache/http"
 
 	"github.com/buchgr/bazel-remote/config"
+	"github.com/buchgr/bazel-remote/ldap"
 	"github.com/buchgr/bazel-remote/server"
 	"github.com/urfave/cli"
 )
@@ -149,8 +150,17 @@ func main() {
 		mux.HandleFunc("/status", h.StatusPageHandler)
 
 		cacheHandler := h.CacheHandler
+		var authenticator auth.AuthenticatorInterface
 		if c.HtpasswdFile != "" {
-			cacheHandler = wrapAuthHandler(cacheHandler, c.HtpasswdFile, c.Host)
+			secrets := auth.HtpasswdFileProvider(c.HtpasswdFile)
+			authenticator = auth.NewBasicAuthenticator(c.Host, secrets)
+		} else if c.LDAP != nil {
+			if authenticator, err = ldap.New(c.LDAP); err != nil {
+				return err
+			}
+		}
+		if authenticator != nil {
+			cacheHandler = wrapAuthHandler(cacheHandler, authenticator)
 		}
 		if c.IdleTimeout > 0 {
 			cacheHandler = wrapIdleHandler(cacheHandler, c.IdleTimeout, accessLogger, httpServer)
@@ -197,8 +207,6 @@ func wrapIdleHandler(handler http.HandlerFunc, idleTimeout time.Duration, access
 	})
 }
 
-func wrapAuthHandler(handler http.HandlerFunc, htpasswdFile string, host string) http.HandlerFunc {
-	secrets := auth.HtpasswdFileProvider(htpasswdFile)
-	authenticator := auth.NewBasicAuthenticator(host, secrets)
+func wrapAuthHandler(handler http.HandlerFunc, authenticator auth.AuthenticatorInterface) http.HandlerFunc {
 	return auth.JustCheck(authenticator, handler)
 }

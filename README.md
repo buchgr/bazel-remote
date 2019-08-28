@@ -101,6 +101,24 @@ $ docker run -v /path/to/cache/dir:/data \
 --htpasswd_file /etc/bazel-remote/htpasswd --max_size=5
 ```
 
+Alternatively, LDAP is supported as the credential backend (via `--config_file` only). Again, make sure the config
+file is mounted in the Docker container.
+
+```yaml
+dir: /my/cache/dir
+max_size: 10
+port: 8080
+ldap:
+  url: ldap://ldap.example.com           # ldaps and custom port also supported
+  base_dn: OU=My Users,DC=example,DC=com # root of the tree to scope queries
+  username_attribute: sAMAccountName     # defaults to "uid"
+  bind_user: ldapuser                    # read-only account for user lookup
+  bind_password: ldappassword
+  cache_time: 1h                         # how long to cache a successful authentication for (default 1 hour)
+  groups:                                # if specified, user must be in one of these to access the cache
+    - CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com
+```
+
 ## Configuring Bazel
 
 Please take a look at Bazel's documentation section on [remote
