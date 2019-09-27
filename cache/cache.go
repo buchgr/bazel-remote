@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"crypto"
 	"io"
 )
 
@@ -43,6 +44,18 @@ type Error struct {
 
 func (e *Error) Error() string {
 	return e.Text
+}
+
+// Get hash type from length of hash string
+func GetHashType(hash string) crypto.Hash {
+	if len(hash) == 32 {
+		return crypto.MD5
+	} else if len(hash) == 40 {
+		return crypto.SHA1
+	} else if len(hash) == 64 {
+		return crypto.SHA256
+	}
+	return 0
 }
 
 // Cache backends implement this interface, and are optionally used

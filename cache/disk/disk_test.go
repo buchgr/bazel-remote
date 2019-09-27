@@ -68,7 +68,9 @@ func checkItems(cache *DiskCache, expSize int64, expNum int) error {
 
 const KEY = "a-key"
 const CONTENTS = "hello"
-const CONTENTS_HASH = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+const CONTENTS_MD5 = "5d41402abc4b2a76b9719d911017c592"
+const CONTENTS_SHA1 = "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d"
+const CONTENTS_SHA256 = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
 
 func TestCacheBasics(t *testing.T) {
 	cacheDir := tempDir(t)
@@ -81,7 +83,7 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Non-existing item
-	rdr, sizeBytes, err := testCache.Get(cache.CAS, CONTENTS_HASH)
+	rdr, sizeBytes, err := testCache.Get(cache.CAS, CONTENTS_SHA256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +92,7 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Add an item
-	err = testCache.Put(cache.CAS, CONTENTS_HASH, int64(len(CONTENTS)), strings.NewReader(CONTENTS))
+	err = testCache.Put(cache.CAS, CONTENTS_SHA256, int64(len(CONTENTS)), strings.NewReader(CONTENTS))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +105,7 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Get the item back
-	rdr, sizeBytes, err = testCache.Get(cache.CAS, CONTENTS_HASH)
+	rdr, sizeBytes, err = testCache.Get(cache.CAS, CONTENTS_SHA256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +139,7 @@ func TestCacheEviction(t *testing.T) {
 		strReader := strings.NewReader(strings.Repeat("a", i))
 
 		// Suitably-sized, unique key for these testcases:
-		key := fmt.Sprintf("%0*d", sha256HashStrSize, i)
+		key := fmt.Sprintf("%0*d", sha256.Size*2, i)
 		if len(key) != sha256.Size*2 {
 			t.Fatalf("invalid testcase- key length should be %d, not %d: %s",
 				sha256.Size*2, len(key), key)
@@ -281,7 +283,7 @@ func TestCacheExistingFiles(t *testing.T) {
 	}
 
 	// Adding a new file should evict items[0] (the oldest)
-	err = testCache.Put(cache.CAS, CONTENTS_HASH, int64(len(CONTENTS)), strings.NewReader(CONTENTS))
+	err = testCache.Put(cache.CAS, CONTENTS_SHA256, int64(len(CONTENTS)), strings.NewReader(CONTENTS))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -445,6 +447,42 @@ func TestDistinctKeyspaces(t *testing.T) {
 	_, numItems := testCache.Stats()
 	if numItems != 3 {
 		t.Fatalf("Expected test cache size 3 but was %d",
+			numItems)
+	}
+}
+
+func TestCacheHashTypes(t *testing.T) {
+	// Test that we can use CAS and AC with a MD5 and a SHA1 hash
+	cacheDir := testutils.TempDir(t)
+	defer os.RemoveAll(cacheDir)
+
+	cacheSize := int64(1024)
+	testCache := New(cacheDir, cacheSize, nil)
+
+	var err error
+	err = putGetCompareBytes(cache.CAS, CONTENTS_MD5, []byte(CONTENTS), testCache)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = putGetCompareBytes(cache.AC, CONTENTS_MD5, []byte(CONTENTS), testCache)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = putGetCompareBytes(cache.CAS, CONTENTS_SHA1, []byte(CONTENTS), testCache)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = putGetCompareBytes(cache.AC, CONTENTS_SHA1, []byte(CONTENTS), testCache)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, numItems := testCache.Stats()
+	if numItems != 4 {
+		t.Fatalf("Expected test cache size 4 but was %d",
 			numItems)
 	}
 }

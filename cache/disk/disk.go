@@ -1,7 +1,6 @@
 package disk
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -57,8 +56,6 @@ type nameAndInfo struct {
 	name string // relative path
 	info os.FileInfo
 }
-
-const sha256HashStrSize = sha256.Size * 2 // Two hex characters per byte.
 
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
 // with a maximum size of `maxSizeBytes` bytes and an optional backend `proxy`.
@@ -195,11 +192,9 @@ func (c *DiskCache) loadExistingFiles() error {
 // a non-nil error is returned.
 func (c *DiskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.Reader) error {
 
-	// The hash format is checked properly in the http/grpc code.
-	// Just perform a simple/fast check here, to catch bad tests.
-	if len(hash) != sha256HashStrSize {
-		return fmt.Errorf("Invalid hash size: %d, expected: %d",
-			len(hash), sha256.Size)
+	hashType := cache.GetHashType(hash)
+	if hashType == 0 {
+		return fmt.Errorf("Invalid hash: %s", hash)
 	}
 
 	key := cacheKey(kind, hash)
@@ -272,7 +267,7 @@ func (c *DiskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 
 	var bytesCopied int64 = 0
 	if kind == cache.CAS {
-		hasher := sha256.New()
+		hasher := hashType.New()
 		if bytesCopied, err = io.Copy(io.MultiWriter(f, hasher), r); err != nil {
 			return err
 		}
@@ -347,11 +342,8 @@ func (c *DiskCache) availableOrTryProxy(key string) (bool, *lruItem) {
 // it is returned.
 func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 
-	// The hash format is checked properly in the http/grpc code.
-	// Just perform a simple/fast check here, to catch bad tests.
-	if len(hash) != sha256HashStrSize {
-		return nil, -1, fmt.Errorf("Invalid hash size: %d, expected: %d",
-			len(hash), sha256.Size)
+	if cache.GetHashType(hash) == 0 {
+		return nil, -1, fmt.Errorf("Invalid hash: %s", hash)
 	}
 
 	var err error
@@ -461,9 +453,7 @@ func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64
 // one) will be checked.
 func (c *DiskCache) Contains(kind cache.EntryKind, hash string) bool {
 
-	// The hash format is checked properly in the http/grpc code.
-	// Just perform a simple/fast check here, to catch bad tests.
-	if len(hash) != sha256HashStrSize {
+	if cache.GetHashType(hash) == 0 {
 		return false
 	}
 

@@ -2,6 +2,9 @@ package server
 
 import (
 	"bytes"
+	_ "crypto/md5"
+	_ "crypto/sha1"
+	_ "crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -19,7 +22,7 @@ import (
 	"github.com/golang/protobuf/proto"
 )
 
-var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{64})$")
+var blobName = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{32,64})$")
 
 // HTTPCache ...
 type HTTPCache interface {
@@ -69,22 +72,28 @@ func NewHTTPCache(cache *disk.DiskCache, accessLogger cache.Logger, errorLogger 
 
 // Parse cache artifact information from the request URL
 func parseRequestURL(url string, validateAC bool) (cache.EntryKind, string, error) {
-	m := blobNameSHA256.FindStringSubmatch(url)
+	m := blobName.FindStringSubmatch(url)
 	if m == nil {
-		err := fmt.Errorf("resource name must be a SHA256 hash in hex. "+
+		err := fmt.Errorf("resource name must be a hash in hex. "+
 			"got '%s'", html.EscapeString(url))
 		return 0, "", err
 	}
 
 	parts := m[2:]
 	if len(parts) != 2 {
-		err := fmt.Errorf("the path '%s' is invalid. expected (ac/|cas/)sha256",
+		err := fmt.Errorf("the path '%s' is invalid. expected (ac/|cas/)hash",
 			html.EscapeString(url))
 		return 0, "", err
 	}
 
 	// The regex ensures that parts[0] can only be "ac/" or "cas/"
 	hash := parts[1]
+	if cache.GetHashType(hash) == 0 {
+		err := fmt.Errorf("hash must be md5, sha1 or sha256. "+
+			"got '%s'", html.EscapeString(url))
+		return 0, "", err
+	}
+
 	if parts[0] == "cas/" {
 		return cache.CAS, hash, nil
 	}

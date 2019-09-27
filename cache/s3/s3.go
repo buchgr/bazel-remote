@@ -1,9 +1,14 @@
 package s3
 
 import (
+	"bytes"
 	"errors"
+	"crypto"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 
 	"github.com/buchgr/bazel-remote/cache"
@@ -99,9 +104,35 @@ func logResponse(log cache.Logger, method, bucket, key string, err error) {
 }
 
 func (c *s3Cache) uploadFile(item uploadReq) {
-	uploadDigest := ""
+	uploadDigestSha256 := ""
+	uploadDigestMd5Base64 := ""
 	if item.kind == cache.CAS {
-		uploadDigest = item.hash
+		hashType := cache.GetHashType(item.hash)
+		if hashType == crypto.SHA256 {
+			// Use SHA256 hash as-is
+			uploadDigestSha256 = item.hash
+		} else if hashType == crypto.MD5 {
+			// Convert MD5 hex string to base64 encoding
+			md5Bytes, err := hex.DecodeString(item.hash)
+			if err != nil {
+				return
+			}
+			uploadDigestMd5Base64 = base64.StdEncoding.EncodeToString(md5Bytes)
+		} else {
+			// Hash the data using SHA256
+			data, err := ioutil.ReadAll(item.rdr)
+			if err != nil {
+				return
+			}
+			hasher := crypto.SHA256.New()
+			if _, err := io.Copy(io.Writer(hasher), bytes.NewBuffer(data)); err != nil {
+				return
+			}
+			uploadDigestSha256 = hex.EncodeToString(hasher.Sum(nil))
+
+			// Create a new reader as we read item.rdr for hashing
+			item.rdr = bytes.NewReader(data)
+		}
 	}
 
 	_, err := c.mcore.PutObject(
@@ -109,8 +140,8 @@ func (c *s3Cache) uploadFile(item uploadReq) {
 		c.objectKey(item.hash, item.kind), // objectName
 		item.rdr,                          // reader
 		item.size,                         // objectSize
-		"",                                // md5base64
-		uploadDigest,                      // sha256
+		uploadDigestMd5Base64,             // md5base64
+		uploadDigestSha256,                // sha256
 		map[string]string{
 			"Content-Type": "application/octet-stream",
 		}, // metadata
