@@ -145,7 +145,7 @@ func (c *diskCache) loadExistingFiles() error {
 	return nil
 }
 
-func (c *diskCache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) (err error) {
+func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.Reader) (err error) {
 	c.mux.Lock()
 
 	key := cacheKey(kind, hash)
@@ -164,7 +164,7 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, size int64, r io.Read
 
 	// Try to add the item to the LRU.
 	newItem := &lruItem{
-		size:      size,
+		size:      expectedSize,
 		committed: false,
 	}
 	ok := c.lru.Add(key, newItem)
@@ -201,11 +201,14 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, size int64, r io.Read
 			// Only delete the temp file if moving it didn't succeed.
 			os.Remove(f.Name())
 		}
+		// Just in case we didn't already close it.  No need to check errors.
+		f.Close()
 	}()
 
+	var bytesCopied int64 = 0
 	if kind == cache.CAS {
 		hasher := sha256.New()
-		if _, err = io.Copy(io.MultiWriter(f, hasher), r); err != nil {
+		if bytesCopied, err = io.Copy(io.MultiWriter(f, hasher), r); err != nil {
 			return
 		}
 		actualHash := hex.EncodeToString(hasher.Sum(nil))
@@ -215,7 +218,7 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, size int64, r io.Read
 			return
 		}
 	} else {
-		if _, err = io.Copy(f, r); err != nil {
+		if bytesCopied, err = io.Copy(f, r); err != nil {
 			return
 		}
 	}
@@ -225,6 +228,12 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, size int64, r io.Read
 	}
 
 	if err := f.Close(); err != nil {
+		return err
+	}
+
+	if bytesCopied != expectedSize {
+		err = fmt.Errorf(
+			"sizes don't match. Expected %d, found %d", expectedSize, bytesCopied)
 		return err
 	}
 

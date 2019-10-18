@@ -113,13 +113,25 @@ func TestCacheEviction(t *testing.T) {
 	}
 
 	for i, thisExp := range expectedSizesNumItems {
-		err := testCache.Put(cache.AC, fmt.Sprintf("aa-%d", i), int64(i), strings.NewReader("hello"))
+		strReader := strings.NewReader(strings.Repeat("a", i))
+		err := testCache.Put(cache.AC, fmt.Sprintf("aa-%d", i), int64(i), strReader)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		checkItems(t, testCache.(*diskCache), thisExp.expSize, thisExp.expNum)
 	}
+}
+
+func TestCachePutWrongSize(t *testing.T) {
+        cacheDir := tempDir(t)
+        defer os.RemoveAll(cacheDir)
+        testCache := New(cacheDir, 100)
+
+        err := testCache.Put(cache.AC, "aa-aa", int64(10), strings.NewReader("hello"))
+        if err == nil {
+            t.Fatal("Expected error due to size being different")
+        }
 }
 
 func expectContentEquals(t *testing.T, data io.ReadCloser, sizeBytes int64, expectedContent []byte) {
