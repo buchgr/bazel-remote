@@ -1,6 +1,5 @@
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
@@ -106,8 +105,8 @@ go_repository(
 go_repository(
     # minio has this dependency
     name = "com_github_go_ini_ini",
-    importpath="github.com/go-ini/ini",
-    commit="9c8236e659b76e87bf02044d06fde8683008ff3e",
+    importpath = "github.com/go-ini/ini",
+    commit = "9c8236e659b76e87bf02044d06fde8683008ff3e",
 )
 
 go_repository(

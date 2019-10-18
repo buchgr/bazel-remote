@@ -31,37 +31,39 @@ type HTTPBackendConfig struct {
 
 // Config provides the configuration
 type Config struct {
-	Host               string                    `yaml:"host"`
-	Port               int                       `yaml:"port"`
-	GRPCPort           int                       `yaml:"grpc_port"`
-	Dir                string                    `yaml:"dir"`
-	MaxSize            int                       `yaml:"max_size"`
-	HtpasswdFile       string                    `yaml:"htpasswd_file"`
-	TLSCertFile        string                    `yaml:"tls_cert_file"`
-	TLSKeyFile         string                    `yaml:"tls_key_file"`
-	S3CloudStorage     *S3CloudStorageConfig     `yaml:"s3_proxy"`
-	GoogleCloudStorage *GoogleCloudStorageConfig `yaml:"gcs_proxy"`
-	HTTPBackend        *HTTPBackendConfig        `yaml:"http_proxy"`
-	IdleTimeout        time.Duration             `yaml:"idle_timeout"`
+	Host                    string                    `yaml:"host"`
+	Port                    int                       `yaml:"port"`
+	GRPCPort                int                       `yaml:"grpc_port"`
+	Dir                     string                    `yaml:"dir"`
+	MaxSize                 int                       `yaml:"max_size"`
+	HtpasswdFile            string                    `yaml:"htpasswd_file"`
+	TLSCertFile             string                    `yaml:"tls_cert_file"`
+	TLSKeyFile              string                    `yaml:"tls_key_file"`
+	S3CloudStorage          *S3CloudStorageConfig     `yaml:"s3_proxy"`
+	GoogleCloudStorage      *GoogleCloudStorageConfig `yaml:"gcs_proxy"`
+	HTTPBackend             *HTTPBackendConfig        `yaml:"http_proxy"`
+	IdleTimeout             time.Duration             `yaml:"idle_timeout"`
+	DisableHTTPACValidation bool                      `yaml:"disable_http_ac_validation"`
 }
 
 // New ...
 func New(dir string, maxSize int, host string, port int, grpc_port int, htpasswdFile string,
 	tlsCertFile string, tlsKeyFile string, idleTimeout time.Duration,
-	s3 *S3CloudStorageConfig) (*Config, error) {
+	s3 *S3CloudStorageConfig, disable_http_ac_validation bool) (*Config, error) {
 	c := Config{
-		Host:               host,
-		Port:               port,
-		GRPCPort:           grpc_port,
-		Dir:                dir,
-		MaxSize:            maxSize,
-		HtpasswdFile:       htpasswdFile,
-		TLSCertFile:        tlsCertFile,
-		TLSKeyFile:         tlsKeyFile,
-		S3CloudStorage:     s3,
-		GoogleCloudStorage: nil,
-		HTTPBackend:        nil,
-		IdleTimeout:        idleTimeout,
+		Host:                    host,
+		Port:                    port,
+		GRPCPort:                grpc_port,
+		Dir:                     dir,
+		MaxSize:                 maxSize,
+		HtpasswdFile:            htpasswdFile,
+		TLSCertFile:             tlsCertFile,
+		TLSKeyFile:              tlsKeyFile,
+		S3CloudStorage:          s3,
+		GoogleCloudStorage:      nil,
+		HTTPBackend:             nil,
+		IdleTimeout:             idleTimeout,
+		DisableHTTPACValidation: disable_http_ac_validation,
 	}
 
 	err := validateConfig(&c)

@@ -51,6 +51,10 @@ func New(dir string, maxSizeBytes int64) cache.Cache {
 			if err != nil {
 				log.Fatal(err)
 			}
+			err = os.MkdirAll(filepath.Join(dir, cache.RAW.String(), subDir), os.FileMode(0744))
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 	}
 
@@ -93,6 +97,7 @@ func (c *diskCache) migrateDirectories() error {
 	if err != nil {
 		return err
 	}
+	// Note: there are no old "RAW" directories (yet).
 	return nil
 }
 

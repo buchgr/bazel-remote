@@ -170,7 +170,14 @@ func expectContentEquals(rdr io.ReadCloser, sizeBytes int64, expectedContent []b
 }
 
 func putGetCompare(kind cache.EntryKind, hash string, content string, testCache cache.Cache) error {
-	err := testCache.Put(kind, hash, int64(len(content)), strings.NewReader(content))
+	return putGetCompareBytes(kind, hash, []byte(content), testCache)
+}
+
+func putGetCompareBytes(kind cache.EntryKind, hash string, data []byte, testCache cache.Cache) error {
+
+	r := bytes.NewReader(data)
+
+	err := testCache.Put(kind, hash, int64(len(data)), r)
 	if err != nil {
 		return err
 	}
@@ -180,7 +187,7 @@ func putGetCompare(kind cache.EntryKind, hash string, content string, testCache 
 		return err
 	}
 	// Get the item back
-	return expectContentEquals(rdr, sizeBytes, []byte(content))
+	return expectContentEquals(rdr, sizeBytes, data)
 }
 
 func hashStr(content string) string {
@@ -212,6 +219,15 @@ func TestOverwrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	err = putGetCompare(cache.RAW, hashStr("world"), "world3", testCache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = putGetCompare(cache.RAW, hashStr("world"), "world4", testCache)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestCacheExistingFiles(t *testing.T) {
@@ -221,11 +237,13 @@ func TestCacheExistingFiles(t *testing.T) {
 	ensureDirExists(filepath.Join(cacheDir, "cas", "f5"))
 	ensureDirExists(filepath.Join(cacheDir, "cas", "fd"))
 	ensureDirExists(filepath.Join(cacheDir, "ac", "73"))
+	ensureDirExists(filepath.Join(cacheDir, "raw", "73"))
 
 	items := []string{
 		"cas/f5/f53b46209596d170f7659a414c9ff9f6b545cf77ffd6e1cbe9bcc57e1afacfbd",
 		"cas/fd/fdce205a735f407ae2910426611893d99ed985e3d9a341820283ea0b7d046ee3",
 		"ac/73/733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
+		"raw/73/733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
 	}
 
 	for _, it := range items {
@@ -237,10 +255,10 @@ func TestCacheExistingFiles(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	const expectedSize = 3 * int64(len(CONTENTS))
+	const expectedSize = 4 * int64(len(CONTENTS))
 	testCache := New(cacheDir, expectedSize)
 
-	err := checkItems(testCache.(*diskCache), expectedSize, 3)
+	err := checkItems(testCache.(*diskCache), expectedSize, 4)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +269,7 @@ func TestCacheExistingFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = checkItems(testCache.(*diskCache), expectedSize, 3)
+	err = checkItems(testCache.(*diskCache), expectedSize, 4)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,29 +286,40 @@ func TestCacheBlobTooLarge(t *testing.T) {
 	defer os.RemoveAll(cacheDir)
 	testCache := New(cacheDir, 100)
 
-	err := testCache.Put(cache.AC, hashStr("foo"), 10000, strings.NewReader(CONTENTS))
-	if err == nil {
-		t.Fatal("Expected an error")
-	}
-
-	if cerr, ok := err.(*cache.Error); ok {
-		if cerr.Code != http.StatusInsufficientStorage {
-			t.Fatalf("Expected error code %d but received %d", http.StatusInsufficientStorage, cerr.Code)
+	for k := range []cache.EntryKind{cache.AC, cache.RAW} {
+		kind := cache.EntryKind(k)
+		err := testCache.Put(kind, hashStr("foo"), 10000, strings.NewReader(CONTENTS))
+		if err == nil {
+			t.Fatal("Expected an error")
 		}
-	} else {
-		t.Fatal("Expected error to be of type Error")
+
+		if cerr, ok := err.(*cache.Error); ok {
+			if cerr.Code != http.StatusInsufficientStorage {
+				t.Fatalf("Expected error code %d but received %d", http.StatusInsufficientStorage, cerr.Code)
+			}
+		} else {
+			t.Fatal("Expected error to be of type Error")
+		}
 	}
 }
 
 // Make sure that Cache rejects an upload whose hashsum doesn't match
-func TestCacheCorruptedFile(t *testing.T) {
+func TestCacheCorruptedCASBlob(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
 	testCache := New(cacheDir, 1000)
 
-	err := testCache.Put(cache.CAS, hashStr("foo"), int64(len(CONTENTS)), strings.NewReader(CONTENTS))
+	err := testCache.Put(cache.CAS, hashStr("foo"), int64(len(CONTENTS)),
+		strings.NewReader(CONTENTS))
 	if err == nil {
 		t.Fatal("expected hash mismatch error")
+	}
+
+	// We expect the upload to succeed without validation:
+	err = testCache.Put(cache.RAW, hashStr("foo"), int64(len(CONTENTS)),
+		strings.NewReader(CONTENTS))
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -329,23 +358,73 @@ func TestLoadExistingEntries(t *testing.T) {
 	// Test that loading existing items works
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
-	acHash, err := testutils.CreateCacheFile(cacheDir+"/ac/", 1024)
+
+	numBlobs := int64(3)
+	blobSize := int64(1024)
+
+	acHash, err := testutils.CreateCacheFile(cacheDir+"/ac/", blobSize)
 	if err != nil {
 		t.Fatal(err)
 	}
-	casHash, err := testutils.CreateCacheFile(cacheDir+"/cas/", 1024)
+	casHash, err := testutils.CreateCacheFile(cacheDir+"/cas/", blobSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawHash, err := testutils.CreateCacheFile(cacheDir+"/raw/", blobSize)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	testCache := New(cacheDir, 2048)
-	if testCache.NumItems() != 2 {
-		t.Fatalf("Expected test cache size 2 but was %d", testCache.NumItems())
+	testCache := New(cacheDir, blobSize*numBlobs)
+	if int64(testCache.NumItems()) != numBlobs {
+		t.Fatalf("Expected test cache size %d but was %d",
+			numBlobs, testCache.NumItems())
 	}
 	if !testCache.Contains(cache.AC, acHash) {
 		t.Fatalf("Expected cache to contain AC entry '%s'", acHash)
 	}
 	if !testCache.Contains(cache.CAS, casHash) {
 		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash)
+	}
+	if !testCache.Contains(cache.RAW, rawHash) {
+		t.Fatalf("Expected cache to contain RAW entry '%s'", rawHash)
+	}
+}
+
+func TestDistinctKeyspaces(t *testing.T) {
+	cacheDir := testutils.TempDir(t)
+	defer os.RemoveAll(cacheDir)
+
+	blobSize := 1024
+	cacheSize := int64(blobSize * 3)
+
+	testCache := New(cacheDir, cacheSize)
+
+	blob, casHash := testutils.RandomDataAndHash(1024)
+
+	// Add the same blob with the same key, to each of the three
+	// keyspaces, and verify that we have exactly three items in
+	// the cache.
+
+	var err error
+
+	err = putGetCompareBytes(cache.CAS, casHash, blob, testCache)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = putGetCompareBytes(cache.AC, casHash, blob, testCache)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = putGetCompareBytes(cache.RAW, casHash, blob, testCache)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if testCache.NumItems() != 3 {
+		t.Fatalf("Expected test cache size 3 but was %d",
+			testCache.NumItems())
 	}
 }

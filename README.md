@@ -66,6 +66,7 @@ GLOBAL OPTIONS:
    --s3.access_key_id value      The S3/minio access key to use when using S3 cache backend. [$BAZEL_REMOTE_S3_ACCESS_KEY_ID]
    --s3.secret_access_key value  The S3/minio secret access key to use when using S3 cache backend. [$BAZEL_REMOTE_S3_SECRET_ACCESS_KEY]
    --s3.disable_ssl              Whether to disable TLS/SSL when using the S3 cache backend.  Default is false (enable TLS/SSL). [$BAZEL_REMOTE_S3_DISABLE_SSL]
+   --disable_http_ac_validation  Whether to disable ActionResult validation for HTTP requests.  Default is false (enable validation). [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
    --help, -h                    show help
 ```
 

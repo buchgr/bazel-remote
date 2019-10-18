@@ -1,17 +1,21 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"html"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"regexp"
 	"strconv"
 	"time"
 
+	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buchgr/bazel-remote/cache"
+	"github.com/golang/protobuf/proto"
 )
 
 var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{64})$")
@@ -26,6 +30,7 @@ type httpCache struct {
 	cache        cache.Cache
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
+	validateAC   bool
 }
 
 type statusPageData struct {
@@ -43,7 +48,7 @@ var GitCommit string
 // accessLogger will print one line for each HTTP request to stdout.
 // errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
 // be reported.
-func NewHTTPCache(cache cache.Cache, accessLogger cache.Logger, errorLogger cache.Logger) HTTPCache {
+func NewHTTPCache(cache cache.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool) HTTPCache {
 	if len(GitCommit) > 0 {
 		errorLogger.Printf("Server built from git commit %s.", GitCommit)
 	}
@@ -53,12 +58,13 @@ func NewHTTPCache(cache cache.Cache, accessLogger cache.Logger, errorLogger cach
 		cache:        cache,
 		accessLogger: accessLogger,
 		errorLogger:  errorLogger,
+		validateAC:   validateAC,
 	}
 	return hc
 }
 
 // Parse cache artifact information from the request URL
-func parseRequestURL(url string) (cache.EntryKind, string, error) {
+func parseRequestURL(url string, validateAC bool) (cache.EntryKind, string, error) {
 	m := blobNameSHA256.FindStringSubmatch(url)
 	if m == nil {
 		err := fmt.Errorf("resource name must be a SHA256 hash in hex. "+
@@ -78,33 +84,90 @@ func parseRequestURL(url string) (cache.EntryKind, string, error) {
 	if parts[0] == "cas/" {
 		return cache.CAS, hash, nil
 	}
-	return cache.AC, hash, nil
+
+	if validateAC {
+		return cache.AC, hash, nil
+	}
+
+	return cache.RAW, hash, nil
+}
+func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request, hash string) {
+	_, data, err := cache.GetValidatedActionResult(h.cache, hash)
+	if err != nil {
+		http.Error(w, "Not found", http.StatusNotFound)
+		h.logResponse(http.StatusNotFound, r)
+		return
+	}
+
+	if data == nil {
+		http.Error(w, "Not found", http.StatusNotFound)
+		h.logResponse(http.StatusNotFound, r)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	h.logResponse(http.StatusOK, r)
+}
+
+func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, hash string) {
+	_, data, err := cache.GetValidatedActionResult(h.cache, hash)
+	if err != nil {
+		http.Error(w, "Not found", http.StatusNotFound)
+		h.logResponse(http.StatusNotFound, r)
+		return
+	}
+
+	if data == nil {
+		http.Error(w, "Not found", http.StatusNotFound)
+		h.logResponse(http.StatusNotFound, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Length", strconv.FormatInt(int64(len(data)), 10))
+	bytesWritten, err := w.Write(data)
+
+	if err != nil {
+		h.logResponse(http.StatusInternalServerError, r)
+		return
+	}
+
+	if bytesWritten != len(data) {
+		h.logResponse(http.StatusInternalServerError, r)
+		return
+	}
+}
+
+// Helper function for logging responses
+func (h *httpCache) logResponse(code int, r *http.Request) {
+	// Parse the client ip:port
+	var clientAddress string
+	var err error
+	clientAddress, _, err = net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		clientAddress = r.RemoteAddr
+	}
+	h.accessLogger.Printf("%4s %d %15s %s", r.Method, code, clientAddress, r.URL.Path)
 }
 
 func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	// Helper function for logging responses
-	logResponse := func(code int) {
-		// Parse the client ip:port
-		var clientAddress string
-		var err error
-		clientAddress, _, err = net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			clientAddress = r.RemoteAddr
-		}
-		h.accessLogger.Printf("%4s %d %15s %s", r.Method, code, clientAddress, r.URL.Path)
-	}
-
-	kind, hash, err := parseRequestURL(r.URL.Path)
+	kind, hash, err := parseRequestURL(r.URL.Path, h.validateAC)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		logResponse(http.StatusBadRequest)
+		h.logResponse(http.StatusBadRequest, r)
 		return
 	}
 
 	switch m := r.Method; m {
 	case http.MethodGet:
+
+		if h.validateAC && kind == cache.AC {
+			h.handleGetValidAC(w, r, hash)
+			return
+		}
+
 		rdr, sizeBytes, err := h.cache.Get(kind, hash)
 		if err != nil {
 			if e, ok := err.(*cache.Error); ok {
@@ -118,7 +181,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 		if rdr == nil {
 			http.Error(w, "Not found", http.StatusNotFound)
-			logResponse(http.StatusNotFound)
+			h.logResponse(http.StatusNotFound, r)
 			return
 		}
 		defer rdr.Close()
@@ -127,7 +190,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", strconv.FormatInt(sizeBytes, 10))
 		io.Copy(w, rdr)
 
-		logResponse(http.StatusOK)
+		h.logResponse(http.StatusOK, r)
 	case http.MethodPut:
 		if r.ContentLength == -1 {
 			// We need the content-length header to make sure we have enough disk space.
@@ -137,7 +200,33 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err := h.cache.Put(kind, hash, r.ContentLength, r.Body)
+		rc := r.Body
+		if h.validateAC && kind == cache.AC {
+			// verify that this is a valid ActionResult
+
+			data, err := ioutil.ReadAll(rc)
+			if err != nil {
+				msg := "Failed to read request body"
+				http.Error(w, msg, http.StatusBadRequest) // find a better status
+				h.errorLogger.Printf("%s", msg)
+			}
+
+			ar := &pb.ActionResult{}
+			err = proto.Unmarshal(data, ar)
+			if err != nil {
+				msg := "Put received an invalid ActionResult"
+				http.Error(w, msg, http.StatusBadRequest)
+				h.errorLogger.Printf("%s", msg)
+				return
+			}
+
+			// Note: we do not currently verify that the blobs exist
+			// in the CAS.
+
+			rc = ioutil.NopCloser(bytes.NewReader(data))
+		}
+
+		err := h.cache.Put(kind, hash, r.ContentLength, rc)
 		if err != nil {
 			if cerr, ok := err.(*cache.Error); ok {
 				http.Error(w, err.Error(), cerr.Code)
@@ -146,23 +235,31 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), err)
 		} else {
-			logResponse(http.StatusOK)
+			h.logResponse(http.StatusOK, r)
 		}
 
 	case http.MethodHead:
+
+		if h.validateAC && kind == cache.AC {
+			h.handleContainsValidAC(w, r, hash)
+			return
+		}
+
+		// Unvalidated path:
+
 		ok := h.cache.Contains(kind, hash)
 		if !ok {
 			http.Error(w, "Not found", http.StatusNotFound)
-			logResponse(http.StatusNotFound)
+			h.logResponse(http.StatusNotFound, r)
 			return
 		}
 
 		w.WriteHeader(http.StatusOK)
-		logResponse(http.StatusOK)
+		h.logResponse(http.StatusOK, r)
 	default:
 		msg := fmt.Sprintf("Method '%s' not supported.", html.EscapeString(m))
 		http.Error(w, msg, http.StatusMethodNotAllowed)
-		logResponse(http.StatusMethodNotAllowed)
+		h.logResponse(http.StatusMethodNotAllowed, r)
 	}
 }
 
