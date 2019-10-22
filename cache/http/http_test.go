@@ -192,3 +192,39 @@ func TestProxyWriteErrorsAreNotPropagated(t *testing.T) {
 		t.Error("Expected the blob to be stored locally")
 	}
 }
+
+func TestProxyLocalPutFailuresNotRelayed(t *testing.T) {
+	// Test that when there is an error writing to the remote proxy
+	// then the error is not propagated to the client. This is because
+	// the writes to the proxy happen asynchronously and on a best effort
+	// basis.
+
+	data := []byte("hello world")
+	hashBytes := sha256.Sum256(data)
+	hash := hex.EncodeToString(hashBytes[:])
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Size miss-matched Put request should not have been forwarded")
+	}))
+
+	cacheDir := testutils.TempDir(t)
+	defer os.RemoveAll(cacheDir)
+	diskCache := disk.New(cacheDir, 100)
+
+	baseURL, err := url.Parse(ts.URL)
+	if err != nil {
+		t.Error(err)
+	}
+
+	proxy := New(baseURL, diskCache, &http.Client{}, testutils.NewSilentLogger(),
+		testutils.NewSilentLogger())
+
+	err = proxy.Put(cache.AC, hash, int64(len(data) + 1), bytes.NewReader(data))
+	if err == nil {
+		t.Error("Expected Put to error with size miss-match")
+	}
+
+	if diskCache.Contains(cache.AC, hash) {
+		t.Error("Expected not to be stored locally")
+	}
+}
