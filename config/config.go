@@ -20,6 +20,16 @@ type HTTPBackendConfig struct {
 	BaseURL string `yaml:"url"`
 }
 
+type LDAPConfig struct {
+	BaseURL           string        `yaml:"url"`
+	BaseDN            string        `yaml:"base_dn"`
+	BindUser          string        `yaml:"bind_user"`
+	BindPassword      string        `yaml:"bind_password"`
+	UsernameAttribute string        `yaml:"username_attribute"`
+	Groups            []string      `yaml:"groups,flow"`
+	CacheTime         time.Duration `yaml:"cache_time"`
+}
+
 // Config provides the configuration
 type Config struct {
 	Host               string                    `yaml:"host"`
@@ -31,6 +41,7 @@ type Config struct {
 	TLSKeyFile         string                    `yaml:"tls_key_file"`
 	GoogleCloudStorage *GoogleCloudStorageConfig `yaml:"gcs_proxy"`
 	HTTPBackend        *HTTPBackendConfig        `yaml:"http_proxy"`
+	LDAP               *LDAPConfig               `yaml:"ldap"`
 	IdleTimeout        time.Duration             `yaml:"idle_timeout"`
 }
 
@@ -47,6 +58,7 @@ func New(dir string, maxSize int, host string, port int, htpasswdFile string,
 		TLSKeyFile:         tlsKeyFile,
 		GoogleCloudStorage: nil,
 		HTTPBackend:        nil,
+		LDAP:               nil,
 		IdleTimeout:        idleTimeout,
 	}
 
@@ -118,6 +130,31 @@ func validateConfig(c *Config) error {
 	if c.HTTPBackend != nil {
 		if c.HTTPBackend.BaseURL == "" {
 			return errors.New("The 'url' field is required for 'http_proxy'")
+		}
+	}
+
+	if c.HtpasswdFile != "" && c.LDAP != nil {
+		return errors.New("One can specify at most one authentication mechanism")
+	}
+
+	if c.LDAP != nil {
+		if c.LDAP.BaseURL == "" {
+			return errors.New("The 'url' field is required for 'ldap'")
+		}
+		if c.LDAP.BaseDN == "" {
+			return errors.New("The 'base_dn' field is required for 'ldap'")
+		}
+		if c.LDAP.BindUser == "" {
+			return errors.New("The 'bind_user' field is required for 'ldap'")
+		}
+		if c.LDAP.BindPassword == "" {
+			return errors.New("The 'bind_password' field is required for 'ldap'")
+		}
+		if c.LDAP.UsernameAttribute == "" {
+			c.LDAP.UsernameAttribute = "uid"
+		}
+		if c.LDAP.CacheTime == 0 {
+			c.LDAP.CacheTime = 1 * time.Hour
 		}
 	}
 	return nil
