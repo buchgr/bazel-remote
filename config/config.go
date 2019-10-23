@@ -96,7 +96,7 @@ func validateConfig(c *Config) error {
 		return errors.New("The 'max_size' flag/key must be set to a value > 0")
 	}
 
-	if c.Port == 0 {
+	if c.Port < 0 {
 		return errors.New("A valid 'port' flag/key must be specified")
 	}
 
