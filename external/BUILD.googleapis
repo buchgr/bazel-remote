@@ -1,0 +1,35 @@
+package(default_visibility = ["//visibility:public"])
+
+licenses(["notice"])
+
+proto_library(
+    name = "google_api_annotations_proto",
+    srcs = ["google/api/annotations.proto"],
+    deps = [
+        ":google_api_http_proto",
+        "@com_google_protobuf//:descriptor_proto",
+    ],
+)
+
+proto_library(
+    name = "google_api_http_proto",
+    srcs = ["google/api/http.proto"],
+)
+
+proto_library(
+    name = "google_longrunning_operations_proto",
+    srcs = ["google/longrunning/operations.proto"],
+    deps = [
+        ":google_api_annotations_proto",
+        ":google_api_http_proto",
+        ":google_rpc_status_proto",
+        "@com_google_protobuf//:any_proto",
+        "@com_google_protobuf//:empty_proto",
+    ],
+)
+
+proto_library(
+    name = "google_rpc_status_proto",
+    srcs = ["google/rpc/status.proto"],
+    deps = ["@com_google_protobuf//:any_proto"],
+)

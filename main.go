@@ -21,6 +21,9 @@ import (
 	"github.com/buchgr/bazel-remote/config"
 	"github.com/buchgr/bazel-remote/server"
 	"github.com/urfave/cli"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 func main() {
@@ -60,6 +63,12 @@ func main() {
 			Value:  8080,
 			Usage:  "The port the HTTP server listens on.",
 			EnvVar: "BAZEL_REMOTE_PORT",
+		},
+		cli.IntFlag{
+			Name:   "grpc_port",
+			Value:  9092,
+			Usage:  "The port the EXPERIMENTAL gRPC server listens on. Set to 0 to disable.",
+			EnvVar: "BAZEL_REMOTE_GRPC_PORT",
 		},
 		cli.StringFlag{
 			Name:   "htpasswd_file",
@@ -103,6 +112,7 @@ func main() {
 				ctx.Int("max_size"),
 				ctx.String("host"),
 				ctx.Int("port"),
+				ctx.Int("grpc_port"),
 				ctx.String("htpasswd_file"),
 				ctx.String("tls_cert_file"),
 				ctx.String("tls_key_file"),
@@ -156,6 +166,29 @@ func main() {
 			cacheHandler = wrapIdleHandler(cacheHandler, c.IdleTimeout, accessLogger, httpServer)
 		}
 		mux.HandleFunc("/", cacheHandler)
+
+		if c.GRPCPort > 0 {
+			go func() {
+				addr := c.Host + ":" + strconv.Itoa(c.GRPCPort)
+
+				opts := []grpc.ServerOption{}
+
+				if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
+					creds, err := credentials.NewServerTLSFromFile(
+						c.TLSCertFile, c.TLSKeyFile)
+					if err != nil {
+						log.Fatal(err)
+					}
+					opts = append(opts, grpc.Creds(creds))
+				}
+
+				err = server.ListenAndServeGRPC(addr, opts,
+					proxyCache, accessLogger, errorLogger)
+				if err != nil {
+					log.Fatal(err)
+				}
+			}()
+		}
 
 		if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
 			return httpServer.ListenAndServeTLS(c.TLSCertFile, c.TLSKeyFile)
