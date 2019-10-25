@@ -6,4 +6,3 @@ platforms:
     test_targets:
     - "..."
   ubuntu1804: *anchor
-  macos: *anchor
