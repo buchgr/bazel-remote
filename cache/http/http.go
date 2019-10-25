@@ -33,17 +33,17 @@ type remoteHTTPProxyCache struct {
 
 func uploadFile(remote *http.Client, baseURL *url.URL, local cache.Cache, accessLogger cache.Logger,
 	errorLogger cache.Logger, hash string, kind cache.EntryKind) {
-	data, size, err := local.Get(kind, hash)
+	rdr, size, err := local.Get(kind, hash)
 	if err != nil {
 		return
 	}
 
 	if size == 0 {
 		// See https://github.com/golang/go/issues/20257#issuecomment-299509391
-		data = http.NoBody
+		rdr = http.NoBody
 	}
 	url := requestURL(baseURL, hash, kind)
-	req, err := http.NewRequest(http.MethodPut, url, data)
+	req, err := http.NewRequest(http.MethodPut, url, rdr)
 	if err != nil {
 		return
 	}
@@ -85,12 +85,12 @@ func logResponse(log cache.Logger, method string, code int, url string) {
 	log.Printf("%4s %d %15s %s", method, code, "", url)
 }
 
-func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64, data io.Reader) (error) {
+func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64, rdr io.Reader) error {
 	if r.local.Contains(kind, hash) {
-		io.Copy(ioutil.Discard, data)
+		io.Copy(ioutil.Discard, rdr)
 		return nil
 	}
-	err := r.local.Put(kind, hash, size, data)
+	err := r.local.Put(kind, hash, size, rdr)
 	if err != nil {
 		return err
 	}

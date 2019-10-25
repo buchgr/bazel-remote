@@ -249,7 +249,7 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 	return
 }
 
-func (c *diskCache) Get(kind cache.EntryKind, hash string) (data io.ReadCloser, sizeBytes int64, err error) {
+func (c *diskCache) Get(kind cache.EntryKind, hash string) (rdr io.ReadCloser, sizeBytes int64, err error) {
 	if !c.Contains(kind, hash) {
 		return
 	}
@@ -262,7 +262,7 @@ func (c *diskCache) Get(kind cache.EntryKind, hash string) (data io.ReadCloser, 
 	}
 	sizeBytes = fileInfo.Size()
 
-	data, err = os.Open(blobPath)
+	rdr, err = os.Open(blobPath)
 	if err != nil {
 		return
 	}

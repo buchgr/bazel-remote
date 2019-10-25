@@ -303,7 +303,7 @@ func (f *fakeCache) Put(kind cache.EntryKind, hash string, size int64, r io.Read
 	return nil
 }
 
-func (f *fakeCache) Get(kind cache.EntryKind, hash string) (data io.ReadCloser, sizeBytes int64, err error) {
+func (f *fakeCache) Get(kind cache.EntryKind, hash string) (rdr io.ReadCloser, sizeBytes int64, err error) {
 	return nil, -1, &cache.Error{
 		Code: http.StatusNotFound,
 		Text: fmt.Sprintf("Not found\n"),
