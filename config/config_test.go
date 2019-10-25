@@ -11,6 +11,7 @@ import (
 func TestValidServerConfig(t *testing.T) {
 	yaml := `host: localhost
 port: 8080
+grpc_port: 9092
 dir: /opt/cache-dir
 max_size: 100
 htpasswd_file: /opt/.htpasswd
@@ -26,6 +27,7 @@ tls_key_file:  /opt/tls.key
 	expectedConfig := &Config{
 		Host:         "localhost",
 		Port:         8080,
+		GRPCPort:     9092,
 		Dir:          "/opt/cache-dir",
 		MaxSize:      100,
 		HtpasswdFile: "/opt/.htpasswd",
@@ -41,6 +43,7 @@ tls_key_file:  /opt/tls.key
 func TestValidGCSProxyConfig(t *testing.T) {
 	yaml := `host: localhost
 port: 8080
+grpc_port: 9092
 dir: /opt/cache-dir
 max_size: 100
 gcs_proxy:
@@ -54,10 +57,11 @@ gcs_proxy:
 	}
 
 	expectedConfig := &Config{
-		Host:    "localhost",
-		Port:    8080,
-		Dir:     "/opt/cache-dir",
-		MaxSize: 100,
+		Host:     "localhost",
+		Port:     8080,
+		GRPCPort: 9092,
+		Dir:      "/opt/cache-dir",
+		MaxSize:  100,
 		GoogleCloudStorage: &GoogleCloudStorageConfig{
 			Bucket:                "gcs-bucket",
 			UseDefaultCredentials: false,
@@ -73,6 +77,7 @@ gcs_proxy:
 func TestValidHttpProxyConfig(t *testing.T) {
 	yaml := `host: localhost
 port: 8080
+grpc_port: 9092
 dir: /opt/cache-dir
 max_size: 100
 http_proxy:
@@ -84,10 +89,11 @@ http_proxy:
 	}
 
 	expectedConfig := &Config{
-		Host:    "localhost",
-		Port:    8080,
-		Dir:     "/opt/cache-dir",
-		MaxSize: 100,
+		Host:     "localhost",
+		Port:     8080,
+		GRPCPort: 9092,
+		Dir:      "/opt/cache-dir",
+		MaxSize:  100,
 		HTTPBackend: &HTTPBackendConfig{
 			BaseURL: "https://remote-cache.com:8080/cache",
 		},
@@ -100,9 +106,10 @@ http_proxy:
 
 func TestDirRequired(t *testing.T) {
 	testConfig := &Config{
-		Host:    "localhost",
-		Port:    8080,
-		MaxSize: 100,
+		Host:     "localhost",
+		Port:     8080,
+		GRPCPort: 9092,
+		MaxSize:  100,
 	}
 	err := validateConfig(testConfig)
 	if err == nil {
@@ -115,9 +122,10 @@ func TestDirRequired(t *testing.T) {
 
 func TestMaxSizeRequired(t *testing.T) {
 	testConfig := &Config{
-		Host: "localhost",
-		Port: 8080,
-		Dir:  "/opt/cache-dir",
+		Host:     "localhost",
+		Port:     8080,
+		GRPCPort: 9092,
+		Dir:      "/opt/cache-dir",
 	}
 	err := validateConfig(testConfig)
 	if err == nil {

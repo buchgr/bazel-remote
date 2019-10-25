@@ -85,12 +85,15 @@ func logResponse(log cache.Logger, method string, code int, url string) {
 	log.Printf("%4s %d %15s %s", method, code, "", url)
 }
 
-func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64, data io.Reader) (err error) {
+func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64, data io.Reader) (error) {
 	if r.local.Contains(kind, hash) {
 		io.Copy(ioutil.Discard, data)
 		return nil
 	}
-	r.local.Put(kind, hash, size, data)
+	err := r.local.Put(kind, hash, size, data)
+	if err != nil {
+		return err
+	}
 
 	select {
 	case r.uploadQueue <- &uploadReq{
@@ -100,7 +103,7 @@ func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64
 	default:
 		r.errorLogger.Printf("too many uploads queued")
 	}
-	return
+	return err
 }
 
 func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {

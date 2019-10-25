@@ -33,6 +33,7 @@ type HTTPBackendConfig struct {
 type Config struct {
 	Host               string                    `yaml:"host"`
 	Port               int                       `yaml:"port"`
+	GRPCPort           int                       `yaml:"grpc_port"`
 	Dir                string                    `yaml:"dir"`
 	MaxSize            int                       `yaml:"max_size"`
 	HtpasswdFile       string                    `yaml:"htpasswd_file"`
@@ -51,6 +52,7 @@ func New(dir string, maxSize int, host string, port int, grpc_port int, htpasswd
 	c := Config{
 		Host:               host,
 		Port:               port,
+		GRPCPort:           grpc_port,
 		Dir:                dir,
 		MaxSize:            maxSize,
 		HtpasswdFile:       htpasswdFile,
@@ -110,6 +112,10 @@ func validateConfig(c *Config) error {
 
 	if c.Port == 0 {
 		return errors.New("A valid 'port' flag/key must be specified")
+	}
+
+	if c.GRPCPort < 0 {
+		return errors.New("The 'grpc_port' flag/key must be 0 (disabled) or a positive integer")
 	}
 
 	if (c.TLSCertFile != "" && c.TLSKeyFile == "") || (c.TLSCertFile == "" && c.TLSKeyFile != "") {

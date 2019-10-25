@@ -141,3 +141,32 @@ go_repository(
     commit = "3af367b6b30c263d47e8895973edcca9a49cf029",
     importpath = "github.com/google/go-cmp",
 )
+
+# Needed for the googleapis protos used by com_github_bazelbuild_remote_apis
+# below.
+http_archive(
+    name = "googleapis",
+    build_file = "BUILD.googleapis",
+    sha256 = "7b6ea252f0b8fb5cd722f45feb83e115b689909bbb6a393a873b6cbad4ceae1d",
+    strip_prefix = "googleapis-143084a2624b6591ee1f9d23e7f5241856642f4d",
+    urls = ["https://github.com/googleapis/googleapis/archive/143084a2624b6591ee1f9d23e7f5241856642f4d.zip"],
+)
+
+go_repository(
+    name = "com_github_bazelbuild_remote_apis",
+    commit = "cd42f25a6c5d7bd97859ab946ddb9a7d8e48b23a",
+    importpath = "github.com/bazelbuild/remote-apis",
+)
+
+go_repository(
+    name = "com_github_google_uuid",
+    commit = "c2e93f3ae59f2904160ceaab466009f965df46d6",
+    importpath = "github.com/google/uuid",
+)
+
+load("@com_github_bazelbuild_remote_apis//:repository_rules.bzl", "switched_rules_by_language")
+
+switched_rules_by_language(
+    name = "bazel_remote_apis_imports",
+    go = True,
+)
