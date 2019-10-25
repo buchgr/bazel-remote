@@ -1,12 +1,8 @@
 ---
 platforms:
   ubuntu1604: &anchor
-    build_flags:
-    - "--host_force_python=PY2"
     build_targets:
     - "..."
-    test_flags:
-    - "--host_force_python=PY2"
     test_targets:
     - "..."
   ubuntu1804: *anchor
