@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["s3.go"],
+    importpath = "github.com/buchgr/bazel-remote/cache/s3",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cache:go_default_library",
+        "//config:go_default_library",
+        "@com_github_minio_go//:go_default_library"
+    ],
+)
+

@@ -55,6 +55,40 @@ go_repository(
 )
 
 go_repository(
+    # minio has this dependency
+    name = "com_github_go_ini_ini",
+    importpath="github.com/go-ini/ini",
+    commit="9c8236e659b76e87bf02044d06fde8683008ff3e",
+)
+
+go_repository(
+    # minio has this dependency
+    name = "org_golang_x_net",
+    commit = "c39426892332e1bb5ec0a434a079bf82f5d30c54",
+    importpath = "golang_org/x/net",
+)
+
+go_repository(
+    # minio has this dependency
+    name = "org_golang_x_sys",
+    commit = "d69651ed3497faee15a5363a89578e9991f6d5e2",
+    importpath = "golang.org/x/sys",
+)
+
+go_repository(
+    # minio has this dependency
+    name = "com_github_mitchellh_go_homedir",
+    commit = "ae18d6b8b3205b561c79e8e5f69bff09736185f4",
+    importpath = "github.com/mitchellh/go-homedir",
+)
+
+go_repository(
+    name = "com_github_minio_go",
+    commit = "55c9b2e90ef38c5962d872ebc34b5d7c0e04974c",
+    importpath = "github.com/minio/minio-go",
+)
+
+go_repository(
     name = "org_golang_x_crypto",
     commit = "ab813273cd59e1333f7ae7bff5d027d4aadf528c",
     importpath = "golang.org/x/crypto",
