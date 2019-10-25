@@ -105,7 +105,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch m := r.Method; m {
 	case http.MethodGet:
-		data, sizeBytes, err := h.cache.Get(kind, hash)
+		rdr, sizeBytes, err := h.cache.Get(kind, hash)
 		if err != nil {
 			if e, ok := err.(*cache.Error); ok {
 				http.Error(w, e.Error(), e.Code)
@@ -116,16 +116,16 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if data == nil {
+		if rdr == nil {
 			http.Error(w, "Not found", http.StatusNotFound)
 			logResponse(http.StatusNotFound)
 			return
 		}
-		defer data.Close()
+		defer rdr.Close()
 
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Length", strconv.FormatInt(sizeBytes, 10))
-		io.Copy(w, data)
+		io.Copy(w, rdr)
 
 		logResponse(http.StatusOK)
 	case http.MethodPut:

@@ -72,11 +72,11 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Non-existing item
-	data, sizeBytes, err := testCache.Get(cache.CAS, CONTENTS_HASH)
+	rdr, sizeBytes, err := testCache.Get(cache.CAS, CONTENTS_HASH)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if data != nil {
+	if rdr != nil {
 		t.Fatal("expected the item not to exist")
 	}
 
@@ -94,12 +94,12 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Get the item back
-	data, sizeBytes, err = testCache.Get(cache.CAS, CONTENTS_HASH)
+	rdr, sizeBytes, err = testCache.Get(cache.CAS, CONTENTS_HASH)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = expectContentEquals(data, sizeBytes, []byte(CONTENTS))
+	err = expectContentEquals(rdr, sizeBytes, []byte(CONTENTS))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,21 +149,21 @@ func TestCachePutWrongSize(t *testing.T) {
 	}
 }
 
-func expectContentEquals(data io.ReadCloser, sizeBytes int64, expectedContent []byte) error {
-	if data == nil {
+func expectContentEquals(rdr io.ReadCloser, sizeBytes int64, expectedContent []byte) error {
+	if rdr == nil {
 		return fmt.Errorf("expected the item to exist")
 	}
-	dataBytes, err := ioutil.ReadAll(data)
+	data, err := ioutil.ReadAll(rdr)
 	if err != nil {
 		return err
 	}
-	if bytes.Compare(dataBytes, expectedContent) != 0 {
+	if bytes.Compare(data, expectedContent) != 0 {
 		return fmt.Errorf("expected response '%s', but received '%s'",
-			expectedContent, dataBytes)
+			expectedContent, data)
 	}
-	if int64(len(dataBytes)) != sizeBytes {
+	if int64(len(data)) != sizeBytes {
 		return fmt.Errorf("Expected sizeBytes to be '%d' but was '%d'",
-			sizeBytes, len(dataBytes))
+			sizeBytes, len(data))
 	}
 
 	return nil
@@ -175,12 +175,12 @@ func putGetCompare(kind cache.EntryKind, hash string, content string, testCache 
 		return err
 	}
 
-	data, sizeBytes, err := testCache.Get(kind, hash)
+	rdr, sizeBytes, err := testCache.Get(kind, hash)
 	if err != nil {
 		return err
 	}
 	// Get the item back
-	return expectContentEquals(data, sizeBytes, []byte(content))
+	return expectContentEquals(rdr, sizeBytes, []byte(content))
 }
 
 func hashStr(content string) string {
