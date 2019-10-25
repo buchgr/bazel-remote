@@ -45,7 +45,7 @@ type Config struct {
 }
 
 // New ...
-func New(dir string, maxSize int, host string, port int, htpasswdFile string,
+func New(dir string, maxSize int, host string, port int, grpc_port int, htpasswdFile string,
 	tlsCertFile string, tlsKeyFile string, idleTimeout time.Duration,
 	s3 *S3CloudStorageConfig) (*Config, error) {
 	c := Config{
