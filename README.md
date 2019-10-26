@@ -2,11 +2,13 @@
 
 # A remote build cache for [Bazel](https://bazel.build)
 
-bazel-remote is a HTTP/1.1 server that is intended to be used as a remote build cache for
+bazel-remote is a HTTP/1.1 and gRPC server that is intended to be used as a remote build cache for
 [Bazel](https://bazel.build). The cache contents are stored in a directory on disk. One can specify a maximum cache
 size and bazel-remote will automatically enforce this limit and clean the cache by deleting files based on their
 last access time. The cache supports HTTP basic authentication with usernames and passwords being specified by a
 `.htpasswd` file.
+
+## HTTP/1.1 REST API
 
 Cache entries are set and retrieved by key, and there are two types of keys that can be used:
 1. Content addressed storage (CAS), where the key is the lowercase SHA256 hash of the stored value.
@@ -17,6 +19,12 @@ Cache entries are set and retrieved by key, and there are two types of keys that
 
 Values are stored via HTTP PUT requests, and retrieved via GET requests. HEAD requests can be used to confirm
 whether a key exists or not.
+
+## gRPC API
+
+bazel-remote also has experimental support for the ActionCache, ContentAddressableStorage and Capabilities services in the
+[Bazel Remote Execution API v2](https://github.com/bazelbuild/remote-apis/blob/master/build/bazel/remote/execution/v2/remote_execution.proto),
+and the corresponding parts of the [Byte Stream API](https://github.com/googleapis/googleapis/blob/master/google/bytestream/bytestream.proto).
 
 **Project status**: bazel-remote has been serving TBs of cache artifacts per day since April 2018, both on
 commodity hardware and AWS servers. Outgoing bandwidth can exceed 15 Gbit/s on the right AWS instance type.
