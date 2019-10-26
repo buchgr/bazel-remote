@@ -41,17 +41,24 @@ COMMANDS:
      help, h  Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
-   --config_file value    Path to a YAML configuration file. If this flag is specified then all other flags are ignored. [$BAZEL_REMOTE_CONFIG_FILE]
-   --dir value            Directory path where to store the cache contents. This flag is required. [$BAZEL_REMOTE_DIR]
-   --max_size value       The maximum size of the remote cache in GiB. This flag is required. (default: -1) [$BAZEL_REMOTE_MAX_SIZE]
-   --host value           Address to listen on. Listens on all network interfaces by default. [$BAZEL_REMOTE_HOST]
-   --port value           The port the HTTP server listens on. (default: 8080) [$BAZEL_REMOTE_PORT]
-   --htpasswd_file value  Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html. [$BAZEL_REMOTE_HTPASSWD_FILE]
-   --tls_enabled          This flag has been deprecated. Specify tls_cert_file and tls_key_file instead. [$BAZEL_REMOTE_TLS_ENABLED]
-   --tls_cert_file value  Path to a pem encoded certificate file. [$BAZEL_REMOTE_TLS_CERT_FILE]
-   --tls_key_file value   Path to a pem encoded key file. [$BAZEL_REMOTE_TLS_KEY_FILE]
-   --idle_timeout value   The maximum period of having received no request after which the server will shut itself down. Disabled by default. (default: 0s) [$BAZEL_REMOTE_IDLE_TIMEOUT]
-   --help, -h             show help
+   --config_file value           Path to a YAML configuration file. If this flag is specified then all other flags are ignored. [$BAZEL_REMOTE_CONFIG_FILE]
+   --dir value                   Directory path where to store the cache contents. This flag is required. [$BAZEL_REMOTE_DIR]
+   --max_size value              The maximum size of the remote cache in GiB. This flag is required. (default: -1) [$BAZEL_REMOTE_MAX_SIZE]
+   --host value                  Address to listen on. Listens on all network interfaces by default. [$BAZEL_REMOTE_HOST]
+   --port value                  The port the HTTP server listens on. (default: 8080) [$BAZEL_REMOTE_PORT]
+   --grpc_port value             The port the EXPERIMENTAL gRPC server listens on. Set to 0 to disable. (default: 9092) [$BAZEL_REMOTE_GRPC_PORT]
+   --htpasswd_file value         Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html. [$BAZEL_REMOTE_HTPASSWD_FILE]
+   --tls_enabled                 This flag has been deprecated. Specify tls_cert_file and tls_key_file instead. [$BAZEL_REMOTE_TLS_ENABLED]
+   --tls_cert_file value         Path to a pem encoded certificate file. [$BAZEL_REMOTE_TLS_CERT_FILE]
+   --tls_key_file value          Path to a pem encoded key file. [$BAZEL_REMOTE_TLS_KEY_FILE]
+   --idle_timeout value          The maximum period of having received no request after which the server will shut itself down. Disabled by default. (default: 0s) [$BAZEL_REMOTE_IDLE_TIMEOUT]
+   --s3.endpoint value           The S3/minio endpoint to use when using S3 cache backend. [$BAZEL_REMOTE_S3_ENDPOINT]
+   --s3.bucket value             The S3/minio bucket to use when using S3 cache backend. [$BAZEL_REMOTE_S3_BUCKET]
+   --s3.prefix value             The S3/minio object prefix to use when using S3 cache backend. [$BAZEL_REMOTE_S3_PREFIX]
+   --s3.access_key_id value      The S3/minio access key to use when using S3 cache backend. [$BAZEL_REMOTE_S3_ACCESS_KEY_ID]
+   --s3.secret_access_key value  The S3/minio secret access key to use when using S3 cache backend. [$BAZEL_REMOTE_S3_SECRET_ACCESS_KEY]
+   --s3.disable_ssl              Whether to disable TLS/SSL when using the S3 cache backend.  Default is false (enable TLS/SSL). [$BAZEL_REMOTE_S3_DISABLE_SSL]
+   --help, -h                    show help
 ```
 
 ## Docker
