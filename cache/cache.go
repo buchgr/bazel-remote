@@ -2,6 +2,10 @@ package cache
 
 import (
 	"io"
+	"io/ioutil"
+
+	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/golang/protobuf/proto"
 )
 
 // EntryKind describes the kind of cache entry
@@ -12,13 +16,20 @@ const (
 	AC EntryKind = iota
 	// CAS stands for Content Addressable Storage
 	CAS
+	// Like Action Cache, but without ActionResult validation.
+	// Not exposed externally, only used for HTTP when running with
+	// the --disable_http_ac_validation commandline flag.
+	RAW
 )
 
 func (e EntryKind) String() string {
 	if e == AC {
 		return "ac"
 	}
-	return "cas"
+	if e == CAS {
+		return "cas"
+	}
+	return "raw"
 }
 
 // Logger is designed to be satisfied by log.Logger.
@@ -63,4 +74,58 @@ type Cache interface {
 
 	// NumItems returns the number of items stored in the cache.
 	NumItems() int
+}
+
+// If `hash` refers to a valid ActionResult with all the dependencies
+// available in the CAS, return it and its serialized value.
+// If not, return nil values.
+// If something unexpected went wrong, return an error.
+func GetValidatedActionResult(c Cache, hash string) (*pb.ActionResult, []byte, error) {
+	rdr, sizeBytes, err := c.Get(AC, hash)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if rdr == nil || sizeBytes <= 0 {
+		return nil, nil, nil // aka "not found"
+	}
+
+	data, err := ioutil.ReadAll(rdr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	result := &pb.ActionResult{}
+	err = proto.Unmarshal(data, result)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, f := range result.OutputFiles {
+		if len(f.Contents) == 0 && f.Digest.SizeBytes > 0 {
+			if !c.Contains(CAS, f.Digest.Hash) {
+				return nil, nil, nil // aka "not found"
+			}
+		}
+	}
+
+	for _, d := range result.OutputDirectories {
+		if !c.Contains(CAS, d.TreeDigest.Hash) {
+			return nil, nil, nil // aka "not found"
+		}
+	}
+
+	if result.StdoutDigest != nil {
+		if !c.Contains(CAS, result.StdoutDigest.Hash) {
+			return nil, nil, nil // aka "not found"
+		}
+	}
+
+	if result.StderrDigest != nil {
+		if !c.Contains(CAS, result.StderrDigest.Hash) {
+			return nil, nil, nil // aka "not found"
+		}
+	}
+
+	return result, data, nil
 }

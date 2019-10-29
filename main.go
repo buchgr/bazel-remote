@@ -135,6 +135,11 @@ func main() {
 			Usage:  "Whether to disable TLS/SSL when using the S3 cache backend.  Default is false (enable TLS/SSL).",
 			EnvVar: "BAZEL_REMOTE_S3_DISABLE_SSL",
 		},
+		cli.BoolFlag{
+			Name:   "disable_http_ac_validation",
+			Usage:  "Whether to disable ActionResult validation for HTTP requests.  Default is false (enable validation).",
+			EnvVar: "BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION",
+		},
 	}
 
 	app.Action = func(ctx *cli.Context) error {
@@ -166,6 +171,7 @@ func main() {
 				ctx.String("tls_key_file"),
 				ctx.Duration("idle_timeout"),
 				s3,
+				ctx.Bool("disable_http_ac_validation"),
 			)
 		}
 
@@ -207,7 +213,8 @@ func main() {
 			Addr:    c.Host + ":" + strconv.Itoa(c.Port),
 			Handler: mux,
 		}
-		h := server.NewHTTPCache(proxyCache, accessLogger, errorLogger)
+		validateAC := !c.DisableHTTPACValidation
+		h := server.NewHTTPCache(proxyCache, accessLogger, errorLogger, validateAC)
 		mux.HandleFunc("/status", h.StatusPageHandler)
 
 		cacheHandler := h.CacheHandler

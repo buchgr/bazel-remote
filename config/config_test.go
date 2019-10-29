@@ -17,6 +17,7 @@ max_size: 100
 htpasswd_file: /opt/.htpasswd
 tls_cert_file: /opt/tls.cert
 tls_key_file:  /opt/tls.key
+disable_http_ac_validation: true
 `
 
 	config, err := newFromYaml([]byte(yaml))
@@ -25,14 +26,15 @@ tls_key_file:  /opt/tls.key
 	}
 
 	expectedConfig := &Config{
-		Host:         "localhost",
-		Port:         8080,
-		GRPCPort:     9092,
-		Dir:          "/opt/cache-dir",
-		MaxSize:      100,
-		HtpasswdFile: "/opt/.htpasswd",
-		TLSCertFile:  "/opt/tls.cert",
-		TLSKeyFile:   "/opt/tls.key",
+		Host:                    "localhost",
+		Port:                    8080,
+		GRPCPort:                9092,
+		Dir:                     "/opt/cache-dir",
+		MaxSize:                 100,
+		HtpasswdFile:            "/opt/.htpasswd",
+		TLSCertFile:             "/opt/tls.cert",
+		TLSKeyFile:              "/opt/tls.key",
+		DisableHTTPACValidation: true,
 	}
 
 	if !reflect.DeepEqual(config, expectedConfig) {

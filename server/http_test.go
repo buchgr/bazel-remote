@@ -32,7 +32,7 @@ func TestDownloadFile(t *testing.T) {
 	}
 
 	c := disk.New(cacheDir, 1024)
-	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger())
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true)
 
 	req, err := http.NewRequest("GET", "/cas/"+hash, bytes.NewReader([]byte{}))
 	if err != nil {
@@ -83,7 +83,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 	}
 
 	c := disk.New(cacheDir, 1000*1024)
-	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger())
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true)
 	handler := http.HandlerFunc(h.CacheHandler)
 
 	var wg sync.WaitGroup
@@ -139,7 +139,7 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 	data, hash := testutils.RandomDataAndHash(1024)
 
 	c := disk.New(cacheDir, 1024)
-	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger())
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true)
 	handler := http.HandlerFunc(h.CacheHandler)
 
 	var wg sync.WaitGroup
@@ -184,7 +184,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 	}
 
 	c := disk.New(cacheDir, 2048)
-	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger())
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true)
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.CacheHandler)
 	handler.ServeHTTP(rr, r)
@@ -222,7 +222,7 @@ func TestStatusPage(t *testing.T) {
 	}
 
 	c := disk.New(cacheDir, 2048)
-	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger())
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true)
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.StatusPageHandler)
 	handler.ServeHTTP(rr, r)
@@ -248,7 +248,7 @@ func TestStatusPage(t *testing.T) {
 
 func TestParseRequestURL(t *testing.T) {
 	{
-		_, _, err := parseRequestURL("invalid/url")
+		_, _, err := parseRequestURL("invalid/url", true)
 		if err == nil {
 			t.Error("Failed to reject an invalid URL")
 		}
@@ -257,7 +257,7 @@ func TestParseRequestURL(t *testing.T) {
 	const aSha256sum = "fec3be77b8aa0d307ed840581ded3d114c86f36d4914c81e33a72877020c0603"
 
 	{
-		kind, hash, err := parseRequestURL("cas/" + aSha256sum)
+		kind, hash, err := parseRequestURL("cas/"+aSha256sum, true)
 		if err != nil {
 			t.Error("Failed to parse a valid CAS URL")
 		}
@@ -265,12 +265,12 @@ func TestParseRequestURL(t *testing.T) {
 			t.Error("Cache key parsed incorrectly")
 		}
 		if kind != cache.CAS {
-			t.Errorf("Expected kind CAS but got AC")
+			t.Errorf("Expected kind CAS but got %s", kind)
 		}
 	}
 
 	{
-		kind, hash, err := parseRequestURL("ac/" + aSha256sum)
+		kind, hash, err := parseRequestURL("ac/"+aSha256sum, true)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL")
 		}
@@ -278,12 +278,12 @@ func TestParseRequestURL(t *testing.T) {
 			t.Error("Cache key parsed incorrectly")
 		}
 		if kind != cache.AC {
-			t.Error("Expected kind AC but got CAS")
+			t.Errorf("Expected kind AC but got %s", kind)
 		}
 	}
 
 	{
-		kind, hash, err := parseRequestURL("prefix/ac/" + aSha256sum)
+		kind, hash, err := parseRequestURL("prefix/ac/"+aSha256sum, true)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL with prefix")
 		}
@@ -291,7 +291,20 @@ func TestParseRequestURL(t *testing.T) {
 			t.Error("Cache key parsed incorrectly")
 		}
 		if kind != cache.AC {
-			t.Error("Expected kind AC but got CAS")
+			t.Errorf("Expected kind AC but got %s", kind)
+		}
+	}
+
+	{
+		kind, hash, err := parseRequestURL("prefix/ac/"+aSha256sum, false)
+		if err != nil {
+			t.Error("Failed to parse a valid AC URL with prefix")
+		}
+		if hash != aSha256sum {
+			t.Error("Cache key parsed incorrectly")
+		}
+		if kind != cache.RAW {
+			t.Errorf("Expected kind RAW but got %s", kind)
 		}
 	}
 }
@@ -345,7 +358,7 @@ func (r fakeResponseWriter) WriteHeader(statusCode int) {
 
 func TestRemoteReturnsNotFound(t *testing.T) {
 	fake := &fakeCache{}
-	h := NewHTTPCache(fake, testutils.NewSilentLogger(), testutils.NewSilentLogger())
+	h := NewHTTPCache(fake, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true)
 	// create a fake http.Request
 	_, hash := testutils.RandomDataAndHash(1024)
 	url, _ := url.Parse(fmt.Sprintf("http://localhost:8080/ac/%s", hash))
