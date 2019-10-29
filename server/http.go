@@ -196,7 +196,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			// We need the content-length header to make sure we have enough disk space.
 			msg := fmt.Sprintf("PUT without Content-Length (key = %s)", path(kind, hash))
 			http.Error(w, msg, http.StatusBadRequest)
-			h.errorLogger.Printf("%s", msg)
+			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
 			return
 		}
 
@@ -206,17 +206,25 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 			data, err := ioutil.ReadAll(rc)
 			if err != nil {
-				msg := "Failed to read request body"
-				http.Error(w, msg, http.StatusBadRequest) // find a better status
-				h.errorLogger.Printf("%s", msg)
+				msg := "failed to read request body"
+				http.Error(w, msg, http.StatusInternalServerError)
+				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
+				return
+			}
+
+			if len(data) == 0 {
+				msg := "rejecting empty ActionResult"
+				http.Error(w, msg, http.StatusBadRequest)
+				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
+				return
 			}
 
 			ar := &pb.ActionResult{}
 			err = proto.Unmarshal(data, ar)
 			if err != nil {
-				msg := "Put received an invalid ActionResult"
+				msg := "received an invalid ActionResult"
 				http.Error(w, msg, http.StatusBadRequest)
-				h.errorLogger.Printf("%s", msg)
+				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
 				return
 			}
 

@@ -212,6 +212,47 @@ func TestUploadCorruptedFile(t *testing.T) {
 	}
 }
 
+func TestUploadEmptyActionResult(t *testing.T) {
+	cacheDir := testutils.CreateTmpCacheDirs(t)
+	defer os.RemoveAll(cacheDir)
+
+	data, hash := testutils.RandomDataAndHash(0)
+
+	r, err := http.NewRequest("PUT", "/ac/"+hash, bytes.NewReader(data))
+	if err != nil {
+		t.Error(err)
+	}
+
+	c := disk.New(cacheDir, 2048)
+	validate := true
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), validate)
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(h.CacheHandler)
+	handler.ServeHTTP(rr, r)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Error("Handler returned wrong status code",
+			"expected ", http.StatusBadRequest,
+			"got ", status)
+	}
+
+	// Check that no file was saved in the cache
+	f, err := os.Open(cacheDir)
+	defer f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries, err := f.Readdir(-1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fileEntry := range entries {
+		if !fileEntry.IsDir() {
+			t.Error("Unexpected file in the cache ", fileEntry.Name())
+		}
+	}
+}
+
 func TestStatusPage(t *testing.T) {
 	cacheDir := testutils.CreateTmpCacheDirs(t)
 	defer os.RemoveAll(cacheDir)
