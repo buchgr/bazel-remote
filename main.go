@@ -27,7 +27,14 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+const (
+	logFlags = log.Ldate | log.Ltime | log.LUTC
+)
+
 func main() {
+
+	log.SetFlags(logFlags)
+
 	app := cli.NewApp()
 	app.Description = "A remote build cache for Bazel."
 	app.Usage = "A remote build cache for Bazel"
@@ -181,8 +188,8 @@ func main() {
 			return nil
 		}
 
-		accessLogger := log.New(os.Stdout, "", log.Ldate|log.Ltime|log.LUTC)
-		errorLogger := log.New(os.Stderr, "", log.Ldate|log.Ltime|log.LUTC)
+		accessLogger := log.New(os.Stdout, "", logFlags)
+		errorLogger := log.New(os.Stderr, "", logFlags)
 
 		diskCache := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024)
 
