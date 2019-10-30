@@ -150,7 +150,7 @@ func (c *diskCache) loadExistingFiles() error {
 	return nil
 }
 
-func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.Reader) (err error) {
+func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.Reader) error {
 	c.mux.Lock()
 
 	key := cacheKey(kind, hash)
@@ -163,7 +163,7 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 		if !existingItem.(*lruItem).committed {
 			c.mux.Unlock()
 			io.Copy(ioutil.Discard, r)
-			return
+			return nil
 		}
 	}
 
@@ -199,7 +199,7 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 	// Download to a temporary file
 	f, err := ioutil.TempFile(c.dir, "upload")
 	if err != nil {
-		return
+		return err
 	}
 	defer func() {
 		if !shouldCommit {
@@ -214,17 +214,16 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 	if kind == cache.CAS {
 		hasher := sha256.New()
 		if bytesCopied, err = io.Copy(io.MultiWriter(f, hasher), r); err != nil {
-			return
+			return err
 		}
 		actualHash := hex.EncodeToString(hasher.Sum(nil))
 		if actualHash != hash {
-			err = fmt.Errorf(
+			return fmt.Errorf(
 				"hashsums don't match. Expected %s, found %s", key, actualHash)
-			return
 		}
 	} else {
 		if bytesCopied, err = io.Copy(f, r); err != nil {
-			return
+			return err
 		}
 	}
 
@@ -237,9 +236,8 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 	}
 
 	if bytesCopied != expectedSize {
-		err = fmt.Errorf(
+		return fmt.Errorf(
 			"sizes don't match. Expected %d, found %d", expectedSize, bytesCopied)
-		return err
 	}
 
 	// Rename to the final path
@@ -251,28 +249,28 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 		shouldCommit = true
 	}
 
-	return
+	return err
 }
 
 func (c *diskCache) Get(kind cache.EntryKind, hash string) (rdr io.ReadCloser, sizeBytes int64, err error) {
 	if !c.Contains(kind, hash) {
-		return
+		return nil, 0, nil
 	}
 
 	blobPath := cacheFilePath(kind, c.dir, hash)
 
 	fileInfo, err := os.Stat(blobPath)
 	if err != nil {
-		return
+		return nil, 0, err
 	}
 	sizeBytes = fileInfo.Size()
 
 	rdr, err = os.Open(blobPath)
 	if err != nil {
-		return
+		return nil, 0, err
 	}
 
-	return
+	return rdr, sizeBytes, nil
 }
 
 func (c *diskCache) Contains(kind cache.EntryKind, hash string) (ok bool) {
