@@ -54,6 +54,9 @@ func uploadFile(remote *http.Client, baseURL *url.URL, local cache.Cache, access
 	if err != nil {
 		return
 	}
+	io.Copy(ioutil.Discard, rsp.Body)
+	rsp.Body.Close()
+
 	logResponse(accessLogger, "PUT", rsp.StatusCode, url)
 	return
 }
