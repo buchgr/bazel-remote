@@ -234,6 +234,11 @@ func main() {
 		mux.HandleFunc("/", cacheHandler)
 
 		if c.GRPCPort > 0 {
+
+			if c.GRPCPort == c.Port {
+				log.Fatalf("Error: gRPC and HTTP ports (%d) conflict", c.Port)
+			}
+
 			go func() {
 				addr := c.Host + ":" + strconv.Itoa(c.GRPCPort)
 
@@ -248,6 +253,8 @@ func main() {
 					opts = append(opts, grpc.Creds(creds))
 				}
 
+				log.Printf("Starting gRPC server on address %s", addr)
+
 				err = server.ListenAndServeGRPC(addr, opts,
 					proxyCache, accessLogger, errorLogger)
 				if err != nil {
@@ -257,8 +264,11 @@ func main() {
 		}
 
 		if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
+			log.Printf("Starting HTTPS server on address %s", httpServer.Addr)
 			return httpServer.ListenAndServeTLS(c.TLSCertFile, c.TLSKeyFile)
 		}
+
+		log.Printf("Starting HTTP server on address %s", httpServer.Addr)
 		return httpServer.ListenAndServe()
 	}
 
