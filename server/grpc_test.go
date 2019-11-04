@@ -185,6 +185,30 @@ func TestGrpcAc(t *testing.T) {
 		checkBadDigestErr(t, err, tc)
 	}
 
+	zeroActionResult := pb.ActionResult{}
+	zeroData, err := proto.Marshal(&zeroActionResult)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(zeroData) != 0 {
+		t.Fatal("expected a zero-sized test blob")
+	}
+	_, zeroHash := testutils.RandomDataAndHash(0)
+	zeroDigest := pb.Digest{
+		Hash:      zeroHash,
+		SizeBytes: 0,
+	}
+	zeroReq := pb.UpdateActionResultRequest{
+		ActionDigest: &zeroDigest,
+		ActionResult: &zeroActionResult,
+	}
+	_, err = acClient.UpdateActionResult(ctx, &zeroReq)
+	s, ok = status.FromError(err)
+	if !ok || s.Code() != codes.InvalidArgument ||
+		err.Error() != errEmptyActionResult.Error() {
+		t.Fatal("expected empty ActionResult to be rejected", err)
+	}
+
 	// GetActionResultRequest again, expect cache hit.
 
 	gacrResp, err = acClient.GetActionResult(ctx, &getReq)

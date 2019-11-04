@@ -13,6 +13,11 @@ import (
 	"github.com/buchgr/bazel-remote/cache"
 )
 
+var (
+	errEmptyActionResult = status.Error(codes.InvalidArgument,
+		"rejecting empty ActionResult")
+)
+
 // ActionCache interface:
 
 func (s *grpcServer) GetActionResult(ctx context.Context,
@@ -55,6 +60,12 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 	if err != nil {
 		s.accessLogger.Printf("%s %s %s", errorPrefix, req.ActionDigest.Hash, err)
 		return nil, status.Error(codes.Unknown, err.Error())
+	}
+
+	if len(data) == 0 {
+		s.accessLogger.Printf("%s %s %s", errorPrefix, req.ActionDigest.Hash,
+			errEmptyActionResult.Error())
+		return nil, errEmptyActionResult
 	}
 
 	err = s.cache.Put(cache.AC, req.ActionDigest.Hash,
