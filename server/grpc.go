@@ -84,6 +84,8 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 		HighApiVersion: &semver.SemVer{Major: int32(2)},
 	}
 
+	s.accessLogger.Printf("GRPC GETCAPABILITIES")
+
 	return &resp, nil
 }
 
