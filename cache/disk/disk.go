@@ -102,6 +102,7 @@ func (c *diskCache) migrateDirectories() error {
 }
 
 func migrateDirectory(dir string) error {
+	log.Printf("Migrating files (if any) to new directory structure: %s\n", dir)
 	return filepath.Walk(dir, func(name string, info os.FileInfo, err error) error {
 		if info.IsDir() {
 			if name == dir {
@@ -119,6 +120,8 @@ func migrateDirectory(dir string) error {
 // LRU index so that they can be served. Files are sorted by access time first,
 // so that the eviction behavior is preserved across server restarts.
 func (c *diskCache) loadExistingFiles() error {
+	log.Printf("Loading existing files in %s.\n", c.dir)
+
 	// Walk the directory tree
 	type NameAndInfo struct {
 		info os.FileInfo
@@ -135,11 +138,13 @@ func (c *diskCache) loadExistingFiles() error {
 		return err
 	}
 
+	log.Println("Sorting cache files by atime.")
 	// Sort in increasing order of atime
 	sort.Slice(files, func(i int, j int) bool {
 		return atime.Get(files[i].info).Before(atime.Get(files[j].info))
 	})
 
+	log.Println("Building LRU index.")
 	for _, f := range files {
 		relPath := f.name[len(c.dir)+1:]
 		c.lru.Add(relPath, &lruItem{
@@ -147,6 +152,8 @@ func (c *diskCache) loadExistingFiles() error {
 			committed: true,
 		})
 	}
+
+	log.Println("Finished loading disk cache files.")
 	return nil
 }
 
