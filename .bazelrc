@@ -1,0 +1,3 @@
+# Include git version info
+build --stamp
+build --workspace_status_command 'echo STABLE_GIT_COMMIT $(git rev-parse HEAD)'

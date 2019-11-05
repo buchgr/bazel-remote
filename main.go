@@ -31,9 +31,17 @@ const (
 	logFlags = log.Ldate | log.Ltime | log.LUTC
 )
 
+// gitCommit is the version stamp for the server. The value of this var
+// is set through linker options.
+var gitCommit string
+
 func main() {
 
 	log.SetFlags(logFlags)
+
+	if len(gitCommit) > 0 && gitCommit != "{STABLE_GIT_COMMIT}" {
+		log.Printf("bazel-remote built from git commit %s.", gitCommit)
+	}
 
 	app := cli.NewApp()
 	app.Description = "A remote build cache for Bazel."
@@ -221,7 +229,7 @@ func main() {
 			Handler: mux,
 		}
 		validateAC := !c.DisableHTTPACValidation
-		h := server.NewHTTPCache(proxyCache, accessLogger, errorLogger, validateAC)
+		h := server.NewHTTPCache(proxyCache, accessLogger, errorLogger, validateAC, gitCommit)
 		mux.HandleFunc("/status", h.StatusPageHandler)
 
 		cacheHandler := h.CacheHandler
