@@ -173,6 +173,16 @@ func TestGrpcAc(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// We expect the returned metadata to have changed.
+	if upACResp.ExecutionMetadata == nil {
+		t.Fatal("Error: expected ExecutionMetadata to be non-nil")
+	}
+	if upACResp.ExecutionMetadata.Worker != "bufconn" {
+		t.Fatal("Error: expected ExecutionMetadata.Worker to be set")
+	}
+	// Remove the metadata so we can compare with the request.
+	upACResp.ExecutionMetadata = nil
+
 	if !proto.Equal(&ar, upACResp) {
 		t.Fatal("Error: uploaded and returned ActionResult differ")
 	}
@@ -202,11 +212,23 @@ func TestGrpcAc(t *testing.T) {
 		ActionDigest: &zeroDigest,
 		ActionResult: &zeroActionResult,
 	}
-	_, err = acClient.UpdateActionResult(ctx, &zeroReq)
-	s, ok = status.FromError(err)
-	if !ok || s.Code() != codes.InvalidArgument ||
-		err.Error() != errEmptyActionResult.Error() {
-		t.Fatal("expected empty ActionResult to be rejected", err)
+	zeroResp, err := acClient.UpdateActionResult(ctx, &zeroReq)
+	if proto.Equal(&zeroReq, zeroResp) {
+		t.Fatal("expected non-zero ActionResult to be returned")
+	}
+
+	// We expect the returned metadata to have changed.
+	if zeroResp.ExecutionMetadata == nil {
+		t.Fatal("Error: expected ExecutionMetadata to be non-nil")
+	}
+	if zeroResp.ExecutionMetadata.Worker != "bufconn" {
+		t.Fatal("Error: expected ExecutionMetadata.Worker to be set")
+	}
+	// Remove the metadata so we can compare with the request.
+	zeroResp.ExecutionMetadata = nil
+
+	if !proto.Equal(zeroReq.ActionResult, zeroResp) {
+		t.Fatal("expected returned ActionResult to only differ by ExecutionMetadata")
 	}
 
 	// GetActionResultRequest again, expect cache hit.
@@ -215,6 +237,16 @@ func TestGrpcAc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// We expect the returned metadata to have changed.
+	if gacrResp.ExecutionMetadata == nil {
+		t.Fatal("Error: expected ExecutionMetadata to be non-nil")
+	}
+	if gacrResp.ExecutionMetadata.Worker != "bufconn" {
+		t.Fatal("Error: expected ExecutionMetadata.Worker to be set")
+	}
+	// Remove the metadata so we can compare with the request.
+	gacrResp.ExecutionMetadata = nil
 
 	if !proto.Equal(&ar, gacrResp) {
 		t.Fatal("Error: uploaded and returned ActionResult differ")
