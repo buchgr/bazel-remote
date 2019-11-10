@@ -199,6 +199,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
 			return
 		}
+		contentLength := r.ContentLength
 
 		rc := r.Body
 		if h.validateAC && kind == cache.AC {
@@ -212,21 +213,22 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if len(data) == 0 {
-				msg := "rejecting empty ActionResult"
+			if int64(len(data)) != contentLength {
+				msg := fmt.Sprintf("sizes don't match. Expected %d, found %d",
+					contentLength, len(data))
 				http.Error(w, msg, http.StatusBadRequest)
 				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
 				return
 			}
 
-			ar := &pb.ActionResult{}
-			err = proto.Unmarshal(data, ar)
+			// Ensure that the serialized ActionResult has non-zero length.
+			data, code, err := addWorkerMetadataHTTP(r.RemoteAddr, data)
 			if err != nil {
-				msg := "received an invalid ActionResult"
-				http.Error(w, msg, http.StatusBadRequest)
-				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
+				http.Error(w, err.Error(), code)
+				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), err.Error())
 				return
 			}
+			contentLength = int64(len(data))
 
 			// Note: we do not currently verify that the blobs exist
 			// in the CAS.
@@ -234,7 +236,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			rc = ioutil.NopCloser(bytes.NewReader(data))
 		}
 
-		err := h.cache.Put(kind, hash, r.ContentLength, rc)
+		err := h.cache.Put(kind, hash, contentLength, rc)
 		if err != nil {
 			if cerr, ok := err.(*cache.Error); ok {
 				http.Error(w, err.Error(), cerr.Code)
@@ -269,6 +271,37 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, msg, http.StatusMethodNotAllowed)
 		h.logResponse(http.StatusMethodNotAllowed, r)
 	}
+}
+
+func addWorkerMetadataHTTP(addr string, orig []byte) (data []byte, code int, err error) {
+	ar := &pb.ActionResult{}
+	err = proto.Unmarshal(orig, ar)
+	if err != nil {
+		return orig, http.StatusBadRequest, err
+	}
+
+	if ar.ExecutionMetadata == nil {
+		ar.ExecutionMetadata = &pb.ExecutedActionMetadata{}
+	} else if ar.ExecutionMetadata.Worker != "" {
+		return orig, http.StatusOK, nil
+	}
+
+	worker := addr
+	if worker == "" {
+		worker, _, err = net.SplitHostPort(addr)
+		if err != nil || worker == "" {
+			worker = "unknown"
+		}
+	}
+
+	ar.ExecutionMetadata.Worker = worker
+
+	data, err = proto.Marshal(ar)
+	if err != nil {
+		return orig, http.StatusInternalServerError, err
+	}
+
+	return data, http.StatusOK, nil
 }
 
 // Produce a debugging page with some stats about the cache.

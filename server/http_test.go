@@ -17,9 +17,11 @@ import (
 	"testing"
 
 	"github.com/buchgr/bazel-remote/cache"
-
 	"github.com/buchgr/bazel-remote/cache/disk"
 	"github.com/buchgr/bazel-remote/utils"
+
+	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/golang/protobuf/proto"
 )
 
 func TestDownloadFile(t *testing.T) {
@@ -220,7 +222,7 @@ func TestUploadEmptyActionResult(t *testing.T) {
 
 	r, err := http.NewRequest("PUT", "/ac/"+hash, bytes.NewReader(data))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	c := disk.New(cacheDir, 2048)
@@ -230,26 +232,37 @@ func TestUploadEmptyActionResult(t *testing.T) {
 	handler := http.HandlerFunc(h.CacheHandler)
 	handler.ServeHTTP(rr, r)
 
-	if status := rr.Code; status != http.StatusBadRequest {
-		t.Error("Handler returned wrong status code",
-			"expected ", http.StatusBadRequest,
+	if status := rr.Code; status != http.StatusOK {
+		t.Fatal("Handler returned wrong status code",
+			"expected ", http.StatusOK,
 			"got ", status)
 	}
 
-	// Check that no file was saved in the cache
-	f, err := os.Open(cacheDir)
-	defer f.Close()
+	cacheFile := filepath.Join(cacheDir, "ac", hash[:2], hash)
+	cachedData, err := ioutil.ReadFile(cacheFile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	entries, err := f.Readdir(-1)
+	if len(cachedData) == 0 {
+		t.Fatal("expected non-zero length ActionResult to be cached")
+	}
+
+	ar := pb.ActionResult{}
+	err = proto.Unmarshal(cachedData, &ar)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, fileEntry := range entries {
-		if !fileEntry.IsDir() {
-			t.Error("Unexpected file in the cache ", fileEntry.Name())
-		}
+	if ar.ExecutionMetadata == nil {
+		t.Fatal("expected non-nil ExecutionMetadata")
+	}
+	ar.ExecutionMetadata = nil
+
+	remarshaled, err := proto.Marshal(&ar)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(remarshaled) != 0 {
+		t.Fatal("expected zero-length blob once the metadata is stripped")
 	}
 }
 

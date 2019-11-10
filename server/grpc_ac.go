@@ -4,17 +4,22 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
+	"strings"
 
 	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	"github.com/buchgr/bazel-remote/cache"
 )
 
 var (
-	errEmptyActionResult = status.Error(codes.InvalidArgument,
+	// This is an Internal error rather than InvalidArgument because
+	// we modify incoming ActionResults to make them non-zero.
+	errEmptyActionResult = status.Error(codes.Internal,
 		"rejecting empty ActionResult")
 )
 
@@ -56,6 +61,9 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 		return nil, err
 	}
 
+	// Ensure that the serialized ActionResult has non-zero length.
+	addWorkerMetadataGRPC(ctx, req.ActionResult)
+
 	data, err := proto.Marshal(req.ActionResult)
 	if err != nil {
 		s.accessLogger.Printf("%s %s %s", errorPrefix, req.ActionDigest.Hash, err)
@@ -81,4 +89,39 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 	// request, in order to follow this standard method style guide:
 	// https://cloud.google.com/apis/design/standard_methods
 	return req.ActionResult, nil
+}
+
+func addWorkerMetadataGRPC(ctx context.Context, ar *pb.ActionResult) {
+	if ar.ExecutionMetadata == nil {
+		ar.ExecutionMetadata = &pb.ExecutedActionMetadata{}
+	} else if ar.ExecutionMetadata.Worker != "" {
+		return
+	}
+
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		ar.ExecutionMetadata.Worker = "unknown"
+		return
+	}
+
+	addr := p.Addr.String()
+
+	if addr == "" {
+		ar.ExecutionMetadata.Worker = "unknown"
+		return
+	}
+
+	if !strings.ContainsAny(addr, ":") {
+		// The addr in our unit tests is "bufconn".
+		ar.ExecutionMetadata.Worker = addr
+		return
+	}
+
+	worker, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		ar.ExecutionMetadata.Worker = addr
+		return
+	}
+
+	ar.ExecutionMetadata.Worker = worker
 }
