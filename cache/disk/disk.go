@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"sync"
 
@@ -40,21 +41,36 @@ type diskCache struct {
 func New(dir string, maxSizeBytes int64) cache.Cache {
 	// Create the directory structure.
 	hexLetters := []byte("0123456789abcdef")
+	dirs := make([]string, len(hexLetters)*len(hexLetters)*3)
+	idx := 0
+
 	for _, c1 := range hexLetters {
 		for _, c2 := range hexLetters {
 			subDir := string(c1) + string(c2)
-			err := os.MkdirAll(filepath.Join(dir, cache.CAS.String(), subDir), os.FileMode(0744))
+
+			casSubDir := filepath.Join(dir, cache.CAS.String(), subDir)
+			err := os.MkdirAll(casSubDir, os.FileMode(0777))
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = os.MkdirAll(filepath.Join(dir, cache.AC.String(), subDir), os.FileMode(0744))
+
+			acSubDir := filepath.Join(dir, cache.AC.String(), subDir)
+			err = os.MkdirAll(acSubDir, os.FileMode(0777))
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = os.MkdirAll(filepath.Join(dir, cache.RAW.String(), subDir), os.FileMode(0744))
+
+			rawSubDir := filepath.Join(dir, cache.RAW.String(), subDir)
+			err = os.MkdirAll(rawSubDir, os.FileMode(0777))
 			if err != nil {
 				log.Fatal(err)
 			}
+
+			dirs[idx] = acSubDir
+			dirs[idx+1] = casSubDir
+			dirs[idx+2] = rawSubDir
+
+			idx = idx + 3
 		}
 	}
 
@@ -80,7 +96,7 @@ func New(dir string, maxSizeBytes int64) cache.Cache {
 		log.Fatalf("Attempting to migrate the old directory structure to the new structure failed "+
 			"with error: %v", err)
 	}
-	err = cache.loadExistingFiles()
+	err = cache.loadExistingFiles(dirs)
 	if err != nil {
 		log.Fatalf("Loading of existing cache entries failed due to error: %v", err)
 	}
@@ -119,32 +135,60 @@ func migrateDirectory(dir string) error {
 // loadExistingFiles lists all files in the cache directory, and adds them to the
 // LRU index so that they can be served. Files are sorted by access time first,
 // so that the eviction behavior is preserved across server restarts.
-func (c *diskCache) loadExistingFiles() error {
-	log.Printf("Loading existing files in %s.\n", c.dir)
-
+func (c *diskCache) loadExistingFiles(dirs []string) error {
 	// Walk the directory tree
 	type NameAndInfo struct {
 		info os.FileInfo
 		name string
 	}
 	var files []NameAndInfo
-	err := filepath.Walk(c.dir, func(name string, info os.FileInfo, err error) error {
-		if !info.IsDir() {
-			files = append(files, NameAndInfo{info, name})
-		}
-		return nil
-	})
-	if err != nil {
-		return err
+
+	filesChan := make(chan []NameAndInfo, len(dirs))
+	workChan := make(chan string)
+	workers := runtime.NumCPU()
+
+	for i := 0; i < workers; i++ {
+		go func(workChan <-chan string, filesChan chan<- []NameAndInfo) {
+			for dir := range workChan {
+				dirFiles := make([]NameAndInfo, 0)
+
+				_ = filepath.Walk(dir, func(name string, info os.FileInfo, err error) error {
+					if !info.IsDir() {
+						dirFiles = append(dirFiles, NameAndInfo{info, name})
+					}
+					return nil
+				})
+
+				filesChan <- dirFiles
+			}
+		}(workChan, filesChan)
 	}
 
-	log.Println("Sorting cache files by atime.")
+	for _, dir := range dirs {
+		workChan <- dir
+	}
+
+	close(workChan)
+
+	i := 0
+	for f := range filesChan {
+		if len(f) > 0 {
+			files = append(files, f...)
+		}
+
+		i++
+		if i == len(dirs) {
+			break
+		}
+	}
+
+	close(filesChan)
+
 	// Sort in increasing order of atime
 	sort.Slice(files, func(i int, j int) bool {
 		return atime.Get(files[i].info).Before(atime.Get(files[j].info))
 	})
 
-	log.Println("Building LRU index.")
 	for _, f := range files {
 		relPath := f.name[len(c.dir)+1:]
 		c.lru.Add(relPath, &lruItem{
@@ -153,7 +197,6 @@ func (c *diskCache) loadExistingFiles() error {
 		})
 	}
 
-	log.Println("Finished loading disk cache files.")
 	return nil
 }
 
