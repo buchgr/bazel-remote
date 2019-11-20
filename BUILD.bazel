@@ -34,7 +34,7 @@ go_binary(
     pure = "on",
     static = "on",
     visibility = ["//visibility:public"],
-    x_defs = {"github.com/buchgr/bazel-remote/server.GitCommit": "{STABLE_GIT_COMMIT}"},
+    x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
 )
 
 go_image(

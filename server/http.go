@@ -31,6 +31,7 @@ type httpCache struct {
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
 	validateAC   bool
+	gitCommit    string
 }
 
 type statusPageData struct {
@@ -41,17 +42,11 @@ type statusPageData struct {
 	GitCommit  string
 }
 
-// GitCommit is the version stamp for the server. The value of this var is set through linker options.
-var GitCommit string
-
 // NewHTTPCache returns a new instance of the cache.
 // accessLogger will print one line for each HTTP request to stdout.
 // errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
 // be reported.
-func NewHTTPCache(cache cache.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool) HTTPCache {
-	if len(GitCommit) > 0 {
-		errorLogger.Printf("Server built from git commit %s.", GitCommit)
-	}
+func NewHTTPCache(cache cache.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, commit string) HTTPCache {
 	errorLogger.Printf("Loaded %d existing disk cache items.", cache.NumItems())
 
 	hc := &httpCache{
@@ -60,6 +55,11 @@ func NewHTTPCache(cache cache.Cache, accessLogger cache.Logger, errorLogger cach
 		errorLogger:  errorLogger,
 		validateAC:   validateAC,
 	}
+
+	if commit != "{STABLE_GIT_COMMIT}" {
+		hc.gitCommit = commit
+	}
+
 	return hc
 }
 
@@ -283,7 +283,7 @@ func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 		MaxSize:    h.cache.MaxSize(),
 		NumFiles:   h.cache.NumItems(),
 		ServerTime: time.Now().Unix(),
-		GitCommit:  GitCommit,
+		GitCommit:  h.gitCommit,
 	})
 }
 
