@@ -31,7 +31,7 @@ func (i *lruItem) Size() int64 {
 // diskCache is an implementation of the cache backed by files on a filesystem.
 type diskCache struct {
 	dir string
-	mux *sync.RWMutex
+	mu  *sync.Mutex
 	lru SizedLRU
 }
 
@@ -71,7 +71,7 @@ func New(dir string, maxSizeBytes int64) cache.Cache {
 
 	cache := &diskCache{
 		dir: filepath.Clean(dir),
-		mux: &sync.RWMutex{},
+		mu:  &sync.Mutex{},
 		lru: NewSizedLRU(maxSizeBytes, onEvict),
 	}
 
@@ -158,7 +158,7 @@ func (c *diskCache) loadExistingFiles() error {
 }
 
 func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.Reader) error {
-	c.mux.Lock()
+	c.mu.Lock()
 
 	key := cacheKey(kind, hash)
 
@@ -168,7 +168,7 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 	// condition on the bazel side) but it's useful to overwrite poisoned items.
 	if existingItem, found := c.lru.Get(key); found {
 		if !existingItem.(*lruItem).committed {
-			c.mux.Unlock()
+			c.mu.Unlock()
 			io.Copy(ioutil.Discard, r)
 			return nil
 		}
@@ -180,7 +180,7 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 		committed: false,
 	}
 	ok := c.lru.Add(key, newItem)
-	c.mux.Unlock()
+	c.mu.Unlock()
 	if !ok {
 		return &cache.Error{
 			Code: http.StatusInsufficientStorage,
@@ -193,8 +193,8 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 	// but this stuff is really easy to get wrong without defer().
 	shouldCommit := false
 	defer func() {
-		c.mux.Lock()
-		defer c.mux.Unlock()
+		c.mu.Lock()
+		defer c.mu.Unlock()
 
 		if shouldCommit {
 			newItem.committed = true
@@ -282,8 +282,8 @@ func (c *diskCache) Get(kind cache.EntryKind, hash string) (rdr io.ReadCloser, s
 }
 
 func (c *diskCache) Contains(kind cache.EntryKind, hash string) (ok bool) {
-	c.mux.Lock()
-	defer c.mux.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	val, found := c.lru.Get(cacheKey(kind, hash))
 	// Uncommitted (i.e. uploading items) should be reported as not ok
@@ -291,20 +291,19 @@ func (c *diskCache) Contains(kind cache.EntryKind, hash string) (ok bool) {
 }
 
 func (c *diskCache) NumItems() int {
-	c.mux.Lock()
-	defer c.mux.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.lru.Len()
 }
 
 func (c *diskCache) MaxSize() int64 {
-	c.mux.Lock()
-	defer c.mux.Unlock()
+	// The underlying value is never modified, no need to lock.
 	return c.lru.MaxSize()
 }
 
 func (c *diskCache) CurrentSize() int64 {
-	c.mux.Lock()
-	defer c.mux.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.lru.CurrentSize()
 }
 
