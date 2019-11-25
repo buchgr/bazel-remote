@@ -289,27 +289,24 @@ func main() {
 func wrapIdleHandler(handler http.HandlerFunc, idleTimeout time.Duration, accessLogger cache.Logger, httpServer *http.Server) http.HandlerFunc {
 	lastRequest := time.Now()
 	ticker := time.NewTicker(time.Second)
-	var m sync.Mutex
+	var mu sync.Mutex
 	go func() {
-		for {
-			select {
-			case now := <-ticker.C:
-				m.Lock()
-				elapsed := now.Sub(lastRequest)
-				m.Unlock()
-				if elapsed > idleTimeout {
-					ticker.Stop()
-					accessLogger.Printf("Shutting down server after having been idle for %v", idleTimeout)
-					httpServer.Shutdown(context.Background())
-				}
+		for now := range ticker.C {
+			mu.Lock()
+			elapsed := now.Sub(lastRequest)
+			mu.Unlock()
+			if elapsed > idleTimeout {
+				ticker.Stop()
+				accessLogger.Printf("Shutting down server after having been idle for %v", idleTimeout)
+				httpServer.Shutdown(context.Background())
 			}
 		}
 	}()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
-		m.Lock()
+		mu.Lock()
 		lastRequest = now
-		m.Unlock()
+		mu.Unlock()
 		handler(w, r)
 	})
 }
