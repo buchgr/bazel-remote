@@ -290,6 +290,7 @@ func wrapIdleHandler(handler http.HandlerFunc, idleTimeout time.Duration, access
 	lastRequest := time.Now()
 	ticker := time.NewTicker(time.Second)
 	var mu sync.Mutex
+
 	go func() {
 		for now := range ticker.C {
 			mu.Lock()
@@ -299,9 +300,11 @@ func wrapIdleHandler(handler http.HandlerFunc, idleTimeout time.Duration, access
 				ticker.Stop()
 				accessLogger.Printf("Shutting down server after having been idle for %v", idleTimeout)
 				httpServer.Shutdown(context.Background())
+				return
 			}
 		}
 	}()
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		mu.Lock()
