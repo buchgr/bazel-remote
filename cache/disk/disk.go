@@ -43,15 +43,15 @@ func New(dir string, maxSizeBytes int64) cache.Cache {
 	for _, c1 := range hexLetters {
 		for _, c2 := range hexLetters {
 			subDir := string(c1) + string(c2)
-			err := os.MkdirAll(filepath.Join(dir, cache.CAS.String(), subDir), os.FileMode(0744))
+			err := os.MkdirAll(filepath.Join(dir, cache.CAS.String(), subDir), os.ModePerm)
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = os.MkdirAll(filepath.Join(dir, cache.AC.String(), subDir), os.FileMode(0744))
+			err = os.MkdirAll(filepath.Join(dir, cache.AC.String(), subDir), os.ModePerm)
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = os.MkdirAll(filepath.Join(dir, cache.RAW.String(), subDir), os.FileMode(0744))
+			err = os.MkdirAll(filepath.Join(dir, cache.RAW.String(), subDir), os.ModePerm)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -204,14 +204,16 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 	}()
 
 	// Download to a temporary file
-	f, err := ioutil.TempFile(c.dir, "upload")
+	filePath := cacheFilePath(kind, c.dir, hash)
+	tmpFilePath := filePath + ".tmp"
+	f, err := os.Create(tmpFilePath)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		if !shouldCommit {
 			// Only delete the temp file if moving it didn't succeed.
-			os.Remove(f.Name())
+			os.Remove(tmpFilePath)
 		}
 		// Just in case we didn't already close it.  No need to check errors.
 		f.Close()
@@ -248,8 +250,7 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 	}
 
 	// Rename to the final path
-	filePath := cacheFilePath(kind, c.dir, hash)
-	err = os.Rename(f.Name(), filePath)
+	err = os.Rename(tmpFilePath, filePath)
 	// Only commit if renaming succeeded
 	if err == nil {
 		// This flag is used by the defer() block above.
@@ -309,7 +310,7 @@ func (c *diskCache) CurrentSize() int64 {
 
 func ensureDirExists(path string) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		err = os.MkdirAll(path, os.FileMode(0744))
+		err = os.MkdirAll(path, os.ModePerm)
 		if err != nil {
 			log.Fatal(err)
 		}
