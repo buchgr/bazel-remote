@@ -81,7 +81,7 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 			SymlinkAbsolutePathStrategy: pb.SymlinkAbsolutePathStrategy_ALLOWED,
 		},
 		LowApiVersion:  &semver.SemVer{Major: int32(2)},
-		HighApiVersion: &semver.SemVer{Major: int32(2)},
+		HighApiVersion: &semver.SemVer{Major: int32(2), Minor: int32(1)},
 	}
 
 	s.accessLogger.Printf("GRPC GETCAPABILITIES")
