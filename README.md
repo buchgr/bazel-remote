@@ -8,6 +8,9 @@ size and bazel-remote will automatically enforce this limit and clean the cache 
 last access time. The cache supports HTTP basic authentication with usernames and passwords being specified by a
 `.htpasswd` file.
 
+**Project status**: bazel-remote has been serving TBs of cache artifacts per day since April 2018, both on
+commodity hardware and AWS servers. Outgoing bandwidth can exceed 15 Gbit/s on the right AWS instance type.
+
 ## HTTP/1.1 REST API
 
 Cache entries are set and retrieved by key, and there are two types of keys that can be used:
@@ -25,9 +28,6 @@ whether a key exists or not.
 bazel-remote also has experimental support for the ActionCache, ContentAddressableStorage and Capabilities services in the
 [Bazel Remote Execution API v2](https://github.com/bazelbuild/remote-apis/blob/master/build/bazel/remote/execution/v2/remote_execution.proto),
 and the corresponding parts of the [Byte Stream API](https://github.com/googleapis/googleapis/blob/master/google/bytestream/bytestream.proto).
-
-**Project status**: bazel-remote has been serving TBs of cache artifacts per day since April 2018, both on
-commodity hardware and AWS servers. Outgoing bandwidth can exceed 15 Gbit/s on the right AWS instance type.
 
 ## Usage
 
