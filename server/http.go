@@ -47,7 +47,10 @@ type statusPageData struct {
 // errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
 // be reported.
 func NewHTTPCache(cache cache.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, commit string) HTTPCache {
-	errorLogger.Printf("Loaded %d existing disk cache items.", cache.NumItems())
+
+	_, numItems := cache.Stats()
+
+	errorLogger.Printf("Loaded %d existing disk cache items.", numItems)
 
 	hc := &httpCache{
 		cache:        cache,
@@ -308,13 +311,15 @@ func addWorkerMetadataHTTP(addr string, orig []byte) (data []byte, code int, err
 func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
+	currentSize, numItems := h.cache.Stats()
+
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", " ")
 	enc.Encode(statusPageData{
-		CurrSize:   h.cache.CurrentSize(),
 		MaxSize:    h.cache.MaxSize(),
-		NumFiles:   h.cache.NumItems(),
+		CurrSize:   currentSize,
+		NumFiles:   numItems,
 		ServerTime: time.Now().Unix(),
 		GitCommit:  h.gitCommit,
 	})

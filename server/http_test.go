@@ -385,11 +385,8 @@ func (f *fakeCache) MaxSize() int64 {
 	return 0
 }
 
-func (f *fakeCache) CurrentSize() int64 {
-	return 0
-}
-func (f *fakeCache) NumItems() int {
-	return 0
+func (f *fakeCache) Stats() (int64, int) {
+	return 0, 0
 }
 
 type fakeResponseWriter struct {

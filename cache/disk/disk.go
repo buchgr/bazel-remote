@@ -290,21 +290,16 @@ func (c *diskCache) Contains(kind cache.EntryKind, hash string) (ok bool) {
 	return found && val.(*lruItem).committed
 }
 
-func (c *diskCache) NumItems() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.lru.Len()
-}
-
 func (c *diskCache) MaxSize() int64 {
 	// The underlying value is never modified, no need to lock.
 	return c.lru.MaxSize()
 }
 
-func (c *diskCache) CurrentSize() int64 {
+func (c *diskCache) Stats() (currentSize int64, numItems int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.lru.CurrentSize()
+
+	return c.lru.CurrentSize(), c.lru.Len()
 }
 
 func ensureDirExists(path string) {

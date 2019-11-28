@@ -165,12 +165,8 @@ func (r *remoteHTTPProxyCache) MaxSize() int64 {
 	return r.local.MaxSize()
 }
 
-func (r *remoteHTTPProxyCache) CurrentSize() int64 {
-	return r.local.CurrentSize()
-}
-
-func (r *remoteHTTPProxyCache) NumItems() int {
-	return r.local.NumItems()
+func (r *remoteHTTPProxyCache) Stats() (currentSize int64, numItems int) {
+	return r.local.Stats()
 }
 
 func requestURL(baseURL *url.URL, hash string, kind cache.EntryKind) string {

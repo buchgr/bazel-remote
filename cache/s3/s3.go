@@ -161,10 +161,6 @@ func (c *s3Cache) MaxSize() int64 {
 	return c.local.MaxSize()
 }
 
-func (c *s3Cache) CurrentSize() int64 {
-	return c.local.CurrentSize()
-}
-
-func (c *s3Cache) NumItems() int {
-	return c.local.NumItems()
+func (c *s3Cache) Stats() (currentSize int64, numItems int) {
+	return c.local.Stats()
 }

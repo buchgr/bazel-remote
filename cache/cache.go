@@ -69,11 +69,9 @@ type Cache interface {
 	// MaxSize returns the maximum cache size in bytes.
 	MaxSize() int64
 
-	// CurrentSize returns the current cache size in bytes.
-	CurrentSize() int64
-
-	// NumItems returns the number of items stored in the cache.
-	NumItems() int
+	// Return the current size of the cache in bytes, and the number of
+	// items stored in the cache.
+	Stats() (int64, int)
 }
 
 // If `hash` refers to a valid ActionResult with all the dependencies
