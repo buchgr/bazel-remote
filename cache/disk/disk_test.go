@@ -340,8 +340,9 @@ func TestMigrateFromOldDirectoryStructure(t *testing.T) {
 		t.Fatal(err)
 	}
 	testCache := New(cacheDir, 2560)
-	if testCache.NumItems() != 3 {
-		t.Fatalf("Expected test cache size 3 but was %d", testCache.NumItems())
+	_, numItems := testCache.Stats()
+	if numItems != 3 {
+		t.Fatalf("Expected test cache size 3 but was %d", numItems)
 	}
 	if !testCache.Contains(cache.AC, acHash) {
 		t.Fatalf("Expected cache to contain AC entry '%s'", acHash)
@@ -376,9 +377,10 @@ func TestLoadExistingEntries(t *testing.T) {
 	}
 
 	testCache := New(cacheDir, blobSize*numBlobs)
-	if int64(testCache.NumItems()) != numBlobs {
+	_, numItems := testCache.Stats()
+	if int64(numItems) != numBlobs {
 		t.Fatalf("Expected test cache size %d but was %d",
-			numBlobs, testCache.NumItems())
+			numBlobs, numItems)
 	}
 	if !testCache.Contains(cache.AC, acHash) {
 		t.Fatalf("Expected cache to contain AC entry '%s'", acHash)
@@ -423,8 +425,9 @@ func TestDistinctKeyspaces(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if testCache.NumItems() != 3 {
+	_, numItems := testCache.Stats()
+	if numItems != 3 {
 		t.Fatalf("Expected test cache size 3 but was %d",
-			testCache.NumItems())
+			numItems)
 	}
 }
