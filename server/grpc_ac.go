@@ -3,6 +3,8 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"strings"
@@ -21,6 +23,13 @@ var (
 	// we modify incoming ActionResults to make them non-zero.
 	errEmptyActionResult = status.Error(codes.Internal,
 		"rejecting empty ActionResult")
+)
+
+const (
+	// gRPC by default rejects messages larger than 4M.
+	// Inline a little less than this, enough so we don't
+	// need to worry about serialization overhead.
+	maxInlineSize = 3 * 1024 * 1024 // 3M
 )
 
 // ActionCache interface:
@@ -47,9 +56,96 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 			fmt.Sprintf("%s not found in AC", req.ActionDigest.Hash))
 	}
 
+	// Don't inline stdout/stderr/output files unless they were requested.
+
+	var inlinedSoFar int64
+
+	err = s.maybeInline(req.InlineStdout,
+		&result.StdoutRaw, &result.StdoutDigest, &inlinedSoFar)
+	if err != nil {
+		s.accessLogger.Printf("%s %s %s", errorPrefix, req.ActionDigest.Hash, err)
+		return nil, status.Error(codes.Unknown, err.Error())
+	}
+
+	err = s.maybeInline(req.InlineStderr,
+		&result.StderrRaw, &result.StderrDigest, &inlinedSoFar)
+	if err != nil {
+		s.accessLogger.Printf("%s %s %s", errorPrefix, req.ActionDigest.Hash, err)
+		return nil, status.Error(codes.Unknown, err.Error())
+	}
+
+	inlinableFiles := make(map[string]struct{}, len(req.InlineOutputFiles))
+	for _, p := range req.InlineOutputFiles {
+		inlinableFiles[p] = struct{}{}
+	}
+	for _, of := range result.GetOutputFiles() {
+		_, ok := inlinableFiles[of.Path]
+		err = s.maybeInline(ok, &of.Contents, &of.Digest, &inlinedSoFar)
+		if err != nil {
+			s.accessLogger.Printf("%s %s %s", errorPrefix, req.ActionDigest.Hash, err)
+			return nil, status.Error(codes.Unknown, err.Error())
+		}
+	}
+
 	s.accessLogger.Printf("GRPC AC GET %s OK", req.ActionDigest.Hash)
 
 	return result, nil
+}
+
+func (s *grpcServer) maybeInline(inline bool, slice *[]byte, digest **pb.Digest, inlinedSoFar *int64) error {
+
+	if (*inlinedSoFar + int64(len(*slice))) > maxInlineSize {
+		inline = false
+	} else if digest != nil && *digest != nil &&
+		(*inlinedSoFar+(*digest).SizeBytes) > maxInlineSize {
+		inline = false
+	}
+
+	if !inline {
+		if len(*slice) == 0 {
+			return nil // Not inlined, nothing to do.
+		}
+
+		if *digest == nil {
+			hash := sha256.Sum256(*slice)
+			*digest = &pb.Digest{
+				Hash:      hex.EncodeToString(hash[:]),
+				SizeBytes: int64(len(*slice)),
+			}
+		}
+
+		if !s.cache.Contains(cache.CAS, (*digest).Hash) {
+			err := s.cache.Put(cache.CAS, (*digest).Hash, (*digest).SizeBytes,
+				bytes.NewReader(*slice))
+			if err != nil {
+				return err
+			}
+		}
+
+		*slice = []byte{}
+		return nil
+	}
+
+	if len(*slice) > 0 {
+		*inlinedSoFar += int64(len(*slice))
+		return nil // Already inlined.
+	}
+
+	if digest == nil || *digest == nil {
+		return nil // Nothing to inline?
+	}
+
+	// Otherwise, attempt to inline.
+	if (*digest).SizeBytes > 0 {
+		data, err := s.getBlobData((*digest).Hash, (*digest).SizeBytes)
+		if err != nil {
+			return err
+		}
+		*slice = data
+		*inlinedSoFar += (*digest).SizeBytes
+	}
+
+	return nil
 }
 
 func (s *grpcServer) UpdateActionResult(ctx context.Context,
