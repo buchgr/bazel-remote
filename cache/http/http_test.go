@@ -219,7 +219,7 @@ func TestProxyLocalPutFailuresNotRelayed(t *testing.T) {
 	proxy := New(baseURL, diskCache, &http.Client{}, testutils.NewSilentLogger(),
 		testutils.NewSilentLogger())
 
-	err = proxy.Put(cache.AC, hash, int64(len(data) + 1), bytes.NewReader(data))
+	err = proxy.Put(cache.AC, hash, int64(len(data)+1), bytes.NewReader(data))
 	if err == nil {
 		t.Error("Expected Put to error with size miss-match")
 	}
