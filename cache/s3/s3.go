@@ -8,7 +8,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/config"
-	"github.com/minio/minio-go"
+	"github.com/minio/minio-go/v6"
 )
 
 const numUploaders = 100
@@ -129,7 +129,7 @@ func (c *s3Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, 
 		return c.local.Get(kind, hash)
 	}
 
-	object, info, err := c.mcore.GetObject(
+	object, info, _, err := c.mcore.GetObject(
 		c.bucket,                 // bucketName
 		c.objectKey(hash, kind),  // objectName
 		minio.GetObjectOptions{}, // opts

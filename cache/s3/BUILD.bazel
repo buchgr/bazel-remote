@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//cache:go_default_library",
         "//config:go_default_library",
-        "@com_github_minio_go//:go_default_library",
+        "@com_github_minio_minio_go_v6//:go_default_library",
     ],
 )
