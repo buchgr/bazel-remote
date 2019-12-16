@@ -179,12 +179,6 @@ go_repository(
 )
 
 go_repository(
-    name = "com_github_urfave_cli",
-    commit = "cfb38830724cc34fedffe9a2a29fb54fa9169cd1",
-    importpath = "github.com/urfave/cli",
-)
-
-go_repository(
     name = "com_github_google_go_cmp",
     commit = "3af367b6b30c263d47e8895973edcca9a49cf029",
     importpath = "github.com/google/go-cmp",
