@@ -121,3 +121,9 @@ $ docker run -v /path/to/cache/dir:/data \
 
 Please take a look at Bazel's documentation section on [remote
 caching](https://docs.bazel.build/versions/master/remote-caching.html#run-bazel-using-the-remote-cache)
+
+## Contributing to Bazel-Remote
+
+Step 1. Install [Go](https://golang.org/doc/install#install) tools
+Step 2. Set up [Bazel](https://bazel.build/contributing.html)
+Step 3. Set up IDE. [Visual Studio Code](https://code.visualstudio.com/) with Go extension has good support for development with Go language. Other IDE tools may work too.
