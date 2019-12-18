@@ -6,3 +6,9 @@ platforms:
     test_targets:
     - "..."
   ubuntu1804: *anchor
+  macos:
+    build_targets:
+    # Skip the (linux) container image targets, just build the binary.
+    - "//:bazel-remote"
+    test_targets:
+    - "..."
