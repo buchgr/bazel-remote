@@ -10,12 +10,15 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"sync"
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/djherbis/atime"
 )
+
+const isMac = runtime.GOOS == "darwin"
 
 // lruItem is the type of the values stored in SizedLRU to keep track of items.
 // It implements the SizedItem interface.
@@ -236,8 +239,11 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 		}
 	}
 
-	if err := f.Sync(); err != nil {
-		return err
+	shouldSync := !isMac || kind != cache.CAS
+	if shouldSync {
+		if err := f.Sync(); err != nil {
+			return err
+		}
 	}
 
 	if err := f.Close(); err != nil {
