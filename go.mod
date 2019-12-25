@@ -11,7 +11,7 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/minio/minio-go/v6 v6.0.44
 	github.com/smartystreets/goconvey v1.6.4 // indirect
-	github.com/urfave/cli v1.22.2
+	github.com/urfave/cli/v2 v2.1.1
 	golang.org/x/crypto v0.0.0-20191206172530-e9b2fee46413 // indirect
 	golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553 // indirect
 	golang.org/x/oauth2 v0.0.0-20191202225959-858c2ad4c8b6

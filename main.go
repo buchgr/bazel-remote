@@ -21,7 +21,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/config"
 	"github.com/buchgr/bazel-remote/server"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -49,111 +49,111 @@ func main() {
 	app.HideVersion = true
 
 	app.Flags = []cli.Flag{
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "config_file",
 			Value: "",
 			Usage: "Path to a YAML configuration file. If this flag is specified then all other flags " +
 				"are ignored.",
-			EnvVar: "BAZEL_REMOTE_CONFIG_FILE",
+			EnvVars: []string{"BAZEL_REMOTE_CONFIG_FILE"},
 		},
-		cli.StringFlag{
-			Name:   "dir",
-			Value:  "",
-			Usage:  "Directory path where to store the cache contents. This flag is required.",
-			EnvVar: "BAZEL_REMOTE_DIR",
+		&cli.StringFlag{
+			Name:    "dir",
+			Value:   "",
+			Usage:   "Directory path where to store the cache contents. This flag is required.",
+			EnvVars: []string{"BAZEL_REMOTE_DIR"},
 		},
-		cli.Int64Flag{
-			Name:   "max_size",
-			Value:  -1,
-			Usage:  "The maximum size of the remote cache in GiB. This flag is required.",
-			EnvVar: "BAZEL_REMOTE_MAX_SIZE",
+		&cli.Int64Flag{
+			Name:    "max_size",
+			Value:   -1,
+			Usage:   "The maximum size of the remote cache in GiB. This flag is required.",
+			EnvVars: []string{"BAZEL_REMOTE_MAX_SIZE"},
 		},
-		cli.StringFlag{
-			Name:   "host",
-			Value:  "",
-			Usage:  "Address to listen on. Listens on all network interfaces by default.",
-			EnvVar: "BAZEL_REMOTE_HOST",
+		&cli.StringFlag{
+			Name:    "host",
+			Value:   "",
+			Usage:   "Address to listen on. Listens on all network interfaces by default.",
+			EnvVars: []string{"BAZEL_REMOTE_HOST"},
 		},
-		cli.IntFlag{
-			Name:   "port",
-			Value:  8080,
-			Usage:  "The port the HTTP server listens on.",
-			EnvVar: "BAZEL_REMOTE_PORT",
+		&cli.IntFlag{
+			Name:    "port",
+			Value:   8080,
+			Usage:   "The port the HTTP server listens on.",
+			EnvVars: []string{"BAZEL_REMOTE_PORT"},
 		},
-		cli.IntFlag{
-			Name:   "grpc_port",
-			Value:  9092,
-			Usage:  "The port the EXPERIMENTAL gRPC server listens on. Set to 0 to disable.",
-			EnvVar: "BAZEL_REMOTE_GRPC_PORT",
+		&cli.IntFlag{
+			Name:    "grpc_port",
+			Value:   9092,
+			Usage:   "The port the EXPERIMENTAL gRPC server listens on. Set to 0 to disable.",
+			EnvVars: []string{"BAZEL_REMOTE_GRPC_PORT"},
 		},
-		cli.StringFlag{
-			Name:   "htpasswd_file",
-			Value:  "",
-			Usage:  "Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.",
-			EnvVar: "BAZEL_REMOTE_HTPASSWD_FILE",
+		&cli.StringFlag{
+			Name:    "htpasswd_file",
+			Value:   "",
+			Usage:   "Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.",
+			EnvVars: []string{"BAZEL_REMOTE_HTPASSWD_FILE"},
 		},
-		cli.BoolFlag{
-			Name:   "tls_enabled",
-			Usage:  "This flag has been deprecated. Specify tls_cert_file and tls_key_file instead.",
-			EnvVar: "BAZEL_REMOTE_TLS_ENABLED",
+		&cli.BoolFlag{
+			Name:    "tls_enabled",
+			Usage:   "This flag has been deprecated. Specify tls_cert_file and tls_key_file instead.",
+			EnvVars: []string{"BAZEL_REMOTE_TLS_ENABLED"},
 		},
-		cli.StringFlag{
-			Name:   "tls_cert_file",
-			Value:  "",
-			Usage:  "Path to a pem encoded certificate file.",
-			EnvVar: "BAZEL_REMOTE_TLS_CERT_FILE",
+		&cli.StringFlag{
+			Name:    "tls_cert_file",
+			Value:   "",
+			Usage:   "Path to a pem encoded certificate file.",
+			EnvVars: []string{"BAZEL_REMOTE_TLS_CERT_FILE"},
 		},
-		cli.StringFlag{
-			Name:   "tls_key_file",
-			Value:  "",
-			Usage:  "Path to a pem encoded key file.",
-			EnvVar: "BAZEL_REMOTE_TLS_KEY_FILE",
+		&cli.StringFlag{
+			Name:    "tls_key_file",
+			Value:   "",
+			Usage:   "Path to a pem encoded key file.",
+			EnvVars: []string{"BAZEL_REMOTE_TLS_KEY_FILE"},
 		},
-		cli.DurationFlag{
-			Name:   "idle_timeout",
-			Value:  0,
-			Usage:  "The maximum period of having received no request after which the server will shut itself down. Disabled by default.",
-			EnvVar: "BAZEL_REMOTE_IDLE_TIMEOUT",
+		&cli.DurationFlag{
+			Name:    "idle_timeout",
+			Value:   0,
+			Usage:   "The maximum period of having received no request after which the server will shut itself down. Disabled by default.",
+			EnvVars: []string{"BAZEL_REMOTE_IDLE_TIMEOUT"},
 		},
-		cli.StringFlag{
-			Name:   "s3.endpoint",
-			Value:  "",
-			Usage:  "The S3/minio endpoint to use when using S3 cache backend.",
-			EnvVar: "BAZEL_REMOTE_S3_ENDPOINT",
+		&cli.StringFlag{
+			Name:    "s3.endpoint",
+			Value:   "",
+			Usage:   "The S3/minio endpoint to use when using S3 cache backend.",
+			EnvVars: []string{"BAZEL_REMOTE_S3_ENDPOINT"},
 		},
-		cli.StringFlag{
-			Name:   "s3.bucket",
-			Value:  "",
-			Usage:  "The S3/minio bucket to use when using S3 cache backend.",
-			EnvVar: "BAZEL_REMOTE_S3_BUCKET",
+		&cli.StringFlag{
+			Name:    "s3.bucket",
+			Value:   "",
+			Usage:   "The S3/minio bucket to use when using S3 cache backend.",
+			EnvVars: []string{"BAZEL_REMOTE_S3_BUCKET"},
 		},
-		cli.StringFlag{
-			Name:   "s3.prefix",
-			Value:  "",
-			Usage:  "The S3/minio object prefix to use when using S3 cache backend.",
-			EnvVar: "BAZEL_REMOTE_S3_PREFIX",
+		&cli.StringFlag{
+			Name:    "s3.prefix",
+			Value:   "",
+			Usage:   "The S3/minio object prefix to use when using S3 cache backend.",
+			EnvVars: []string{"BAZEL_REMOTE_S3_PREFIX"},
 		},
-		cli.StringFlag{
-			Name:   "s3.access_key_id",
-			Value:  "",
-			Usage:  "The S3/minio access key to use when using S3 cache backend.",
-			EnvVar: "BAZEL_REMOTE_S3_ACCESS_KEY_ID",
+		&cli.StringFlag{
+			Name:    "s3.access_key_id",
+			Value:   "",
+			Usage:   "The S3/minio access key to use when using S3 cache backend.",
+			EnvVars: []string{"BAZEL_REMOTE_S3_ACCESS_KEY_ID"},
 		},
-		cli.StringFlag{
-			Name:   "s3.secret_access_key",
-			Value:  "",
-			Usage:  "The S3/minio secret access key to use when using S3 cache backend.",
-			EnvVar: "BAZEL_REMOTE_S3_SECRET_ACCESS_KEY",
+		&cli.StringFlag{
+			Name:    "s3.secret_access_key",
+			Value:   "",
+			Usage:   "The S3/minio secret access key to use when using S3 cache backend.",
+			EnvVars: []string{"BAZEL_REMOTE_S3_SECRET_ACCESS_KEY"},
 		},
-		cli.BoolFlag{
-			Name:   "s3.disable_ssl",
-			Usage:  "Whether to disable TLS/SSL when using the S3 cache backend.  Default is false (enable TLS/SSL).",
-			EnvVar: "BAZEL_REMOTE_S3_DISABLE_SSL",
+		&cli.BoolFlag{
+			Name:    "s3.disable_ssl",
+			Usage:   "Whether to disable TLS/SSL when using the S3 cache backend.  Default is false (enable TLS/SSL).",
+			EnvVars: []string{"BAZEL_REMOTE_S3_DISABLE_SSL"},
 		},
-		cli.BoolFlag{
-			Name:   "disable_http_ac_validation",
-			Usage:  "Whether to disable ActionResult validation for HTTP requests.  Default is false (enable validation).",
-			EnvVar: "BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION",
+		&cli.BoolFlag{
+			Name:    "disable_http_ac_validation",
+			Usage:   "Whether to disable ActionResult validation for HTTP requests.  Default is false (enable validation).",
+			EnvVars: []string{"BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION"},
 		},
 	}
 
