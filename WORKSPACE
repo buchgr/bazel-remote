@@ -97,10 +97,10 @@ go_repository(
 )
 
 go_repository(
-    name = "com_github_urfave_cli",
-    importpath = "github.com/urfave/cli",
-    sum = "h1:gsqYFH8bb9ekPA12kRo0hfjngWQjkJPlN9R0N78BoUo=",
-    version = "v1.22.2",
+    name = "com_github_urfave_cli_v2",
+    importpath = "github.com/urfave/cli/v2",
+    sum = "h1:Qt8FeAtxE/vfdrLmR3rxR6JRE0RoVmbXu8+6kZtYU4k=",
+    version = "v2.1.1",
 )
 
 go_repository(
