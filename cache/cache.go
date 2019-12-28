@@ -113,13 +113,13 @@ func GetValidatedActionResult(c Cache, hash string) (*pb.ActionResult, []byte, e
 		}
 	}
 
-	if result.StdoutDigest != nil {
+	if result.StdoutDigest != nil && result.StdoutDigest.SizeBytes > 0 {
 		if !c.Contains(CAS, result.StdoutDigest.Hash) {
 			return nil, nil, nil // aka "not found"
 		}
 	}
 
-	if result.StderrDigest != nil {
+	if result.StderrDigest != nil && result.StderrDigest.SizeBytes > 0 {
 		if !c.Contains(CAS, result.StderrDigest.Hash) {
 			return nil, nil, nil // aka "not found"
 		}

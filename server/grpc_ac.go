@@ -131,7 +131,7 @@ func (s *grpcServer) maybeInline(inline bool, slice *[]byte, digest **pb.Digest,
 		return nil // Already inlined.
 	}
 
-	if digest == nil || *digest == nil {
+	if digest == nil || *digest == nil || (*digest).SizeBytes == 0 {
 		return nil // Nothing to inline?
 	}
 
@@ -163,7 +163,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 	data, err := proto.Marshal(req.ActionResult)
 	if err != nil {
 		s.accessLogger.Printf("%s %s %s", errorPrefix, req.ActionDigest.Hash, err)
-		return nil, status.Error(codes.Unknown, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	if len(data) == 0 {
@@ -176,7 +176,66 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 		int64(len(data)), bytes.NewReader(data))
 	if err != nil {
 		s.accessLogger.Printf("%s %s %s", errorPrefix, req.ActionDigest.Hash, err)
-		return nil, status.Error(codes.Unknown, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	// Also cache any inlined blobs, separately in the CAS.
+	//
+	// TODO: consider normalizing what we store in the AC (store all results
+	// inlined? or de-inline all results?)
+
+	for _, f := range req.ActionResult.OutputFiles {
+		if f != nil && len(f.Contents) > 0 {
+			err = s.cache.Put(cache.CAS, f.Digest.Hash,
+				f.Digest.SizeBytes, bytes.NewReader(f.Contents))
+			if err != nil {
+				s.accessLogger.Printf("%s %s %s", errorPrefix,
+					req.ActionDigest.Hash, err)
+				return nil, status.Error(codes.Internal, err.Error())
+			}
+		}
+	}
+
+	if len(req.ActionResult.StdoutRaw) > 0 {
+		var hash string
+		var sizeBytes int64
+		if req.ActionResult.StdoutDigest != nil {
+			hash = req.ActionResult.StdoutDigest.Hash
+			sizeBytes = req.ActionResult.StdoutDigest.SizeBytes
+		} else {
+			hashData := sha256.Sum256(req.ActionResult.StdoutRaw)
+			hash = hex.EncodeToString(hashData[:])
+			sizeBytes = int64(len(req.ActionResult.StdoutRaw))
+		}
+
+		err = s.cache.Put(cache.CAS, hash, sizeBytes,
+			bytes.NewReader(req.ActionResult.StdoutRaw))
+		if err != nil {
+			s.accessLogger.Printf("%s %s %s", errorPrefix,
+				req.ActionDigest.Hash, err)
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+
+	if len(req.ActionResult.StderrRaw) > 0 {
+		var hash string
+		var sizeBytes int64
+		if req.ActionResult.StderrDigest != nil {
+			hash = req.ActionResult.StderrDigest.Hash
+			sizeBytes = req.ActionResult.StderrDigest.SizeBytes
+		} else {
+			hashData := sha256.Sum256(req.ActionResult.StderrRaw)
+			hash = hex.EncodeToString(hashData[:])
+			sizeBytes = int64(len(req.ActionResult.StderrRaw))
+		}
+
+		err = s.cache.Put(cache.CAS, hash, sizeBytes,
+			bytes.NewReader(req.ActionResult.StderrRaw))
+		if err != nil {
+			s.accessLogger.Printf("%s %s %s", errorPrefix,
+				req.ActionDigest.Hash, err)
+			return nil, status.Error(codes.Internal, err.Error())
+		}
 	}
 
 	s.accessLogger.Printf("GRPC AC PUT %s OK", req.ActionDigest.Hash)
