@@ -15,8 +15,9 @@ const numUploaders = 100
 const maxQueuedUploads = 1000000
 
 type uploadReq struct {
-	hash string
-	kind cache.EntryKind
+	instanceName string
+	hash         string
+	kind         cache.EntryKind
 }
 
 type s3Cache struct {
@@ -60,7 +61,7 @@ func New(s3Config *config.S3CloudStorageConfig, local cache.Cache, accessLogger 
 	for uploader := 0; uploader < numUploaders; uploader++ {
 		go func() {
 			for item := range uploadQueue {
-				c.uploadFile(item.hash, item.kind)
+				c.uploadFile(item.instanceName, item.hash, item.kind)
 			}
 		}()
 	}
@@ -68,8 +69,11 @@ func New(s3Config *config.S3CloudStorageConfig, local cache.Cache, accessLogger 
 	return c
 }
 
-func (c *s3Cache) objectKey(hash string, kind cache.EntryKind) string {
-	return fmt.Sprintf("%s/%s/%s", c.prefix, kind, hash)
+func (c *s3Cache) objectKey(instanceName string, hash string, kind cache.EntryKind) string {
+	if kind == cache.CAS || instanceName != "" {
+		return fmt.Sprintf("%s/%s/%s", c.prefix, kind, hash)
+	}
+	return fmt.Sprintf("/%s/%s/%s_%s", c.prefix, kind, hash, instanceName)
 }
 
 // Helper function for logging responses
@@ -77,8 +81,8 @@ func logResponse(log cache.Logger, method, bucket, key string, err error) {
 	log.Printf("%4s %3s %15s %s err=%v", method, "", bucket, key, err)
 }
 
-func (c *s3Cache) uploadFile(hash string, kind cache.EntryKind) {
-	data, size, err := c.local.Get(kind, hash)
+func (c *s3Cache) uploadFile(instanceName string, hash string, kind cache.EntryKind) {
+	data, size, err := c.local.Get(kind, instanceName, hash)
 	if err != nil {
 		return
 	}
@@ -89,12 +93,12 @@ func (c *s3Cache) uploadFile(hash string, kind cache.EntryKind) {
 	}
 
 	_, err = c.mcore.PutObject(
-		c.bucket,                // bucketName
-		c.objectKey(hash, kind), // objectName
-		data,                    // reader
-		size,                    // objectSize
-		"",                      // md5base64
-		uploadDigest,            // sha256
+		c.bucket,                              // bucketName
+		c.objectKey(instanceName, hash, kind), // objectName
+		data,                                  // reader
+		size,                                  // objectSize
+		"",                                    // md5base64
+		uploadDigest,                          // sha256
 		map[string]string{
 			"Content-Type": "application/octet-stream",
 		}, // metadata
@@ -103,20 +107,21 @@ func (c *s3Cache) uploadFile(hash string, kind cache.EntryKind) {
 	if data != nil {
 		data.Close()
 	}
-	logResponse(c.accessLogger, "PUT", c.bucket, c.objectKey(hash, kind), err)
+	logResponse(c.accessLogger, "PUT", c.bucket, c.objectKey(instanceName, hash, kind), err)
 }
 
-func (c *s3Cache) Put(kind cache.EntryKind, hash string, size int64, data io.Reader) (err error) {
-	if c.local.Contains(kind, hash) {
+func (c *s3Cache) Put(kind cache.EntryKind, instanceName string, hash string, size int64, data io.Reader) (err error) {
+	if c.local.Contains(kind, instanceName, hash) {
 		io.Copy(ioutil.Discard, data)
 		return nil
 	}
-	c.local.Put(kind, hash, size, data)
+	c.local.Put(kind, instanceName, hash, size, data)
 
 	select {
 	case c.uploadQueue <- &uploadReq{
-		hash: hash,
-		kind: kind,
+		instanceName: instanceName,
+		hash:         hash,
+		kind:         kind,
 	}:
 	default:
 		c.errorLogger.Printf("too many uploads queued\n")
@@ -124,15 +129,15 @@ func (c *s3Cache) Put(kind cache.EntryKind, hash string, size int64, data io.Rea
 	return nil
 }
 
-func (c *s3Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
-	if c.local.Contains(kind, hash) {
-		return c.local.Get(kind, hash)
+func (c *s3Cache) Get(kind cache.EntryKind, instanceName string, hash string) (io.ReadCloser, int64, error) {
+	if c.local.Contains(kind, instanceName, hash) {
+		return c.local.Get(kind, instanceName, hash)
 	}
 
 	object, info, _, err := c.mcore.GetObject(
-		c.bucket,                 // bucketName
-		c.objectKey(hash, kind),  // objectName
-		minio.GetObjectOptions{}, // opts
+		c.bucket,                              // bucketName
+		c.objectKey(instanceName, hash, kind), // objectName
+		minio.GetObjectOptions{},              // opts
 	)
 	if err != nil {
 		if minio.ToErrorResponse(err).Code == "NoSuchKey" {
@@ -143,18 +148,18 @@ func (c *s3Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, 
 	}
 	defer object.Close()
 
-	logResponse(c.accessLogger, "GET", c.bucket, c.objectKey(hash, kind), err)
+	logResponse(c.accessLogger, "GET", c.bucket, c.objectKey(instanceName, hash, kind), err)
 
-	err = c.local.Put(kind, hash, info.Size, object)
+	err = c.local.Put(kind, instanceName, hash, info.Size, object)
 	if err != nil {
 		return nil, -1, err
 	}
 
-	return c.local.Get(kind, hash)
+	return c.local.Get(kind, instanceName, hash)
 }
 
-func (c *s3Cache) Contains(kind cache.EntryKind, hash string) bool {
-	return c.local.Contains(kind, hash)
+func (c *s3Cache) Contains(kind cache.EntryKind, instanceName string, hash string) bool {
+	return c.local.Contains(kind, instanceName, hash)
 }
 
 func (c *s3Cache) MaxSize() int64 {

@@ -56,15 +56,15 @@ type Cache interface {
 	// Put stores a stream of `size` bytes from `rdr` into the cache. If `hash` is
 	// not the empty string, and the contents don't match it, a non-nil error is
 	// returned.
-	Put(kind EntryKind, hash string, size int64, rdr io.Reader) error
+	Put(kind EntryKind, instanceName string, hash string, size int64, rdr io.Reader) error
 
 	// Get returns an io.ReadCloser with the content of the cache item stored under `hash`
 	// and the number of bytes that can be read from it. If the item is not found, `rdr` is
 	// nil. If some error occurred when processing the request, then it is returned.
-	Get(kind EntryKind, hash string) (rdr io.ReadCloser, sizeBytes int64, err error)
+	Get(kind EntryKind, instanceName string, hash string) (rdr io.ReadCloser, sizeBytes int64, err error)
 
 	// Contains returns true if the `hash` key exists in the cache.
-	Contains(kind EntryKind, hash string) (ok bool)
+	Contains(kind EntryKind, instanceName string, hash string) (ok bool)
 
 	// MaxSize returns the maximum cache size in bytes.
 	MaxSize() int64
@@ -78,8 +78,8 @@ type Cache interface {
 // available in the CAS, return it and its serialized value.
 // If not, return nil values.
 // If something unexpected went wrong, return an error.
-func GetValidatedActionResult(c Cache, hash string) (*pb.ActionResult, []byte, error) {
-	rdr, sizeBytes, err := c.Get(AC, hash)
+func GetValidatedActionResult(c Cache, instanceName string, hash string) (*pb.ActionResult, []byte, error) {
+	rdr, sizeBytes, err := c.Get(AC, instanceName, hash)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -101,26 +101,26 @@ func GetValidatedActionResult(c Cache, hash string) (*pb.ActionResult, []byte, e
 
 	for _, f := range result.OutputFiles {
 		if len(f.Contents) == 0 && f.Digest.SizeBytes > 0 {
-			if !c.Contains(CAS, f.Digest.Hash) {
+			if !c.Contains(CAS, instanceName, f.Digest.Hash) {
 				return nil, nil, nil // aka "not found"
 			}
 		}
 	}
 
 	for _, d := range result.OutputDirectories {
-		if !c.Contains(CAS, d.TreeDigest.Hash) {
+		if !c.Contains(CAS, instanceName, d.TreeDigest.Hash) {
 			return nil, nil, nil // aka "not found"
 		}
 	}
 
 	if result.StdoutDigest != nil && result.StdoutDigest.SizeBytes > 0 {
-		if !c.Contains(CAS, result.StdoutDigest.Hash) {
+		if !c.Contains(CAS, instanceName, result.StdoutDigest.Hash) {
 			return nil, nil, nil // aka "not found"
 		}
 	}
 
 	if result.StderrDigest != nil && result.StderrDigest.SizeBytes > 0 {
-		if !c.Contains(CAS, result.StderrDigest.Hash) {
+		if !c.Contains(CAS, instanceName, result.StderrDigest.Hash) {
 			return nil, nil, nil // aka "not found"
 		}
 	}

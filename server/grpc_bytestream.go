@@ -54,9 +54,13 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 	errorPrefix := "GRPC BYTESTREAM READ"
 
 	fields := strings.Split(req.ResourceName, "/")
+	instanceName := ""
 	var rem []string
 	for i := range fields {
 		if fields[i] == "blobs" {
+			if i > 0 {
+				instanceName = fields[i-1]
+			}
 			rem = fields[i+1:]
 			break
 		}
@@ -87,7 +91,7 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 		return status.Error(codes.OutOfRange, msg)
 	}
 
-	rdr, sizeBytes, err := s.cache.Get(cache.CAS, hash)
+	rdr, sizeBytes, err := s.cache.Get(cache.CAS, instanceName, hash)
 	if err != nil {
 		msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED: %v", err)
 		s.accessLogger.Printf(msg)
@@ -186,35 +190,39 @@ func seekWriterTo(w io.Writer, offset int64) {
 }
 
 // Parse a WriteRequest.ResourceName, return the hash, size and an error.
-func (s *grpcServer) parseWriteResource(r string) (string, int64, error) {
+func (s *grpcServer) parseWriteResource(r string) (string, string, int64, error) {
 	// req.ResourceName is of the form:
 	// [{instance_name}/]uploads/{uuid}/blobs/{hash}/{size}[/{optionalmetadata}]
 
 	fields := strings.Split(r, "/")
+	instanceName := ""
 	var rem []string
 	for i := range fields {
 		if fields[i] == "uploads" {
+			if i > 0 {
+				instanceName = fields[i-1]
+			}
 			rem = fields[i+1:]
 			break
 		}
 	}
 
 	if len(rem) < 4 || rem[1] != "blobs" {
-		return "", 0, status.Errorf(codes.InvalidArgument, "Unable to parse resource name: %s", r)
+		return "", "", 0, status.Errorf(codes.InvalidArgument, "Unable to parse resource name: %s", r)
 	}
 
 	hash := rem[2]
 	err := s.validateHash(hash, "GRPC BYTESTREAM READ FAILED")
 	if err != nil {
-		return "", 0, err
+		return "", "", 0, err
 	}
 
 	size, err := strconv.ParseInt(rem[3], 10, 64)
 	if err != nil {
-		return "", 0, status.Errorf(codes.InvalidArgument, "Unable to parse size: %s", rem[3])
+		return "", "", 0, status.Errorf(codes.InvalidArgument, "Unable to parse size: %s", rem[3])
 	}
 
-	return hash, size, nil
+	return instanceName, hash, size, nil
 }
 
 func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
@@ -260,8 +268,8 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 				resourceNameChan <- resourceName
 				close(resourceNameChan)
 
-				var hash string
-				hash, size, err = s.parseWriteResource(resourceName)
+				var instanceName, hash string
+				instanceName, hash, size, err = s.parseWriteResource(resourceName)
 				if err != nil {
 					s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", err)
 					recvResult <- err
@@ -276,7 +284,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 				}
 
 				go func() {
-					putResult <- s.cache.Put(cache.CAS, hash, size, pr)
+					putResult <- s.cache.Put(cache.CAS, instanceName, hash, size, pr)
 				}()
 
 				firstIteration = false

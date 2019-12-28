@@ -43,15 +43,15 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 		return nil, err
 	}
 
-	result, _, err := cache.GetValidatedActionResult(s.cache,
+	result, _, err := cache.GetValidatedActionResult(s.cache, req.GetInstanceName(),
 		req.ActionDigest.Hash)
 	if err != nil {
-		s.accessLogger.Printf("%s %s %s", errorPrefix, req.ActionDigest.Hash, err)
+		s.accessLogger.Printf("%s [%s] %s %s", errorPrefix, req.GetInstanceName(), req.ActionDigest.Hash, err)
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
 
 	if result == nil {
-		s.accessLogger.Printf("%s %s NOT FOUND", errorPrefix, req.ActionDigest.Hash)
+		s.accessLogger.Printf("%s [%s] %s NOT FOUND", errorPrefix, req.GetInstanceName(), req.ActionDigest.Hash)
 		return nil, status.Error(codes.NotFound,
 			fmt.Sprintf("%s not found in AC", req.ActionDigest.Hash))
 	}
@@ -60,17 +60,17 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 
 	var inlinedSoFar int64
 
-	err = s.maybeInline(req.InlineStdout,
+	err = s.maybeInline(req.GetInstanceName(), req.InlineStdout,
 		&result.StdoutRaw, &result.StdoutDigest, &inlinedSoFar)
 	if err != nil {
-		s.accessLogger.Printf("%s %s %s", errorPrefix, req.ActionDigest.Hash, err)
+		s.accessLogger.Printf("%s [%s] %s %s", errorPrefix, req.GetInstanceName(), req.ActionDigest.Hash, err)
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
 
-	err = s.maybeInline(req.InlineStderr,
+	err = s.maybeInline(req.GetInstanceName(), req.InlineStderr,
 		&result.StderrRaw, &result.StderrDigest, &inlinedSoFar)
 	if err != nil {
-		s.accessLogger.Printf("%s %s %s", errorPrefix, req.ActionDigest.Hash, err)
+		s.accessLogger.Printf("%s [%s] %s %s", errorPrefix, req.GetInstanceName(), req.ActionDigest.Hash, err)
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
 
@@ -80,19 +80,19 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 	}
 	for _, of := range result.GetOutputFiles() {
 		_, ok := inlinableFiles[of.Path]
-		err = s.maybeInline(ok, &of.Contents, &of.Digest, &inlinedSoFar)
+		err = s.maybeInline(req.GetInstanceName(), ok, &of.Contents, &of.Digest, &inlinedSoFar)
 		if err != nil {
-			s.accessLogger.Printf("%s %s %s", errorPrefix, req.ActionDigest.Hash, err)
+			s.accessLogger.Printf("%s [%s] %s %s", errorPrefix, req.GetInstanceName(), req.ActionDigest.Hash, err)
 			return nil, status.Error(codes.Unknown, err.Error())
 		}
 	}
 
-	s.accessLogger.Printf("GRPC AC GET %s OK", req.ActionDigest.Hash)
+	s.accessLogger.Printf("GRPC AC GET [%s] %s OK", req.GetInstanceName(), req.ActionDigest.Hash)
 
 	return result, nil
 }
 
-func (s *grpcServer) maybeInline(inline bool, slice *[]byte, digest **pb.Digest, inlinedSoFar *int64) error {
+func (s *grpcServer) maybeInline(instanceName string, inline bool, slice *[]byte, digest **pb.Digest, inlinedSoFar *int64) error {
 
 	if (*inlinedSoFar + int64(len(*slice))) > maxInlineSize {
 		inline = false
@@ -114,8 +114,8 @@ func (s *grpcServer) maybeInline(inline bool, slice *[]byte, digest **pb.Digest,
 			}
 		}
 
-		if !s.cache.Contains(cache.CAS, (*digest).Hash) {
-			err := s.cache.Put(cache.CAS, (*digest).Hash, (*digest).SizeBytes,
+		if !s.cache.Contains(cache.CAS, instanceName, (*digest).Hash) {
+			err := s.cache.Put(cache.CAS, instanceName, (*digest).Hash, (*digest).SizeBytes,
 				bytes.NewReader(*slice))
 			if err != nil {
 				return err
@@ -137,7 +137,7 @@ func (s *grpcServer) maybeInline(inline bool, slice *[]byte, digest **pb.Digest,
 
 	// Otherwise, attempt to inline.
 	if (*digest).SizeBytes > 0 {
-		data, err := s.getBlobData((*digest).Hash, (*digest).SizeBytes)
+		data, err := s.getBlobData(instanceName, (*digest).Hash, (*digest).SizeBytes)
 		if err != nil {
 			return err
 		}
@@ -162,20 +162,20 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 
 	data, err := proto.Marshal(req.ActionResult)
 	if err != nil {
-		s.accessLogger.Printf("%s %s %s", errorPrefix, req.ActionDigest.Hash, err)
+		s.accessLogger.Printf("%s [%s] %s %s", errorPrefix, req.GetInstanceName(), req.ActionDigest.Hash, err)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	if len(data) == 0 {
-		s.accessLogger.Printf("%s %s %s", errorPrefix, req.ActionDigest.Hash,
+		s.accessLogger.Printf("%s [%s] %s %s", errorPrefix, req.GetInstanceName(), req.ActionDigest.Hash,
 			errEmptyActionResult.Error())
 		return nil, errEmptyActionResult
 	}
 
-	err = s.cache.Put(cache.AC, req.ActionDigest.Hash,
+	err = s.cache.Put(cache.AC, req.GetInstanceName(), req.ActionDigest.Hash,
 		int64(len(data)), bytes.NewReader(data))
 	if err != nil {
-		s.accessLogger.Printf("%s %s %s", errorPrefix, req.ActionDigest.Hash, err)
+		s.accessLogger.Printf("%s [%s] %s %s", errorPrefix, req.GetInstanceName(), req.ActionDigest.Hash, err)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
@@ -186,11 +186,11 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 
 	for _, f := range req.ActionResult.OutputFiles {
 		if f != nil && len(f.Contents) > 0 {
-			err = s.cache.Put(cache.CAS, f.Digest.Hash,
+			err = s.cache.Put(cache.CAS, req.GetInstanceName(), f.Digest.Hash,
 				f.Digest.SizeBytes, bytes.NewReader(f.Contents))
 			if err != nil {
-				s.accessLogger.Printf("%s %s %s", errorPrefix,
-					req.ActionDigest.Hash, err)
+				s.accessLogger.Printf("%s [%s] %s %s", errorPrefix,
+					req.GetInstanceName(), req.ActionDigest.Hash, err)
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 		}
@@ -208,7 +208,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 			sizeBytes = int64(len(req.ActionResult.StdoutRaw))
 		}
 
-		err = s.cache.Put(cache.CAS, hash, sizeBytes,
+		err = s.cache.Put(cache.CAS, req.GetInstanceName(), hash, sizeBytes,
 			bytes.NewReader(req.ActionResult.StdoutRaw))
 		if err != nil {
 			s.accessLogger.Printf("%s %s %s", errorPrefix,
@@ -229,7 +229,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 			sizeBytes = int64(len(req.ActionResult.StderrRaw))
 		}
 
-		err = s.cache.Put(cache.CAS, hash, sizeBytes,
+		err = s.cache.Put(cache.CAS, req.GetInstanceName(), hash, sizeBytes,
 			bytes.NewReader(req.ActionResult.StderrRaw))
 		if err != nil {
 			s.accessLogger.Printf("%s %s %s", errorPrefix,
@@ -238,7 +238,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 		}
 	}
 
-	s.accessLogger.Printf("GRPC AC PUT %s OK", req.ActionDigest.Hash)
+	s.accessLogger.Printf("GRPC AC PUT [%s] %s OK", req.GetInstanceName(), req.ActionDigest.Hash)
 
 	// Trivia: the RE API wants us to return the ActionResult from the
 	// request, in order to follow this standard method style guide:

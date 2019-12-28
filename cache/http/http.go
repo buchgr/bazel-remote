@@ -18,8 +18,9 @@ const numUploaders = 100
 const maxQueuedUploads = 1000000
 
 type uploadReq struct {
-	hash string
-	kind cache.EntryKind
+	instanceName string
+	hash         string
+	kind         cache.EntryKind
 }
 
 type remoteHTTPProxyCache struct {
@@ -32,8 +33,8 @@ type remoteHTTPProxyCache struct {
 }
 
 func uploadFile(remote *http.Client, baseURL *url.URL, local cache.Cache, accessLogger cache.Logger,
-	errorLogger cache.Logger, hash string, kind cache.EntryKind) {
-	rdr, size, err := local.Get(kind, hash)
+	errorLogger cache.Logger, instanceName string, hash string, kind cache.EntryKind) {
+	rdr, size, err := local.Get(kind, instanceName, hash)
 	if err != nil {
 		return
 	}
@@ -42,7 +43,7 @@ func uploadFile(remote *http.Client, baseURL *url.URL, local cache.Cache, access
 		// See https://github.com/golang/go/issues/20257#issuecomment-299509391
 		rdr = http.NoBody
 	}
-	url := requestURL(baseURL, hash, kind)
+	url := requestURL(baseURL, instanceName, hash, kind)
 	req, err := http.NewRequest(http.MethodPut, url, rdr)
 	if err != nil {
 		return
@@ -69,7 +70,7 @@ func New(baseURL *url.URL, local cache.Cache, remote *http.Client, accessLogger 
 		go func(remote *http.Client, baseURL *url.URL, local cache.Cache, accessLogger cache.Logger,
 			errorLogger cache.Logger) {
 			for item := range uploadQueue {
-				uploadFile(remote, baseURL, local, accessLogger, errorLogger, item.hash, item.kind)
+				uploadFile(remote, baseURL, local, accessLogger, errorLogger, item.instanceName, item.hash, item.kind)
 			}
 		}(remote, baseURL, local, accessLogger, errorLogger)
 	}
@@ -88,20 +89,21 @@ func logResponse(log cache.Logger, method string, code int, url string) {
 	log.Printf("%4s %d %15s %s", method, code, "", url)
 }
 
-func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64, rdr io.Reader) error {
-	if r.local.Contains(kind, hash) {
+func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, instanceName string, hash string, size int64, rdr io.Reader) error {
+	if r.local.Contains(kind, instanceName, hash) {
 		io.Copy(ioutil.Discard, rdr)
 		return nil
 	}
-	err := r.local.Put(kind, hash, size, rdr)
+	err := r.local.Put(kind, instanceName, hash, size, rdr)
 	if err != nil {
 		return err
 	}
 
 	select {
 	case r.uploadQueue <- &uploadReq{
-		hash: hash,
-		kind: kind,
+		instanceName: instanceName,
+		hash:         hash,
+		kind:         kind,
 	}:
 	default:
 		r.errorLogger.Printf("too many uploads queued")
@@ -109,12 +111,12 @@ func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64
 	return err
 }
 
-func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
-	if r.local.Contains(kind, hash) {
-		return r.local.Get(kind, hash)
+func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, instanceName string, hash string) (io.ReadCloser, int64, error) {
+	if r.local.Contains(kind, instanceName, hash) {
+		return r.local.Get(kind, instanceName, hash)
 	}
 
-	url := requestURL(r.baseURL, hash, kind)
+	url := requestURL(r.baseURL, instanceName, hash, kind)
 	rsp, err := r.remote.Get(url)
 	if err != nil {
 		return nil, -1, err
@@ -149,16 +151,16 @@ func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCl
 	}
 	sizeBytes := int64(sizeBytesInt)
 
-	err = r.local.Put(kind, hash, sizeBytes, rsp.Body)
+	err = r.local.Put(kind, instanceName, hash, sizeBytes, rsp.Body)
 	if err != nil {
 		return nil, -1, err
 	}
 
-	return r.local.Get(kind, hash)
+	return r.local.Get(kind, instanceName, hash)
 }
 
-func (r *remoteHTTPProxyCache) Contains(kind cache.EntryKind, hash string) bool {
-	return r.local.Contains(kind, hash)
+func (r *remoteHTTPProxyCache) Contains(kind cache.EntryKind, instanceName string, hash string) bool {
+	return r.local.Contains(kind, instanceName, hash)
 }
 
 func (r *remoteHTTPProxyCache) MaxSize() int64 {
@@ -169,6 +171,9 @@ func (r *remoteHTTPProxyCache) Stats() (currentSize int64, numItems int) {
 	return r.local.Stats()
 }
 
-func requestURL(baseURL *url.URL, hash string, kind cache.EntryKind) string {
-	return fmt.Sprintf("%s/%s/%s", baseURL, kind, hash)
+func requestURL(baseURL *url.URL, instanceName string, hash string, kind cache.EntryKind) string {
+	if kind == cache.CAS || instanceName == "" {
+		return fmt.Sprintf("%s/%s/%s", baseURL, kind, hash)
+	}
+	return fmt.Sprintf("/%s/%s/%s_%s", baseURL, kind, hash, instanceName)
 }

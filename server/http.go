@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -67,35 +68,36 @@ func NewHTTPCache(cache cache.Cache, accessLogger cache.Logger, errorLogger cach
 }
 
 // Parse cache artifact information from the request URL
-func parseRequestURL(url string, validateAC bool) (cache.EntryKind, string, error) {
+func parseRequestURL(url string, validateAC bool) (cache.EntryKind, string, string, error) {
 	m := blobNameSHA256.FindStringSubmatch(url)
 	if m == nil {
 		err := fmt.Errorf("resource name must be a SHA256 hash in hex. "+
 			"got '%s'", html.EscapeString(url))
-		return 0, "", err
+		return 0, "", "", err
 	}
 
 	parts := m[2:]
 	if len(parts) != 2 {
 		err := fmt.Errorf("the path '%s' is invalid. expected (ac/|cas/)sha256",
 			html.EscapeString(url))
-		return 0, "", err
+		return 0, "", "", err
 	}
 
 	// The regex ensures that parts[0] can only be "ac/" or "cas/"
+	instanceName := strings.TrimSuffix(m[1], "/")
 	hash := parts[1]
 	if parts[0] == "cas/" {
-		return cache.CAS, hash, nil
+		return cache.CAS, instanceName, hash, nil
 	}
 
 	if validateAC {
-		return cache.AC, hash, nil
+		return cache.AC, instanceName, hash, nil
 	}
 
-	return cache.RAW, hash, nil
+	return cache.RAW, instanceName, hash, nil
 }
-func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request, hash string) {
-	_, data, err := cache.GetValidatedActionResult(h.cache, hash)
+func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request, instanceName string, hash string) {
+	_, data, err := cache.GetValidatedActionResult(h.cache, instanceName, hash)
 	if err != nil {
 		http.Error(w, "Not found", http.StatusNotFound)
 		h.logResponse(http.StatusNotFound, r)
@@ -112,8 +114,8 @@ func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request
 	h.logResponse(http.StatusOK, r)
 }
 
-func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, hash string) {
-	_, data, err := cache.GetValidatedActionResult(h.cache, hash)
+func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, instanceName string, hash string) {
+	_, data, err := cache.GetValidatedActionResult(h.cache, instanceName, hash)
 	if err != nil {
 		http.Error(w, "Not found", http.StatusNotFound)
 		h.logResponse(http.StatusNotFound, r)
@@ -156,7 +158,7 @@ func (h *httpCache) logResponse(code int, r *http.Request) {
 func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	kind, hash, err := parseRequestURL(r.URL.Path, h.validateAC)
+	kind, instanceName, hash, err := parseRequestURL(r.URL.Path, h.validateAC)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		h.logResponse(http.StatusBadRequest, r)
@@ -167,18 +169,18 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 
 		if h.validateAC && kind == cache.AC {
-			h.handleGetValidAC(w, r, hash)
+			h.handleGetValidAC(w, r, instanceName, hash)
 			return
 		}
 
-		rdr, sizeBytes, err := h.cache.Get(kind, hash)
+		rdr, sizeBytes, err := h.cache.Get(kind, instanceName, hash)
 		if err != nil {
 			if e, ok := err.(*cache.Error); ok {
 				http.Error(w, e.Error(), e.Code)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
-			h.errorLogger.Printf("GET %s: %s", path(kind, hash), err)
+			h.errorLogger.Printf("GET %s: %s", path(kind, instanceName, hash), err)
 			return
 		}
 
@@ -197,9 +199,9 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPut:
 		if r.ContentLength == -1 {
 			// We need the content-length header to make sure we have enough disk space.
-			msg := fmt.Sprintf("PUT without Content-Length (key = %s)", path(kind, hash))
+			msg := fmt.Sprintf("PUT without Content-Length (key = %s)", path(kind, instanceName, hash))
 			http.Error(w, msg, http.StatusBadRequest)
-			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
+			h.errorLogger.Printf("PUT %s: %s", path(kind, instanceName, hash), msg)
 			return
 		}
 		contentLength := r.ContentLength
@@ -212,7 +214,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				msg := "failed to read request body"
 				http.Error(w, msg, http.StatusInternalServerError)
-				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
+				h.errorLogger.Printf("PUT %s: %s", path(kind, instanceName, hash), msg)
 				return
 			}
 
@@ -220,7 +222,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 				msg := fmt.Sprintf("sizes don't match. Expected %d, found %d",
 					contentLength, len(data))
 				http.Error(w, msg, http.StatusBadRequest)
-				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
+				h.errorLogger.Printf("PUT %s: %s", path(kind, instanceName, hash), msg)
 				return
 			}
 
@@ -228,7 +230,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			data, code, err := addWorkerMetadataHTTP(r.RemoteAddr, data)
 			if err != nil {
 				http.Error(w, err.Error(), code)
-				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), err.Error())
+				h.errorLogger.Printf("PUT %s: %s", path(kind, instanceName, hash), err.Error())
 				return
 			}
 			contentLength = int64(len(data))
@@ -239,14 +241,14 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			rc = ioutil.NopCloser(bytes.NewReader(data))
 		}
 
-		err := h.cache.Put(kind, hash, contentLength, rc)
+		err := h.cache.Put(kind, instanceName, hash, contentLength, rc)
 		if err != nil {
 			if cerr, ok := err.(*cache.Error); ok {
 				http.Error(w, err.Error(), cerr.Code)
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
-			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), err)
+			h.errorLogger.Printf("PUT %s: %s", path(kind, instanceName, hash), err)
 		} else {
 			h.logResponse(http.StatusOK, r)
 		}
@@ -254,13 +256,13 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodHead:
 
 		if h.validateAC && kind == cache.AC {
-			h.handleContainsValidAC(w, r, hash)
+			h.handleContainsValidAC(w, r, instanceName, hash)
 			return
 		}
 
 		// Unvalidated path:
 
-		ok := h.cache.Contains(kind, hash)
+		ok := h.cache.Contains(kind, instanceName, hash)
 		if !ok {
 			http.Error(w, "Not found", http.StatusNotFound)
 			h.logResponse(http.StatusNotFound, r)
@@ -325,6 +327,9 @@ func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func path(kind cache.EntryKind, hash string) string {
-	return fmt.Sprintf("/%s/%s", kind, hash)
+func path(kind cache.EntryKind, instanceName string, hash string) string {
+	if kind == cache.CAS || instanceName == "" {
+		return fmt.Sprintf("/%s/%s", kind, hash)
+	}
+	return fmt.Sprintf("/%s/%s/%s", instanceName, kind, hash)
 }

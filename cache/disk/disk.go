@@ -157,10 +157,10 @@ func (c *diskCache) loadExistingFiles() error {
 	return nil
 }
 
-func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.Reader) error {
+func (c *diskCache) Put(kind cache.EntryKind, instanceName string, hash string, expectedSize int64, r io.Reader) error {
 	c.mu.Lock()
 
-	key := cacheKey(kind, hash)
+	key := cacheKey(kind, instanceName, hash)
 
 	// If there's an ongoing upload (i.e. cache key is present in uncommitted state),
 	// we drop the upload and discard the incoming stream. We do accept uploads
@@ -204,7 +204,7 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 	}()
 
 	// Download to a temporary file
-	filePath := cacheFilePath(kind, c.dir, hash)
+	filePath := cacheFilePath(kind, c.dir, instanceName, hash)
 	tmpFilePath := filePath + ".tmp"
 	f, err := os.Create(tmpFilePath)
 	if err != nil {
@@ -260,12 +260,12 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 	return err
 }
 
-func (c *diskCache) Get(kind cache.EntryKind, hash string) (rdr io.ReadCloser, sizeBytes int64, err error) {
-	if !c.Contains(kind, hash) {
+func (c *diskCache) Get(kind cache.EntryKind, instanceName string, hash string) (rdr io.ReadCloser, sizeBytes int64, err error) {
+	if !c.Contains(kind, instanceName, hash) {
 		return nil, 0, nil
 	}
 
-	blobPath := cacheFilePath(kind, c.dir, hash)
+	blobPath := cacheFilePath(kind, c.dir, instanceName, hash)
 
 	fileInfo, err := os.Stat(blobPath)
 	if err != nil {
@@ -281,11 +281,11 @@ func (c *diskCache) Get(kind cache.EntryKind, hash string) (rdr io.ReadCloser, s
 	return rdr, sizeBytes, nil
 }
 
-func (c *diskCache) Contains(kind cache.EntryKind, hash string) (ok bool) {
+func (c *diskCache) Contains(kind cache.EntryKind, instanceName string, hash string) (ok bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	val, found := c.lru.Get(cacheKey(kind, hash))
+	val, found := c.lru.Get(cacheKey(kind, instanceName, hash))
 	// Uncommitted (i.e. uploading items) should be reported as not ok
 	return found && val.(*lruItem).committed
 }
@@ -311,10 +311,14 @@ func ensureDirExists(path string) {
 	}
 }
 
-func cacheKey(kind cache.EntryKind, hash string) string {
-	return filepath.Join(kind.String(), hash[:2], hash)
+func cacheKey(kind cache.EntryKind, instanceName string, hash string) string {
+	if kind == cache.CAS || instanceName == "" {
+		return filepath.Join(kind.String(), hash[:2], hash)
+	} else {
+		return filepath.Join(kind.String(), hash[:2], hash+"_"+instanceName)
+	}
 }
 
-func cacheFilePath(kind cache.EntryKind, cacheDir string, hash string) string {
-	return filepath.Join(cacheDir, cacheKey(kind, hash))
+func cacheFilePath(kind cache.EntryKind, cacheDir string, instanceName string, hash string) string {
+	return filepath.Join(cacheDir, cacheKey(kind, instanceName, hash))
 }

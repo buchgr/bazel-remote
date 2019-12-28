@@ -18,11 +18,13 @@ import (
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
-	"github.com/buchgr/bazel-remote/utils"
+	testutils "github.com/buchgr/bazel-remote/utils"
 
 	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/golang/protobuf/proto"
 )
+
+const noInstanceName = ""
 
 func TestDownloadFile(t *testing.T) {
 	cacheDir := testutils.CreateTmpCacheDirs(t)
@@ -302,7 +304,7 @@ func TestStatusPage(t *testing.T) {
 
 func TestParseRequestURL(t *testing.T) {
 	{
-		_, _, err := parseRequestURL("invalid/url", true)
+		_, _, _, err := parseRequestURL("invalid/url", true)
 		if err == nil {
 			t.Error("Failed to reject an invalid URL")
 		}
@@ -311,9 +313,12 @@ func TestParseRequestURL(t *testing.T) {
 	const aSha256sum = "fec3be77b8aa0d307ed840581ded3d114c86f36d4914c81e33a72877020c0603"
 
 	{
-		kind, hash, err := parseRequestURL("cas/"+aSha256sum, true)
+		kind, instanceName, hash, err := parseRequestURL("cas/"+aSha256sum, true)
 		if err != nil {
 			t.Error("Failed to parse a valid CAS URL")
+		}
+		if instanceName != "" {
+			t.Error("Instance name parsed incorrectly")
 		}
 		if hash != aSha256sum {
 			t.Error("Cache key parsed incorrectly")
@@ -324,22 +329,12 @@ func TestParseRequestURL(t *testing.T) {
 	}
 
 	{
-		kind, hash, err := parseRequestURL("ac/"+aSha256sum, true)
+		kind, instanceName, hash, err := parseRequestURL("ac/"+aSha256sum, true)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL")
 		}
-		if hash != aSha256sum {
-			t.Error("Cache key parsed incorrectly")
-		}
-		if kind != cache.AC {
-			t.Errorf("Expected kind AC but got %s", kind)
-		}
-	}
-
-	{
-		kind, hash, err := parseRequestURL("prefix/ac/"+aSha256sum, true)
-		if err != nil {
-			t.Error("Failed to parse a valid AC URL with prefix")
+		if instanceName != "" {
+			t.Error("Instance name parsed incorrectly")
 		}
 		if hash != aSha256sum {
 			t.Error("Cache key parsed incorrectly")
@@ -350,9 +345,28 @@ func TestParseRequestURL(t *testing.T) {
 	}
 
 	{
-		kind, hash, err := parseRequestURL("prefix/ac/"+aSha256sum, false)
+		kind, instanceName, hash, err := parseRequestURL("prefix/ac/"+aSha256sum, true)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL with prefix")
+		}
+		if instanceName != "prefix" {
+			t.Error("Instance name parsed incorrectly")
+		}
+		if hash != aSha256sum {
+			t.Error("Cache key parsed incorrectly")
+		}
+		if kind != cache.AC {
+			t.Errorf("Expected kind AC but got %s", kind)
+		}
+	}
+
+	{
+		kind, instanceName, hash, err := parseRequestURL("prefix/ac/"+aSha256sum, false)
+		if err != nil {
+			t.Error("Failed to parse a valid AC URL with prefix")
+		}
+		if instanceName != "prefix" {
+			t.Error("Instance name parsed incorrectly")
 		}
 		if hash != aSha256sum {
 			t.Error("Cache key parsed incorrectly")
@@ -366,18 +380,18 @@ func TestParseRequestURL(t *testing.T) {
 type fakeCache struct {
 }
 
-func (f *fakeCache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) error {
+func (f *fakeCache) Put(kind cache.EntryKind, instanceName string, hash string, size int64, r io.Reader) error {
 	return nil
 }
 
-func (f *fakeCache) Get(kind cache.EntryKind, hash string) (rdr io.ReadCloser, sizeBytes int64, err error) {
+func (f *fakeCache) Get(kind cache.EntryKind, instanceName string, hash string) (rdr io.ReadCloser, sizeBytes int64, err error) {
 	return nil, -1, &cache.Error{
 		Code: http.StatusNotFound,
 		Text: fmt.Sprintf("Not found\n"),
 	}
 }
 
-func (f *fakeCache) Contains(kind cache.EntryKind, hash string) (ok bool) {
+func (f *fakeCache) Contains(kind cache.EntryKind, instanceName string, hash string) (ok bool) {
 	return false
 }
 
