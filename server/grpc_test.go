@@ -253,6 +253,31 @@ func TestGrpcAc(t *testing.T) {
 	}
 }
 
+func TestGrpcAcEmptySha256(t *testing.T) {
+
+	// Check that we can "download" an empty blob, even if it hasn't
+	// been uploaded.
+
+	emptySum := sha256.Sum256([]byte{})
+	emptyDigest := pb.Digest{
+		Hash:      hex.EncodeToString(emptySum[:]),
+		SizeBytes: 0,
+	}
+
+	downReq := pb.BatchReadBlobsRequest{
+		Digests: []*pb.Digest{&emptyDigest},
+	}
+
+	downResp, err := casClient.BatchReadBlobs(ctx, &downReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(downResp.GetResponses()) != 1 {
+		t.Fatal("Expected 1 response, got", len(downResp.GetResponses()))
+	}
+}
+
 func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 
 	// Upload an ActionResult with some inlined blobs.
