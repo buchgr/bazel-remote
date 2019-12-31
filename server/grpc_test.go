@@ -265,6 +265,12 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 		SizeBytes: testBlobSize,
 	}
 
+	_, emptyFileHash := testutils.RandomDataAndHash(int64(0))
+	emptyFileDigest := pb.Digest{
+		Hash:      emptyFileHash,
+		SizeBytes: 0,
+	}
+
 	stdoutRaw, stdoutHash := testutils.RandomDataAndHash(testBlobSize)
 	stdoutDigest := pb.Digest{
 		Hash:      stdoutHash,
@@ -283,6 +289,14 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 				Path:     "foo/bar/grok",
 				Digest:   &outputFileDigest,
 				Contents: outputFile,
+			},
+
+			&pb.OutputFile{
+				Path: "foo/bar/empty",
+				// Add the empty digest, as an alternative to an empty slice.
+				Digest: &emptyFileDigest,
+				// Note: don't "upload" the empty slice.
+				//Contents: []byte{},
 			},
 		},
 		StdoutRaw:    stdoutRaw,
@@ -317,6 +331,7 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 	downReq := pb.BatchReadBlobsRequest{
 		Digests: []*pb.Digest{
 			&outputFileDigest,
+			&emptyFileDigest,
 			&stdoutDigest,
 			&stderrDigest,
 		},
