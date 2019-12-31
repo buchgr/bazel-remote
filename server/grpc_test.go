@@ -253,6 +253,86 @@ func TestGrpcAc(t *testing.T) {
 	}
 }
 
+func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
+
+	// Upload an ActionResult with some inlined blobs.
+
+	testBlobSize := int64(128)
+
+	outputFile, outputFileHash := testutils.RandomDataAndHash(testBlobSize)
+	outputFileDigest := pb.Digest{
+		Hash:      outputFileHash,
+		SizeBytes: testBlobSize,
+	}
+
+	stdoutRaw, stdoutHash := testutils.RandomDataAndHash(testBlobSize)
+	stdoutDigest := pb.Digest{
+		Hash:      stdoutHash,
+		SizeBytes: int64(len(stdoutRaw)),
+	}
+
+	stderrRaw, stderrHash := testutils.RandomDataAndHash(testBlobSize)
+	stderrDigest := pb.Digest{
+		Hash:      stderrHash,
+		SizeBytes: int64(len(stderrRaw)),
+	}
+
+	ar := pb.ActionResult{
+		OutputFiles: []*pb.OutputFile{
+			&pb.OutputFile{
+				Path:     "foo/bar/grok",
+				Digest:   &outputFileDigest,
+				Contents: outputFile,
+			},
+		},
+		StdoutRaw:    stdoutRaw,
+		StdoutDigest: &stdoutDigest,
+		StderrRaw:    stderrRaw,
+		StderrDigest: &stderrDigest,
+		ExitCode:     int32(42),
+	}
+
+	arData, err := proto.Marshal(&ar)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	arSum := sha256.Sum256(arData)
+	arHash := hex.EncodeToString(arSum[:])
+	arDigest := pb.Digest{
+		Hash:      arHash,
+		SizeBytes: int64(len(arData)),
+	}
+
+	_, err = acClient.UpdateActionResult(ctx, &pb.UpdateActionResultRequest{
+		ActionDigest: &arDigest,
+		ActionResult: &ar,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Check that we can download the blobs individually.
+
+	downReq := pb.BatchReadBlobsRequest{
+		Digests: []*pb.Digest{
+			&outputFileDigest,
+			&stdoutDigest,
+			&stderrDigest,
+		},
+	}
+
+	downResp, err := casClient.BatchReadBlobs(ctx, &downReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(downResp.GetResponses()) != len(downReq.Digests) {
+		t.Fatal("Expected", len(downReq.Digests), "responses, got",
+			len(downResp.GetResponses()))
+	}
+}
+
 func TestGrpcByteStream(t *testing.T) {
 
 	// Must be large enough to test multiple iterations of the
