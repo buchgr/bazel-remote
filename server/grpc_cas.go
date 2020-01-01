@@ -32,9 +32,15 @@ func (s *grpcServer) FindMissingBlobs(ctx context.Context,
 	errorPrefix := "GRPC CAS GET"
 	for _, digest := range req.BlobDigests {
 		hash := digest.GetHash()
-		err := s.validateHash(hash, errorPrefix)
+		err := s.validateHash(hash, digest.SizeBytes, errorPrefix)
 		if err != nil {
 			return nil, err
+		}
+
+		if digest.SizeBytes == 0 {
+			// The hash was validated, so we know it's OK.
+			s.accessLogger.Printf("GRPC CAS HEAD %s OK", hash)
+			continue
 		}
 
 		if !s.cache.Contains(cache.CAS, hash) {
@@ -59,7 +65,7 @@ func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 	errorPrefix := "GRPC CAS PUT"
 	for _, req := range in.Requests {
 		// TODO: consider fanning-out goroutines here.
-		err := s.validateHash(req.Digest.Hash, errorPrefix)
+		err := s.validateHash(req.Digest.Hash, req.Digest.SizeBytes, errorPrefix)
 		if err != nil {
 			return nil, err
 		}
@@ -91,6 +97,14 @@ func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 // found, the returned error is errBlobNotFound. Only use this
 // function when it's OK to buffer the entire blob in memory.
 func (s *grpcServer) getBlobData(hash string, size int64) ([]byte, error) {
+	if size < 0 {
+		return []byte{}, errBadSize
+	}
+
+	if size == 0 {
+		return []byte{}, nil
+	}
+
 	rdr, sizeBytes, err := s.cache.Get(cache.CAS, hash)
 	if err != nil {
 		rdr.Close()
@@ -149,7 +163,7 @@ func (s *grpcServer) BatchReadBlobs(ctx context.Context,
 	errorPrefix := "GRPC CAS GET"
 	for _, digest := range in.Digests {
 		// TODO: consider fanning-out goroutines here.
-		err := s.validateHash(digest.Hash, errorPrefix)
+		err := s.validateHash(digest.Hash, digest.SizeBytes, errorPrefix)
 		if err != nil {
 			return nil, err
 		}
@@ -166,7 +180,7 @@ func (s *grpcServer) GetTree(in *pb.GetTreeRequest,
 		Directories: make([]*pb.Directory, 0),
 	}
 	errorPrefix := "GRPC CAS GETTREEREQUEST"
-	err := s.validateHash(in.RootDigest.Hash, errorPrefix)
+	err := s.validateHash(in.RootDigest.Hash, in.RootDigest.SizeBytes, errorPrefix)
 	if err != nil {
 		return err
 	}
@@ -212,7 +226,7 @@ func (s *grpcServer) fillDirectories(resp *pb.GetTreeResponse, dir *pb.Directory
 	// Recursively append all the child dirs.
 	for _, dirNode := range dir.Directories {
 
-		err := s.validateHash(dirNode.Digest.Hash, errorPrefix)
+		err := s.validateHash(dirNode.Digest.Hash, dirNode.Digest.SizeBytes, errorPrefix)
 		if err != nil {
 			return err
 		}

@@ -68,16 +68,23 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 		return status.Error(codes.InvalidArgument, msg)
 	}
 
-	hash := rem[0]
-	err := s.validateHash(hash, errorPrefix)
-	if err != nil {
-		return err
-	}
-
 	size, err := strconv.ParseInt(rem[1], 10, 64)
 	if err != nil {
-		s.accessLogger.Printf("GRPC BYTESTREAM READ FAILED: unable to parse size: %s", err)
-		return status.Error(codes.Unknown, err.Error())
+		msg := fmt.Sprintf("Invalid size: %s", rem[1])
+		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
+		return status.Error(codes.InvalidArgument, msg)
+	}
+	if size < 0 {
+		msg := fmt.Sprintf("Invalid size (must be non-negative): %s", rem[1])
+		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
+		return status.Error(codes.InvalidArgument, msg)
+	}
+
+	hash := rem[0]
+
+	err = s.validateHash(hash, size, errorPrefix)
+	if err != nil {
+		return err
 	}
 
 	if req.ReadOffset > size {
@@ -204,14 +211,14 @@ func (s *grpcServer) parseWriteResource(r string) (string, int64, error) {
 	}
 
 	hash := rem[2]
-	err := s.validateHash(hash, "GRPC BYTESTREAM READ FAILED")
-	if err != nil {
-		return "", 0, err
-	}
-
 	size, err := strconv.ParseInt(rem[3], 10, 64)
 	if err != nil {
 		return "", 0, status.Errorf(codes.InvalidArgument, "Unable to parse size: %s", rem[3])
+	}
+
+	err = s.validateHash(hash, size, "GRPC BYTESTREAM READ FAILED")
+	if err != nil {
+		return "", 0, err
 	}
 
 	return hash, size, nil
