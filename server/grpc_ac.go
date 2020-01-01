@@ -38,7 +38,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 	req *pb.GetActionResultRequest) (*pb.ActionResult, error) {
 
 	errorPrefix := "GRPC AC GET"
-	err := s.validateHash(req.ActionDigest.Hash, errorPrefix)
+	err := s.validateHash(req.ActionDigest.Hash, req.ActionDigest.SizeBytes, errorPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +152,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 	req *pb.UpdateActionResultRequest) (*pb.ActionResult, error) {
 
 	errorPrefix := "GRPC AC PUT"
-	err := s.validateHash(req.ActionDigest.Hash, errorPrefix)
+	err := s.validateHash(req.ActionDigest.Hash, req.ActionDigest.SizeBytes, errorPrefix)
 	if err != nil {
 		return nil, err
 	}

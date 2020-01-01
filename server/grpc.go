@@ -20,6 +20,7 @@ import (
 
 const (
 	hashKeyLength = 64
+	emptySha256   = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 )
 
 var (
@@ -90,7 +91,17 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 }
 
 // Return an error if `hash` is not a valid cache key.
-func (s *grpcServer) validateHash(hash string, logPrefix string) error {
+func (s *grpcServer) validateHash(hash string, size int64, logPrefix string) error {
+	if size == int64(0) {
+		if hash == emptySha256 {
+			return nil
+		}
+
+		msg := "Invalid zero-length SHA256 hash"
+		s.accessLogger.Printf("%s %s: %s", logPrefix, hash, msg)
+		return status.Error(codes.InvalidArgument, msg)
+	}
+
 	if len(hash) != hashKeyLength {
 		msg := fmt.Sprintf("Hash length must be length %d", hashKeyLength)
 		s.accessLogger.Printf("%s %s: %s", logPrefix, hash, msg)
