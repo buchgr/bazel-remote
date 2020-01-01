@@ -351,7 +351,30 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Check that we can download the blobs individually.
+	// Check that the blobs exist.
+
+	missingReq := pb.FindMissingBlobsRequest{
+		BlobDigests: []*pb.Digest{
+			&outputFileDigest,
+			&emptyFileDigest,
+			&stdoutDigest,
+		},
+	}
+
+	missingResp, err := casClient.FindMissingBlobs(ctx, &missingReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(missingResp.MissingBlobDigests) != 0 {
+		for _, d := range missingResp.MissingBlobDigests {
+			t.Log("Blob missing from the CAS:", d.Hash, d.SizeBytes)
+		}
+		t.Fatal("Expected", len(missingReq.BlobDigests), "blobs, missing",
+			len(missingResp.MissingBlobDigests))
+	}
+
+	// Double-check that we can actually download the blobs individually.
 
 	downReq := pb.BatchReadBlobsRequest{
 		Digests: []*pb.Digest{
@@ -370,6 +393,20 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 	if len(downResp.GetResponses()) != len(downReq.Digests) {
 		t.Fatal("Expected", len(downReq.Digests), "responses, got",
 			len(downResp.GetResponses()))
+	}
+
+	for _, r := range downResp.GetResponses() {
+		if r == nil {
+			t.Fatal("nil response in BatchReadBlobsResponse")
+		}
+
+		if r.Status == nil {
+			t.Fatal("nil status in BatchReadBlobsResponse_Response", r.Digest)
+		}
+
+		if r.Status.GetCode() != int32(codes.OK) {
+			t.Fatal("missing blob:", r.Digest)
+		}
 	}
 }
 

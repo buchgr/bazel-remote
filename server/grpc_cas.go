@@ -149,6 +149,7 @@ func (s *grpcServer) getBlobResponse(digest *pb.Digest) *pb.BatchReadBlobsRespon
 	r.Data = data
 
 	s.accessLogger.Printf("GRPC CAS GET %s OK", digest.Hash)
+	r.Status = &status.Status{Code: int32(codes.OK)}
 	return &r
 }
 
