@@ -45,6 +45,7 @@ go_image(
     goos = "linux",
     goarch = "amd64",
     visibility = ["//visibility:private"],
+    x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
 )
 
 container_image(
