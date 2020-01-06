@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -39,9 +40,12 @@ func main() {
 
 	log.SetFlags(logFlags)
 
+	maybeGitCommitMsg := ""
 	if len(gitCommit) > 0 && gitCommit != "{STABLE_GIT_COMMIT}" {
-		log.Printf("bazel-remote built from git commit %s.", gitCommit)
+		maybeGitCommitMsg = fmt.Sprintf(" from git commit %s", gitCommit)
 	}
+	log.Printf("bazel-remote built with %s%s.",
+		runtime.Version(), maybeGitCommitMsg)
 
 	app := cli.NewApp()
 	app.Description = "A remote build cache for Bazel."
