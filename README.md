@@ -55,6 +55,8 @@ GLOBAL OPTIONS:
    --host value                  Address to listen on. Listens on all network interfaces by default. [$BAZEL_REMOTE_HOST]
    --port value                  The port the HTTP server listens on. (default: 8080) [$BAZEL_REMOTE_PORT]
    --grpc_port value             The port the EXPERIMENTAL gRPC server listens on. Set to 0 to disable. (default: 9092) [$BAZEL_REMOTE_GRPC_PORT]
+   --profile_host value          A host address to listen on for profiling, if enabled by a valid --profile_port setting. (default: "127.0.0.1") [$BAZEL_REMOTE_PROFILE_HOST]
+   --profile_port value          If a positive integer, serve /debug/pprof/* URLs from http://profile_host:profile_port. (default: 0) [$BAZEL_REMOTE_PROFILE_PORT]
    --htpasswd_file value         Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html. [$BAZEL_REMOTE_HTPASSWD_FILE]
    --tls_enabled                 This flag has been deprecated. Specify tls_cert_file and tls_key_file instead. [$BAZEL_REMOTE_TLS_ENABLED]
    --tls_cert_file value         Path to a pem encoded certificate file. [$BAZEL_REMOTE_TLS_CERT_FILE]
@@ -116,6 +118,17 @@ $ docker run -v /path/to/cache/dir:/data \
 --tls_cert_file=/etc/bazel-remote/server_cert --tls_key_file=/etc/bazel-remote/server_key \
 --htpasswd_file /etc/bazel-remote/htpasswd --max_size=5
 ```
+
+### Profiling
+
+To enable the profiling, specify a port with `--profile_port`.
+
+If running inside docker, you will also need to set `--profile_host` to a
+value other than `127.0.0.1` (`--profile_host=` with an empty value should
+work) and add a `-p` mapping to the docker run commandline for the port.
+
+See [Profiling Go programs with pprof](https://jvns.ca/blog/2017/09/24/profiling-go-with-pprof/)
+for more details.
 
 ## Configuring Bazel
 
