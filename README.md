@@ -46,7 +46,7 @@ DESCRIPTION:
    A remote build cache for Bazel.
 
 COMMANDS:
-     help, h  Shows a list of commands or help for one command
+   help, h  Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
    --config_file value           Path to a YAML configuration file. If this flag is specified then all other flags are ignored. [$BAZEL_REMOTE_CONFIG_FILE]
@@ -58,7 +58,7 @@ GLOBAL OPTIONS:
    --profile_host value          A host address to listen on for profiling, if enabled by a valid --profile_port setting. (default: "127.0.0.1") [$BAZEL_REMOTE_PROFILE_HOST]
    --profile_port value          If a positive integer, serve /debug/pprof/* URLs from http://profile_host:profile_port. (default: 0) [$BAZEL_REMOTE_PROFILE_PORT]
    --htpasswd_file value         Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html. [$BAZEL_REMOTE_HTPASSWD_FILE]
-   --tls_enabled                 This flag has been deprecated. Specify tls_cert_file and tls_key_file instead. [$BAZEL_REMOTE_TLS_ENABLED]
+   --tls_enabled                 This flag has been deprecated. Specify tls_cert_file and tls_key_file instead. (default: false) [$BAZEL_REMOTE_TLS_ENABLED]
    --tls_cert_file value         Path to a pem encoded certificate file. [$BAZEL_REMOTE_TLS_CERT_FILE]
    --tls_key_file value          Path to a pem encoded key file. [$BAZEL_REMOTE_TLS_KEY_FILE]
    --idle_timeout value          The maximum period of having received no request after which the server will shut itself down. Disabled by default. (default: 0s) [$BAZEL_REMOTE_IDLE_TIMEOUT]
@@ -67,9 +67,9 @@ GLOBAL OPTIONS:
    --s3.prefix value             The S3/minio object prefix to use when using S3 cache backend. [$BAZEL_REMOTE_S3_PREFIX]
    --s3.access_key_id value      The S3/minio access key to use when using S3 cache backend. [$BAZEL_REMOTE_S3_ACCESS_KEY_ID]
    --s3.secret_access_key value  The S3/minio secret access key to use when using S3 cache backend. [$BAZEL_REMOTE_S3_SECRET_ACCESS_KEY]
-   --s3.disable_ssl              Whether to disable TLS/SSL when using the S3 cache backend.  Default is false (enable TLS/SSL). [$BAZEL_REMOTE_S3_DISABLE_SSL]
-   --disable_http_ac_validation  Whether to disable ActionResult validation for HTTP requests.  Default is false (enable validation). [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
-   --help, -h                    show help
+   --s3.disable_ssl              Whether to disable TLS/SSL when using the S3 cache backend.  Default is false (enable TLS/SSL). (default: false) [$BAZEL_REMOTE_S3_DISABLE_SSL]
+   --disable_http_ac_validation  Whether to disable ActionResult validation for HTTP requests.  Default is false (enable validation). (default: false) [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
+   --help, -h                    show help (default: false)
 ```
 
 ## Docker
