@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	_ "net/http/pprof" // Register pprof handlers with DefaultServeMux.
 	"net/url"
 	"os"
 	"runtime"
@@ -89,6 +90,18 @@ func main() {
 			Value:   9092,
 			Usage:   "The port the EXPERIMENTAL gRPC server listens on. Set to 0 to disable.",
 			EnvVars: []string{"BAZEL_REMOTE_GRPC_PORT"},
+		},
+		&cli.StringFlag{
+			Name:    "profile_host",
+			Value:   "127.0.0.1",
+			Usage:   "A host address to listen on for profiling, if enabled by a valid --profile_port setting.",
+			EnvVars: []string{"BAZEL_REMOTE_PROFILE_HOST"},
+		},
+		&cli.IntFlag{
+			Name:    "profile_port",
+			Value:   0,
+			Usage:   "If a positive integer, serve /debug/pprof/* URLs from http://profile_host:profile_port.",
+			EnvVars: []string{"BAZEL_REMOTE_PROFILE_PORT"},
 		},
 		&cli.StringFlag{
 			Name:    "htpasswd_file",
@@ -272,6 +285,17 @@ func main() {
 				if err != nil {
 					log.Fatal(err)
 				}
+			}()
+		}
+
+		if ctx.Int("profile_port") > 0 {
+			go func() {
+				// Allow access to /debug/pprof/ URLs.
+				profileAddr := ctx.String("profile_host") + ":" +
+					strconv.Itoa(ctx.Int("profile_port"))
+				log.Printf("Starting HTTP server for profiling on address %s",
+					profileAddr)
+				log.Fatal(http.ListenAndServe(profileAddr, nil))
 			}()
 		}
 

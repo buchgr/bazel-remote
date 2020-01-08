@@ -56,6 +56,12 @@ container_image(
         "/app/bazel-remote-base.binary",
         "--port=8080",
         "--dir=/data",
+
+        # Listen on all addresses, not just 127.0.0.1, so this can
+        # be reached from outside the container (with a -p mapping).
+        "--profile_host=",
+        # Specify a port to enable the profiling http server.
+        "--profile_port=6060",
     ],
     ports = ["8080"],
     visibility = ["//visibility:public"],
