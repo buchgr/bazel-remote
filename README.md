@@ -121,7 +121,7 @@ $ docker run -v /path/to/cache/dir:/data \
 
 ### Profiling
 
-To enable the profiling, specify a port with `--profile_port`.
+To enable pprof profiling, specify a port with `--profile_port`.
 
 If running inside docker, you will also need to set `--profile_host` to a
 value other than `127.0.0.1` (`--profile_host=` with an empty value should
@@ -133,4 +133,4 @@ for more details.
 ## Configuring Bazel
 
 Please take a look at Bazel's documentation section on [remote
-caching](https://docs.bazel.build/versions/master/remote-caching.html#run-bazel-using-the-remote-cache)
+caching](https://docs.bazel.build/versions/master/remote-caching.html#run-bazel-using-the-remote-cache).
