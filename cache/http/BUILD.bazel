@@ -5,7 +5,11 @@ go_library(
     srcs = ["http.go"],
     importpath = "github.com/buchgr/bazel-remote/cache/http",
     visibility = ["//visibility:public"],
-    deps = ["//cache:go_default_library"],
+    deps = [
+        "//cache:go_default_library",
+        "@com_github_prometheus_client_golang//prometheus:go_default_library",
+        "@com_github_prometheus_client_golang//prometheus/promauto:go_default_library",
+    ],
 )
 
 go_test(

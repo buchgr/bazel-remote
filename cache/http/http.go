@@ -12,6 +12,9 @@ import (
 	"strconv"
 
 	"github.com/buchgr/bazel-remote/cache"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const numUploaders = 100
@@ -30,6 +33,17 @@ type remoteHTTPProxyCache struct {
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
 }
+
+var (
+	cacheHits = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "bazel_remote_http_cache_hits",
+		Help: "The total number of HTTP backend cache hits",
+	})
+	cacheMisses = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "bazel_remote_http_cache_misses",
+		Help: "The total number of HTTP backend cache misses",
+	})
+)
 
 func uploadFile(remote *http.Client, baseURL *url.URL, local cache.Cache, accessLogger cache.Logger,
 	errorLogger cache.Logger, hash string, kind cache.EntryKind) {
@@ -117,6 +131,7 @@ func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCl
 	url := requestURL(r.baseURL, hash, kind)
 	rsp, err := r.remote.Get(url)
 	if err != nil {
+		cacheMisses.Inc()
 		return nil, -1, err
 	}
 	defer rsp.Body.Close()
@@ -132,6 +147,7 @@ func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCl
 			errorText = string(errorBytes)
 		}
 
+		cacheMisses.Inc()
 		return nil, -1, &cache.Error{
 			Code: rsp.StatusCode,
 			Text: errorText,
@@ -141,13 +157,18 @@ func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCl
 	sizeBytesStr := rsp.Header.Get("Content-Length")
 	if sizeBytesStr == "" {
 		err = errors.New("Missing Content-Length header")
+		cacheMisses.Inc()
 		return nil, -1, err
 	}
 	sizeBytesInt, err := strconv.Atoi(sizeBytesStr)
 	if err != nil {
+		cacheMisses.Inc()
 		return nil, -1, err
 	}
 	sizeBytes := int64(sizeBytesInt)
+
+	// The request might still fail below, but we got a "hit" upstream.
+	cacheHits.Inc()
 
 	err = r.local.Put(kind, hash, sizeBytes, rsp.Body)
 	if err != nil {
