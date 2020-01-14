@@ -23,6 +23,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/config"
 	"github.com/buchgr/bazel-remote/server"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/urfave/cli/v2"
 
 	"google.golang.org/grpc"
@@ -247,6 +248,7 @@ func main() {
 		}
 		validateAC := !c.DisableHTTPACValidation
 		h := server.NewHTTPCache(proxyCache, accessLogger, errorLogger, validateAC, gitCommit)
+		mux.Handle("/metrics", promhttp.Handler())
 		mux.HandleFunc("/status", h.StatusPageHandler)
 
 		cacheHandler := h.CacheHandler
