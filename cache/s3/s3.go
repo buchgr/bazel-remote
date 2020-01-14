@@ -9,6 +9,8 @@ import (
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/config"
 	"github.com/minio/minio-go/v6"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const numUploaders = 100
@@ -28,6 +30,17 @@ type s3Cache struct {
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
 }
+
+var (
+	cacheHits = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "bazel_remote_s3_cache_hits",
+		Help: "The total number of s3 backend cache hits",
+	})
+	cacheMisses = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "bazel_remote_s3_cache_misses",
+		Help: "The total number of s3 backend cache misses",
+	})
+)
 
 // New returns a new instance of the S3-API based cache
 func New(s3Config *config.S3CloudStorageConfig, local cache.Cache, accessLogger cache.Logger,
@@ -136,12 +149,15 @@ func (c *s3Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, 
 	)
 	if err != nil {
 		if minio.ToErrorResponse(err).Code == "NoSuchKey" {
+			cacheMisses.Inc()
 			return nil, 0, nil // not found
 
 		}
+		cacheMisses.Inc()
 		return nil, 0, err
 	}
 	defer object.Close()
+	cacheHits.Inc()
 
 	logResponse(c.accessLogger, "GET", c.bucket, c.objectKey(hash, kind), err)
 
