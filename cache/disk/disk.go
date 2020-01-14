@@ -15,6 +15,19 @@ import (
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/djherbis/atime"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	cacheHits = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "bazel_remote_disk_cache_hits",
+		Help: "The total number of disk backend cache hits",
+	})
+	cacheMisses = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "bazel_remote_disk_cache_misses",
+		Help: "The total number of disk backend cache misses",
+	})
 )
 
 // lruItem is the type of the values stored in SizedLRU to keep track of items.
@@ -262,6 +275,7 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 
 func (c *diskCache) Get(kind cache.EntryKind, hash string) (rdr io.ReadCloser, sizeBytes int64, err error) {
 	if !c.Contains(kind, hash) {
+		cacheMisses.Inc()
 		return nil, 0, nil
 	}
 
@@ -269,15 +283,18 @@ func (c *diskCache) Get(kind cache.EntryKind, hash string) (rdr io.ReadCloser, s
 
 	fileInfo, err := os.Stat(blobPath)
 	if err != nil {
+		cacheMisses.Inc()
 		return nil, 0, err
 	}
 	sizeBytes = fileInfo.Size()
 
 	rdr, err = os.Open(blobPath)
 	if err != nil {
+		cacheMisses.Inc()
 		return nil, 0, err
 	}
 
+	cacheHits.Inc()
 	return rdr, sizeBytes, nil
 }
 
