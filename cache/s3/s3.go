@@ -29,7 +29,7 @@ type s3Cache struct {
 	errorLogger  cache.Logger
 }
 
-// New erturns a new instance of the S3-API based cached
+// New returns a new instance of the S3-API based cache
 func New(s3Config *config.S3CloudStorageConfig, local cache.Cache, accessLogger cache.Logger,
 	errorLogger cache.Logger) cache.Cache {
 
