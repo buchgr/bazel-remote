@@ -31,8 +31,13 @@ and the corresponding parts of the [Byte Stream API](https://github.com/googleap
 
 ## Usage
 
-The cache can be configured via command line flags, environment variables or a YAML configuration
-file. See `./config/config_test.go` for the configuration format.
+If a YAML configuration file is specified by the `--config_file` command line
+flag or `BAZEL_REMOTE_CONFIG_FILE` environment variable, then other command
+line flags and environment variables are ignored. Otherwise, the flags and
+environment variables listed in the help text below can be specified (flags
+override the corresponding environment variables).
+
+### Command line flags
 
 ```
 $ ./bazel-remote --help
@@ -70,6 +75,53 @@ GLOBAL OPTIONS:
    --s3.disable_ssl              Whether to disable TLS/SSL when using the S3 cache backend.  Default is false (enable TLS/SSL). (default: false) [$BAZEL_REMOTE_S3_DISABLE_SSL]
    --disable_http_ac_validation  Whether to disable ActionResult validation for HTTP requests.  Default is false (enable validation). (default: false) [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
    --help, -h                    show help (default: false)
+```
+
+### Example configuration file
+
+```
+# These two are the only required options:
+dir: path/to/cache-dir
+max_size: 100
+
+host: localhost
+# The port to use for HTTP/HTTPS:
+#port: 8080
+# The port to use for (experimental) gRPC support:
+#grpc_port: 9092
+
+# If you want to require simple authentication:
+#htpasswd_file: path/to/.htpasswd
+
+# Specify a certificate if you want to use HTTPS:
+#tls_cert_file: path/to/tls.cert
+#tls_key_file:  path/to/tls.key
+
+# If set to true, do not validate that ActionCache
+# items are valid ActionResult protobuf messages.
+#disable_http_ac_validation: false
+
+# At most one of the proxy backends can be selected:
+#
+#gcs_proxy:
+#  bucket: gcs-bucket
+#  use_default_credentials: false
+#  json_credentials_file: path/to/creds.json
+#
+#s3_proxy:
+#  endpoint: minio.example.com:9000
+#  bucket: test-bucket
+#  prefix: test-prefix
+#  access_key_id: EXAMPLE_ACCESS_KEY
+#  secret_access_key: EXAMPLE_SECRET_KEY
+#
+#http_proxy:
+#  url: https://remote-cache.com:8080/cache
+
+# If set to a valid port number, then serve /debug/pprof/* URLs here:
+#profile_port: 7070
+# IP address to use, if profiling is enabled:
+#profile_host: 127.0.0.1
 ```
 
 ## Docker
