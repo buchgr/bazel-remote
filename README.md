@@ -97,6 +97,10 @@ host: localhost
 #tls_cert_file: path/to/tls.cert
 #tls_key_file:  path/to/tls.key
 
+# If specified, bazel-remote should exit after being idle
+# for this long. Time units can be one of: "s", "m", "h".
+#idle_timeout: 45s
+
 # If set to true, do not validate that ActionCache
 # items are valid ActionResult protobuf messages.
 #disable_http_ac_validation: false
@@ -114,6 +118,7 @@ host: localhost
 #  prefix: test-prefix
 #  access_key_id: EXAMPLE_ACCESS_KEY
 #  secret_access_key: EXAMPLE_SECRET_KEY
+#  disable_ssl: true
 #
 #http_proxy:
 #  url: https://remote-cache.com:8080/cache
