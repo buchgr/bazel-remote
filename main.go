@@ -199,6 +199,8 @@ func main() {
 				ctx.String("host"),
 				ctx.Int("port"),
 				ctx.Int("grpc_port"),
+				ctx.String("profile_host"),
+				ctx.Int("profile_port"),
 				ctx.String("htpasswd_file"),
 				ctx.String("tls_cert_file"),
 				ctx.String("tls_key_file"),
@@ -290,11 +292,11 @@ func main() {
 			}()
 		}
 
-		if ctx.Int("profile_port") > 0 {
+		if c.ProfilePort > 0 {
 			go func() {
 				// Allow access to /debug/pprof/ URLs.
-				profileAddr := ctx.String("profile_host") + ":" +
-					strconv.Itoa(ctx.Int("profile_port"))
+				profileAddr := c.ProfileHost + ":" +
+					strconv.Itoa(c.ProfilePort)
 				log.Printf("Starting HTTP server for profiling on address %s",
 					profileAddr)
 				log.Fatal(http.ListenAndServe(profileAddr, nil))

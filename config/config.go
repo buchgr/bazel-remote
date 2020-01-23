@@ -34,6 +34,8 @@ type Config struct {
 	Host                    string                    `yaml:"host"`
 	Port                    int                       `yaml:"port"`
 	GRPCPort                int                       `yaml:"grpc_port"`
+	ProfileHost             string                    `yaml:"profile_host"`
+	ProfilePort             int                       `yaml:"profile_port"`
 	Dir                     string                    `yaml:"dir"`
 	MaxSize                 int                       `yaml:"max_size"`
 	HtpasswdFile            string                    `yaml:"htpasswd_file"`
@@ -47,13 +49,16 @@ type Config struct {
 }
 
 // New ...
-func New(dir string, maxSize int, host string, port int, grpc_port int, htpasswdFile string,
+func New(dir string, maxSize int, host string, port int, grpc_port int,
+	profile_host string, profile_port int, htpasswdFile string,
 	tlsCertFile string, tlsKeyFile string, idleTimeout time.Duration,
 	s3 *S3CloudStorageConfig, disable_http_ac_validation bool) (*Config, error) {
 	c := Config{
 		Host:                    host,
 		Port:                    port,
 		GRPCPort:                grpc_port,
+		ProfileHost:             profile_host,
+		ProfilePort:             profile_port,
 		Dir:                     dir,
 		MaxSize:                 maxSize,
 		HtpasswdFile:            htpasswdFile,
