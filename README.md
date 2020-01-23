@@ -90,6 +90,10 @@ host: localhost
 # The port to use for (experimental) gRPC support:
 #grpc_port: 9092
 
+# If profile_port is specified, then serve /debug/pprof/* URLs here:
+#profile_host: 127.0.0.1
+#profile_port: 7070
+
 # If you want to require simple authentication:
 #htpasswd_file: path/to/.htpasswd
 

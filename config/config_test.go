@@ -173,3 +173,43 @@ s3_proxy:
 		t.Fatalf("Expected '%+v' but got '%+v'", expectedConfig, config)
 	}
 }
+
+func TestValidProfiling(t *testing.T) {
+	yaml := `host: localhost
+port: 1234
+dir: /opt/cache-dir
+max_size: 42
+profile_port: 7070
+`
+	config, err := newFromYaml([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedConfig := &Config{
+		Host:        "localhost",
+		Port:        1234,
+		Dir:         "/opt/cache-dir",
+		MaxSize:     42,
+		ProfilePort: 7070,
+		ProfileHost: "",
+	}
+
+	if !cmp.Equal(config, expectedConfig) {
+		t.Fatalf("Expected '%+v' but got '%+v'", expectedConfig, config)
+	}
+
+	yaml += `
+profile_host: 192.168.1.1`
+
+	expectedConfig.ProfileHost = "192.168.1.1"
+
+	config, err = newFromYaml([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !cmp.Equal(config, expectedConfig) {
+		t.Fatalf("Expected '%+v' but got '%+v'", expectedConfig, config)
+	}
+}
