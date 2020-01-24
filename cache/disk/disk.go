@@ -17,6 +17,9 @@ import (
 	"github.com/djherbis/atime"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/golang/protobuf/proto"
 )
 
 var (
@@ -41,16 +44,19 @@ func (i *lruItem) Size() int64 {
 	return i.size
 }
 
-// diskCache is an implementation of the cache backed by files on a filesystem.
-type diskCache struct {
-	dir string
+// DiskCache is filesystem-based cache, with an optional backend proxy.
+type DiskCache struct {
+	dir   string
+	proxy cache.CacheProxy
+
 	mu  *sync.Mutex
 	lru SizedLRU
 }
 
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
-// with a maximum size of `maxSizeBytes` bytes.
-func New(dir string, maxSizeBytes int64) cache.Cache {
+// with a maximum size of `maxSizeBytes` bytes and an optional backend `proxy`.
+// DiskCache is safe for concurrent use.
+func New(dir string, maxSizeBytes int64, proxy cache.CacheProxy) *DiskCache {
 	// Create the directory structure.
 	hexLetters := []byte("0123456789abcdef")
 	for _, c1 := range hexLetters {
@@ -82,10 +88,11 @@ func New(dir string, maxSizeBytes int64) cache.Cache {
 		}
 	}
 
-	cache := &diskCache{
-		dir: filepath.Clean(dir),
-		mu:  &sync.Mutex{},
-		lru: NewSizedLRU(maxSizeBytes, onEvict),
+	cache := &DiskCache{
+		dir:   filepath.Clean(dir),
+		proxy: proxy,
+		mu:    &sync.Mutex{},
+		lru:   NewSizedLRU(maxSizeBytes, onEvict),
 	}
 
 	err := cache.migrateDirectories()
@@ -101,7 +108,7 @@ func New(dir string, maxSizeBytes int64) cache.Cache {
 	return cache
 }
 
-func (c *diskCache) migrateDirectories() error {
+func (c *DiskCache) migrateDirectories() error {
 	err := migrateDirectory(filepath.Join(c.dir, cache.AC.String()))
 	if err != nil {
 		return err
@@ -132,7 +139,7 @@ func migrateDirectory(dir string) error {
 // loadExistingFiles lists all files in the cache directory, and adds them to the
 // LRU index so that they can be served. Files are sorted by access time first,
 // so that the eviction behavior is preserved across server restarts.
-func (c *diskCache) loadExistingFiles() error {
+func (c *DiskCache) loadExistingFiles() error {
 	log.Printf("Loading existing files in %s.\n", c.dir)
 
 	// Walk the directory tree
@@ -170,7 +177,10 @@ func (c *diskCache) loadExistingFiles() error {
 	return nil
 }
 
-func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.Reader) error {
+// Put stores a stream of `expectedSize` bytes from `r` into the cache.
+// If `hash` is not the empty string, and the contents don't match it,
+// a non-nil error is returned.
+func (c *DiskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.Reader) error {
 	c.mu.Lock()
 
 	key := cacheKey(kind, hash)
@@ -205,19 +215,26 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 	// (if the upload went well), or delete it. Capturing the flag variable is not very nice,
 	// but this stuff is really easy to get wrong without defer().
 	shouldCommit := false
+	filePath := cacheFilePath(kind, c.dir, hash)
 	defer func() {
 		c.mu.Lock()
-		defer c.mu.Unlock()
-
 		if shouldCommit {
 			newItem.committed = true
 		} else {
 			c.lru.Remove(key)
 		}
+		c.mu.Unlock()
+
+		if shouldCommit && c.proxy != nil {
+			// TODO: buffer in memory, avoid a filesystem round-trip?
+			fr, err := os.Open(filePath)
+			if err == nil {
+				c.proxy.Put(kind, hash, expectedSize, fr)
+			}
+		}
 	}()
 
 	// Download to a temporary file
-	filePath := cacheFilePath(kind, c.dir, hash)
 	tmpFilePath := filePath + ".tmp"
 	f, err := os.Create(tmpFilePath)
 	if err != nil {
@@ -264,8 +281,8 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 
 	// Rename to the final path
 	err = os.Rename(tmpFilePath, filePath)
-	// Only commit if renaming succeeded
 	if err == nil {
+		// Only commit if renaming succeeded.
 		// This flag is used by the defer() block above.
 		shouldCommit = true
 	}
@@ -273,46 +290,174 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 	return err
 }
 
-func (c *diskCache) Get(kind cache.EntryKind, hash string) (rdr io.ReadCloser, sizeBytes int64, err error) {
-	if !c.Contains(kind, hash) {
-		cacheMisses.Inc()
-		return nil, 0, nil
+// Return true if the item is in the cache and available.
+// Otherwise if it's ok to proxy, return a non-nil uncommitted *lruItem.
+// The caller must either set the size and commit the item, or remove it
+// from the LRU.
+func (c *DiskCache) availableOrTryProxy(key string) (bool, *lruItem) {
+	inProgress := false
+	var newItem *lruItem
+
+	c.mu.Lock()
+
+	existingItem, found := c.lru.Get(key)
+	if found {
+		if !existingItem.(*lruItem).committed {
+			inProgress = true
+		}
+	} else if c.proxy != nil {
+		newItem = &lruItem{
+			size:      -1, // Caller must fill this in later!
+			committed: false,
+		}
+		c.lru.Add(key, newItem)
 	}
 
-	blobPath := cacheFilePath(kind, c.dir, hash)
+	c.mu.Unlock()
 
-	fileInfo, err := os.Stat(blobPath)
-	if err != nil {
-		cacheMisses.Inc()
-		return nil, 0, err
-	}
-	sizeBytes = fileInfo.Size()
+	available := found && !inProgress
 
-	rdr, err = os.Open(blobPath)
-	if err != nil {
-		cacheMisses.Inc()
-		return nil, 0, err
-	}
-
-	cacheHits.Inc()
-	return rdr, sizeBytes, nil
+	return available, newItem
 }
 
-func (c *diskCache) Contains(kind cache.EntryKind, hash string) (ok bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+// Get returns an io.ReadCloser with the content of the cache item stored under `hash`
+// and the number of bytes that can be read from it. If the item is not found, the
+// io.ReadCloser will be nil. If some error occurred when processing the request, then
+// it is returned.
+func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 
+	var err error
+	key := cacheKey(kind, hash)
+
+	available, newItem := c.availableOrTryProxy(key)
+
+	if available {
+		blobPath := cacheFilePath(kind, c.dir, hash)
+		fileInfo, err := os.Stat(blobPath)
+		if err == nil {
+			r, err := os.Open(blobPath)
+			if err == nil {
+				cacheHits.Inc()
+				return r, fileInfo.Size(), nil
+			}
+		}
+
+		cacheMisses.Inc()
+		return nil, -1, nil
+	}
+
+	cacheMisses.Inc()
+
+	if newItem == nil {
+		return nil, -1, nil
+	}
+
+	filePath := cacheFilePath(kind, c.dir, hash)
+	tmpFilePath := filePath + ".tmp"
+	shouldCommit := false
+	tmpFileCreated := false
+	foundSize := int64(-1)
+	var f *os.File
+
+	// We're allowed to try downloading this blob from the proxy.
+	// Before returning, we have to either commit the item and set
+	// its size, or remove the item from the LRU.
+	defer func() {
+		c.mu.Lock()
+
+		if shouldCommit {
+			newItem.committed = true
+			newItem.size = foundSize
+		} else {
+			c.lru.Remove(key)
+		}
+
+		c.mu.Unlock()
+
+		if !shouldCommit && tmpFileCreated {
+			os.Remove(tmpFilePath) // No need to check the error.
+		}
+
+		f.Close() // No need to check the error.
+	}()
+
+	r, foundSize, err := c.proxy.Get(kind, hash)
+	if r != nil {
+		defer r.Close()
+	}
+	if err != nil || r == nil {
+		return nil, -1, err
+	}
+
+	f, err = os.Create(tmpFilePath)
+	if err != nil {
+		return nil, -1, err
+	}
+	tmpFileCreated = true
+
+	written, err := io.Copy(f, r)
+	if err != nil {
+		return nil, -1, err
+	}
+
+	if written != foundSize {
+		return nil, -1, err
+	}
+
+	if err = f.Sync(); err != nil {
+		return nil, -1, err
+	}
+
+	if err := f.Close(); err != nil {
+		return nil, -1, err
+	}
+
+	// Rename to the final path
+	err = os.Rename(tmpFilePath, filePath)
+	if err == nil {
+		// Only commit if renaming succeeded.
+		// This flag is used by the defer() block above.
+		shouldCommit = true
+
+		f2, err := os.Open(filePath)
+		if err == nil {
+			return f2, foundSize, nil
+		}
+	}
+
+	return nil, -1, err
+}
+
+// Contains returns true if the `hash` key exists in the cache.
+// If there is a local cache miss, the proxy backend (if there is
+// one) will be checked.
+func (c *DiskCache) Contains(kind cache.EntryKind, hash string) bool {
+	c.mu.Lock()
 	val, found := c.lru.Get(cacheKey(kind, hash))
 	// Uncommitted (i.e. uploading items) should be reported as not ok
-	return found && val.(*lruItem).committed
+	foundLocally := found && val.(*lruItem).committed
+	c.mu.Unlock()
+
+	if foundLocally {
+		return true
+	}
+
+	if c.proxy != nil {
+		return c.proxy.Contains(kind, hash)
+	}
+
+	return false
 }
 
-func (c *diskCache) MaxSize() int64 {
+// MaxSize returns the maximum cache size in bytes.
+func (c *DiskCache) MaxSize() int64 {
 	// The underlying value is never modified, no need to lock.
 	return c.lru.MaxSize()
 }
 
-func (c *diskCache) Stats() (currentSize int64, numItems int) {
+// Return the current size of the cache in bytes, and the number of
+// items stored in the cache.
+func (c *DiskCache) Stats() (currentSize int64, numItems int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -334,4 +479,58 @@ func cacheKey(kind cache.EntryKind, hash string) string {
 
 func cacheFilePath(kind cache.EntryKind, cacheDir string, hash string) string {
 	return filepath.Join(cacheDir, cacheKey(kind, hash))
+}
+
+// If `hash` refers to a valid ActionResult with all the dependencies
+// available in the CAS, return it and its serialized value.
+// If not, return nil values.
+// If something unexpected went wrong, return an error.
+func (c *DiskCache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte, error) {
+	rdr, sizeBytes, err := c.Get(cache.AC, hash)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if rdr == nil || sizeBytes <= 0 {
+		return nil, nil, nil // aka "not found"
+	}
+
+	data, err := ioutil.ReadAll(rdr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	result := &pb.ActionResult{}
+	err = proto.Unmarshal(data, result)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, f := range result.OutputFiles {
+		if len(f.Contents) == 0 && f.Digest.SizeBytes > 0 {
+			if !c.Contains(cache.CAS, f.Digest.Hash) {
+				return nil, nil, nil // aka "not found"
+			}
+		}
+	}
+
+	for _, d := range result.OutputDirectories {
+		if !c.Contains(cache.CAS, d.TreeDigest.Hash) {
+			return nil, nil, nil // aka "not found"
+		}
+	}
+
+	if result.StdoutDigest != nil && result.StdoutDigest.SizeBytes > 0 {
+		if !c.Contains(cache.CAS, result.StdoutDigest.Hash) {
+			return nil, nil, nil // aka "not found"
+		}
+	}
+
+	if result.StderrDigest != nil && result.StderrDigest.SizeBytes > 0 {
+		if !c.Contains(cache.CAS, result.StderrDigest.Hash) {
+			return nil, nil, nil // aka "not found"
+		}
+	}
+
+	return result, data, nil
 }

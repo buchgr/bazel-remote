@@ -2,10 +2,6 @@ package cache
 
 import (
 	"io"
-	"io/ioutil"
-
-	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	"github.com/golang/protobuf/proto"
 )
 
 // EntryKind describes the kind of cache entry
@@ -49,81 +45,20 @@ func (e *Error) Error() string {
 	return e.Text
 }
 
-// Cache is the interface for a generic blob storage backend. Implementers should handle
-// locking internally.
-type Cache interface {
+// Cache backends implement this interface, and are optionally used
+// by DiskCache. CacheProxy implementations are expected to be safe
+// for concurrent use.
+type CacheProxy interface {
+	// Put should make a reasonable effort to proxy this data to the backend.
+	// This is allowed to fail silently (eg when under heavy load).
+	Put(kind EntryKind, hash string, size int64, rdr io.Reader)
 
-	// Put stores a stream of `size` bytes from `rdr` into the cache. If `hash` is
-	// not the empty string, and the contents don't match it, a non-nil error is
-	// returned.
-	Put(kind EntryKind, hash string, size int64, rdr io.Reader) error
+	// Get should return the cache item identified by `hash`, or an error
+	// if something went wrong. If the item was not found, the io.ReadCloser
+	// will be nil.
+	Get(kind EntryKind, hash string) (io.ReadCloser, int64, error)
 
-	// Get returns an io.ReadCloser with the content of the cache item stored under `hash`
-	// and the number of bytes that can be read from it. If the item is not found, `rdr` is
-	// nil. If some error occurred when processing the request, then it is returned.
-	Get(kind EntryKind, hash string) (rdr io.ReadCloser, sizeBytes int64, err error)
-
-	// Contains returns true if the `hash` key exists in the cache.
-	Contains(kind EntryKind, hash string) (ok bool)
-
-	// MaxSize returns the maximum cache size in bytes.
-	MaxSize() int64
-
-	// Return the current size of the cache in bytes, and the number of
-	// items stored in the cache.
-	Stats() (int64, int)
-}
-
-// If `hash` refers to a valid ActionResult with all the dependencies
-// available in the CAS, return it and its serialized value.
-// If not, return nil values.
-// If something unexpected went wrong, return an error.
-func GetValidatedActionResult(c Cache, hash string) (*pb.ActionResult, []byte, error) {
-	rdr, sizeBytes, err := c.Get(AC, hash)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if rdr == nil || sizeBytes <= 0 {
-		return nil, nil, nil // aka "not found"
-	}
-
-	data, err := ioutil.ReadAll(rdr)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	result := &pb.ActionResult{}
-	err = proto.Unmarshal(data, result)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	for _, f := range result.OutputFiles {
-		if len(f.Contents) == 0 && f.Digest.SizeBytes > 0 {
-			if !c.Contains(CAS, f.Digest.Hash) {
-				return nil, nil, nil // aka "not found"
-			}
-		}
-	}
-
-	for _, d := range result.OutputDirectories {
-		if !c.Contains(CAS, d.TreeDigest.Hash) {
-			return nil, nil, nil // aka "not found"
-		}
-	}
-
-	if result.StdoutDigest != nil && result.StdoutDigest.SizeBytes > 0 {
-		if !c.Contains(CAS, result.StdoutDigest.Hash) {
-			return nil, nil, nil // aka "not found"
-		}
-	}
-
-	if result.StderrDigest != nil && result.StderrDigest.SizeBytes > 0 {
-		if !c.Contains(CAS, result.StderrDigest.Hash) {
-			return nil, nil, nil // aka "not found"
-		}
-	}
-
-	return result, data, nil
+	// Contains returns whether or not the cache item exists on the
+	// remote end.
+	Contains(kind EntryKind, hash string) bool
 }

@@ -33,7 +33,7 @@ func TestDownloadFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := disk.New(cacheDir, 1024)
+	c := disk.New(cacheDir, 1024, nil)
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
 
 	req, err := http.NewRequest("GET", "/cas/"+hash, bytes.NewReader([]byte{}))
@@ -84,7 +84,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 		requests[i] = r
 	}
 
-	c := disk.New(cacheDir, 1000*1024)
+	c := disk.New(cacheDir, 1000*1024, nil)
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
 	handler := http.HandlerFunc(h.CacheHandler)
 
@@ -140,7 +140,7 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 
 	data, hash := testutils.RandomDataAndHash(1024)
 
-	c := disk.New(cacheDir, 1024)
+	c := disk.New(cacheDir, 1024, nil)
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
 	handler := http.HandlerFunc(h.CacheHandler)
 
@@ -185,7 +185,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 		t.Error(err)
 	}
 
-	c := disk.New(cacheDir, 2048)
+	c := disk.New(cacheDir, 2048, nil)
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.CacheHandler)
@@ -225,7 +225,7 @@ func TestUploadEmptyActionResult(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := disk.New(cacheDir, 2048)
+	c := disk.New(cacheDir, 2048, nil)
 	validate := true
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), validate, "")
 	rr := httptest.NewRecorder()
@@ -275,7 +275,7 @@ func TestStatusPage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := disk.New(cacheDir, 2048)
+	c := disk.New(cacheDir, 2048, nil)
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.StatusPageHandler)
@@ -363,32 +363,6 @@ func TestParseRequestURL(t *testing.T) {
 	}
 }
 
-type fakeCache struct {
-}
-
-func (f *fakeCache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) error {
-	return nil
-}
-
-func (f *fakeCache) Get(kind cache.EntryKind, hash string) (rdr io.ReadCloser, sizeBytes int64, err error) {
-	return nil, -1, &cache.Error{
-		Code: http.StatusNotFound,
-		Text: fmt.Sprintf("Not found\n"),
-	}
-}
-
-func (f *fakeCache) Contains(kind cache.EntryKind, hash string) (ok bool) {
-	return false
-}
-
-func (f *fakeCache) MaxSize() int64 {
-	return 0
-}
-
-func (f *fakeCache) Stats() (int64, int) {
-	return 0, 0
-}
-
 type fakeResponseWriter struct {
 	statusCode *int
 	response   string
@@ -408,8 +382,14 @@ func (r fakeResponseWriter) WriteHeader(statusCode int) {
 }
 
 func TestRemoteReturnsNotFound(t *testing.T) {
-	fake := &fakeCache{}
-	h := NewHTTPCache(fake, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
+	cacheDir, err := ioutil.TempDir("", "bazel-remote")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(cacheDir)
+	emptyCache := disk.New(cacheDir, 1024, nil)
+
+	h := NewHTTPCache(emptyCache, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
 	// create a fake http.Request
 	_, hash := testutils.RandomDataAndHash(1024)
 	url, _ := url.Parse(fmt.Sprintf("http://localhost:8080/ac/%s", hash))

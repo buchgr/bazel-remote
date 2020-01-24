@@ -65,7 +65,7 @@ func TestMain(m *testing.M) {
 	}
 	defer os.RemoveAll(dir)
 
-	diskCache := disk.New(dir, int64(10*maxChunkSize))
+	diskCache := disk.New(dir, int64(10*maxChunkSize), nil)
 
 	accessLogger := testutils.NewSilentLogger()
 	errorLogger := testutils.NewSilentLogger()

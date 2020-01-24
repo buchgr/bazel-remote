@@ -43,8 +43,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 		return nil, err
 	}
 
-	result, _, err := cache.GetValidatedActionResult(s.cache,
-		req.ActionDigest.Hash)
+	result, _, err := s.cache.GetValidatedActionResult(req.ActionDigest.Hash)
 	if err != nil {
 		s.accessLogger.Printf("%s %s %s", errorPrefix, req.ActionDigest.Hash, err)
 		return nil, status.Error(codes.Unknown, err.Error())

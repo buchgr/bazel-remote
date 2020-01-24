@@ -219,13 +219,11 @@ func main() {
 		accessLogger := log.New(os.Stdout, "", logFlags)
 		errorLogger := log.New(os.Stderr, "", logFlags)
 
-		diskCache := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024)
-
-		var proxyCache cache.Cache
+		var proxyCache cache.CacheProxy
 		if c.GoogleCloudStorage != nil {
 			proxyCache, err = gcs.New(c.GoogleCloudStorage.Bucket,
 				c.GoogleCloudStorage.UseDefaultCredentials, c.GoogleCloudStorage.JSONCredentialsFile,
-				diskCache, accessLogger, errorLogger)
+				accessLogger, errorLogger)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -235,13 +233,13 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
-			proxyCache = cachehttp.New(baseURL, diskCache,
+			proxyCache = cachehttp.New(baseURL,
 				httpClient, accessLogger, errorLogger)
 		} else if c.S3CloudStorage != nil {
-			proxyCache = s3.New(c.S3CloudStorage, diskCache, accessLogger, errorLogger)
-		} else {
-			proxyCache = diskCache
+			proxyCache = s3.New(c.S3CloudStorage, accessLogger, errorLogger)
 		}
+
+		diskCache := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, proxyCache)
 
 		mux := http.NewServeMux()
 		httpServer := &http.Server{
@@ -249,7 +247,7 @@ func main() {
 			Handler: mux,
 		}
 		validateAC := !c.DisableHTTPACValidation
-		h := server.NewHTTPCache(proxyCache, accessLogger, errorLogger, validateAC, gitCommit)
+		h := server.NewHTTPCache(diskCache, accessLogger, errorLogger, validateAC, gitCommit)
 		mux.Handle("/metrics", promhttp.Handler())
 		mux.HandleFunc("/status", h.StatusPageHandler)
 
@@ -285,7 +283,7 @@ func main() {
 				log.Printf("Starting gRPC server on address %s", addr)
 
 				err = server.ListenAndServeGRPC(addr, opts,
-					proxyCache, accessLogger, errorLogger)
+					diskCache, accessLogger, errorLogger)
 				if err != nil {
 					log.Fatal(err)
 				}

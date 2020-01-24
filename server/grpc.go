@@ -16,6 +16,7 @@ import (
 	"github.com/bazelbuild/remote-apis/build/bazel/semver"
 
 	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/cache/disk"
 )
 
 const (
@@ -29,13 +30,13 @@ var (
 )
 
 type grpcServer struct {
-	cache        cache.Cache
+	cache        *disk.DiskCache
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
 }
 
 func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
-	c cache.Cache, a cache.Logger, e cache.Logger) error {
+	c *disk.DiskCache, a cache.Logger, e cache.Logger) error {
 
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -46,7 +47,7 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 }
 
 func ServeGRPC(l net.Listener, opts []grpc.ServerOption,
-	c cache.Cache, a cache.Logger, e cache.Logger) error {
+	c *disk.DiskCache, a cache.Logger, e cache.Logger) error {
 
 	srv := grpc.NewServer(opts...)
 	s := &grpcServer{cache: c, accessLogger: a, errorLogger: e}

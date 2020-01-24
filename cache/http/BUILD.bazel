@@ -16,9 +16,5 @@ go_test(
     name = "go_default_test",
     srcs = ["http_test.go"],
     embed = [":go_default_library"],
-    deps = [
-        "//cache:go_default_library",
-        "//cache/disk:go_default_library",
-        "//utils:go_default_library",
-    ],
+    deps = ["//utils:go_default_library"],
 )

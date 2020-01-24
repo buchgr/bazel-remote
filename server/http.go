@@ -15,6 +15,7 @@ import (
 
 	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/cache/disk"
 	"github.com/golang/protobuf/proto"
 )
 
@@ -27,7 +28,7 @@ type HTTPCache interface {
 }
 
 type httpCache struct {
-	cache        cache.Cache
+	cache        *disk.DiskCache
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
 	validateAC   bool
@@ -46,7 +47,7 @@ type statusPageData struct {
 // accessLogger will print one line for each HTTP request to stdout.
 // errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
 // be reported.
-func NewHTTPCache(cache cache.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, commit string) HTTPCache {
+func NewHTTPCache(cache *disk.DiskCache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, commit string) HTTPCache {
 
 	_, numItems := cache.Stats()
 
@@ -95,7 +96,7 @@ func parseRequestURL(url string, validateAC bool) (cache.EntryKind, string, erro
 	return cache.RAW, hash, nil
 }
 func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request, hash string) {
-	_, data, err := cache.GetValidatedActionResult(h.cache, hash)
+	_, data, err := h.cache.GetValidatedActionResult(hash)
 	if err != nil {
 		http.Error(w, "Not found", http.StatusNotFound)
 		h.logResponse(http.StatusNotFound, r)
@@ -113,7 +114,7 @@ func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request
 }
 
 func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, hash string) {
-	_, data, err := cache.GetValidatedActionResult(h.cache, hash)
+	_, data, err := h.cache.GetValidatedActionResult(hash)
 	if err != nil {
 		http.Error(w, "Not found", http.StatusNotFound)
 		h.logResponse(http.StatusNotFound, r)
