@@ -22,14 +22,15 @@ const maxQueuedUploads = 1000000
 
 type uploadReq struct {
 	hash string
+	size int64
 	kind cache.EntryKind
+	rdr  io.Reader
 }
 
 type remoteHTTPProxyCache struct {
 	remote       *http.Client
 	baseURL      *url.URL
-	local        cache.Cache
-	uploadQueue  chan<- (*uploadReq)
+	uploadQueue  chan<- uploadReq
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
 }
@@ -45,52 +46,58 @@ var (
 	})
 )
 
-func uploadFile(remote *http.Client, baseURL *url.URL, local cache.Cache, accessLogger cache.Logger,
-	errorLogger cache.Logger, hash string, kind cache.EntryKind) {
-	rdr, size, err := local.Get(kind, hash)
-	if err != nil {
+func uploadFile(remote *http.Client, baseURL *url.URL, accessLogger cache.Logger,
+	errorLogger cache.Logger, item uploadReq) {
+
+	if item.size == 0 {
+		// See https://github.com/golang/go/issues/20257#issuecomment-299509391
+		item.rdr = http.NoBody
+	}
+
+	url := requestURL(baseURL, item.hash, item.kind)
+
+	rsp, err := remote.Head(url)
+	if err == nil && rsp.StatusCode == http.StatusOK {
+		accessLogger.Printf("SKIP UPLOAD %s", item.hash)
 		return
 	}
 
-	if size == 0 {
-		// See https://github.com/golang/go/issues/20257#issuecomment-299509391
-		rdr = http.NoBody
-	}
-	url := requestURL(baseURL, hash, kind)
-	req, err := http.NewRequest(http.MethodPut, url, rdr)
+	req, err := http.NewRequest(http.MethodPut, url, item.rdr)
 	if err != nil {
 		return
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
-	req.ContentLength = size
+	req.ContentLength = item.size
 
-	rsp, err := remote.Do(req)
+	rsp, err = remote.Do(req)
 	if err != nil {
 		return
 	}
 	io.Copy(ioutil.Discard, rsp.Body)
 	rsp.Body.Close()
 
-	logResponse(accessLogger, "PUT", rsp.StatusCode, url)
+	logResponse(accessLogger, "UPLOAD", rsp.StatusCode, url)
 	return
 }
 
 // New creates a cache that proxies requests to a HTTP remote cache.
-func New(baseURL *url.URL, local cache.Cache, remote *http.Client, accessLogger cache.Logger,
-	errorLogger cache.Logger) cache.Cache {
-	uploadQueue := make(chan *uploadReq, maxQueuedUploads)
-	for uploader := 0; uploader < numUploaders; uploader++ {
-		go func(remote *http.Client, baseURL *url.URL, local cache.Cache, accessLogger cache.Logger,
+func New(baseURL *url.URL, remote *http.Client, accessLogger cache.Logger,
+	errorLogger cache.Logger) cache.CacheProxy {
+
+	uploadQueue := make(chan uploadReq, maxQueuedUploads)
+
+	for i := 0; i < numUploaders; i++ {
+		go func(remote *http.Client, baseURL *url.URL, accessLogger cache.Logger,
 			errorLogger cache.Logger) {
 			for item := range uploadQueue {
-				uploadFile(remote, baseURL, local, accessLogger, errorLogger, item.hash, item.kind)
+				uploadFile(remote, baseURL, accessLogger, errorLogger, item)
 			}
-		}(remote, baseURL, local, accessLogger, errorLogger)
+		}(remote, baseURL, accessLogger, errorLogger)
 	}
+
 	return &remoteHTTPProxyCache{
 		remote:       remote,
 		baseURL:      baseURL,
-		local:        local,
 		uploadQueue:  uploadQueue,
 		accessLogger: accessLogger,
 		errorLogger:  errorLogger,
@@ -98,45 +105,37 @@ func New(baseURL *url.URL, local cache.Cache, remote *http.Client, accessLogger 
 }
 
 // Helper function for logging responses
-func logResponse(log cache.Logger, method string, code int, url string) {
-	log.Printf("%4s %d %15s %s", method, code, "", url)
+func logResponse(logger cache.Logger, method string, code int, url string) {
+	logger.Printf("HTTP %s %d %s", method, code, url)
 }
 
-func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64, rdr io.Reader) error {
-	if r.local.Contains(kind, hash) {
-		io.Copy(ioutil.Discard, rdr)
-		return nil
-	}
-	err := r.local.Put(kind, hash, size, rdr)
-	if err != nil {
-		return err
-	}
-
+func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64, rdr io.Reader) {
 	select {
-	case r.uploadQueue <- &uploadReq{
+	case r.uploadQueue <- uploadReq{
 		hash: hash,
+		size: size,
 		kind: kind,
+		rdr:  rdr,
 	}:
 	default:
 		r.errorLogger.Printf("too many uploads queued")
 	}
-	return err
 }
 
 func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
-	if r.local.Contains(kind, hash) {
-		return r.local.Get(kind, hash)
-	}
-
 	url := requestURL(r.baseURL, hash, kind)
 	rsp, err := r.remote.Get(url)
 	if err != nil {
 		cacheMisses.Inc()
 		return nil, -1, err
 	}
-	defer rsp.Body.Close()
 
-	logResponse(r.accessLogger, "GET", rsp.StatusCode, url)
+	logResponse(r.accessLogger, "DOWNLOAD", rsp.StatusCode, url)
+
+	if rsp.StatusCode == http.StatusNotFound {
+		cacheMisses.Inc()
+		return nil, -1, nil
+	}
 
 	if rsp.StatusCode != http.StatusOK {
 		// If the failed http response contains some data then
@@ -160,6 +159,7 @@ func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCl
 		cacheMisses.Inc()
 		return nil, -1, err
 	}
+
 	sizeBytesInt, err := strconv.Atoi(sizeBytesStr)
 	if err != nil {
 		cacheMisses.Inc()
@@ -167,27 +167,21 @@ func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCl
 	}
 	sizeBytes := int64(sizeBytesInt)
 
-	// The request might still fail below, but we got a "hit" upstream.
 	cacheHits.Inc()
 
-	err = r.local.Put(kind, hash, sizeBytes, rsp.Body)
-	if err != nil {
-		return nil, -1, err
-	}
-
-	return r.local.Get(kind, hash)
+	return rsp.Body, sizeBytes, err
 }
 
 func (r *remoteHTTPProxyCache) Contains(kind cache.EntryKind, hash string) bool {
-	return r.local.Contains(kind, hash)
-}
 
-func (r *remoteHTTPProxyCache) MaxSize() int64 {
-	return r.local.MaxSize()
-}
+	url := requestURL(r.baseURL, hash, kind)
 
-func (r *remoteHTTPProxyCache) Stats() (currentSize int64, numItems int) {
-	return r.local.Stats()
+	rsp, err := r.remote.Head(url)
+	if err == nil && rsp.StatusCode == http.StatusOK {
+		return true
+	}
+
+	return false
 }
 
 func requestURL(baseURL *url.URL, hash string, kind cache.EntryKind) string {

@@ -8,15 +8,18 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/buchgr/bazel-remote/utils"
-
 	"github.com/buchgr/bazel-remote/cache"
+	cachehttp "github.com/buchgr/bazel-remote/cache/http"
+	"github.com/buchgr/bazel-remote/utils"
 )
 
 func tempDir(t *testing.T) string {
@@ -27,7 +30,7 @@ func tempDir(t *testing.T) string {
 	return dir
 }
 
-func checkItems(cache *diskCache, expSize int64, expNum int) error {
+func checkItems(cache *DiskCache, expSize int64, expNum int) error {
 	if cache.lru.Len() != expNum {
 		return fmt.Errorf("expected %d files in the cache, found %d", expNum, cache.lru.Len())
 	}
@@ -64,9 +67,9 @@ const CONTENTS_HASH = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e730433629
 func TestCacheBasics(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache := New(cacheDir, 100)
+	testCache := New(cacheDir, 100, nil)
 
-	err := checkItems(testCache.(*diskCache), 0, 0)
+	err := checkItems(testCache, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +91,7 @@ func TestCacheBasics(t *testing.T) {
 
 	// Dig into the internals to make sure that the cache state has been
 	// updated correctly
-	err = checkItems(testCache.(*diskCache), int64(len(CONTENTS)), 1)
+	err = checkItems(testCache, int64(len(CONTENTS)), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +111,7 @@ func TestCacheBasics(t *testing.T) {
 func TestCacheEviction(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache := New(cacheDir, 10)
+	testCache := New(cacheDir, 10, nil)
 
 	expectedSizesNumItems := []struct {
 		expSize int64
@@ -131,7 +134,7 @@ func TestCacheEviction(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		err = checkItems(testCache.(*diskCache), thisExp.expSize, thisExp.expNum)
+		err = checkItems(testCache, thisExp.expSize, thisExp.expNum)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -141,7 +144,7 @@ func TestCacheEviction(t *testing.T) {
 func TestCachePutWrongSize(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache := New(cacheDir, 100)
+	testCache := New(cacheDir, 100, nil)
 
 	err := testCache.Put(cache.AC, "aa-aa", int64(10), strings.NewReader("hello"))
 	if err == nil {
@@ -169,11 +172,11 @@ func expectContentEquals(rdr io.ReadCloser, sizeBytes int64, expectedContent []b
 	return nil
 }
 
-func putGetCompare(kind cache.EntryKind, hash string, content string, testCache cache.Cache) error {
+func putGetCompare(kind cache.EntryKind, hash string, content string, testCache *DiskCache) error {
 	return putGetCompareBytes(kind, hash, []byte(content), testCache)
 }
 
-func putGetCompareBytes(kind cache.EntryKind, hash string, data []byte, testCache cache.Cache) error {
+func putGetCompareBytes(kind cache.EntryKind, hash string, data []byte, testCache *DiskCache) error {
 
 	r := bytes.NewReader(data)
 
@@ -199,7 +202,7 @@ func hashStr(content string) string {
 func TestOverwrite(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache := New(cacheDir, 10)
+	testCache := New(cacheDir, 10, nil)
 
 	var err error
 	err = putGetCompare(cache.CAS, hashStr("hello"), "hello", testCache)
@@ -256,9 +259,9 @@ func TestCacheExistingFiles(t *testing.T) {
 	}
 
 	const expectedSize = 4 * int64(len(CONTENTS))
-	testCache := New(cacheDir, expectedSize)
+	testCache := New(cacheDir, expectedSize, nil)
 
-	err := checkItems(testCache.(*diskCache), expectedSize, 4)
+	err := checkItems(testCache, expectedSize, 4)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,7 +272,7 @@ func TestCacheExistingFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = checkItems(testCache.(*diskCache), expectedSize, 4)
+	err = checkItems(testCache, expectedSize, 4)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +287,7 @@ func TestCacheExistingFiles(t *testing.T) {
 func TestCacheBlobTooLarge(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache := New(cacheDir, 100)
+	testCache := New(cacheDir, 100, nil)
 
 	for k := range []cache.EntryKind{cache.AC, cache.RAW} {
 		kind := cache.EntryKind(k)
@@ -307,7 +310,7 @@ func TestCacheBlobTooLarge(t *testing.T) {
 func TestCacheCorruptedCASBlob(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache := New(cacheDir, 1000)
+	testCache := New(cacheDir, 1000, nil)
 
 	err := testCache.Put(cache.CAS, hashStr("foo"), int64(len(CONTENTS)),
 		strings.NewReader(CONTENTS))
@@ -339,7 +342,7 @@ func TestMigrateFromOldDirectoryStructure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	testCache := New(cacheDir, 2560)
+	testCache := New(cacheDir, 2560, nil)
 	_, numItems := testCache.Stats()
 	if numItems != 3 {
 		t.Fatalf("Expected test cache size 3 but was %d", numItems)
@@ -376,7 +379,7 @@ func TestLoadExistingEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testCache := New(cacheDir, blobSize*numBlobs)
+	testCache := New(cacheDir, blobSize*numBlobs, nil)
 	_, numItems := testCache.Stats()
 	if int64(numItems) != numBlobs {
 		t.Fatalf("Expected test cache size %d but was %d",
@@ -400,7 +403,7 @@ func TestDistinctKeyspaces(t *testing.T) {
 	blobSize := 1024
 	cacheSize := int64(blobSize * 3)
 
-	testCache := New(cacheDir, cacheSize)
+	testCache := New(cacheDir, cacheSize, nil)
 
 	blob, casHash := testutils.RandomDataAndHash(1024)
 
@@ -429,5 +432,176 @@ func TestDistinctKeyspaces(t *testing.T) {
 	if numItems != 3 {
 		t.Fatalf("Expected test cache size 3 but was %d",
 			numItems)
+	}
+}
+
+// Code copied from cache/http/http_test.go
+type testServer struct {
+	srv *httptest.Server
+
+	mu  sync.Mutex
+	ac  map[string][]byte
+	cas map[string][]byte
+}
+
+func (s *testServer) handler(w http.ResponseWriter, r *http.Request) {
+
+	fields := strings.Split(r.URL.Path, "/")
+
+	kindMap := s.ac
+	if fields[1] == "ac" {
+		kindMap = s.ac
+	} else if fields[1] == "cas" {
+		kindMap = s.cas
+	}
+	hash := fields[2]
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	switch method := r.Method; method {
+	case http.MethodGet:
+		data, ok := kindMap[hash]
+		if !ok {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+		w.Write(data)
+
+	case http.MethodPut:
+		data, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "failed to read body", http.StatusInternalServerError)
+		}
+		kindMap[hash] = data
+
+	case http.MethodHead:
+		_, ok := kindMap[hash]
+		if !ok {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+	}
+}
+
+func (s *testServer) numItems() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.ac) + len(s.cas)
+}
+
+func newTestServer(t *testing.T) *testServer {
+	ts := testServer{
+		ac:  make(map[string][]byte),
+		cas: make(map[string][]byte),
+	}
+	ts.srv = httptest.NewServer(http.HandlerFunc(ts.handler))
+
+	return &ts
+}
+
+func TestHttpProxyBackend(t *testing.T) {
+
+	backend := newTestServer(t)
+	url, err := url.Parse(backend.srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	accessLogger := testutils.NewSilentLogger()
+	errorLogger := testutils.NewSilentLogger()
+
+	proxy := cachehttp.New(url, &http.Client{}, accessLogger, errorLogger)
+
+	cacheDir := testutils.TempDir(t)
+	defer os.RemoveAll(cacheDir)
+
+	cacheSize := int64(1024 * 10)
+
+	testCache := New(cacheDir, cacheSize, proxy)
+
+	blobSize := int64(1024)
+	blob, casHash := testutils.RandomDataAndHash(blobSize)
+
+	// Non-existing item
+	r, _, err := testCache.Get(cache.CAS, casHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r != nil {
+		t.Fatal("Expected nil reader")
+	}
+
+	if backend.numItems() != 0 {
+		t.Fatal("Expected empty backend")
+	}
+
+	err = testCache.Put(cache.CAS, casHash, int64(len(blob)),
+		bytes.NewReader(blob))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(time.Second) // Proxying to the backend is async.
+
+	if backend.numItems() != 1 {
+		// If this fails, check the time.Sleep call above...
+		t.Fatal("Expected Put to be proxied to the backend",
+			backend.numItems())
+	}
+
+	// Create a new (empty) testCache, without a proxy backend.
+	cacheDir = testutils.TempDir(t)
+	defer os.RemoveAll(cacheDir)
+	testCache = New(cacheDir, cacheSize, nil)
+
+	// Confirm that it does not contain the item we added to the
+	// first testCache and the proxy backend.
+
+	found := testCache.Contains(cache.CAS, casHash)
+	if found {
+		t.Fatalf("Expected the cache not to contain %s", casHash)
+	}
+
+	r, _, err = testCache.Get(cache.CAS, casHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r != nil {
+		t.Fatal("Expected testCache to be empty")
+	}
+
+	// Add the proxy backend and check that we can Get the item.
+	testCache.proxy = proxy
+
+	found = testCache.Contains(cache.CAS, casHash)
+	if !found {
+		t.Fatalf("Expected the cache to contain %s (via the proxy)",
+			casHash)
+	}
+
+	r, fetchedSize, err := testCache.Get(cache.CAS, casHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r == nil {
+		t.Fatal("Expected the Get to succeed")
+	}
+	if fetchedSize != blobSize {
+		t.Fatalf("Expected a blob of size %d, got %d", blobSize, fetchedSize)
+	}
+
+	retrievedData, err := ioutil.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if int64(len(retrievedData)) != blobSize {
+		t.Fatalf("Expected '%d' bytes of data, but received '%d'",
+			blobSize, len(retrievedData))
+	}
+
+	if bytes.Compare(retrievedData, blob) != 0 {
+		t.Fatalf("Expected '%v' but received '%v", retrievedData, blob)
 	}
 }

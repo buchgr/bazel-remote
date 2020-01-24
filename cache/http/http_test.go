@@ -2,229 +2,168 @@ package http
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"os"
 	"strings"
+	"sync"
 	"testing"
 
-	"github.com/buchgr/bazel-remote/cache"
-	"github.com/buchgr/bazel-remote/cache/disk"
-	"github.com/buchgr/bazel-remote/utils"
+	testutils "github.com/buchgr/bazel-remote/utils"
 )
 
-func TestProxyReadWorks(t *testing.T) {
-	// Test that reading a blob from a proxy works and also populates the local
-	// disk cache.
+type testServer struct {
+	srv *httptest.Server
 
-	expectedData := []byte("hello world")
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(expectedData)
-	}))
-
-	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
-	diskCache := disk.New(cacheDir, 100)
-
-	baseURL, err := url.Parse(ts.URL)
-	if err != nil {
-		t.Error(err)
-	}
-
-	proxy := New(baseURL, diskCache, &http.Client{}, testutils.NewSilentLogger(),
-		testutils.NewSilentLogger())
-
-	hashBytes := sha256.Sum256(expectedData)
-	hash := hex.EncodeToString(hashBytes[:])
-	if diskCache.Contains(cache.CAS, hash) {
-		t.Fatalf("Expected the local cache to be empty")
-	}
-
-	readBytes, actualSizeBytes, err := proxy.Get(cache.CAS, hash)
-	if err != nil {
-		t.Fatalf("Failed to get the blob via the http proxy: '%v'", err)
-	}
-
-	actualData, err := ioutil.ReadAll(readBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if bytes.Compare(actualData, expectedData) != 0 {
-		t.Fatalf("Expected '%v' but received '%v", actualData, expectedData)
-	}
-
-	if actualSizeBytes != int64(len(expectedData)) {
-		t.Fatalf("Expected '%d' bytes of expected data, but received '%d'", actualSizeBytes,
-			len(expectedData))
-	}
-
-	if !diskCache.Contains(cache.CAS, hash) {
-		t.Fatalf("Expected the blob to be cached locally.")
-	}
+	mu  sync.Mutex
+	ac  map[string][]byte
+	cas map[string][]byte
 }
 
-func TestProxyWriteWorks(t *testing.T) {
-	// Test that writing to the proxy works and also populates the local
-	// disk cache.
+func (s *testServer) handler(w http.ResponseWriter, r *http.Request) {
 
-	data := []byte("hello world")
-	hashBytes := sha256.Sum256(data)
-	hash := hex.EncodeToString(hashBytes[:])
+	fields := strings.Split(r.URL.Path, "/")
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+	kindMap := s.ac
+	if fields[1] == "ac" {
+		kindMap = s.ac
+	} else if fields[1] == "cas" {
+		kindMap = s.cas
+	}
+	hash := fields[2]
 
-		if !strings.Contains(r.URL.Path, hash) {
-			http.Error(w, fmt.Sprintf("Expected the request URL to contain the key '%s' but was '%s'",
-				hash, r.URL.Path), http.StatusInternalServerError)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	switch method := r.Method; method {
+	case http.MethodGet:
+		data, ok := kindMap[hash]
+		if !ok {
+			http.Error(w, "Not found", http.StatusNotFound)
 			return
 		}
+		w.Write(data)
 
-		actualData, err := ioutil.ReadAll(r.Body)
+	case http.MethodPut:
+		data, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Expected '%v' but received '%v'", data, actualData),
-				http.StatusInternalServerError)
+			http.Error(w, "failed to read body", http.StatusInternalServerError)
+		}
+		kindMap[hash] = data
+
+	case http.MethodHead:
+		_, ok := kindMap[hash]
+		if !ok {
+			http.Error(w, "Not found", http.StatusNotFound)
 			return
 		}
-	}))
-
-	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
-	diskCache := disk.New(cacheDir, 100)
-
-	baseURL, err := url.Parse(ts.URL)
-	if err != nil {
-		t.Error(err)
-	}
-
-	proxy := New(baseURL, diskCache, &http.Client{}, testutils.NewSilentLogger(),
-		testutils.NewSilentLogger())
-
-	if diskCache.Contains(cache.CAS, hash) {
-		t.Fatalf("Expected the local cache to be empty")
-	}
-
-	err = proxy.Put(cache.CAS, hash, int64(len(data)), bytes.NewReader(data))
-	if err != nil {
-		t.Errorf("Failed to write to the proxy: '%v'", err)
-	}
-
-	if !diskCache.Contains(cache.CAS, hash) {
-		t.Fatalf("Expected the local cache to contain '%s'", hash)
 	}
 }
 
-func TestProxyReadErrorsArePropagated(t *testing.T) {
-	// Test that if the proxy errors, the error is passed through to
-	// the client.
-
-	expectedData := []byte("hello world")
-	hashBytes := sha256.Sum256(expectedData)
-	hash := hex.EncodeToString(hashBytes[:])
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "Foo bar error", http.StatusForbidden)
-	}))
-
-	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
-	diskCache := disk.New(cacheDir, 100)
-
-	baseURL, err := url.Parse(ts.URL)
-	if err != nil {
-		t.Error(err)
+func newTestServer() *testServer {
+	ts := testServer{
+		ac:  make(map[string][]byte),
+		cas: make(map[string][]byte),
 	}
+	ts.srv = httptest.NewServer(http.HandlerFunc(ts.handler))
 
-	proxy := New(baseURL, diskCache, &http.Client{}, testutils.NewSilentLogger(),
-		testutils.NewSilentLogger())
-
-	_, _, err = proxy.Get(cache.CAS, hash)
-	if cerr, ok := err.(*cache.Error); ok {
-		if cerr.Code != http.StatusForbidden {
-			t.Errorf("Expected error code '%d' but got '%d'", http.StatusForbidden, cerr.Code)
-		}
-		if strings.Compare(cerr.Text, "Foo bar error\n") != 0 {
-			t.Errorf("Expected error text 'Foo bar error' but got '%s'", cerr.Text)
-		}
-	} else {
-		t.Error("Expected the proxy read to have failed with a CacheError")
-	}
+	return &ts
 }
 
-func TestProxyWriteErrorsAreNotPropagated(t *testing.T) {
-	// Test that when there is an error writing to the remote proxy
-	// then the error is not propagated to the client. This is because
-	// the writes to the proxy happen asynchronously and on a best effort
-	// basis.
+func TestEverything(t *testing.T) {
+	s := newTestServer()
+	defer s.srv.Close()
 
-	data := []byte("hello world")
-	hashBytes := sha256.Sum256(data)
-	hash := hex.EncodeToString(hashBytes[:])
+	casData, hash := testutils.RandomDataAndHash(1024)
+	acData := []byte{1, 2, 3, 4}
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "Foo bar error", http.StatusForbidden)
-	}))
+	acUrl := s.srv.URL + "/ac/" + hash
+	casUrl := s.srv.URL + "/cas/" + hash
 
-	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
-	diskCache := disk.New(cacheDir, 100)
+	// PUT two different values with the same key in ac and cas.
 
-	baseURL, err := url.Parse(ts.URL)
+	req, err := http.NewRequest("PUT", acUrl, bytes.NewReader(acData))
+	if err != nil {
+		t.Error(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
+	}
+
+	req, err = http.NewRequest("PUT", casUrl, bytes.NewReader(casData))
 	if err != nil {
 		t.Error(err)
 	}
 
-	proxy := New(baseURL, diskCache, &http.Client{}, testutils.NewSilentLogger(),
-		testutils.NewSilentLogger())
+	resp, err = http.DefaultClient.Do(req)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
+	}
 
-	err = proxy.Put(cache.CAS, hash, int64(len(data)), bytes.NewReader(data))
+	// Confirm that we can HEAD both values succesfully.
+
+	req, err = http.NewRequest("HEAD", acUrl, nil)
 	if err != nil {
-		t.Error("Expected the error on put to not be propagated")
+		t.Error(err)
 	}
-
-	if !diskCache.Contains(cache.CAS, hash) {
-		t.Error("Expected the blob to be stored locally")
-	}
-}
-
-func TestProxyLocalPutFailuresNotRelayed(t *testing.T) {
-	// Test that when there is an error writing to the remote proxy
-	// then the error is not propagated to the client. This is because
-	// the writes to the proxy happen asynchronously and on a best effort
-	// basis.
-
-	data := []byte("hello world")
-	hashBytes := sha256.Sum256(data)
-	hash := hex.EncodeToString(hashBytes[:])
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("Size miss-matched Put request should not have been forwarded")
-	}))
-
-	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
-	diskCache := disk.New(cacheDir, 100)
-
-	baseURL, err := url.Parse(ts.URL)
+	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
 		t.Error(err)
 	}
 
-	proxy := New(baseURL, diskCache, &http.Client{}, testutils.NewSilentLogger(),
-		testutils.NewSilentLogger())
-
-	err = proxy.Put(cache.AC, hash, int64(len(data)+1), bytes.NewReader(data))
-	if err == nil {
-		t.Error("Expected Put to error with size miss-match")
+	if resp.StatusCode != http.StatusOK {
+		t.Error("expected URL to exist")
 	}
 
-	if diskCache.Contains(cache.AC, hash) {
-		t.Error("Expected not to be stored locally")
+	req, err = http.NewRequest("HEAD", casUrl, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Error("expected URL to exist")
+	}
+
+	// Confirm that we can GET both values succesfully.
+
+	req, err = http.NewRequest("GET", acUrl, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+
+	returnedData, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if bytes.Compare(returnedData, acData) != 0 {
+		t.Error("Different data returned")
+	}
+
+	req, err = http.NewRequest("GET", casUrl, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+	}
+
+	returnedData, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if bytes.Compare(returnedData, casData) != 0 {
+		t.Error("Different data returned")
 	}
 }
