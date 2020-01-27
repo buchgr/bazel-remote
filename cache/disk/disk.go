@@ -53,6 +53,8 @@ type DiskCache struct {
 	lru SizedLRU
 }
 
+const sha256HashStrSize = sha256.Size * 2 // Two hex characters per byte.
+
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
 // with a maximum size of `maxSizeBytes` bytes and an optional backend `proxy`.
 // DiskCache is safe for concurrent use.
@@ -181,9 +183,17 @@ func (c *DiskCache) loadExistingFiles() error {
 // If `hash` is not the empty string, and the contents don't match it,
 // a non-nil error is returned.
 func (c *DiskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.Reader) error {
-	c.mu.Lock()
+
+	// The hash format is checked properly in the http/grpc code.
+	// Just perform a simple/fast check here, to catch bad tests.
+	if len(hash) != sha256HashStrSize {
+		return fmt.Errorf("Invalid hash size: %d, expected: %d",
+			len(hash), sha256.Size)
+	}
 
 	key := cacheKey(kind, hash)
+
+	c.mu.Lock()
 
 	// If there's an ongoing upload (i.e. cache key is present in uncommitted state),
 	// we drop the upload and discard the incoming stream. We do accept uploads
@@ -326,6 +336,13 @@ func (c *DiskCache) availableOrTryProxy(key string) (bool, *lruItem) {
 // it is returned.
 func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 
+	// The hash format is checked properly in the http/grpc code.
+	// Just perform a simple/fast check here, to catch bad tests.
+	if len(hash) != sha256HashStrSize {
+		return nil, -1, fmt.Errorf("Invalid hash size: %d, expected: %d",
+			len(hash), sha256.Size)
+	}
+
 	var err error
 	key := cacheKey(kind, hash)
 
@@ -432,6 +449,13 @@ func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64
 // If there is a local cache miss, the proxy backend (if there is
 // one) will be checked.
 func (c *DiskCache) Contains(kind cache.EntryKind, hash string) bool {
+
+	// The hash format is checked properly in the http/grpc code.
+	// Just perform a simple/fast check here, to catch bad tests.
+	if len(hash) != sha256HashStrSize {
+		return false
+	}
+
 	c.mu.Lock()
 	val, found := c.lru.Get(cacheKey(kind, hash))
 	// Uncommitted (i.e. uploading items) should be reported as not ok
