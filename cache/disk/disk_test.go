@@ -129,7 +129,15 @@ func TestCacheEviction(t *testing.T) {
 
 	for i, thisExp := range expectedSizesNumItems {
 		strReader := strings.NewReader(strings.Repeat("a", i))
-		err := testCache.Put(cache.AC, fmt.Sprintf("aa-%d", i), int64(i), strReader)
+
+		// Suitably-sized, unique key for these testcases:
+		key := fmt.Sprintf("%0*d", sha256HashStrSize, i)
+		if len(key) != sha256.Size*2 {
+			t.Fatalf("invalid testcase- key length should be %d, not %d: %s",
+				sha256.Size*2, len(key), key)
+		}
+
+		err := testCache.Put(cache.AC, key, int64(i), strReader)
 		if err != nil {
 			t.Fatal(err)
 		}
