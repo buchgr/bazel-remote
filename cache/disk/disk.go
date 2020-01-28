@@ -53,6 +53,11 @@ type DiskCache struct {
 	lru SizedLRU
 }
 
+type nameAndInfo struct {
+	name string // relative path
+	info os.FileInfo
+}
+
 const sha256HashStrSize = sha256.Size * 2 // Two hex characters per byte.
 
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
@@ -150,11 +155,7 @@ func (c *DiskCache) loadExistingFiles() error {
 	log.Printf("Loading existing files in %s.\n", c.dir)
 
 	// Walk the directory tree
-	type NameAndInfo struct {
-		info os.FileInfo
-		name string
-	}
-	var files []NameAndInfo
+	var files []nameAndInfo
 	err := filepath.Walk(c.dir, func(name string, info os.FileInfo, err error) error {
 		if err != nil {
 			log.Println("Error while walking directory:", err)
@@ -162,7 +163,7 @@ func (c *DiskCache) loadExistingFiles() error {
 		}
 
 		if !info.IsDir() {
-			files = append(files, NameAndInfo{info, name})
+			files = append(files, nameAndInfo{name: name, info: info})
 		}
 		return nil
 	})
