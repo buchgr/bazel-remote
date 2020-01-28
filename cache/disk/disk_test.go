@@ -46,12 +46,18 @@ func checkItems(cache *DiskCache, expSize int64, expNum int) error {
 	}
 
 	numFiles := 0
-	filepath.Walk(cache.dir, func(name string, info os.FileInfo, err error) error {
+	err := filepath.Walk(cache.dir, func(name string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if !info.IsDir() {
 			numFiles++
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
 
 	if numFiles != expNum {
 		return fmt.Errorf("expected %d files on disk, found %d", expNum, numFiles)

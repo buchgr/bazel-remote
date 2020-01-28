@@ -126,6 +126,11 @@ func (c *DiskCache) migrateDirectories() error {
 func migrateDirectory(dir string) error {
 	log.Printf("Migrating files (if any) to new directory structure: %s\n", dir)
 	return filepath.Walk(dir, func(name string, info os.FileInfo, err error) error {
+		if err != nil {
+			log.Println("Error while walking directory:", err)
+			return err
+		}
+
 		if info.IsDir() {
 			if name == dir {
 				return nil
@@ -151,6 +156,11 @@ func (c *DiskCache) loadExistingFiles() error {
 	}
 	var files []NameAndInfo
 	err := filepath.Walk(c.dir, func(name string, info os.FileInfo, err error) error {
+		if err != nil {
+			log.Println("Error while walking directory:", err)
+			return err
+		}
+
 		if !info.IsDir() {
 			files = append(files, NameAndInfo{info, name})
 		}
