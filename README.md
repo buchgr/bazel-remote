@@ -79,7 +79,7 @@ GLOBAL OPTIONS:
 
 ### Example configuration file
 
-```
+```yaml
 # These two are the only required options:
 dir: path/to/cache-dir
 max_size: 100
