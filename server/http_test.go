@@ -38,14 +38,14 @@ func TestDownloadFile(t *testing.T) {
 
 	req, err := http.NewRequest("GET", "/cas/"+hash, bytes.NewReader([]byte{}))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.CacheHandler)
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
-		t.Error("Handler returned wrong status code",
+		t.Fatal("Handler returned wrong status code",
 			"expected", http.StatusOK,
 			"got", status,
 		)
@@ -79,7 +79,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 		data, hash := testutils.RandomDataAndHash(1024)
 		r, err := http.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(data))
 		if err != nil {
-			t.Error(err)
+			t.Fatal(err)
 		}
 		requests[i] = r
 	}
@@ -108,13 +108,13 @@ func TestUploadFilesConcurrently(t *testing.T) {
 	wg.Wait()
 
 	f, err := os.Open(cacheDir)
-	defer f.Close()
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
+	defer f.Close()
 	files, err := f.Readdir(-1)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	var totalSize int64
 	for _, fileinfo := range files {
@@ -155,6 +155,7 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 			request, err := http.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(data))
 			if err != nil {
 				t.Error(err)
+				return
 			}
 
 			handler.ServeHTTP(rr, request)
@@ -182,7 +183,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 
 	r, err := http.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(corruptedData))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	c := disk.New(cacheDir, 2048, nil)
@@ -199,10 +200,10 @@ func TestUploadCorruptedFile(t *testing.T) {
 
 	// Check that no file was saved in the cache
 	f, err := os.Open(cacheDir)
-	defer f.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer f.Close()
 	entries, err := f.Readdir(-1)
 	if err != nil {
 		t.Fatal(err)
