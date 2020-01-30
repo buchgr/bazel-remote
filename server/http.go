@@ -17,6 +17,7 @@ import (
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
 	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/jsonpb"
 )
 
 var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{64})$")
@@ -127,6 +128,25 @@ func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, has
 		return
 	}
 
+	if r.Header.Get("Accept") == "application/json" {
+		ar := &pb.ActionResult{}
+		err = proto.Unmarshal(data, ar)
+		if err != nil {
+			h.logResponse(http.StatusInternalServerError, r)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		marshaler := jsonpb.Marshaler{}
+		err = marshaler.Marshal(w, ar)
+		if err != nil {
+			h.logResponse(http.StatusInternalServerError, r)
+			return
+		}
+
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Length", strconv.FormatInt(int64(len(data)), 10))
 	bytesWritten, err := w.Write(data)
@@ -226,7 +246,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Ensure that the serialized ActionResult has non-zero length.
-			data, code, err := addWorkerMetadataHTTP(r.RemoteAddr, data)
+			data, code, err := addWorkerMetadataHTTP(r.RemoteAddr, r.Header.Get("Content-Type"), data)
 			if err != nil {
 				http.Error(w, err.Error(), code)
 				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), err.Error())
@@ -277,9 +297,13 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func addWorkerMetadataHTTP(addr string, orig []byte) (data []byte, code int, err error) {
+func addWorkerMetadataHTTP(addr string, ct string, orig []byte) (data []byte, code int, err error) {
 	ar := &pb.ActionResult{}
-	err = proto.Unmarshal(orig, ar)
+	if ct == "application/json" {
+		err = jsonpb.Unmarshal(bytes.NewReader(orig), ar)
+	} else {
+		err = proto.Unmarshal(orig, ar)
+	}
 	if err != nil {
 		return orig, http.StatusBadRequest, err
 	}
