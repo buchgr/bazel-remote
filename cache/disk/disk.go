@@ -95,24 +95,24 @@ func New(dir string, maxSizeBytes int64, proxy cache.CacheProxy) *DiskCache {
 		}
 	}
 
-	cache := &DiskCache{
+	c := &DiskCache{
 		dir:   filepath.Clean(dir),
 		proxy: proxy,
 		mu:    &sync.Mutex{},
 		lru:   NewSizedLRU(maxSizeBytes, onEvict),
 	}
 
-	err := cache.migrateDirectories()
+	err := c.migrateDirectories()
 	if err != nil {
 		log.Fatalf("Attempting to migrate the old directory structure to the new structure failed "+
 			"with error: %v", err)
 	}
-	err = cache.loadExistingFiles()
+	err = c.loadExistingFiles()
 	if err != nil {
 		log.Fatalf("Loading of existing cache entries failed due to error: %v", err)
 	}
 
-	return cache
+	return c
 }
 
 func (c *DiskCache) migrateDirectories() error {
