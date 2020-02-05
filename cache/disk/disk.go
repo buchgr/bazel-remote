@@ -366,13 +366,16 @@ func (c *DiskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 	return err
 }
 
-// Return true if the item is in the cache and available.
-// Otherwise if it's ok to proxy, return a non-nil uncommitted *lruItem.
-// The caller must either set the size and commit the item, or remove it
-// from the LRU.
-func (c *DiskCache) availableOrTryProxy(key string) (bool, *lruItem) {
+// Return two bools, `available` is true if the item is in the local
+// cache and ready to use.
+//
+// `tryProxy` is true if the item is not in the local cache but can
+// be requested from the proxy, in which case, a placeholder entry
+// has been added to the index and the caller must either replace
+// the entry with the actual size, or remove it from the LRU.
+func (c *DiskCache) availableOrTryProxy(key string) (available bool, tryProxy bool) {
 	inProgress := false
-	var newItem *lruItem
+	tryProxy = false
 
 	c.mu.Lock()
 
@@ -382,18 +385,19 @@ func (c *DiskCache) availableOrTryProxy(key string) (bool, *lruItem) {
 			inProgress = true
 		}
 	} else if c.proxy != nil {
-		newItem = &lruItem{
-			size:      -1, // Caller must fill this in later!
+		// Reserve a place in the LRU.
+		// The caller must replace or remove this!
+		tryProxy = c.lru.Add(key, &lruItem{
+			size:      0,
 			committed: false,
-		}
-		c.lru.Add(key, newItem)
+		})
 	}
 
 	c.mu.Unlock()
 
-	available := found && !inProgress
+	available = found && !inProgress
 
-	return available, newItem
+	return available, tryProxy
 }
 
 // Get returns an io.ReadCloser with the content of the cache item stored under `hash`
@@ -412,7 +416,7 @@ func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64
 	var err error
 	key := cacheKey(kind, hash)
 
-	available, newItem := c.availableOrTryProxy(key)
+	available, tryProxy := c.availableOrTryProxy(key)
 
 	if available {
 		blobPath := cacheFilePath(kind, c.dir, hash)
@@ -431,7 +435,7 @@ func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64
 
 	cacheMisses.Inc()
 
-	if newItem == nil {
+	if !tryProxy {
 		return nil, -1, nil
 	}
 
@@ -449,9 +453,15 @@ func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64
 		c.mu.Lock()
 
 		if shouldCommit {
-			newItem.committed = true
-			newItem.size = foundSize
+			// Overwrite the placeholder inserted by availableOrTryProxy.
+			// Call Add instead of updating the entry directly, so we
+			// update the currentSize value.
+			c.lru.Add(key, &lruItem{
+				size:      foundSize,
+				committed: true,
+			})
 		} else {
+			// Remove the placeholder.
 			c.lru.Remove(key)
 		}
 
