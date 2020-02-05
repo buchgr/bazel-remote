@@ -180,10 +180,16 @@ func (c *DiskCache) loadExistingFiles() error {
 	log.Println("Building LRU index.")
 	for _, f := range files {
 		relPath := f.name[len(c.dir)+1:]
-		c.lru.Add(relPath, &lruItem{
+		ok := c.lru.Add(relPath, &lruItem{
 			size:      f.info.Size(),
 			committed: true,
 		})
+		if !ok {
+			err = os.Remove(filepath.Join(c.dir, relPath))
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	log.Println("Finished loading disk cache files.")
