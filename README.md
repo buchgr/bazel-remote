@@ -23,7 +23,11 @@ Cache entries are set and retrieved by key, and there are two types of keys that
 Values are stored via HTTP PUT requests, and retrieved via GET requests. HEAD requests can be used to confirm
 whether a key exists or not.
 
-Values stored in the action cache are validated as an ActionResult protobuf message as per the [Bazel Remote Execution API v2](https://github.com/bazelbuild/remote-apis/blob/master/build/bazel/remote/execution/v2/remote_execution.proto) unless validation is disabled by configuration. The HTTP server also supports reading and writing JSON encoded protobuf ActionResult messages to the action cache by using HTTP headers `Accept: application/json` for GET requests and `Content-type: application/json` for PUT requests.
+Values stored in the action cache are validated as an ActionResult protobuf message as per the
+[Bazel Remote Execution API v2](https://github.com/bazelbuild/remote-apis/blob/master/build/bazel/remote/execution/v2/remote_execution.proto)
+unless validation is disabled by configuration. The HTTP server also supports reading and writing JSON
+encoded protobuf ActionResult messages to the action cache by using HTTP headers `Accept: application/json`
+for GET requests and `Content-type: application/json` for PUT requests.
 
 ## gRPC API
 
