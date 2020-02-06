@@ -85,12 +85,61 @@ func New(dir string, maxSizeBytes int64, proxy cache.CacheProxy) *DiskCache {
 	}
 
 	// The eviction callback deletes the file from disk.
+	// This function is only called while the lock is held
+	// by the current goroutine.
 	onEvict := func(key Key, value SizedItem) {
-		// Only remove committed items (as temporary files have a different filename)
+
+		f := filepath.Join(dir, key.(string))
+
 		if value.(*lruItem).committed {
-			err := os.Remove(filepath.Join(dir, key.(string)))
+			// Common case. Just remove the cache file and we're done.
+			err := os.Remove(f)
 			if err != nil {
-				log.Println(err)
+				log.Printf("ERROR: failed to remove evicted cache file: %s", f)
+			}
+
+			return
+		}
+
+		// There is an ongoing upload for the evicted item. The temp
+		// file may or may not exist at this point.
+		//
+		// We should either be able to remove both the temp file and
+		// the regular cache file, or to remove just the regular cache
+		// file. The temp file is renamed/moved to the regular cache
+		// file without holding the lock, so we must try removing the
+		// temp file first.
+
+		// Note: if you hit this case, then your cache size might be
+		// too small (blobs are moved to the most-recently used end
+		// of the index when the upload begins, and these items are
+		// still uploading when they reach the least-recently used
+		// end of the index).
+
+		tf := f + ".tmp"
+		var fErr, tfErr error
+		removedCount := 0
+
+		tfErr = os.Remove(tf)
+		if tfErr == nil {
+			removedCount++
+		}
+
+		fErr = os.Remove(f)
+		if fErr == nil {
+			removedCount++
+		}
+
+		// We expect to have removed at least one file at this point.
+		if removedCount == 0 {
+			if !os.IsNotExist(tfErr) {
+				log.Printf("ERROR: failed to remove evicted item: %s / %v",
+					tf, tfErr)
+			}
+
+			if !os.IsNotExist(fErr) {
+				log.Printf("ERROR: failed to remove evicted item: %s / %v",
+					f, fErr)
 			}
 		}
 	}
