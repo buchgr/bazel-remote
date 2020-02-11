@@ -615,8 +615,50 @@ func (c *DiskCache) GetValidatedActionResult(hash string) (*pb.ActionResult, []b
 	}
 
 	for _, d := range result.OutputDirectories {
-		if !c.Contains(cache.CAS, d.TreeDigest.Hash) {
-			return nil, nil, nil // aka "not found"
+		r, size, err := c.Get(cache.CAS, d.TreeDigest.Hash)
+		if r == nil {
+			return nil, nil, err // aka "not found", or an err if non-nil
+		}
+		if err != nil {
+			r.Close()
+			return nil, nil, err
+		}
+		if size != d.TreeDigest.SizeBytes {
+			r.Close()
+			return nil, nil, fmt.Errorf("expected %d bytes, found %d",
+				d.TreeDigest.SizeBytes, size)
+		}
+
+		data, err := ioutil.ReadAll(r)
+		r.Close()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		tree := pb.Tree{}
+		err = proto.Unmarshal(data, &tree)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, f := range tree.Root.GetFiles() {
+			if f.Digest == nil {
+				continue
+			}
+			if !c.Contains(cache.CAS, f.Digest.Hash) {
+				return nil, nil, nil // aka "not found"
+			}
+		}
+
+		for _, child := range tree.GetChildren() {
+			for _, f := range child.GetFiles() {
+				if f.Digest == nil {
+					continue
+				}
+				if !c.Contains(cache.CAS, f.Digest.Hash) {
+					return nil, nil, nil // aka "not found"
+				}
+			}
 		}
 	}
 
