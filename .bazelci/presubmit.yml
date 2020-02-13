@@ -1,12 +1,19 @@
 ---
-platforms:
-  ubuntu1604: &anchor
+tasks:
+  ubuntu1604:
+    platform: ubuntu1604
     build_targets:
     - "..."
     test_targets:
     - "..."
-  ubuntu1804: *anchor
+  ubuntu1804:
+    platform: ubuntu1804
+    build_targets:
+    - "..."
+    test_targets:
+    - "..."
   macos:
+    platform: macos
     build_targets:
     # Skip the (linux) container image targets, just build the binary.
     - "//:bazel-remote"
