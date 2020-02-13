@@ -10,7 +10,12 @@ gazelle(
 
 go_library(
     name = "go_default_library",
-    srcs = ["main.go"],
+    srcs = [
+        "main.go",
+        "rlimit_darwin.go",
+        "rlimit_unix.go",
+        "rlimit_windows.go",
+    ],
     importpath = "github.com/buchgr/bazel-remote",
     visibility = ["//visibility:private"],
     deps = [
