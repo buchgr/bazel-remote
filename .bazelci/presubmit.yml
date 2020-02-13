@@ -1,14 +1,28 @@
 ---
-platforms:
-  ubuntu1604: &anchor
+tasks:
+#  ubuntu1604:
+#    platform: ubuntu1604
+#    build_targets:
+#    - "..."
+#    test_targets:
+#    - "..."
+  ubuntu1804:
+    platform: ubuntu1804
     build_targets:
     - "..."
     test_targets:
     - "..."
-  ubuntu1804: *anchor
-  macos:
-    build_targets:
-    # Skip the (linux) container image targets, just build the binary.
-    - "//:bazel-remote"
-    test_targets:
-    - "..."
+    shell_commands:
+    - "echo XXXXXXXXXXXXXXXXXX just checking at which point these are run"
+    - "ls"
+    artifact_paths:
+    - "bazel-bin/linux_amd64_static_pure_stripped/bazel-remote"
+#  macos:
+#    platform: macos
+#    build_targets:
+#    # Skip the (linux) container image targets, just build the binary.
+#    - "//:bazel-remote"
+#    test_targets:
+#    - "..."
+#    artifact_paths:
+#    - "bazel-bin/darwin_amd64_static_pure_stripped/bazel-remote"
