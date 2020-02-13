@@ -20,3 +20,23 @@ tasks:
     - "//:bazel-remote"
     test_targets:
     - "..."
+  # A series of checks, each in a separate job due to
+  # https://github.com/bazelbuild/continuous-integration/issues/938
+  check_gofmt:
+    platform: ubuntu1804
+    name: "go fmt"
+    shell_commands:
+      - "echo +++ Check go format"
+      - ".bazelci/check-gofmt.sh `find . -name '*.go'`"
+  check_go_vet:
+    platform: ubuntu1804
+    name: "go vet"
+    shell_commands:
+      - "echo +++ Check go vet"
+      - "go vet ./..."
+  check_go_test_race:
+    platform: ubuntu1804
+    name: "go test --race"
+    shell_commands:
+      - "echo +++ Running go test with race detector"
+      - "go test -race ./..."
