@@ -1,4 +1,5 @@
 ---
+validate_config: 1
 tasks:
   ubuntu1604:
     platform: ubuntu1604
