@@ -216,6 +216,8 @@ func main() {
 			return nil
 		}
 
+		adjustRlimit()
+
 		accessLogger := log.New(os.Stdout, "", logFlags)
 		errorLogger := log.New(os.Stderr, "", logFlags)
 
