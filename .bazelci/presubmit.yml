@@ -1,14 +1,12 @@
 ---
-platforms:
-  ubuntu1604: &anchor
+validate_config: 1
+tasks:
+  ubuntu1804:
+    platform: ubuntu1804
+    shell_commands:
+    - "echo 1"
+    - ".bazelci/fail.sh"
+    - "echo 3" # This should not be run, because the previous command failed.
+    #- ".bazelci/fail.sh" # When this is uncommented, the build actually fails.
     build_targets:
-    - "..."
-    test_targets:
-    - "..."
-  ubuntu1804: *anchor
-  macos:
-    build_targets:
-    # Skip the (linux) container image targets, just build the binary.
-    - "//:bazel-remote"
-    test_targets:
     - "..."
