@@ -59,6 +59,7 @@ type CacheProxy interface {
 	Get(kind EntryKind, hash string) (io.ReadCloser, int64, error)
 
 	// Contains returns whether or not the cache item exists on the
-	// remote end.
-	Contains(kind EntryKind, hash string) bool
+	// remote end, and the size if it exists (and -1 if the size is
+	// unknown).
+	Contains(kind EntryKind, hash string) (bool, int64)
 }

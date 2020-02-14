@@ -521,32 +521,41 @@ func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64
 	return nil, -1, err
 }
 
-// Contains returns true if the `hash` key exists in the cache.
+// Contains returns true if the `hash` key exists in the cache, and
+// the size if known (or -1 if unknown).
+//
 // If there is a local cache miss, the proxy backend (if there is
 // one) will be checked.
-func (c *DiskCache) Contains(kind cache.EntryKind, hash string) bool {
+func (c *DiskCache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
 
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
 	if len(hash) != sha256HashStrSize {
-		return false
+		return false, int64(-1)
 	}
+
+	var foundLocally bool
+	size := int64(-1)
 
 	c.mu.Lock()
 	val, found := c.lru.Get(cacheKey(kind, hash))
 	// Uncommitted (i.e. uploading items) should be reported as not ok
-	foundLocally := found && val.(*lruItem).committed
+	if found {
+		item := val.(*lruItem)
+		foundLocally = item.committed
+		size = item.size
+	}
 	c.mu.Unlock()
 
 	if foundLocally {
-		return true
+		return true, size
 	}
 
 	if c.proxy != nil {
 		return c.proxy.Contains(kind, hash)
 	}
 
-	return false
+	return false, int64(-1)
 }
 
 // MaxSize returns the maximum cache size in bytes.
@@ -608,7 +617,8 @@ func (c *DiskCache) GetValidatedActionResult(hash string) (*pb.ActionResult, []b
 
 	for _, f := range result.OutputFiles {
 		if len(f.Contents) == 0 && f.Digest.SizeBytes > 0 {
-			if !c.Contains(cache.CAS, f.Digest.Hash) {
+			found, _ := c.Contains(cache.CAS, f.Digest.Hash)
+			if !found {
 				return nil, nil, nil // aka "not found"
 			}
 		}
@@ -645,7 +655,8 @@ func (c *DiskCache) GetValidatedActionResult(hash string) (*pb.ActionResult, []b
 			if f.Digest == nil {
 				continue
 			}
-			if !c.Contains(cache.CAS, f.Digest.Hash) {
+			found, _ := c.Contains(cache.CAS, f.Digest.Hash)
+			if !found {
 				return nil, nil, nil // aka "not found"
 			}
 		}
@@ -655,7 +666,8 @@ func (c *DiskCache) GetValidatedActionResult(hash string) (*pb.ActionResult, []b
 				if f.Digest == nil {
 					continue
 				}
-				if !c.Contains(cache.CAS, f.Digest.Hash) {
+				found, _ := c.Contains(cache.CAS, f.Digest.Hash)
+				if !found {
 					return nil, nil, nil // aka "not found"
 				}
 			}
@@ -663,13 +675,15 @@ func (c *DiskCache) GetValidatedActionResult(hash string) (*pb.ActionResult, []b
 	}
 
 	if result.StdoutDigest != nil && result.StdoutDigest.SizeBytes > 0 {
-		if !c.Contains(cache.CAS, result.StdoutDigest.Hash) {
+		found, _ := c.Contains(cache.CAS, result.StdoutDigest.Hash)
+		if !found {
 			return nil, nil, nil // aka "not found"
 		}
 	}
 
 	if result.StderrDigest != nil && result.StderrDigest.SizeBytes > 0 {
-		if !c.Contains(cache.CAS, result.StderrDigest.Hash) {
+		found, _ := c.Contains(cache.CAS, result.StderrDigest.Hash)
+		if !found {
 			return nil, nil, nil // aka "not found"
 		}
 	}

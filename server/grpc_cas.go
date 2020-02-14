@@ -43,7 +43,8 @@ func (s *grpcServer) FindMissingBlobs(ctx context.Context,
 			continue
 		}
 
-		if !s.cache.Contains(cache.CAS, hash) {
+		found, _ := s.cache.Contains(cache.CAS, hash)
+		if !found {
 			s.accessLogger.Printf("GRPC CAS HEAD %s NOT FOUND", hash)
 			resp.MissingBlobDigests = append(resp.MissingBlobDigests, digest)
 		} else {

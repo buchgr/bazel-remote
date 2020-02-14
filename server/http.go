@@ -281,7 +281,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Unvalidated path:
 
-		ok := h.cache.Contains(kind, hash)
+		ok, _ := h.cache.Contains(kind, hash)
 		if !ok {
 			http.Error(w, "Not found", http.StatusNotFound)
 			h.logResponse(http.StatusNotFound, r)

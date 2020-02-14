@@ -113,7 +113,8 @@ func (s *grpcServer) maybeInline(inline bool, slice *[]byte, digest **pb.Digest,
 			}
 		}
 
-		if !s.cache.Contains(cache.CAS, (*digest).Hash) {
+		found, _ := s.cache.Contains(cache.CAS, (*digest).Hash)
+		if !found {
 			err := s.cache.Put(cache.CAS, (*digest).Hash, (*digest).SizeBytes,
 				bytes.NewReader(*slice))
 			if err != nil {
