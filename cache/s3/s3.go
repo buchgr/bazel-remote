@@ -157,9 +157,10 @@ func (c *s3Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, 
 	return object, info.Size, nil
 }
 
-func (c *s3Cache) Contains(kind cache.EntryKind, hash string) bool {
+func (c *s3Cache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
+	size := int64(-1)
 
-	_, err := c.mcore.StatObject(
+	s, err := c.mcore.StatObject(
 		c.bucket,                  // bucketName
 		c.objectKey(hash, kind),   // objectName
 		minio.StatObjectOptions{}, // opts
@@ -168,8 +169,11 @@ func (c *s3Cache) Contains(kind cache.EntryKind, hash string) bool {
 	exists := (err == nil)
 	if err != nil {
 		err = errNotFound
+	} else {
+		size = s.Size
 	}
+
 	logResponse(c.accessLogger, "CONTAINS", c.bucket, c.objectKey(hash, kind), err)
 
-	return exists
+	return exists, size
 }

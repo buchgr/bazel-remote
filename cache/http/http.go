@@ -172,16 +172,16 @@ func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCl
 	return rsp.Body, sizeBytes, err
 }
 
-func (r *remoteHTTPProxyCache) Contains(kind cache.EntryKind, hash string) bool {
+func (r *remoteHTTPProxyCache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
 
 	url := requestURL(r.baseURL, hash, kind)
 
 	rsp, err := r.remote.Head(url)
 	if err == nil && rsp.StatusCode == http.StatusOK {
-		return true
+		return true, rsp.ContentLength
 	}
 
-	return false
+	return false, int64(-1)
 }
 
 func requestURL(baseURL *url.URL, hash string, kind cache.EntryKind) string {

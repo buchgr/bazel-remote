@@ -290,7 +290,7 @@ func TestCacheExistingFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	found := testCache.Contains(cache.CAS, "f53b46209596d170f7659a414c9ff9f6b545cf77ffd6e1cbe9bcc57e1afacfbd")
+	found, _ := testCache.Contains(cache.CAS, "f53b46209596d170f7659a414c9ff9f6b545cf77ffd6e1cbe9bcc57e1afacfbd")
 	if found {
 		t.Fatalf("%s should have been evicted", items[0])
 	}
@@ -361,13 +361,20 @@ func TestMigrateFromOldDirectoryStructure(t *testing.T) {
 	if numItems != 3 {
 		t.Fatalf("Expected test cache size 3 but was %d", numItems)
 	}
-	if !testCache.Contains(cache.AC, acHash) {
+
+	var found bool
+	found, _ = testCache.Contains(cache.AC, acHash)
+	if !found {
 		t.Fatalf("Expected cache to contain AC entry '%s'", acHash)
 	}
-	if !testCache.Contains(cache.CAS, casHash1) {
+
+	found, _ = testCache.Contains(cache.CAS, casHash1)
+	if !found {
 		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash1)
 	}
-	if !testCache.Contains(cache.CAS, casHash2) {
+
+	found, _ = testCache.Contains(cache.CAS, casHash2)
+	if !found {
 		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash2)
 	}
 }
@@ -399,13 +406,21 @@ func TestLoadExistingEntries(t *testing.T) {
 		t.Fatalf("Expected test cache size %d but was %d",
 			numBlobs, numItems)
 	}
-	if !testCache.Contains(cache.AC, acHash) {
+
+	var found bool
+
+	found, _ = testCache.Contains(cache.AC, acHash)
+	if !found {
 		t.Fatalf("Expected cache to contain AC entry '%s'", acHash)
 	}
-	if !testCache.Contains(cache.CAS, casHash) {
+
+	found, _ = testCache.Contains(cache.CAS, casHash)
+	if !found {
 		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash)
 	}
-	if !testCache.Contains(cache.RAW, rawHash) {
+
+	found, _ = testCache.Contains(cache.RAW, rawHash)
+	if !found {
 		t.Fatalf("Expected cache to contain RAW entry '%s'", rawHash)
 	}
 }
@@ -572,7 +587,7 @@ func TestHttpProxyBackend(t *testing.T) {
 	// Confirm that it does not contain the item we added to the
 	// first testCache and the proxy backend.
 
-	found := testCache.Contains(cache.CAS, casHash)
+	found, _ := testCache.Contains(cache.CAS, casHash)
 	if found {
 		t.Fatalf("Expected the cache not to contain %s", casHash)
 	}
@@ -588,7 +603,7 @@ func TestHttpProxyBackend(t *testing.T) {
 	// Add the proxy backend and check that we can Get the item.
 	testCache.proxy = proxy
 
-	found = testCache.Contains(cache.CAS, casHash)
+	found, _ = testCache.Contains(cache.CAS, casHash)
 	if !found {
 		t.Fatalf("Expected the cache to contain %s (via the proxy)",
 			casHash)
