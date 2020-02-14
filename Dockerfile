@@ -3,7 +3,7 @@
 
 #
 # Build container
-FROM golang:1.13.5 AS builder
+FROM golang:1.13.8 AS builder
 
 WORKDIR /src
 COPY . .
