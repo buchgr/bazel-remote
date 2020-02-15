@@ -28,12 +28,14 @@ func TestDownloadFile(t *testing.T) {
 	cacheDir := testutils.CreateTmpCacheDirs(t)
 	defer os.RemoveAll(cacheDir)
 
-	hash, err := testutils.CreateCacheFile(filepath.Join(cacheDir, "cas"), 1024)
+	blobSize := int64(1024)
+
+	hash, err := testutils.CreateCacheFile(filepath.Join(cacheDir, "cas"), blobSize)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	c := disk.New(cacheDir, 1024, nil)
+	c := disk.New(cacheDir, blobSize, nil)
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
 
 	req, err := http.NewRequest("GET", "/cas/"+hash, bytes.NewReader([]byte{}))
@@ -52,9 +54,9 @@ func TestDownloadFile(t *testing.T) {
 	}
 
 	rsp := rr.Result()
-	if contentLen := rsp.ContentLength; contentLen != 1024 {
-		t.Error("Handler returned file with wrong content length",
-			"expected", 1024,
+	if contentLen := rsp.ContentLength; contentLen != blobSize {
+		t.Error("GET request returned wrong content length",
+			"expected", blobSize,
 			"got", contentLen)
 	}
 
@@ -65,6 +67,18 @@ func TestDownloadFile(t *testing.T) {
 			"expected hash", hash,
 			"actualHash", actualHash,
 		)
+	}
+
+	req, err = http.NewRequest("HEAD", "/cas/"+hash, bytes.NewReader([]byte{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler.ServeHTTP(rr, req)
+	rsp = rr.Result()
+	if contentLen := rsp.ContentLength; contentLen != blobSize {
+		t.Error("HEAD request returned wrong content length",
+			"expected", blobSize,
+			"got", contentLen)
 	}
 }
 
