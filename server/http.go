@@ -110,6 +110,7 @@ func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	w.Header().Set("Content-Length", strconv.FormatInt(int64(len(data)), 10))
 	w.WriteHeader(http.StatusOK)
 	h.logResponse(http.StatusOK, r)
 }
@@ -281,13 +282,14 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Unvalidated path:
 
-		ok, _ := h.cache.Contains(kind, hash)
+		ok, size := h.cache.Contains(kind, hash)
 		if !ok {
 			http.Error(w, "Not found", http.StatusNotFound)
 			h.logResponse(http.StatusNotFound, r)
 			return
 		}
 
+		w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
 		w.WriteHeader(http.StatusOK)
 		h.logResponse(http.StatusOK, r)
 	default:
