@@ -73,12 +73,12 @@ func TestMain(m *testing.M) {
 	listener = bufconn.Listen(bufSize)
 
 	go func() {
-		err := ServeGRPC(
+		err2 := ServeGRPC(
 			listener,
 			[]grpc.ServerOption{},
 			diskCache, accessLogger, errorLogger)
-		if err != nil {
-			fmt.Println(err)
+		if err2 != nil {
+			fmt.Println(err2)
 			os.Exit(1)
 		}
 	}()
@@ -157,7 +157,7 @@ func TestGrpcAc(t *testing.T) {
 
 	for _, tc := range badDigestTestCases {
 		r := pb.GetActionResultRequest{ActionDigest: &tc.digest}
-		_, err := acClient.GetActionResult(ctx, &r)
+		_, err = acClient.GetActionResult(ctx, &r)
 		checkBadDigestErr(t, err, tc)
 	}
 
@@ -191,7 +191,7 @@ func TestGrpcAc(t *testing.T) {
 
 	for _, tc := range badDigestTestCases {
 		r := pb.UpdateActionResultRequest{ActionDigest: &tc.digest}
-		_, err := acClient.UpdateActionResult(ctx, &r)
+		_, err = acClient.UpdateActionResult(ctx, &r)
 		checkBadDigestErr(t, err, tc)
 	}
 

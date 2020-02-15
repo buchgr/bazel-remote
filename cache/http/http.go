@@ -140,7 +140,8 @@ func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCl
 	if rsp.StatusCode != http.StatusOK {
 		// If the failed http response contains some data then
 		// forward up to 1 KiB.
-		errorBytes, err := ioutil.ReadAll(io.LimitReader(rsp.Body, 1024))
+		var errorBytes []byte
+		errorBytes, err = ioutil.ReadAll(io.LimitReader(rsp.Body, 1024))
 		var errorText string
 		if err == nil {
 			errorText = string(errorBytes)

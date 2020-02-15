@@ -242,9 +242,9 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 			req, err := srv.Recv()
 			if err == io.EOF {
 				if resp.CommittedSize != size {
-					err := fmt.Errorf("Unexpected amount of data read: %d expected: %d",
+					msg := fmt.Sprintf("Unexpected amount of data read: %d expected: %d",
 						resp.CommittedSize, size)
-					recvResult <- status.Error(codes.Unknown, err.Error())
+					recvResult <- status.Error(codes.Unknown, msg)
 					return
 				}
 
