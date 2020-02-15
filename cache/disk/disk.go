@@ -432,7 +432,7 @@ func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64
 		}
 
 		cacheMisses.Inc()
-		return nil, -1, nil
+		return nil, -1, err
 	}
 
 	cacheMisses.Inc()
