@@ -231,7 +231,8 @@ func main() {
 			}
 		} else if c.HTTPBackend != nil {
 			httpClient := &http.Client{}
-			baseURL, err := url.Parse(c.HTTPBackend.BaseURL)
+			var baseURL *url.URL
+			baseURL, err = url.Parse(c.HTTPBackend.BaseURL)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -274,20 +275,20 @@ func main() {
 				opts := []grpc.ServerOption{}
 
 				if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
-					creds, err := credentials.NewServerTLSFromFile(
+					creds, err2 := credentials.NewServerTLSFromFile(
 						c.TLSCertFile, c.TLSKeyFile)
-					if err != nil {
-						log.Fatal(err)
+					if err2 != nil {
+						log.Fatal(err2)
 					}
 					opts = append(opts, grpc.Creds(creds))
 				}
 
 				log.Printf("Starting gRPC server on address %s", addr)
 
-				err = server.ListenAndServeGRPC(addr, opts,
+				err3 := server.ListenAndServeGRPC(addr, opts,
 					diskCache, accessLogger, errorLogger)
-				if err != nil {
-					log.Fatal(err)
+				if err3 != nil {
+					log.Fatal(err3)
 				}
 			}()
 		}

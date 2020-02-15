@@ -342,11 +342,11 @@ func (c *DiskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 		}
 	}
 
-	if err := f.Sync(); err != nil {
+	if err = f.Sync(); err != nil {
 		return err
 	}
 
-	if err := f.Close(); err != nil {
+	if err = f.Close(); err != nil {
 		return err
 	}
 
@@ -420,12 +420,14 @@ func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64
 
 	if available {
 		blobPath := cacheFilePath(kind, c.dir, hash)
-		fileInfo, err := os.Stat(blobPath)
+		var fileInfo os.FileInfo
+		fileInfo, err = os.Stat(blobPath)
 		if err == nil {
-			r, err := os.Open(blobPath)
+			var f *os.File
+			f, err = os.Open(blobPath)
 			if err == nil {
 				cacheHits.Inc()
-				return r, fileInfo.Size(), nil
+				return f, fileInfo.Size(), nil
 			}
 		}
 
@@ -501,7 +503,7 @@ func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64
 		return nil, -1, err
 	}
 
-	if err := f.Close(); err != nil {
+	if err = f.Close(); err != nil {
 		return nil, -1, err
 	}
 
@@ -512,7 +514,8 @@ func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64
 		// This flag is used by the defer() block above.
 		shouldCommit = true
 
-		f2, err := os.Open(filePath)
+		var f2 *os.File
+		f2, err = os.Open(filePath)
 		if err == nil {
 			return f2, foundSize, nil
 		}
@@ -639,7 +642,7 @@ func (c *DiskCache) GetValidatedActionResult(hash string) (*pb.ActionResult, []b
 				d.TreeDigest.SizeBytes, size)
 		}
 
-		data, err := ioutil.ReadAll(r)
+		data, err = ioutil.ReadAll(r)
 		r.Close()
 		if err != nil {
 			return nil, nil, err
