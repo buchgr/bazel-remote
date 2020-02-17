@@ -17,6 +17,8 @@ type S3CloudStorageConfig struct {
 	AccessKeyID     string `yaml:"access_key_id"`
 	SecretAccessKey string `yaml:"secret_access_key"`
 	DisableSSL      bool   `yaml:"disable_ssl"`
+	IAMRoleEndpoint string `yaml:"iam_role_endpoint"`
+	Region          string `yaml:"region"`
 }
 
 type GoogleCloudStorageConfig struct {
@@ -145,5 +147,12 @@ func validateConfig(c *Config) error {
 			return errors.New("The 'url' field is required for 'http_proxy'")
 		}
 	}
+
+	if c.S3CloudStorage != nil {
+		if c.S3CloudStorage.AccessKeyID != "" && c.S3CloudStorage.IAMRoleEndpoint != "" {
+			return errors.New("Expected either 's3.access_key_id' or 's3.iam_role_endpoint', found both")
+		}
+	}
+
 	return nil
 }

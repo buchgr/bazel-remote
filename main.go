@@ -168,6 +168,18 @@ func main() {
 			Usage:   "Whether to disable TLS/SSL when using the S3 cache backend.  Default is false (enable TLS/SSL).",
 			EnvVars: []string{"BAZEL_REMOTE_S3_DISABLE_SSL"},
 		},
+		&cli.StringFlag{
+			Name:    "s3.iam_role_endpoint",
+			Value:   "",
+			Usage:   "Endpoint for using IAM security credentials, eg http://169.254.169.254 for EC2, http://169.254.170.2 for ECS",
+			EnvVars: []string{"BAZEL_REMOTE_S3_IAM_ROLE_ENDPOINT"},
+		},
+		&cli.StringFlag{
+			Name:    "s3.region",
+			Value:   "",
+			Usage:   "The AWS region. Required when using s3.iam_role_endpoint",
+			EnvVars: []string{"BAZEL_REMOTE_S3_REGION"},
+		},
 		&cli.BoolFlag{
 			Name:    "disable_http_ac_validation",
 			Usage:   "Whether to disable ActionResult validation for HTTP requests.  Default is false (enable validation).",
@@ -191,6 +203,8 @@ func main() {
 					AccessKeyID:     ctx.String("s3.access_key_id"),
 					SecretAccessKey: ctx.String("s3.secret_access_key"),
 					DisableSSL:      ctx.Bool("s3.disable_ssl"),
+					IAMRoleEndpoint: ctx.String("s3.iam_role_endpoint"),
+					Region:          ctx.String("s3.region"),
 				}
 			}
 			c, err = config.New(

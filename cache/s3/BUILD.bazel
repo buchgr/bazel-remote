@@ -9,6 +9,7 @@ go_library(
         "//cache:go_default_library",
         "//config:go_default_library",
         "@com_github_minio_minio_go_v6//:go_default_library",
+        "@com_github_minio_minio_go_v6//pkg/credentials:go_default_library",
         "@com_github_prometheus_client_golang//prometheus:go_default_library",
         "@com_github_prometheus_client_golang//prometheus/promauto:go_default_library",
     ],
