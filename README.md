@@ -79,6 +79,8 @@ GLOBAL OPTIONS:
    --s3.access_key_id value      The S3/minio access key to use when using S3 cache backend. [$BAZEL_REMOTE_S3_ACCESS_KEY_ID]
    --s3.secret_access_key value  The S3/minio secret access key to use when using S3 cache backend. [$BAZEL_REMOTE_S3_SECRET_ACCESS_KEY]
    --s3.disable_ssl              Whether to disable TLS/SSL when using the S3 cache backend.  Default is false (enable TLS/SSL). (default: false) [$BAZEL_REMOTE_S3_DISABLE_SSL]
+   --s3.iam_role_endpoint        Endpoint for using IAM security credentials, eg http://169.254.169.254 for EC2, http://169.254.170.2 for ECS. [$BAZEL_REMOTE_IAM_ROLE_ENDPOINT]
+   --s3.region                   The AWS region. Required when using s3.iam_role_endpoint. [$BAZEL_REMOTE_S3_REGION]
    --disable_http_ac_validation  Whether to disable ActionResult validation for HTTP requests.  Default is false (enable validation). (default: false) [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
    --help, -h                    show help (default: false)
 ```
@@ -129,6 +131,10 @@ host: localhost
 #  access_key_id: EXAMPLE_ACCESS_KEY
 #  secret_access_key: EXAMPLE_SECRET_KEY
 #  disable_ssl: true
+#
+# Provide either iam_role_endpoint/region or access_key_id/secret_access_key
+#  iam_role_endpoint: http://169.254.169.254
+#  region: us-east-1
 #
 #http_proxy:
 #  url: https://remote-cache.com:8080/cache
