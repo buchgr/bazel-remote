@@ -607,13 +607,13 @@ func (c *DiskCache) GetValidatedActionResult(hash string) (*pb.ActionResult, []b
 		return nil, nil, nil // aka "not found"
 	}
 
-	data, err := ioutil.ReadAll(rdr)
+	acdata, err := ioutil.ReadAll(rdr)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	result := &pb.ActionResult{}
-	err = proto.Unmarshal(data, result)
+	err = proto.Unmarshal(acdata, result)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -642,14 +642,14 @@ func (c *DiskCache) GetValidatedActionResult(hash string) (*pb.ActionResult, []b
 				d.TreeDigest.SizeBytes, size)
 		}
 
-		data, err = ioutil.ReadAll(r)
+		oddata, err = ioutil.ReadAll(r)
 		r.Close()
 		if err != nil {
 			return nil, nil, err
 		}
 
 		tree := pb.Tree{}
-		err = proto.Unmarshal(data, &tree)
+		err = proto.Unmarshal(oddata, &tree)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -691,5 +691,5 @@ func (c *DiskCache) GetValidatedActionResult(hash string) (*pb.ActionResult, []b
 		}
 	}
 
-	return result, data, nil
+	return result, acdata, nil
 }
