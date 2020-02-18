@@ -2,13 +2,21 @@ package http
 
 import (
 	"bytes"
+	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/cache/disk"
 	testutils "github.com/buchgr/bazel-remote/utils"
 )
 
@@ -52,11 +60,12 @@ func (s *testServer) handler(w http.ResponseWriter, r *http.Request) {
 		kindMap[hash] = data
 
 	case http.MethodHead:
-		_, ok := kindMap[hash]
+		data, ok := kindMap[hash]
 		if !ok {
 			http.Error(w, "Not found", http.StatusNotFound)
 			return
 		}
+		w.Header().Set("Content-Length", strconv.FormatInt(int64(len(data)), 10))
 	}
 }
 
@@ -74,96 +83,215 @@ func TestEverything(t *testing.T) {
 	s := newTestServer()
 	defer s.srv.Close()
 
+	cacheDir := testutils.TempDir(t)
+	defer os.RemoveAll(cacheDir)
+
+	logFlags := log.Ldate | log.Ltime | log.LUTC
+	accessLogger := log.New(os.Stdout, "", logFlags)
+	errorLogger := log.New(os.Stderr, "", logFlags)
+
+	var err error
+
+	url, err := url.Parse(s.srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	casData, hash := testutils.RandomDataAndHash(1024)
+	t.Log("cas HASH:", hash)
 	acData := []byte{1, 2, 3, 4}
 
-	acUrl := s.srv.URL + "/ac/" + hash
-	casUrl := s.srv.URL + "/cas/" + hash
+	proxyCache := New(url, &http.Client{}, accessLogger, errorLogger)
+	diskCacheSize := int64(len(casData) + 1024)
+	diskCache := disk.New(cacheDir, diskCacheSize, proxyCache)
 
 	// PUT two different values with the same key in ac and cas.
 
-	req, err := http.NewRequest("PUT", acUrl, bytes.NewReader(acData))
-	if err != nil {
-		t.Error(err)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
-	}
-
-	req, err = http.NewRequest("PUT", casUrl, bytes.NewReader(casData))
+	err = diskCache.Put(cache.AC, hash, int64(len(acData)), bytes.NewReader(acData))
 	if err != nil {
 		t.Error(err)
 	}
 
-	resp, err = http.DefaultClient.Do(req)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
+	time.Sleep(time.Second)
+	s.mu.Lock()
+	if len(s.ac) != 1 {
+		t.Fatalf("Expected 1 item in the AC cache on the backend, found: %d",
+			len(s.ac))
 	}
+	if len(s.cas) != 0 {
+		t.Fatalf("Expected 0 items in the CAS cache on the backend, found: %d",
+			len(s.cas))
+	}
+	s.mu.Unlock()
+
+	err = diskCache.Put(cache.CAS, hash, int64(len(casData)), bytes.NewReader(casData))
+	if err != nil {
+		t.Error(err)
+	}
+
+	time.Sleep(time.Second)
+	s.mu.Lock()
+	if len(s.ac) != 1 {
+		t.Fatalf("Expected 1 item in the AC cache on the backend, found: %d",
+			len(s.ac))
+	}
+	if len(s.cas) != 1 {
+		t.Fatalf("Expected 1 item in the CAS cache on the backend, found: %d",
+			len(s.cas))
+	}
+
+	for _, v := range s.ac {
+		if !bytes.Equal(v, acData) {
+			t.Fatal("Proxied AC value does not match")
+		}
+	}
+	for _, v := range s.cas {
+		if !bytes.Equal(v, casData) {
+			t.Fatal("Proxied CAS value does not match")
+		}
+	}
+	s.mu.Unlock()
 
 	// Confirm that we can HEAD both values succesfully.
 
-	req, err = http.NewRequest("HEAD", acUrl, nil)
-	if err != nil {
-		t.Error(err)
+	var found bool
+	var size int64
+
+	found, size = diskCache.Contains(cache.AC, hash)
+	if !found {
+		t.Fatalf("Expected to find AC item %s", hash)
 	}
-	resp, err = http.DefaultClient.Do(req)
-	if err != nil {
-		t.Error(err)
+	if size != int64(len(acData)) {
+		t.Fatalf("Expected to find AC item with size %d, got %d",
+			len(acData), size)
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		t.Error("expected URL to exist")
+	found, size = diskCache.Contains(cache.CAS, hash)
+	if !found {
+		t.Fatalf("Expected to find CAS item %s", hash)
 	}
-
-	req, err = http.NewRequest("HEAD", casUrl, nil)
-	if err != nil {
-		t.Error(err)
-	}
-	resp, err = http.DefaultClient.Do(req)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		t.Error("expected URL to exist")
+	if size != int64(len(casData)) {
+		t.Fatalf("Expected to find CAS item with size %d, got %d",
+			len(casData), size)
 	}
 
 	// Confirm that we can GET both values succesfully.
 
-	req, err = http.NewRequest("GET", acUrl, nil)
-	if err != nil {
-		t.Error(err)
-	}
-	resp, err = http.DefaultClient.Do(req)
+	var data []byte
+	var rc io.ReadCloser
+
+	rc, size, err = diskCache.Get(cache.AC, hash)
 	if err != nil {
 		t.Error(err)
 	}
 
-	returnedData, err := ioutil.ReadAll(resp.Body)
+	if size != int64(len(acData)) {
+		t.Fatalf("Expected to find AC item with size %d, got %d",
+			len(acData), size)
+	}
+
+	data, err = ioutil.ReadAll(rc)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if bytes.Compare(returnedData, acData) != 0 {
-		t.Error("Different data returned")
+	if !bytes.Equal(data, acData) {
+		t.Error("Different AC data returned")
 	}
+	rc.Close()
 
-	req, err = http.NewRequest("GET", casUrl, nil)
-	if err != nil {
-		t.Error(err)
-	}
-	resp, err = http.DefaultClient.Do(req)
-	if err != nil {
-		t.Error(err)
-	}
-
-	returnedData, err = ioutil.ReadAll(resp.Body)
+	rc, size, err = diskCache.Get(cache.CAS, hash)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if bytes.Compare(returnedData, casData) != 0 {
-		t.Error("Different data returned")
+	if size != int64(len(casData)) {
+		t.Fatalf("Expected to find CAS item with size %d, got %d",
+			len(casData), size)
 	}
+
+	data, err = ioutil.ReadAll(rc)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !bytes.Equal(data, casData) {
+		t.Error("Different CAS data returned")
+	}
+	rc.Close()
+
+	// Create a new empty cache, and check that we can fill it
+	// from the backend.
+
+	cacheDir2 := testutils.TempDir(t)
+	defer os.RemoveAll(cacheDir2)
+
+	diskCache = disk.New(cacheDir2, diskCacheSize, proxyCache)
+
+	_, numItems := diskCache.Stats()
+	if numItems != 0 {
+		t.Fatalf("Expected an empty disk cache, found %d items", numItems)
+	}
+
+	// Confirm that we can HEAD both values succesfully.
+
+	found, size = diskCache.Contains(cache.AC, hash)
+	if !found {
+		t.Fatalf("Expected to find AC item %s", hash)
+	}
+	if size != int64(len(acData)) {
+		t.Fatalf("Expected to find AC item with size %d, got %d",
+			len(acData), size)
+	}
+
+	found, size = diskCache.Contains(cache.CAS, hash)
+	if !found {
+		t.Fatalf("Expected to find CAS item %s", hash)
+	}
+	if size != int64(len(casData)) {
+		t.Fatalf("Expected to find CAS item with size %d, got %d",
+			len(casData), size)
+	}
+
+	// Confirm that we can GET both values succesfully.
+
+	rc, size, err = diskCache.Get(cache.AC, hash)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if size != int64(len(acData)) {
+		t.Fatalf("Expected to find AC item with size %d, got %d",
+			len(acData), size)
+	}
+
+	data, err = ioutil.ReadAll(rc)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !bytes.Equal(data, acData) {
+		t.Error("Different AC data returned")
+	}
+	rc.Close()
+
+	rc, size, err = diskCache.Get(cache.CAS, hash)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if size != int64(len(casData)) {
+		t.Fatalf("Expected to find CAS item with size %d, got %d",
+			len(casData), size)
+	}
+
+	data, err = ioutil.ReadAll(rc)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !bytes.Equal(data, casData) {
+		t.Error("Different CAS data returned")
+	}
+	rc.Close()
 }
