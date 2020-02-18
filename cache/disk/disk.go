@@ -642,6 +642,7 @@ func (c *DiskCache) GetValidatedActionResult(hash string) (*pb.ActionResult, []b
 				d.TreeDigest.SizeBytes, size)
 		}
 
+		var oddata []byte
 		oddata, err = ioutil.ReadAll(r)
 		r.Close()
 		if err != nil {
