@@ -40,3 +40,9 @@ tasks:
     shell_commands:
       - "echo +++ Running go test with race detector"
       - "go test -race ./..."
+  end_to_end_test:
+    platform: ubuntu1804
+    name: "end-to-end test"
+    shell_commands:
+      - "echo +++ Run end-to-end system test"
+      - ".bazelci/system-test.sh"
