@@ -184,12 +184,14 @@ to mount the file in the container and pass the path to the cache. The below exa
 
 ```bash
 $ docker run -v /path/to/cache/dir:/data \
--v /path/to/htpasswd:/etc/bazel-remote/htpasswd \
--v /path/to/server_cert:/etc/bazel-remote/server_cert \
--v /path/to/server_key:/etc/bazel-remote/server_key \
--p 9090:8080 buchgr/bazel-remote-cache --tls_enabled=true \
---tls_cert_file=/etc/bazel-remote/server_cert --tls_key_file=/etc/bazel-remote/server_key \
---htpasswd_file /etc/bazel-remote/htpasswd --max_size=5
+	-v /path/to/htpasswd:/etc/bazel-remote/htpasswd \
+	-v /path/to/server_cert:/etc/bazel-remote/server_cert \
+	-v /path/to/server_key:/etc/bazel-remote/server_key \
+	-p 9090:8080 -p 9092:9092 buchgr/bazel-remote-cache \
+	--tls_enabled=true \
+	--tls_cert_file=/etc/bazel-remote/server_cert \
+	--tls_key_file=/etc/bazel-remote/server_key \
+	--htpasswd_file /etc/bazel-remote/htpasswd --max_size=5
 ```
 
 ### Profiling
