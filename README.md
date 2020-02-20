@@ -150,12 +150,12 @@ host: localhost
 ### Prebuilt Image
 
 We publish docker images to [DockerHub](https://hub.docker.com/r/buchgr/bazel-remote-cache/) that you can use with
-`docker run`. The below command will start the remote cache on port `9090` with the default maximum cache size of
-`5 GiB`.
+`docker run`. The below command will start the remote cache on port `9090` for
+HTTP and `9092` for gRPC, with the default maximum cache size of `5 GiB`.
 
 ```bash
 $ docker pull buchgr/bazel-remote-cache
-$ docker run -v /path/to/cache/dir:/data -p 9090:8080 buchgr/bazel-remote-cache
+$ docker run -v /path/to/cache/dir:/data -p 9090:8080 -p 9092:9092 buchgr/bazel-remote-cache
 ```
 
 Note that you will need to change `/path/to/cache/dir` to a valid directory where the docker container can write to
