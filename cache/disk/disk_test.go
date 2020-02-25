@@ -20,6 +20,9 @@ import (
 	"github.com/buchgr/bazel-remote/cache"
 	cachehttp "github.com/buchgr/bazel-remote/cache/http"
 	"github.com/buchgr/bazel-remote/utils"
+
+	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/golang/protobuf/proto"
 )
 
 func tempDir(t *testing.T) string {
@@ -632,5 +635,176 @@ func TestHttpProxyBackend(t *testing.T) {
 
 	if bytes.Compare(retrievedData, blob) != 0 {
 		t.Fatalf("Expected '%v' but received '%v", retrievedData, blob)
+	}
+}
+
+// Store an ActionResult with an output directory, then confirm that
+// GetValidatedActionResult returns the original item.
+func TestGetValidatedActionResult(t *testing.T) {
+	cacheDir := testutils.TempDir(t)
+	defer os.RemoveAll(cacheDir)
+
+	testCache := New(cacheDir, 1024*32, nil)
+
+	// Create a directory tree like so:
+	// /bar/foo.txt
+	// /bar/grok.txt
+
+	var err error
+
+	grokData := []byte("grok test data")
+	grokHash := sha256.Sum256(grokData)
+	grokHashStr := hex.EncodeToString(grokHash[:])
+
+	err = testCache.Put(cache.CAS, grokHashStr, int64(len(grokData)),
+		bytes.NewReader(grokData))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fooData := []byte("foo test data")
+	fooHash := sha256.Sum256(fooData)
+	fooHashStr := hex.EncodeToString(fooHash[:])
+
+	err = testCache.Put(cache.CAS, fooHashStr, int64(len(fooData)),
+		bytes.NewReader(fooData))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	barDir := pb.Directory{
+		Files: []*pb.FileNode{
+			&pb.FileNode{
+				Name: "foo.txt",
+				Digest: &pb.Digest{
+					Hash:      fooHashStr,
+					SizeBytes: int64(len(fooData)),
+				},
+			},
+			&pb.FileNode{
+				Name: "grok.txt",
+				Digest: &pb.Digest{
+					Hash:      grokHashStr,
+					SizeBytes: int64(len(grokData)),
+				},
+			},
+		},
+	}
+
+	barData, err := proto.Marshal(&barDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	barDataHash := sha256.Sum256(barData)
+	barDataHashStr := hex.EncodeToString(barDataHash[:])
+
+	err = testCache.Put(cache.CAS, barDataHashStr, int64(len(barData)),
+		bytes.NewReader(barData))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rootDir := pb.Directory{
+		Directories: []*pb.DirectoryNode{
+			&pb.DirectoryNode{
+				Name: "bar",
+				Digest: &pb.Digest{
+					Hash:      barDataHashStr,
+					SizeBytes: int64(len(barData)),
+				},
+			},
+		},
+	}
+
+	rootData, err := proto.Marshal(&rootDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootDataHash := sha256.Sum256(rootData)
+	rootDataHashStr := hex.EncodeToString(rootDataHash[:])
+
+	err = testCache.Put(cache.CAS, rootDataHashStr, int64(len(rootData)),
+		bytes.NewReader(rootData))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tree := pb.Tree{
+		Root:     &rootDir,
+		Children: []*pb.Directory{&barDir},
+	}
+	treeData, err := proto.Marshal(&tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	treeDataHash := sha256.Sum256(treeData)
+	treeDataHashStr := hex.EncodeToString(treeDataHash[:])
+
+	err = testCache.Put(cache.CAS, treeDataHashStr, int64(len(treeData)),
+		bytes.NewReader(treeData))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Now add an ActionResult that refers to this tree.
+
+	ar := pb.ActionResult{
+		OutputFiles: []*pb.OutputFile{
+			&pb.OutputFile{
+				Path: "bar/grok.txt",
+				Digest: &pb.Digest{
+					Hash:      grokHashStr,
+					SizeBytes: int64(len(grokData)),
+				},
+			},
+			&pb.OutputFile{
+				Path: "foo.txt",
+				Digest: &pb.Digest{
+					Hash:      fooHashStr,
+					SizeBytes: int64(len(fooData)),
+				},
+			},
+		},
+		OutputDirectories: []*pb.OutputDirectory{
+			&pb.OutputDirectory{
+				Path: "",
+				TreeDigest: &pb.Digest{
+					Hash:      treeDataHashStr,
+					SizeBytes: int64(len(treeData)),
+				},
+			},
+		},
+	}
+	arData, err := proto.Marshal(&ar)
+	if err != nil {
+		t.Fatal(err)
+	}
+	arDataHash := sha256.Sum256([]byte("pretend action"))
+	arDataHashStr := hex.EncodeToString(arDataHash[:])
+
+	err = testCache.Put(cache.AC, arDataHashStr, int64(len(arData)),
+		bytes.NewReader(arData))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Finally, check that the validated+returned data is correct.
+	//
+	// Note: we (sometimes) add metadata in the gRPC/HTTP layer, which
+	// would then return a different ActionResult message. But it's safe
+	// to assume that the value should be returned unchanged by the cache
+	// layer.
+
+	rAR, rData, err := testCache.GetValidatedActionResult(arDataHashStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(arData, rData) {
+		t.Fatal("Returned ActionResult data does not match")
+	}
+
+	if !proto.Equal(rAR, &ar) {
+		t.Fatal("Returned ActionResult proto does not match")
 	}
 }
