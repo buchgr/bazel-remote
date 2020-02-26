@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
+	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
 	"github.com/buchgr/bazel-remote/utils"
 )
@@ -41,6 +42,7 @@ var (
 	casClient pb.ContentAddressableStorageClient
 	bsClient  bytestream.ByteStreamClient
 	ctx       = context.Background()
+	diskCache *disk.DiskCache
 
 	badDigestTestCases = []badDigest{
 		{digest: pb.Digest{Hash: ""}, reason: "empty hash"},
@@ -65,7 +67,7 @@ func TestMain(m *testing.M) {
 	}
 	defer os.RemoveAll(dir)
 
-	diskCache := disk.New(dir, int64(10*maxChunkSize), nil)
+	diskCache = disk.New(dir, int64(10*maxChunkSize), nil)
 
 	accessLogger := testutils.NewSilentLogger()
 	errorLogger := testutils.NewSilentLogger()
@@ -413,6 +415,95 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 		if r.Status.GetCode() != int32(codes.OK) {
 			t.Fatal("missing blob:", r.Digest)
 		}
+	}
+}
+
+func TestGrpcByteStreamDeadline(t *testing.T) {
+	testBlobSize := int64(16)
+	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize)
+	testBlobDigest := pb.Digest{
+		Hash:      testBlobHash,
+		SizeBytes: int64(len(testBlob)),
+	}
+
+	instance := "deadlineExpired"
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
+	defer cancel()
+
+	bswc, err := bsClient.Write(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resourceName := fmt.Sprintf(
+		"%s/uploads/%s/blobs/%s/%d/deadline/metadata/here",
+		instance,
+		uuid.New().String(),
+		testBlobDigest.Hash,
+		len(testBlob),
+	)
+
+	for i := 0; i < len(testBlob); i++ {
+		bswReq := bytestream.WriteRequest{
+			ResourceName: resourceName,
+			FinishWrite:  false,
+			Data:         testBlob[i : i+1],
+			WriteOffset:  int64(i),
+		}
+
+		err := bswc.Send(&bswReq)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(time.Millisecond)
+	}
+
+	_, err = bswc.CloseAndRecv()
+
+	statusError, ok := status.FromError(err)
+	if !ok {
+		t.Fatalf("expected rpc error code, got %v\n", err)
+	}
+
+	if code := statusError.Code(); code != codes.DeadlineExceeded {
+		t.Fatalf("expected codes.DeadlineExceeded, got %s\n", code.String())
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Millisecond*500)
+	defer cancel()
+
+	bswc, err = bsClient.Write(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bswReq := bytestream.WriteRequest{
+		ResourceName: resourceName,
+		FinishWrite:  false,
+		Data:         testBlob,
+	}
+	err = bswc.Send(&bswReq)
+	if err != nil {
+		t.Fatalf("send error: %v\n", err)
+	}
+
+	_, err = bswc.CloseAndRecv()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, sz, err := diskCache.Get(cache.CAS, testBlobHash)
+	if err != nil {
+		t.Fatalf("get error: %v\n", err)
+	}
+
+	if sz != int64(len(testBlob)) {
+		t.Errorf("expected size: %d, got: %d\n", len(testBlob), sz)
 	}
 }
 
