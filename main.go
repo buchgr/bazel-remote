@@ -268,9 +268,11 @@ func main() {
 		mux.Handle("/metrics", promhttp.Handler())
 		mux.HandleFunc("/status", h.StatusPageHandler)
 
+		var htpasswdSecrets auth.SecretProvider
 		cacheHandler := h.CacheHandler
 		if c.HtpasswdFile != "" {
-			cacheHandler = wrapAuthHandler(cacheHandler, c.HtpasswdFile, c.Host)
+			htpasswdSecrets = auth.HtpasswdFileProvider(c.HtpasswdFile)
+			cacheHandler = wrapAuthHandler(cacheHandler, htpasswdSecrets, c.Host)
 		}
 		if c.IdleTimeout > 0 {
 			cacheHandler = wrapIdleHandler(cacheHandler, c.IdleTimeout, accessLogger, httpServer)
@@ -295,6 +297,14 @@ func main() {
 						log.Fatal(err2)
 					}
 					opts = append(opts, grpc.Creds(creds))
+				}
+
+				if htpasswdSecrets != nil {
+					gba := server.NewGrpcBasicAuth(htpasswdSecrets)
+					opts = append(opts,
+						grpc.StreamInterceptor(gba.StreamServerInterceptor),
+						grpc.UnaryInterceptor(gba.UnaryServerInterceptor),
+					)
 				}
 
 				log.Printf("Starting gRPC server on address %s", addr)
@@ -361,8 +371,7 @@ func wrapIdleHandler(handler http.HandlerFunc, idleTimeout time.Duration, access
 	})
 }
 
-func wrapAuthHandler(handler http.HandlerFunc, htpasswdFile string, host string) http.HandlerFunc {
-	secrets := auth.HtpasswdFileProvider(htpasswdFile)
+func wrapAuthHandler(handler http.HandlerFunc, secrets auth.SecretProvider, host string) http.HandlerFunc {
 	authenticator := auth.NewBasicAuthenticator(host, secrets)
 	return auth.JustCheck(authenticator, handler)
 }

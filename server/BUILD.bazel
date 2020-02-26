@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "grpc.go",
         "grpc_ac.go",
+        "grpc_basic_auth.go",
         "grpc_bytestream.go",
         "grpc_cas.go",
         "http.go",
@@ -14,6 +15,7 @@ go_library(
     deps = [
         "//cache:go_default_library",
         "//cache/disk:go_default_library",
+        "@com_github_abbot_go_http_auth//:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/semver:go_default_library",
         "@com_github_golang_protobuf//jsonpb:go_default_library_gen",
@@ -24,6 +26,7 @@ go_library(
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//codes:go_default_library",
         "@org_golang_google_grpc//encoding/gzip:go_default_library",
+        "@org_golang_google_grpc//metadata:go_default_library",
         "@org_golang_google_grpc//peer:go_default_library",
         "@org_golang_google_grpc//status:go_default_library",
     ],
