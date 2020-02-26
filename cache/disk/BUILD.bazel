@@ -4,6 +4,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "disk.go",
+        "load.go",
         "lru.go",
     ],
     importpath = "github.com/buchgr/bazel-remote/cache/disk",
@@ -29,5 +30,6 @@ go_test(
         "//cache:go_default_library",
         "//cache/http:go_default_library",
         "//utils:go_default_library",
+        "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
     ],
 )

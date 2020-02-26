@@ -100,7 +100,7 @@ func TestCacheBasics(t *testing.T) {
 
 	// Dig into the internals to make sure that the cache state has been
 	// updated correctly
-	err = checkItems(testCache, int64(len(CONTENTS)), 1)
+	err = checkItems(testCache, int64(len(CONTENTS))+headerSize[pb.DigestFunction_SHA256], 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,24 +120,26 @@ func TestCacheBasics(t *testing.T) {
 func TestCacheEviction(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache := New(cacheDir, 10, nil)
+
+	testCache := New(cacheDir, 450, nil)
 
 	expectedSizesNumItems := []struct {
-		expSize int64
-		expNum  int
+		blobSize  int
+		totalSize int64
+		expNum    int
 	}{
-		{0, 1},  // 0
-		{1, 2},  // 0, 1
-		{3, 3},  // 0, 1, 2
-		{6, 4},  // 0, 1, 2, 3
-		{10, 5}, // 0, 1, 2, 3, 4
-		{9, 2},  // 4, 5
-		{6, 1},  // 6
-		{7, 1},  // 7
+		{0, 44, 1},    // 0
+		{10, 98, 2},   // 1, 0
+		{30, 172, 3},  // 2, 1, 0
+		{60, 276, 4},  // 3, 2, 1, 0
+		{120, 440, 5}, // 4, 3, 2, 1, 0
+		{90, 402, 3},  // 5, 4, 3 ; 574 evict 0 => 530, evict 1 => 476, evict 2 => 402
+		{60, 402, 3},  // 6, 5, 4 ; 506 evict 3 => 402
+		{70, 352, 3},  // 7, 6, 5 ; 516 evict 4 => 238
 	}
 
 	for i, thisExp := range expectedSizesNumItems {
-		strReader := strings.NewReader(strings.Repeat("a", i))
+		strReader := strings.NewReader(strings.Repeat("a", thisExp.blobSize))
 
 		// Suitably-sized, unique key for these testcases:
 		key := fmt.Sprintf("%0*d", sha256HashStrSize, i)
@@ -146,12 +148,12 @@ func TestCacheEviction(t *testing.T) {
 				sha256.Size*2, len(key), key)
 		}
 
-		err := testCache.Put(cache.AC, key, int64(i), strReader)
+		err := testCache.Put(cache.AC, key, int64(thisExp.blobSize), strReader)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		err = checkItems(testCache, thisExp.expSize, thisExp.expNum)
+		err = checkItems(testCache, thisExp.totalSize, thisExp.expNum)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -219,7 +221,7 @@ func hashStr(content string) string {
 func TestOverwrite(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache := New(cacheDir, 10, nil)
+	testCache := New(cacheDir, 10+headerSize[pb.DigestFunction_SHA256], nil)
 
 	var err error
 	err = putGetCompare(cache.CAS, hashStr("hello"), "hello", testCache)
@@ -250,32 +252,73 @@ func TestOverwrite(t *testing.T) {
 	}
 }
 
+func ensureDirExists(t *testing.T, path string) {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		err = os.MkdirAll(path, os.ModePerm)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestCacheExistingFiles(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	ensureDirExists(filepath.Join(cacheDir, "cas", "f5"))
-	ensureDirExists(filepath.Join(cacheDir, "cas", "fd"))
-	ensureDirExists(filepath.Join(cacheDir, "ac", "73"))
-	ensureDirExists(filepath.Join(cacheDir, "raw", "73"))
+	blobs := make([]struct {
+		data       []byte
+		sha256hash string
+		file       string
+	}, 4, 4)
+	blobs[0].data, blobs[0].sha256hash = testutils.RandomDataAndHash(64)
+	blobs[0].file = filepath.Join("cas", blobs[0].sha256hash[:2], blobs[0].sha256hash)
 
-	items := []string{
-		"cas/f5/f53b46209596d170f7659a414c9ff9f6b545cf77ffd6e1cbe9bcc57e1afacfbd",
-		"cas/fd/fdce205a735f407ae2910426611893d99ed985e3d9a341820283ea0b7d046ee3",
-		"ac/73/733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
-		"raw/73/733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
-	}
+	blobs[1].data = make([]byte, len(blobs[0].data))
+	copy(blobs[1].data, blobs[0].data)
+	blobs[1].data[0]++
+	hb := sha256.Sum256(blobs[1].data)
+	blobs[1].sha256hash = hex.EncodeToString(hb[:])
+	blobs[1].file = filepath.Join("cas", blobs[1].sha256hash[:2], blobs[1].sha256hash)
 
-	for _, it := range items {
-		err := ioutil.WriteFile(filepath.Join(cacheDir, it), []byte(CONTENTS), os.ModePerm)
+	blobs[2].data = make([]byte, len(blobs[0].data))
+	copy(blobs[2].data, blobs[0].data)
+	blobs[2].data[0]++
+	hb = sha256.Sum256(blobs[2].data)
+	blobs[2].sha256hash = hex.EncodeToString(hb[:])
+	blobs[2].file = filepath.Join("ac.v2", blobs[2].sha256hash[:2], blobs[2].sha256hash)
+
+	blobs[3].data = make([]byte, len(blobs[0].data))
+	copy(blobs[3].data, blobs[2].data)
+	blobs[3].sha256hash = blobs[2].sha256hash
+	blobs[3].file = filepath.Join("raw.v2", blobs[3].sha256hash[:2], blobs[3].sha256hash)
+
+	for _, it := range blobs {
+		dn := filepath.Join(cacheDir, filepath.Dir(it.file))
+		ensureDirExists(t, dn)
+		fn := filepath.Join(cacheDir, it.file)
+		f, err := os.Create(fn)
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		err = writeHeader(f, it.sha256hash, int64(len(it.data)))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		n, err := f.Write(it.data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n != len(it.data) {
+			t.Fatalf("short write: %d, expected: %d", n, len(it.data))
+		}
+
 		// Wait a bit to account for atime granularity
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	const expectedSize = 4 * int64(len(CONTENTS))
+	expectedSize := 4 * (int64(len(blobs[0].data)) + headerSize[pb.DigestFunction_SHA256])
 	testCache := New(cacheDir, expectedSize, nil)
 
 	err := checkItems(testCache, expectedSize, 4)
@@ -284,10 +327,13 @@ func TestCacheExistingFiles(t *testing.T) {
 	}
 
 	// Adding a new file should evict items[0] (the oldest)
-	err = testCache.Put(cache.CAS, CONTENTS_HASH, int64(len(CONTENTS)), strings.NewReader(CONTENTS))
+	err = testCache.Put(cache.CAS, CONTENTS_HASH, int64(len(CONTENTS)),
+		strings.NewReader(CONTENTS))
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	expectedSize = expectedSize - int64(len(blobs[0].data)) + int64(len(CONTENTS))
 
 	err = checkItems(testCache, expectedSize, 4)
 	if err != nil {
@@ -295,7 +341,7 @@ func TestCacheExistingFiles(t *testing.T) {
 	}
 	found, _ := testCache.Contains(cache.CAS, "f53b46209596d170f7659a414c9ff9f6b545cf77ffd6e1cbe9bcc57e1afacfbd")
 	if found {
-		t.Fatalf("%s should have been evicted", items[0])
+		t.Fatalf("%s should have been evicted", blobs[0].sha256hash)
 	}
 }
 
@@ -347,23 +393,26 @@ func TestMigrateFromOldDirectoryStructure(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	acHash, err := testutils.CreateRandomFile(cacheDir+"/ac/", 512)
+	acSize := int64(512)
+	acHash, err := testutils.CreateRandomFile(cacheDir+"/ac/", acSize)
 	if err != nil {
 		t.Fatal(err)
 	}
-	casHash1, err := testutils.CreateRandomFile(cacheDir+"/cas/", 1024)
+
+	casSize := int64(1024)
+	casHash1, err := testutils.CreateRandomFile(cacheDir+"/cas/", casSize)
 	if err != nil {
 		t.Fatal(err)
 	}
-	casHash2, err := testutils.CreateRandomFile(cacheDir+"/cas/", 1024)
+	casHash2, err := testutils.CreateRandomFile(cacheDir+"/cas/", casSize)
 	if err != nil {
 		t.Fatal(err)
 	}
-	testCache := New(cacheDir, 2560, nil)
-	_, numItems := testCache.Stats()
-	if numItems != 3 {
-		t.Fatalf("Expected test cache size 3 but was %d", numItems)
-	}
+
+	sha256HeaderSize := headerSize[pb.DigestFunction_SHA256]
+
+	cacheSize := acSize + (casSize+sha256HeaderSize)*2
+	testCache := New(cacheDir, cacheSize, nil)
 
 	var found bool
 	found, _ = testCache.Contains(cache.AC, acHash)
@@ -380,6 +429,11 @@ func TestMigrateFromOldDirectoryStructure(t *testing.T) {
 	if !found {
 		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash2)
 	}
+
+	_, numItems := testCache.Stats()
+	if numItems != 3 {
+		t.Fatalf("Expected test cache size 3 but was %d", numItems)
+	}
 }
 
 func TestLoadExistingEntries(t *testing.T) {
@@ -390,7 +444,7 @@ func TestLoadExistingEntries(t *testing.T) {
 	numBlobs := int64(3)
 	blobSize := int64(1024)
 
-	acHash, err := testutils.CreateCacheFile(cacheDir+"/ac/", blobSize)
+	acHash, err := testutils.CreateCacheFile(cacheDir+"/ac.v2/", blobSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +452,7 @@ func TestLoadExistingEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rawHash, err := testutils.CreateCacheFile(cacheDir+"/raw/", blobSize)
+	rawHash, err := testutils.CreateCacheFile(cacheDir+"/raw.v2/", blobSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -432,12 +486,12 @@ func TestDistinctKeyspaces(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	blobSize := 1024
-	cacheSize := int64(blobSize * 3)
+	blobSize := int64(1024)
+	cacheSize := (blobSize + headerSize[pb.DigestFunction_SHA256]) * 3
 
 	testCache := New(cacheDir, cacheSize, nil)
 
-	blob, casHash := testutils.RandomDataAndHash(1024)
+	blob, casHash := testutils.RandomDataAndHash(blobSize)
 
 	// Add the same blob with the same key, to each of the three
 	// keyspaces, and verify that we have exactly three items in
@@ -806,5 +860,107 @@ func TestGetValidatedActionResult(t *testing.T) {
 
 	if !proto.Equal(rAR, &ar) {
 		t.Fatal("Returned ActionResult proto does not match")
+	}
+}
+
+func TestChecksumHeader(t *testing.T) {
+
+	blob := []byte{0, 1, 2, 3, 4, 5, 6, 7}
+
+	testCases := []struct {
+		kind    pb.DigestFunction_Value
+		hash    string
+		size    int64
+		success bool // True if the {hash,size} are valid.
+	}{
+		{pb.DigestFunction_SHA256,
+			"0000000011111111222222223333333344444444555555556666666677777777",
+			42, true},
+		{pb.DigestFunction_SHA256,
+			"0000000011111111222222223333333344444444555555556666666677777777",
+			0, true},
+
+		{pb.DigestFunction_UNKNOWN,
+			"00000000111111112222222233333333444444445555555566666666777777778",
+			42, false}, // invalid hex string (odd length)
+		{pb.DigestFunction_UNKNOWN,
+			"000000001111111122222222333333334444444455555555666666667777777788",
+			42, false}, // hash too long
+		{pb.DigestFunction_UNKNOWN,
+			"000000001111111122222222333333334444444455555555666666667777777",
+			42, false}, // invalid hex string (odd length)
+		{pb.DigestFunction_UNKNOWN,
+			"00000000111111112222222233333333444444445555555566666666777777",
+			42, false}, // hash too short
+		{pb.DigestFunction_UNKNOWN,
+			"",
+			42, false},
+		{pb.DigestFunction_UNKNOWN,
+			"0000000011111111222222223333333344444444555555556666666677777777",
+			-1, false}, // invalid (negative) size
+	}
+
+	// Note that these tests just confirm that we can read/write a valid
+	// header and a blob. They dot not confirm that the header describes
+	// the blob.
+
+	for _, tc := range testCases {
+		var buf bytes.Buffer
+
+		err := writeHeader(&buf, tc.hash, tc.size)
+		if !tc.success {
+			if err == nil {
+				t.Error("Expected testcase to fail", tc.hash, tc.size)
+			}
+
+			continue
+		}
+		if err != nil {
+			t.Fatal("Expected testscase to succeed, got:", err)
+		}
+
+		// Check the header size manually, since it's not exposed by
+		// the readHeader function.
+		if int64(buf.Len()) != headerSize[tc.kind] {
+			t.Fatalf("Expected data header of size %d bytes, got %d. %s %d %v %s",
+				headerSize[tc.kind], buf.Len(), tc.hash, tc.size, tc.success, err)
+		}
+
+		// Write the blob.
+		n, err := buf.Write(blob)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n != len(blob) {
+			t.Fatalf("expected to write %d bytes, instead wrote %d bytes",
+				len(blob), n)
+		}
+
+		dt, readHash, readSize, err := readHeader(&buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if dt == pb.DigestFunction_UNKNOWN {
+			t.Fatal("Unknown digest type")
+		}
+
+		if readHash != tc.hash {
+			t.Fatalf("Read a different hash '%s' than was written '%s'",
+				readHash, tc.hash)
+		}
+
+		if readSize != tc.size {
+			t.Fatalf("Read a different size %d than was written %d",
+				readSize, tc.size)
+		}
+
+		readBlob, err := ioutil.ReadAll(&buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if bytes.Compare(blob, readBlob) != 0 {
+			t.Fatal("Read a different blob than was written")
+		}
 	}
 }

@@ -98,7 +98,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 		requests[i] = r
 	}
 
-	c := disk.New(cacheDir, 1000*1024, nil)
+	c := disk.New(cacheDir, 1000*(1024+32+4+8), nil)
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
 	handler := http.HandlerFunc(h.CacheHandler)
 
@@ -154,7 +154,9 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 
 	data, hash := testutils.RandomDataAndHash(1024)
 
-	c := disk.New(cacheDir, 1024, nil)
+	maxHeaderSize := int64(8 + 4 + sha256.Size)
+
+	c := disk.New(cacheDir, 1024+maxHeaderSize, nil)
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
 	handler := http.HandlerFunc(h.CacheHandler)
 
@@ -253,11 +255,21 @@ func TestUploadEmptyActionResult(t *testing.T) {
 			"got ", status)
 	}
 
-	cacheFile := filepath.Join(cacheDir, "ac", hash[:2], hash)
+	cacheFile := filepath.Join(cacheDir, "ac.v2", hash[:2], hash)
 	cachedData, err := ioutil.ReadFile(cacheFile)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// FIXME: test sha1, md5 too
+	headerSize := sha256.Size + 8 + 4
+
+	if len(cachedData) < headerSize {
+		t.Fatalf("data too short to contain header: %d, must be at least: %d",
+			len(cachedData), headerSize)
+	}
+	cachedData = cachedData[headerSize:]
+
 	if len(cachedData) == 0 {
 		t.Fatal("expected non-zero length ActionResult to be cached")
 	}
