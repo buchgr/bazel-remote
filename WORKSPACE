@@ -92,8 +92,8 @@ _go_image_repos()
 go_repository(
     name = "com_github_abbot_go_http_auth",
     importpath = "github.com/abbot/go-http-auth",
-    sum = "h1:QjmvZ5gSC7jm3Zg54DqWE/T5m1t2AfDu6QlXJT0EVT0=",
-    version = "v0.4.0",
+    sum = "h1:9ZqcMQ0fB+ywKACVjGfZM4C7Uq9D5rq0iSmwIjX187k=",
+    version = "v0.4.1-0.20181019201920-860ed7f246ff",
 )
 
 go_repository(

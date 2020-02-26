@@ -2,7 +2,7 @@ module github.com/buchgr/bazel-remote
 
 require (
 	cloud.google.com/go v0.50.0 // indirect
-	github.com/abbot/go-http-auth v0.4.0
+	github.com/abbot/go-http-auth v0.4.1-0.20181019201920-860ed7f246ff
 	github.com/bazelbuild/remote-apis v0.0.0-20191119143007-b5123b1bb285
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/djherbis/atime v1.0.0
