@@ -171,6 +171,16 @@ The below command will build a docker image from source and install it into your
 $ bazel run :bazel-remote-image
 ```
 
+### ARM Support
+
+Bazel remote cache server can be run on an ARM architecture (i.e.: on a Raspberry Pi).
+
+To build for ARM, use:
+
+```bash
+$ bazel run :bazel-remote-image-arm64
+```
+
 ## Build a standalone Linux binary
 
 ```bash

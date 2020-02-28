@@ -5,6 +5,9 @@
 # Build container
 FROM golang:1.14 AS builder
 
+# overwrite GOARCH with --build-arg GOARCH=arm64 when invoking docker build
+ARG GOARCH="amd64"
+
 WORKDIR /src
 COPY . .
 RUN ./linux-build.sh
