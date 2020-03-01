@@ -118,13 +118,6 @@ go_repository(
 
 go_repository(
     # minio has this dependency
-    name = "org_golang_x_net",
-    commit = "c39426892332e1bb5ec0a434a079bf82f5d30c54",
-    importpath = "golang_org/x/net",
-)
-
-go_repository(
-    # minio has this dependency
     name = "org_golang_x_sys",
     importpath = "golang.org/x/sys",
     sum = "h1:/WDfKMnPU+m5M4xB+6x4kaepxRw6jWvR5iDRdvjHgy8=",
@@ -144,12 +137,6 @@ go_repository(
     importpath = "golang.org/x/crypto",
     sum = "h1:1ZiEyfaQIg3Qh0EoqpwAakHVhecoE5wlSg5GjnafJGw=",
     version = "v0.0.0-20200221231518-2aa609cf4a9d",
-)
-
-go_repository(
-    name = "org_golang_x_net",
-    commit = "1e491301e022f8f977054da4c2d852decd59571f",
-    importpath = "golang.org/x/net",
 )
 
 go_repository(
