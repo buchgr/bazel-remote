@@ -152,7 +152,7 @@ func TestEverything(t *testing.T) {
 	}
 	s.mu.Unlock()
 
-	// Confirm that we can HEAD both values succesfully.
+	// Confirm that we can HEAD both values successfully.
 
 	var found bool
 	var size int64
@@ -175,7 +175,7 @@ func TestEverything(t *testing.T) {
 			len(casData), size)
 	}
 
-	// Confirm that we can GET both values succesfully.
+	// Confirm that we can GET both values successfully.
 
 	var data []byte
 	var rc io.ReadCloser
@@ -233,7 +233,7 @@ func TestEverything(t *testing.T) {
 		t.Fatalf("Expected an empty disk cache, found %d items", numItems)
 	}
 
-	// Confirm that we can HEAD both values succesfully.
+	// Confirm that we can HEAD both values successfully.
 
 	found, size = diskCache.Contains(cache.AC, hash)
 	if !found {
@@ -253,7 +253,7 @@ func TestEverything(t *testing.T) {
 			len(casData), size)
 	}
 
-	// Confirm that we can GET both values succesfully.
+	// Confirm that we can GET both values successfully.
 
 	rc, size, err = diskCache.Get(cache.AC, hash)
 	if err != nil {
