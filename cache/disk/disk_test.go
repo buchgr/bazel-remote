@@ -674,14 +674,14 @@ func TestGetValidatedActionResult(t *testing.T) {
 
 	barDir := pb.Directory{
 		Files: []*pb.FileNode{
-			&pb.FileNode{
+			{
 				Name: "foo.txt",
 				Digest: &pb.Digest{
 					Hash:      fooHashStr,
 					SizeBytes: int64(len(fooData)),
 				},
 			},
-			&pb.FileNode{
+			{
 				Name: "grok.txt",
 				Digest: &pb.Digest{
 					Hash:      grokHashStr,
@@ -706,7 +706,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 
 	rootDir := pb.Directory{
 		Directories: []*pb.DirectoryNode{
-			&pb.DirectoryNode{
+			{
 				Name: "bar",
 				Digest: &pb.Digest{
 					Hash:      barDataHashStr,
@@ -750,14 +750,14 @@ func TestGetValidatedActionResult(t *testing.T) {
 
 	ar := pb.ActionResult{
 		OutputFiles: []*pb.OutputFile{
-			&pb.OutputFile{
+			{
 				Path: "bar/grok.txt",
 				Digest: &pb.Digest{
 					Hash:      grokHashStr,
 					SizeBytes: int64(len(grokData)),
 				},
 			},
-			&pb.OutputFile{
+			{
 				Path: "foo.txt",
 				Digest: &pb.Digest{
 					Hash:      fooHashStr,
@@ -766,7 +766,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 			},
 		},
 		OutputDirectories: []*pb.OutputDirectory{
-			&pb.OutputDirectory{
+			{
 				Path: "",
 				TreeDigest: &pb.Digest{
 					Hash:      treeDataHashStr,

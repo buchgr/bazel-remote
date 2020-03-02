@@ -310,13 +310,13 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 
 	ar := pb.ActionResult{
 		OutputFiles: []*pb.OutputFile{
-			&pb.OutputFile{
+			{
 				Path:     "foo/bar/grok",
 				Digest:   &outputFileDigest,
 				Contents: outputFile,
 			},
 
-			&pb.OutputFile{
+			{
 				Path: "foo/bar/empty",
 				// Add the empty digest, as an alternative to an empty slice.
 				Digest: &emptyFileDigest,
@@ -739,23 +739,23 @@ func TestGrpcCasTreeRequest(t *testing.T) {
 	upReq := pb.BatchUpdateBlobsRequest{
 		InstanceName: "foo",
 		Requests: []*pb.BatchUpdateBlobsRequest_Request{
-			&pb.BatchUpdateBlobsRequest_Request{
+			{
 				Digest: &testFile1Digest,
 				Data:   testBlob1,
 			},
-			&pb.BatchUpdateBlobsRequest_Request{
+			{
 				Digest: &testFile2Digest,
 				Data:   testBlob2,
 			},
-			&pb.BatchUpdateBlobsRequest_Request{
+			{
 				Digest: &testFile3Digest,
 				Data:   testBlob3,
 			},
-			&pb.BatchUpdateBlobsRequest_Request{
+			{
 				Digest: &subDirDigest,
 				Data:   subDirData,
 			},
-			&pb.BatchUpdateBlobsRequest_Request{
+			{
 				Digest: &treeDigest,
 				Data:   treeData,
 			},

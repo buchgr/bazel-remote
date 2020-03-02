@@ -73,7 +73,7 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 			},
 			CachePriorityCapabilities: &pb.PriorityCapabilities{
 				Priorities: []*pb.PriorityCapabilities_PriorityRange{
-					&pb.PriorityCapabilities_PriorityRange{
+					{
 						MinPriority: 0,
 						MaxPriority: 0,
 					},
