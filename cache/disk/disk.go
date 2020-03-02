@@ -325,7 +325,7 @@ func (c *DiskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 		f.Close()
 	}()
 
-	var bytesCopied int64 = 0
+	var bytesCopied int64
 	if kind == cache.CAS {
 		hasher := sha256.New()
 		if bytesCopied, err = io.Copy(io.MultiWriter(f, hasher), r); err != nil {

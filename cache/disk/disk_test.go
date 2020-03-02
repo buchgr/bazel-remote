@@ -84,7 +84,7 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Non-existing item
-	rdr, sizeBytes, err := testCache.Get(cache.CAS, CONTENTS_HASH)
+	rdr, _, err := testCache.Get(cache.CAS, CONTENTS_HASH)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Get the item back
-	rdr, sizeBytes, err = testCache.Get(cache.CAS, CONTENTS_HASH)
+	rdr, sizeBytes, err := testCache.Get(cache.CAS, CONTENTS_HASH)
 	if err != nil {
 		t.Fatal(err)
 	}

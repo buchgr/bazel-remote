@@ -59,7 +59,7 @@ func (c *sizedLRU) Add(key Key, value SizedItem) (ok bool) {
 		return false
 	}
 
-	sizeDelta := int64(0)
+	var sizeDelta int64
 	if ee, ok := c.cache[key]; ok {
 		c.ll.MoveToFront(ee)
 		sizeDelta = value.Size() - ee.Value.(*entry).value.Size()
