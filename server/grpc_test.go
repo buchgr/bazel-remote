@@ -216,6 +216,9 @@ func TestGrpcAc(t *testing.T) {
 	if proto.Equal(&zeroReq, zeroResp) {
 		t.Fatal("expected non-zero ActionResult to be returned")
 	}
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// We expect the returned metadata to have changed.
 	if zeroResp.ExecutionMetadata == nil {
@@ -534,6 +537,9 @@ func TestGrpcByteStream(t *testing.T) {
 				"instance", tc.digest.Hash),
 		}
 		rc, err := bsClient.Read(ctx, &r)
+		if err != nil {
+			t.Fatal(err)
+		}
 		_, err = rc.Recv()
 		checkBadDigestErr(t, err, tc)
 	}
@@ -551,6 +557,9 @@ func TestGrpcByteStream(t *testing.T) {
 			Data:        blobPart,
 		}
 		err = wc.Send(&r)
+		if err != nil {
+			t.Fatal(err)
+		}
 		_, err = wc.CloseAndRecv()
 		checkBadDigestErr(t, err, tc)
 	}
