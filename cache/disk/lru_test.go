@@ -70,7 +70,7 @@ func TestBasics(t *testing.T) {
 func TestEviction(t *testing.T) {
 	// Keep track of evictions using the callback
 	var evictions []int
-	onEvict := func(key Key, value SizedItem) {
+	onEvict := func(key Key, value sizedItem) {
 		evictions = append(evictions, key.(int))
 	}
 

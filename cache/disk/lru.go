@@ -4,21 +4,21 @@ import (
 	"container/list"
 )
 
-type SizedItem interface {
+type sizedItem interface {
 	Size() int64
 }
 
 type Key interface{}
 
 // EvictCallback is the type of callbacks that are invoked when items are evicted.
-type EvictCallback func(key Key, value SizedItem)
+type EvictCallback func(key Key, value sizedItem)
 
 // SizedLRU is an LRU cache that will keep its total size below maxSize by evicting
 // items.
 // SizedLRU is not thread-safe.
 type SizedLRU interface {
-	Add(key Key, value SizedItem) (ok bool)
-	Get(key Key) (value SizedItem, ok bool)
+	Add(key Key, value sizedItem) (ok bool)
+	Get(key Key) (value sizedItem, ok bool)
 	Remove(key Key)
 	Len() int
 	CurrentSize() int64
@@ -39,7 +39,7 @@ type sizedLRU struct {
 
 type entry struct {
 	key   Key
-	value SizedItem
+	value sizedItem
 }
 
 // NewSizedLRU returns a new sizedLRU cache
@@ -54,7 +54,7 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback) SizedLRU {
 
 // Add adds a (key, value) to the cache, evicting items as necessary. Add returns false (
 // and does not add the item) if the item size is larger than the maximum size of the cache.
-func (c *sizedLRU) Add(key Key, value SizedItem) (ok bool) {
+func (c *sizedLRU) Add(key Key, value sizedItem) (ok bool) {
 	if value.Size() > c.maxSize {
 		return false
 	}
@@ -85,7 +85,7 @@ func (c *sizedLRU) Add(key Key, value SizedItem) (ok bool) {
 }
 
 // Get looks up a key in the cache
-func (c *sizedLRU) Get(key Key) (value SizedItem, ok bool) {
+func (c *sizedLRU) Get(key Key) (value sizedItem, ok bool) {
 	if ele, hit := c.cache[key]; hit {
 		c.ll.MoveToFront(ele)
 		return ele.Value.(*entry).value, true
