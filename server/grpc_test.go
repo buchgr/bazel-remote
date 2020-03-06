@@ -73,7 +73,7 @@ func TestMain(m *testing.M) {
 	listener = bufconn.Listen(bufSize)
 
 	go func() {
-		err2 := ServeGRPC(
+		err2 := serveGRPC(
 			listener,
 			[]grpc.ServerOption{},
 			diskCache, accessLogger, errorLogger)

@@ -43,10 +43,10 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 		return err
 	}
 
-	return ServeGRPC(listener, opts, c, a, e)
+	return serveGRPC(listener, opts, c, a, e)
 }
 
-func ServeGRPC(l net.Listener, opts []grpc.ServerOption,
+func serveGRPC(l net.Listener, opts []grpc.ServerOption,
 	c *disk.DiskCache, a cache.Logger, e cache.Logger) error {
 
 	srv := grpc.NewServer(opts...)
