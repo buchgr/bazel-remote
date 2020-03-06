@@ -34,7 +34,7 @@ var (
 )
 
 // lruItem is the type of the values stored in SizedLRU to keep track of items.
-// It implements the SizedItem interface.
+// It implements the sizedItem interface.
 type lruItem struct {
 	size      int64
 	committed bool
@@ -87,7 +87,7 @@ func New(dir string, maxSizeBytes int64, proxy cache.CacheProxy) *DiskCache {
 	// The eviction callback deletes the file from disk.
 	// This function is only called while the lock is held
 	// by the current goroutine.
-	onEvict := func(key Key, value SizedItem) {
+	onEvict := func(key Key, value sizedItem) {
 
 		f := filepath.Join(dir, key.(string))
 
