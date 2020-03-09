@@ -12,6 +12,4 @@
 
 bazel-*
 
-/vendor
-
 bazel-remote
