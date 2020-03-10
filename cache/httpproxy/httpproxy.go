@@ -1,6 +1,6 @@
 // Package http is a cache implementation that can proxy artifacts from/to another
 // HTTP-based remote cache
-package http
+package httpproxy
 
 import (
 	"errors"

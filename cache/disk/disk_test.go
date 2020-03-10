@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/buchgr/bazel-remote/cache"
-	cachehttp "github.com/buchgr/bazel-remote/cache/http"
+	"github.com/buchgr/bazel-remote/cache/httpproxy"
 	"github.com/buchgr/bazel-remote/utils"
 
 	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -543,7 +543,7 @@ func TestHttpProxyBackend(t *testing.T) {
 	accessLogger := testutils.NewSilentLogger()
 	errorLogger := testutils.NewSilentLogger()
 
-	proxy := cachehttp.New(url, &http.Client{}, accessLogger, errorLogger)
+	proxy := httpproxy.New(url, &http.Client{}, accessLogger, errorLogger)
 
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
