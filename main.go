@@ -16,10 +16,10 @@ import (
 	auth "github.com/abbot/go-http-auth"
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
-	"github.com/buchgr/bazel-remote/cache/gcs"
-	"github.com/buchgr/bazel-remote/cache/s3"
+	"github.com/buchgr/bazel-remote/cache/gcsproxy"
+	"github.com/buchgr/bazel-remote/cache/s3proxy"
 
-	cachehttp "github.com/buchgr/bazel-remote/cache/http"
+	"github.com/buchgr/bazel-remote/cache/httpproxy"
 
 	"github.com/buchgr/bazel-remote/config"
 	"github.com/buchgr/bazel-remote/server"
@@ -237,7 +237,7 @@ func main() {
 
 		var proxyCache cache.CacheProxy
 		if c.GoogleCloudStorage != nil {
-			proxyCache, err = gcs.New(c.GoogleCloudStorage.Bucket,
+			proxyCache, err = gcsproxy.New(c.GoogleCloudStorage.Bucket,
 				c.GoogleCloudStorage.UseDefaultCredentials, c.GoogleCloudStorage.JSONCredentialsFile,
 				accessLogger, errorLogger)
 			if err != nil {
@@ -250,10 +250,10 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
-			proxyCache = cachehttp.New(baseURL,
+			proxyCache = httpproxy.New(baseURL,
 				httpClient, accessLogger, errorLogger)
 		} else if c.S3CloudStorage != nil {
-			proxyCache = s3.New(c.S3CloudStorage, accessLogger, errorLogger)
+			proxyCache = s3proxy.New(c.S3CloudStorage, accessLogger, errorLogger)
 		}
 
 		diskCache := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, proxyCache)

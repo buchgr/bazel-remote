@@ -1,6 +1,6 @@
 // Package gcs provides cache implementation that proxies requests to/from
 // Google Cloud Storage (GCS).
-package gcs
+package gcsproxy
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"net/url"
 
 	"github.com/buchgr/bazel-remote/cache"
-	cachehttp "github.com/buchgr/bazel-remote/cache/http"
+	"github.com/buchgr/bazel-remote/cache/httpproxy"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -53,5 +53,5 @@ func New(bucket string, useDefaultCredentials bool, jsonCredentialsFile string,
 		Path:   bucket,
 	}
 
-	return cachehttp.New(&baseURL, remoteClient, accessLogger, errorLogger), nil
+	return httpproxy.New(&baseURL, remoteClient, accessLogger, errorLogger), nil
 }

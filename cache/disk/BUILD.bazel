@@ -27,7 +27,7 @@ go_test(
     embed = [":go_default_library"],
     deps = [
         "//cache:go_default_library",
-        "//cache/http:go_default_library",
+        "//cache/httpproxy:go_default_library",
         "//utils:go_default_library",
     ],
 )

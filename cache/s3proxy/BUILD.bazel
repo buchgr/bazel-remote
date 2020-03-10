@@ -2,8 +2,8 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "go_default_library",
-    srcs = ["s3.go"],
-    importpath = "github.com/buchgr/bazel-remote/cache/s3",
+    srcs = ["s3proxy.go"],
+    importpath = "github.com/buchgr/bazel-remote/cache/s3proxy",
     visibility = ["//visibility:public"],
     deps = [
         "//cache:go_default_library",
