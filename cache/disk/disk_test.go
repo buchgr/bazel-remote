@@ -163,9 +163,23 @@ func TestCachePutWrongSize(t *testing.T) {
 	defer os.RemoveAll(cacheDir)
 	testCache := New(cacheDir, 100, nil)
 
-	err := testCache.Put(cache.AC, "aa-aa", int64(10), strings.NewReader("hello"))
+	content := "hello"
+	hash := hashStr(content)
+
+	var err error
+
+	err = testCache.Put(cache.AC, hash, int64(len(content)), strings.NewReader(content))
+	if err != nil {
+		t.Fatal("Expected success", err)
+	}
+
+	err = testCache.Put(cache.AC, hash, int64(len(content))+1, strings.NewReader(content))
 	if err == nil {
-		t.Fatal("Expected error due to size being different")
+		t.Error("Expected error due to size being different")
+	}
+	err = testCache.Put(cache.AC, hash, int64(len(content))-1, strings.NewReader(content))
+	if err == nil {
+		t.Error("Expected error due to size being different")
 	}
 }
 
