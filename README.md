@@ -35,6 +35,11 @@ bazel-remote also has experimental support for the ActionCache, ContentAddressab
 [Bazel Remote Execution API v2](https://github.com/bazelbuild/remote-apis/blob/master/build/bazel/remote/execution/v2/remote_execution.proto),
 and the corresponding parts of the [Byte Stream API](https://github.com/googleapis/googleapis/blob/master/google/bytestream/bytestream.proto).
 
+### Limitations
+
+- The gRPC backend does not currently work with the `--idle_timeout` flag,
+  only HTTP requests update the idle timer.
+
 ## Usage
 
 If a YAML configuration file is specified by the `--config_file` command line
