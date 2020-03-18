@@ -48,8 +48,8 @@ go_repository(
     name = "org_golang_google_grpc",
     build_file_proto_mode = "disable",
     importpath = "google.golang.org/grpc",
-    sum = "h1:zvIju4sqAGvwKspUQOhwnpcqSbzi7/H6QomNNjTL4sk=",
-    version = "v1.27.1",
+    sum = "h1:bO/TA4OxCOummhSf10siHuG7vJOiwh7SpRpFZDkOgl4=",
+    version = "v1.28.0",
 )
 
 go_repository(
@@ -348,8 +348,8 @@ go_repository(
 go_repository(
     name = "com_github_envoyproxy_go_control_plane",
     importpath = "github.com/envoyproxy/go-control-plane",
-    sum = "h1:4cmBvAEBNJaGARUEs3/suWRyfyBfhf7I60WBZq+bv2w=",
-    version = "v0.9.1-0.20191026205805-5f8ba28d4473",
+    sum = "h1:rEvIZUSZ3fx39WIi3JkQqQBitGwpELBIYWeBVh6wn+E=",
+    version = "v0.9.4",
 )
 
 go_repository(
@@ -931,4 +931,18 @@ go_repository(
     importpath = "contrib.go.opencensus.io/exporter/prometheus",
     sum = "h1:SByaIoWwNgMdPSgl5sMqM2KDE5H/ukPWBRo314xiDvg=",
     version = "v0.1.0",
+)
+
+go_repository(
+    name = "com_github_grpc_ecosystem_go_grpc_prometheus",
+    importpath = "github.com/grpc-ecosystem/go-grpc-prometheus",
+    sum = "h1:Ovs26xHkKqVztRpIrF/92BcuyuQ/YW4NSIpoGtfXNho=",
+    version = "v1.2.0",
+)
+
+go_repository(
+    name = "com_github_cncf_udpa_go",
+    importpath = "github.com/cncf/udpa/go",
+    sum = "h1:WBZRG4aNOuI15bLRrCgN8fCq8E5Xuty6jGbmSNEvSsU=",
+    version = "v0.0.0-20191209042840-269d4d468f6f",
 )

@@ -23,6 +23,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/config"
 	"github.com/buchgr/bazel-remote/server"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpmetrics "github.com/slok/go-http-metrics/metrics/prometheus"
 	httpmiddleware "github.com/slok/go-http-metrics/middleware"
@@ -291,6 +292,8 @@ func main() {
 				addr := c.Host + ":" + strconv.Itoa(c.GRPCPort)
 
 				opts := []grpc.ServerOption{}
+				streamInterceptors := []grpc.StreamServerInterceptor{grpc_prometheus.StreamServerInterceptor}
+				unaryInterceptors := []grpc.UnaryServerInterceptor{grpc_prometheus.UnaryServerInterceptor}
 
 				if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
 					creds, err2 := credentials.NewServerTLSFromFile(
@@ -303,11 +306,12 @@ func main() {
 
 				if htpasswdSecrets != nil {
 					gba := server.NewGrpcBasicAuth(htpasswdSecrets)
-					opts = append(opts,
-						grpc.StreamInterceptor(gba.StreamServerInterceptor),
-						grpc.UnaryInterceptor(gba.UnaryServerInterceptor),
-					)
+					streamInterceptors = append(streamInterceptors, gba.StreamServerInterceptor)
+					unaryInterceptors = append(unaryInterceptors, gba.UnaryServerInterceptor)
 				}
+
+				opts = append(opts, grpc.ChainStreamInterceptor(streamInterceptors...))
+				opts = append(opts, grpc.ChainUnaryInterceptor(unaryInterceptors...))
 
 				log.Printf("Starting gRPC server on address %s", addr)
 

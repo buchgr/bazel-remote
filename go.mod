@@ -9,6 +9,7 @@ require (
 	github.com/golang/protobuf v1.3.4
 	github.com/google/go-cmp v0.4.0
 	github.com/google/uuid v1.1.1
+	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/minio/minio-go/v6 v6.0.49
 	github.com/prometheus/client_golang v1.4.1
 	github.com/prometheus/procfs v0.0.10 // indirect
@@ -20,7 +21,7 @@ require (
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae // indirect
 	google.golang.org/genproto v0.0.0-20200226201735-46b91f19d98c
-	google.golang.org/grpc v1.27.1
+	google.golang.org/grpc v1.28.0
 	gopkg.in/ini.v1 v1.52.0 // indirect
 	gopkg.in/yaml.v2 v2.2.8
 )
