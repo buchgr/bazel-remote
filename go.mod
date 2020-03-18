@@ -12,6 +12,7 @@ require (
 	github.com/minio/minio-go/v6 v6.0.49
 	github.com/prometheus/client_golang v1.4.1
 	github.com/prometheus/procfs v0.0.10 // indirect
+	github.com/slok/go-http-metrics v0.6.1
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/urfave/cli/v2 v2.1.1
 	golang.org/x/crypto v0.0.0-20200221231518-2aa609cf4a9d // indirect
