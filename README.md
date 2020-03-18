@@ -29,11 +29,19 @@ unless validation is disabled by configuration. The HTTP server also supports re
 encoded protobuf ActionResult messages to the action cache by using HTTP headers `Accept: application/json`
 for GET requests and `Content-type: application/json` for PUT requests.
 
+### Metrics
+
+To query endpoint metrics see [query examples](https://github.com/slok/go-http-metrics#prometheus-query-examples)
+
 ## gRPC API
 
 bazel-remote also has experimental support for the ActionCache, ContentAddressableStorage and Capabilities services in the
 [Bazel Remote Execution API v2](https://github.com/bazelbuild/remote-apis/blob/master/build/bazel/remote/execution/v2/remote_execution.proto),
 and the corresponding parts of the [Byte Stream API](https://github.com/googleapis/googleapis/blob/master/google/bytestream/bytestream.proto).
+
+### Metrics
+
+To query endpoint metrics see [Metrics](https://github.com/grpc-ecosystem/go-grpc-prometheus#metrics)
 
 ### Limitations
 
