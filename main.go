@@ -24,6 +24,8 @@ import (
 	"github.com/buchgr/bazel-remote/config"
 	"github.com/buchgr/bazel-remote/server"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	httpmetrics "github.com/slok/go-http-metrics/metrics/prometheus"
+	httpmiddleware "github.com/slok/go-http-metrics/middleware"
 	"github.com/urfave/cli/v2"
 
 	"google.golang.org/grpc"
@@ -261,7 +263,7 @@ func main() {
 		mux := http.NewServeMux()
 		httpServer := &http.Server{
 			Addr:    c.Host + ":" + strconv.Itoa(c.Port),
-			Handler: mux,
+			Handler: wrapMetricsHandler(mux),
 		}
 		validateAC := !c.DisableHTTPACValidation
 		h := server.NewHTTPCache(diskCache, accessLogger, errorLogger, validateAC, gitCommit)
@@ -374,4 +376,11 @@ func wrapIdleHandler(handler http.HandlerFunc, idleTimeout time.Duration, access
 func wrapAuthHandler(handler http.HandlerFunc, secrets auth.SecretProvider, host string) http.HandlerFunc {
 	authenticator := auth.NewBasicAuthenticator(host, secrets)
 	return auth.JustCheck(authenticator, handler)
+}
+
+func wrapMetricsHandler(handler http.Handler) http.Handler {
+	mdlw := httpmiddleware.New(httpmiddleware.Config{
+		Recorder: httpmetrics.NewRecorder(httpmetrics.Config{}),
+	})
+	return mdlw.Handler("", handler)
 }
