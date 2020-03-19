@@ -4,7 +4,6 @@ tasks:
   ubuntu1804:
     platform: ubuntu1804
     shell_commands:
-    - "set -e"
     - "echo 1"
     - ".bazelci/fail.sh"
     - "echo 3" # This should not be run, because the previous command failed.
