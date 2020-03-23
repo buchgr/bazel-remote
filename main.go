@@ -102,10 +102,11 @@ func main() {
 			EnvVars: []string{"BAZEL_REMOTE_PROFILE_HOST"},
 		},
 		&cli.IntFlag{
-			Name:    "profile_port",
-			Value:   0,
-			Usage:   "If a positive integer, serve /debug/pprof/* URLs from http://profile_host:profile_port.",
-			EnvVars: []string{"BAZEL_REMOTE_PROFILE_PORT"},
+			Name:        "profile_port",
+			Value:       0,
+			Usage:       "If a positive integer, serve /debug/pprof/* URLs from http://profile_host:profile_port.",
+			DefaultText: "0, ie profiling disabled",
+			EnvVars:     []string{"BAZEL_REMOTE_PROFILE_PORT"},
 		},
 		&cli.StringFlag{
 			Name:    "htpasswd_file",
@@ -131,10 +132,11 @@ func main() {
 			EnvVars: []string{"BAZEL_REMOTE_TLS_KEY_FILE"},
 		},
 		&cli.DurationFlag{
-			Name:    "idle_timeout",
-			Value:   0,
-			Usage:   "The maximum period of having received no request after which the server will shut itself down. Disabled by default.",
-			EnvVars: []string{"BAZEL_REMOTE_IDLE_TIMEOUT"},
+			Name:        "idle_timeout",
+			Value:       0,
+			Usage:       "The maximum period of having received no request after which the server will shut itself down.",
+			DefaultText: "0s, ie disabled",
+			EnvVars:     []string{"BAZEL_REMOTE_IDLE_TIMEOUT"},
 		},
 		&cli.StringFlag{
 			Name:    "s3.endpoint",
@@ -167,26 +169,28 @@ func main() {
 			EnvVars: []string{"BAZEL_REMOTE_S3_SECRET_ACCESS_KEY"},
 		},
 		&cli.BoolFlag{
-			Name:    "s3.disable_ssl",
-			Usage:   "Whether to disable TLS/SSL when using the S3 cache backend.  Default is false (enable TLS/SSL).",
-			EnvVars: []string{"BAZEL_REMOTE_S3_DISABLE_SSL"},
+			Name:        "s3.disable_ssl",
+			Usage:       "Whether to disable TLS/SSL when using the S3 cache backend.",
+			DefaultText: "false, ie enable TLS/SSL",
+			EnvVars:     []string{"BAZEL_REMOTE_S3_DISABLE_SSL"},
 		},
 		&cli.StringFlag{
 			Name:    "s3.iam_role_endpoint",
 			Value:   "",
-			Usage:   "Endpoint for using IAM security credentials, eg http://169.254.169.254 for EC2, http://169.254.170.2 for ECS",
+			Usage:   "Endpoint for using IAM security credentials, eg http://169.254.169.254 for EC2, http://169.254.170.2 for ECS.",
 			EnvVars: []string{"BAZEL_REMOTE_S3_IAM_ROLE_ENDPOINT"},
 		},
 		&cli.StringFlag{
 			Name:    "s3.region",
 			Value:   "",
-			Usage:   "The AWS region. Required when using s3.iam_role_endpoint",
+			Usage:   "The AWS region. Required when using s3.iam_role_endpoint.",
 			EnvVars: []string{"BAZEL_REMOTE_S3_REGION"},
 		},
 		&cli.BoolFlag{
-			Name:    "disable_http_ac_validation",
-			Usage:   "Whether to disable ActionResult validation for HTTP requests.  Default is false (enable validation).",
-			EnvVars: []string{"BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION"},
+			Name:        "disable_http_ac_validation",
+			Usage:       "Whether to disable ActionResult validation for HTTP requests.",
+			DefaultText: "false, ie enable validation",
+			EnvVars:     []string{"BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION"},
 		},
 	}
 
