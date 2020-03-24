@@ -193,6 +193,14 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if kind == cache.CAS && hash == emptySha256 {
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Header().Set("Content-Length", "0")
+			w.Write([]byte{})
+			h.logResponse(http.StatusOK, r)
+			return
+		}
+
 		rdr, sizeBytes, err := h.cache.Get(kind, hash)
 		if err != nil {
 			if e, ok := err.(*cache.Error); ok {
@@ -216,15 +224,30 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		io.Copy(w, rdr)
 
 		h.logResponse(http.StatusOK, r)
+
 	case http.MethodPut:
-		if r.ContentLength == -1 {
+		contentLength := r.ContentLength
+
+		if contentLength == -1 {
 			// We need the content-length header to make sure we have enough disk space.
 			msg := fmt.Sprintf("PUT without Content-Length (key = %s)", path(kind, hash))
 			http.Error(w, msg, http.StatusBadRequest)
 			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
 			return
 		}
-		contentLength := r.ContentLength
+
+		if contentLength == 0 && kind == cache.CAS {
+			if hash == emptySha256 {
+				w.WriteHeader(http.StatusOK)
+				h.logResponse(http.StatusOK, r)
+				return
+			}
+
+			msg := fmt.Sprintf("Invalid empty blob hash: \"%s\"", hash)
+			http.Error(w, msg, http.StatusBadRequest)
+			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
+			return
+		}
 
 		rc := r.Body
 		if h.validateAC && kind == cache.AC {
@@ -280,6 +303,13 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if kind == cache.CAS && hash == emptySha256 {
+			w.Header().Set("Content-Length", "0")
+			w.WriteHeader(http.StatusOK)
+			h.logResponse(http.StatusOK, r)
+			return
+		}
+
 		// Unvalidated path:
 
 		ok, size := h.cache.Contains(kind, hash)
@@ -292,6 +322,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
 		w.WriteHeader(http.StatusOK)
 		h.logResponse(http.StatusOK, r)
+
 	default:
 		msg := fmt.Sprintf("Method '%s' not supported.", html.EscapeString(m))
 		http.Error(w, msg, http.StatusMethodNotAllowed)
