@@ -192,6 +192,12 @@ func main() {
 			DefaultText: "false, ie enable validation",
 			EnvVars:     []string{"BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION"},
 		},
+		&cli.BoolFlag{
+			Name:        "disable_grpc_ac_deps_check",
+			Usage:       "Whether to disable ActionResult dependency checks for gRPC GetActionResult requests.",
+			DefaultText: "false, ie enable ActionCache dependency checks",
+			EnvVars:     []string{"BAZEL_REMOTE_DISABLE_GRPS_AC_DEPS_CHECK"},
+		},
 	}
 
 	app.Action = func(ctx *cli.Context) error {
@@ -228,6 +234,7 @@ func main() {
 				ctx.Duration("idle_timeout"),
 				s3,
 				ctx.Bool("disable_http_ac_validation"),
+				ctx.Bool("disable_grpc_ac_deps_check"),
 			)
 		}
 
@@ -270,6 +277,7 @@ func main() {
 			Addr:    c.Host + ":" + strconv.Itoa(c.Port),
 			Handler: wrapMetricsHandler(mux),
 		}
+
 		validateAC := !c.DisableHTTPACValidation
 		h := server.NewHTTPCache(diskCache, accessLogger, errorLogger, validateAC, gitCommit)
 		mux.Handle("/metrics", promhttp.Handler())
@@ -319,7 +327,15 @@ func main() {
 
 				log.Printf("Starting gRPC server on address %s", addr)
 
+				validateAC := !c.DisableGRPCACDepsCheck
+				validateStatus := "disabled"
+				if validateAC {
+					validateStatus = "enabled"
+				}
+				log.Println("gRPC AC dependency checks:", validateStatus)
+
 				err3 := server.ListenAndServeGRPC(addr, opts,
+					validateAC,
 					diskCache, accessLogger, errorLogger)
 				if err3 != nil {
 					log.Fatal(err3)
@@ -338,12 +354,19 @@ func main() {
 			}()
 		}
 
+		validateStatus := "disabled"
+		if validateAC {
+			validateStatus = "enabled"
+		}
+
 		if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
 			log.Printf("Starting HTTPS server on address %s", httpServer.Addr)
+			log.Println("HTTP AC validation:", validateStatus)
 			return httpServer.ListenAndServeTLS(c.TLSCertFile, c.TLSKeyFile)
 		}
 
 		log.Printf("Starting HTTP server on address %s", httpServer.Addr)
+		log.Println("HTTP AC validation:", validateStatus)
 		return httpServer.ListenAndServe()
 	}
 
