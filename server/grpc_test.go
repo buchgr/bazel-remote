@@ -72,10 +72,13 @@ func TestMain(m *testing.M) {
 
 	listener = bufconn.Listen(bufSize)
 
+	validateAC := true
+
 	go func() {
 		err2 := serveGRPC(
 			listener,
 			[]grpc.ServerOption{},
+			validateAC,
 			diskCache, accessLogger, errorLogger)
 		if err2 != nil {
 			fmt.Println(err2)

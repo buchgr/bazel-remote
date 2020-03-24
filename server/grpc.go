@@ -33,9 +33,11 @@ type grpcServer struct {
 	cache        *disk.DiskCache
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
+	depsCheck    bool
 }
 
 func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
+	validateACDeps bool,
 	c *disk.DiskCache, a cache.Logger, e cache.Logger) error {
 
 	listener, err := net.Listen("tcp", addr)
@@ -43,14 +45,18 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 		return err
 	}
 
-	return serveGRPC(listener, opts, c, a, e)
+	return serveGRPC(listener, opts, validateACDeps, c, a, e)
 }
 
 func serveGRPC(l net.Listener, opts []grpc.ServerOption,
+	validateACDepsCheck bool,
 	c *disk.DiskCache, a cache.Logger, e cache.Logger) error {
 
 	srv := grpc.NewServer(opts...)
-	s := &grpcServer{cache: c, accessLogger: a, errorLogger: e}
+	s := &grpcServer{
+		cache: c, accessLogger: a, errorLogger: e,
+		depsCheck: validateACDepsCheck,
+	}
 	pb.RegisterActionCacheServer(srv, s)
 	pb.RegisterCapabilitiesServer(srv, s)
 	pb.RegisterContentAddressableStorageServer(srv, s)

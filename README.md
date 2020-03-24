@@ -95,6 +95,7 @@ GLOBAL OPTIONS:
    --s3.iam_role_endpoint value  Endpoint for using IAM security credentials, eg http://169.254.169.254 for EC2, http://169.254.170.2 for ECS. [$BAZEL_REMOTE_S3_IAM_ROLE_ENDPOINT]
    --s3.region value             The AWS region. Required when using s3.iam_role_endpoint. [$BAZEL_REMOTE_S3_REGION]
    --disable_http_ac_validation  Whether to disable ActionResult validation for HTTP requests. (default: false, ie enable validation) [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
+   --disable_grpc_ac_deps_check  Whether to disable ActionResult dependency check for gRPC GetActionResult requests. (default: false, ie enable ActionCache dependency checks) [$BAZEL_REMOTE_DISABLE_GRPS_AC_DEPS_CHECK]
    --help, -h                    show help (default: false)
 ```
 

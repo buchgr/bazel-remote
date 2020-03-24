@@ -48,13 +48,15 @@ type Config struct {
 	HTTPBackend             *HTTPBackendConfig        `yaml:"http_proxy"`
 	IdleTimeout             time.Duration             `yaml:"idle_timeout"`
 	DisableHTTPACValidation bool                      `yaml:"disable_http_ac_validation"`
+	DisableGRPCACDepsCheck  bool                      `yaml:"disable_grpc_ac_deps_check"`
 }
 
 // New ...
 func New(dir string, maxSize int, host string, port int, grpc_port int,
 	profile_host string, profile_port int, htpasswdFile string,
 	tlsCertFile string, tlsKeyFile string, idleTimeout time.Duration,
-	s3 *S3CloudStorageConfig, disable_http_ac_validation bool) (*Config, error) {
+	s3 *S3CloudStorageConfig, disable_http_ac_validation bool,
+	disable_grpc_ac_deps_check bool) (*Config, error) {
 	c := Config{
 		Host:                    host,
 		Port:                    port,
@@ -71,6 +73,7 @@ func New(dir string, maxSize int, host string, port int, grpc_port int,
 		HTTPBackend:             nil,
 		IdleTimeout:             idleTimeout,
 		DisableHTTPACValidation: disable_http_ac_validation,
+		DisableGRPCACDepsCheck:  disable_grpc_ac_deps_check,
 	}
 
 	err := validateConfig(&c)
