@@ -52,17 +52,17 @@ type Config struct {
 }
 
 // New ...
-func New(dir string, maxSize int, host string, port int, grpc_port int,
-	profile_host string, profile_port int, htpasswdFile string,
+func New(dir string, maxSize int, host string, port int, grpcPort int,
+	profileHost string, profilePort int, htpasswdFile string,
 	tlsCertFile string, tlsKeyFile string, idleTimeout time.Duration,
-	s3 *S3CloudStorageConfig, disable_http_ac_validation bool,
-	disable_grpc_ac_deps_check bool) (*Config, error) {
+	s3 *S3CloudStorageConfig, disableHTTPACValidation bool,
+	disableGRPCACDepsCheck bool) (*Config, error) {
 	c := Config{
 		Host:                    host,
 		Port:                    port,
-		GRPCPort:                grpc_port,
-		ProfileHost:             profile_host,
-		ProfilePort:             profile_port,
+		GRPCPort:                grpcPort,
+		ProfileHost:             profileHost,
+		ProfilePort:             profilePort,
 		Dir:                     dir,
 		MaxSize:                 maxSize,
 		HtpasswdFile:            htpasswdFile,
@@ -72,8 +72,8 @@ func New(dir string, maxSize int, host string, port int, grpc_port int,
 		GoogleCloudStorage:      nil,
 		HTTPBackend:             nil,
 		IdleTimeout:             idleTimeout,
-		DisableHTTPACValidation: disable_http_ac_validation,
-		DisableGRPCACDepsCheck:  disable_grpc_ac_deps_check,
+		DisableHTTPACValidation: disableHTTPACValidation,
+		DisableGRPCACDepsCheck:  disableGRPCACDepsCheck,
 	}
 
 	err := validateConfig(&c)
