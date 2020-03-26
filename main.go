@@ -10,8 +10,6 @@ import (
 	"os"
 	"runtime"
 	"strconv"
-	"sync"
-	"time"
 
 	auth "github.com/abbot/go-http-auth"
 	"github.com/buchgr/bazel-remote/cache"
@@ -23,6 +21,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/config"
 	"github.com/buchgr/bazel-remote/server"
+	"github.com/buchgr/bazel-remote/utils/idle"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpmetrics "github.com/slok/go-http-metrics/metrics/prometheus"
@@ -289,9 +288,13 @@ func main() {
 			htpasswdSecrets = auth.HtpasswdFileProvider(c.HtpasswdFile)
 			cacheHandler = wrapAuthHandler(cacheHandler, htpasswdSecrets, c.Host)
 		}
+
+		var idleTimer *idle.IdleTimer
 		if c.IdleTimeout > 0 {
-			cacheHandler = wrapIdleHandler(cacheHandler, c.IdleTimeout, accessLogger, httpServer)
+			idleTimer = idle.NewTimer(c.IdleTimeout)
+			cacheHandler = wrapIdleHandler(cacheHandler, idleTimer, accessLogger, httpServer)
 		}
+
 		mux.HandleFunc("/", cacheHandler)
 
 		if c.GRPCPort > 0 {
@@ -365,6 +368,11 @@ func main() {
 			return httpServer.ListenAndServeTLS(c.TLSCertFile, c.TLSKeyFile)
 		}
 
+		if idleTimer != nil {
+			log.Printf("Starting idle timer with value %v", c.IdleTimeout)
+			idleTimer.Start()
+		}
+
 		log.Printf("Starting HTTP server on address %s", httpServer.Addr)
 		log.Println("HTTP AC validation:", validateStatus)
 		return httpServer.ListenAndServe()
@@ -376,30 +384,19 @@ func main() {
 	}
 }
 
-func wrapIdleHandler(handler http.HandlerFunc, idleTimeout time.Duration, accessLogger cache.Logger, httpServer *http.Server) http.HandlerFunc {
-	lastRequest := time.Now()
-	ticker := time.NewTicker(time.Second)
-	var mu sync.Mutex
+func wrapIdleHandler(handler http.HandlerFunc, idleTimer *idle.IdleTimer, accessLogger cache.Logger, httpServer *http.Server) http.HandlerFunc {
+
+	tearDown := make(chan struct{})
+	idleTimer.Register(tearDown)
 
 	go func() {
-		for now := range ticker.C {
-			mu.Lock()
-			elapsed := now.Sub(lastRequest)
-			mu.Unlock()
-			if elapsed > idleTimeout {
-				ticker.Stop()
-				accessLogger.Printf("Shutting down server after having been idle for %v", idleTimeout)
-				httpServer.Shutdown(context.Background())
-				return
-			}
-		}
+		<-tearDown
+		accessLogger.Printf("Shutting down HTTP server after idle timeout")
+		httpServer.Shutdown(context.Background())
 	}()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		now := time.Now()
-		mu.Lock()
-		lastRequest = now
-		mu.Unlock()
+		idleTimer.ResetTimer()
 		handler(w, r)
 	})
 }
