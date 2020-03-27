@@ -1,20 +1,23 @@
 package disk
 
 import (
+	"crypto/md5"
+	"crypto/sha1"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"sync"
 
 	"github.com/buchgr/bazel-remote/cache"
-	"github.com/djherbis/atime"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -36,7 +39,7 @@ var (
 // lruItem is the type of the values stored in SizedLRU to keep track of items.
 // It implements the sizedItem interface.
 type lruItem struct {
-	size      int64
+	size      int64 // Blob + header size.
 	committed bool
 }
 
@@ -53,9 +56,16 @@ type DiskCache struct {
 	lru SizedLRU
 }
 
-type nameAndInfo struct {
-	name string // relative path
+type importItem struct {
+	name string // Absolute path where this item should end up.
 	info os.FileInfo
+
+	// If non-empty, the absolute path there this item is.
+	oldName string
+
+	// True if the file needs to have the checksum header
+	// added while migrating.
+	addChecksum bool
 }
 
 const sha256HashStrSize = sha256.Size * 2 // Two hex characters per byte.
@@ -69,17 +79,17 @@ func New(dir string, maxSizeBytes int64, proxy cache.CacheProxy) *DiskCache {
 	for _, c1 := range hexLetters {
 		for _, c2 := range hexLetters {
 			subDir := string(c1) + string(c2)
-			err := os.MkdirAll(filepath.Join(dir, cache.CAS.String(), subDir), os.ModePerm)
-			if err != nil {
-				log.Fatal(err)
-			}
-			err = os.MkdirAll(filepath.Join(dir, cache.AC.String(), subDir), os.ModePerm)
-			if err != nil {
-				log.Fatal(err)
-			}
-			err = os.MkdirAll(filepath.Join(dir, cache.RAW.String(), subDir), os.ModePerm)
-			if err != nil {
-				log.Fatal(err)
+
+			casDir := filepath.Join(dir, cache.CAS.String(), subDir)
+
+			acDir := filepath.Join(dir, cache.AC.String()+".v2", subDir)
+			rawDir := filepath.Join(dir, cache.RAW.String()+".v2", subDir)
+
+			for _, dir := range []string{casDir, acDir, rawDir} {
+				err := os.MkdirAll(dir, os.ModePerm)
+				if err != nil {
+					log.Fatal(err)
+				}
 			}
 		}
 	}
@@ -151,80 +161,14 @@ func New(dir string, maxSizeBytes int64, proxy cache.CacheProxy) *DiskCache {
 		lru:   NewSizedLRU(maxSizeBytes, onEvict),
 	}
 
-	err := c.migrateDirectories()
+	files, migrate, err := c.findCacheItems()
 	if err != nil {
-		log.Fatalf("Attempting to migrate the old directory structure to the new structure failed "+
-			"with error: %v", err)
-	}
-	err = c.loadExistingFiles()
-	if err != nil {
-		log.Fatalf("Loading of existing cache entries failed due to error: %v", err)
+		log.Fatalf("Error finding existing cache items: %v", err)
 	}
 
-	return c
-}
-
-func (c *DiskCache) migrateDirectories() error {
-	err := migrateDirectory(filepath.Join(c.dir, cache.AC.String()))
-	if err != nil {
-		return err
+	if migrate {
+		err = c.migrateFiles(files)
 	}
-	err = migrateDirectory(filepath.Join(c.dir, cache.CAS.String()))
-	if err != nil {
-		return err
-	}
-	// Note: there are no old "RAW" directories (yet).
-	return nil
-}
-
-func migrateDirectory(dir string) error {
-	log.Printf("Migrating files (if any) to new directory structure: %s\n", dir)
-	return filepath.Walk(dir, func(name string, info os.FileInfo, err error) error {
-		if err != nil {
-			log.Println("Error while walking directory:", err)
-			return err
-		}
-
-		if info.IsDir() {
-			if name == dir {
-				return nil
-			}
-			return filepath.SkipDir
-		}
-		hash := filepath.Base(name)
-		newName := filepath.Join(filepath.Dir(name), hash[:2], hash)
-		return os.Rename(name, newName)
-	})
-}
-
-// loadExistingFiles lists all files in the cache directory, and adds them to the
-// LRU index so that they can be served. Files are sorted by access time first,
-// so that the eviction behavior is preserved across server restarts.
-func (c *DiskCache) loadExistingFiles() error {
-	log.Printf("Loading existing files in %s.\n", c.dir)
-
-	// Walk the directory tree
-	var files []nameAndInfo
-	err := filepath.Walk(c.dir, func(name string, info os.FileInfo, err error) error {
-		if err != nil {
-			log.Println("Error while walking directory:", err)
-			return err
-		}
-
-		if !info.IsDir() {
-			files = append(files, nameAndInfo{name: name, info: info})
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	log.Println("Sorting cache files by atime.")
-	// Sort in increasing order of atime
-	sort.Slice(files, func(i int, j int) bool {
-		return atime.Get(files[i].info).Before(atime.Get(files[j].info))
-	})
 
 	log.Println("Building LRU index.")
 	for _, f := range files {
@@ -236,13 +180,14 @@ func (c *DiskCache) loadExistingFiles() error {
 		if !ok {
 			err = os.Remove(filepath.Join(c.dir, relPath))
 			if err != nil {
-				return err
+				log.Fatal(err)
 			}
 		}
 	}
 
 	log.Println("Finished loading disk cache files.")
-	return nil
+
+	return c
 }
 
 // Put stores a stream of `expectedSize` bytes from `r` into the cache.
@@ -275,7 +220,7 @@ func (c *DiskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 
 	// Try to add the item to the LRU.
 	newItem := &lruItem{
-		size:      expectedSize,
+		size:      expectedSize + headerSize[pb.DigestFunction_SHA256],
 		committed: false,
 	}
 	ok := c.lru.Add(key, newItem)
@@ -304,9 +249,18 @@ func (c *DiskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 		if shouldCommit && c.proxy != nil {
 			// TODO: buffer in memory, avoid a filesystem round-trip?
 			fr, err := os.Open(filePath)
-			if err == nil {
-				c.proxy.Put(kind, hash, expectedSize, fr)
+			if err != nil {
+				return
 			}
+
+			if kind != cache.CAS {
+				_, err = skipHeader(fr)
+				if err != nil {
+					return
+				}
+			}
+
+			c.proxy.Put(kind, hash, expectedSize, fr)
 		}
 	}()
 
@@ -336,7 +290,12 @@ func (c *DiskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 			return fmt.Errorf(
 				"hashsums don't match. Expected %s, found %s", key, actualHash)
 		}
-	} else {
+	} else { // kind != cache.CAS
+		err = writeHeader(f, hash, expectedSize)
+		if err != nil {
+			return err
+		}
+
 		if bytesCopied, err = io.Copy(f, r); err != nil {
 			return err
 		}
@@ -364,6 +323,194 @@ func (c *DiskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 	}
 
 	return err
+}
+
+func digestType(hash string) pb.DigestFunction_Value {
+	switch len(hash) {
+	case sha256.Size * 2:
+		return pb.DigestFunction_SHA256
+	case sha1.Size * 2:
+		return pb.DigestFunction_SHA1
+	case md5.Size * 2:
+		return pb.DigestFunction_MD5
+	default:
+		return pb.DigestFunction_UNKNOWN
+	}
+}
+
+func getHasher(dt pb.DigestFunction_Value) hash.Hash {
+	switch dt {
+	case pb.DigestFunction_SHA256:
+		return sha256.New()
+	case pb.DigestFunction_SHA1:
+		return sha1.New()
+	case pb.DigestFunction_MD5:
+		return md5.New()
+	default:
+		return nil
+	}
+}
+
+// Write the checksum header to `w`, in a well-defined way.
+//
+// * Little-endian int32 (4 bytes), which represents the DigestFunction enum value.
+// * Little-endian int64 (8 bytes), which represents the data size of the blob.
+// * The hash bytes from the digest (length determined by the digest).
+func writeHeader(w io.Writer, hash string, expectedSize int64) error {
+	if expectedSize < 0 {
+		return errors.New("Size must be non-negative")
+	}
+
+	dt := digestType(hash)
+	if dt == pb.DigestFunction_UNKNOWN {
+		return fmt.Errorf("unsupported hash format: %s", hash)
+	}
+
+	hashBytes, err := hex.DecodeString(hash)
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(w, binary.LittleEndian, dt)
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(w, binary.LittleEndian, expectedSize)
+	if err != nil {
+		return err
+	}
+
+	n, err := w.Write(hashBytes)
+	if err != nil {
+		return err
+	}
+	if n != len(hashBytes) {
+		return fmt.Errorf("expected to write %d bytes for hash, wrote: %d",
+			len(hashBytes), n)
+	}
+
+	return nil
+}
+
+// Hash type (int32) + blob size (
+const minHashSize = md5.Size + commonHeaderSize
+
+const commonHeaderSize = 4 + 8
+
+var headerSize = map[pb.DigestFunction_Value]int64{
+	pb.DigestFunction_MD5:    md5.Size + commonHeaderSize,
+	pb.DigestFunction_SHA1:   sha1.Size + commonHeaderSize,
+	pb.DigestFunction_SHA256: sha256.Size + commonHeaderSize,
+}
+
+var hashSize = map[pb.DigestFunction_Value]int{
+	pb.DigestFunction_MD5:    md5.Size,
+	pb.DigestFunction_SHA1:   sha1.Size,
+	pb.DigestFunction_SHA256: sha256.Size,
+}
+
+// Skip over the checksum header in the file, and return an error
+// if an error occurred or if the file was too small.
+func skipHeader(f *os.File) (int64, error) {
+
+	var dt pb.DigestFunction_Value
+	err := binary.Read(f, binary.LittleEndian, &dt)
+	if err != nil {
+		return -1, err
+	}
+
+	pos, ok := headerSize[dt]
+	if !ok {
+		return -1, fmt.Errorf("Unhandled digest function: %d", dt)
+	}
+
+	fi, err := f.Stat()
+	if err != nil {
+		return -1, err
+	}
+	if fi.Size() < pos {
+		return -1, fmt.Errorf("file too short to contain a valid header: %d",
+			fi.Size())
+	}
+
+	_, err = f.Seek(pos, 0)
+
+	return pos, err
+}
+
+// Return the header hash type, hash value, blob size and an optional error.
+// If the error is nil, then the data blob should be readable from r, and the
+// read data should be compared with the hash and size from the header.
+func readHeader(r io.Reader) (pb.DigestFunction_Value, string, int64, error) {
+
+	var hashType pb.DigestFunction_Value
+	err := binary.Read(r, binary.LittleEndian, &hashType)
+	if err != nil {
+		return pb.DigestFunction_UNKNOWN, "", -1, err
+	}
+
+	var expectedSize int64
+	err = binary.Read(r, binary.LittleEndian, &expectedSize)
+	if err != nil {
+		return pb.DigestFunction_UNKNOWN, "", -1, err
+	}
+
+	hSize, ok := hashSize[hashType]
+	if !ok {
+		return pb.DigestFunction_UNKNOWN, "", -1,
+			fmt.Errorf("Unsupported hash type: %d", hashType)
+	}
+
+	hashBytes := make([]byte, hSize)
+	n, err := r.Read(hashBytes)
+	if err != nil {
+		return pb.DigestFunction_UNKNOWN, "", -1, err
+	}
+
+	if n != hSize {
+		return pb.DigestFunction_UNKNOWN, "", -1,
+			fmt.Errorf("Failed to read all %d hash bytes", hSize)
+	}
+
+	hashStr := hex.EncodeToString(hashBytes)
+
+	return hashType, hashStr, expectedSize, nil
+}
+
+func verifyBlob(r io.Reader) error {
+	dt, expectedHash, size, err := readHeader(r)
+	if err != nil {
+		return err
+	}
+
+	if dt == pb.DigestFunction_UNKNOWN {
+		return errors.New("unrecognized hash")
+	}
+
+	hasher := getHasher(dt)
+	if hasher == nil {
+		return fmt.Errorf("unhandled hash type: %s", dt.String())
+	}
+
+	n, err := io.Copy(hasher, r)
+	if err != nil {
+		return err
+	}
+
+	if n != size {
+		return fmt.Errorf("expected size %d, found %d", size, n)
+	}
+
+	hashBytes := hasher.Sum(nil)
+	foundHash := hex.EncodeToString(hashBytes)
+
+	if foundHash != expectedHash {
+		return fmt.Errorf("expected hash %s, found %s",
+			expectedHash, foundHash)
+	}
+
+	return nil // Success.
 }
 
 // Return two bools, `available` is true if the item is in the local
@@ -426,8 +573,18 @@ func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64
 			var f *os.File
 			f, err = os.Open(blobPath)
 			if err == nil {
+
+				sizeToReturn := fileInfo.Size()
+				if kind != cache.CAS {
+					dataHeaderSize, err := skipHeader(f)
+					if err != nil {
+						return nil, -1, err
+					}
+					sizeToReturn -= dataHeaderSize
+				}
+
 				cacheHits.Inc()
-				return f, fileInfo.Size(), nil
+				return f, sizeToReturn, nil
 			}
 		}
 
@@ -490,6 +647,13 @@ func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64
 	}
 	tmpFileCreated = true
 
+	if kind != cache.CAS {
+		err = writeHeader(f, hash, foundSize)
+		if err != nil {
+			return nil, -1, err
+		}
+	}
+
 	written, err := io.Copy(f, r)
 	if err != nil {
 		return nil, -1, err
@@ -517,7 +681,10 @@ func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64
 		var f2 *os.File
 		f2, err = os.Open(filePath)
 		if err == nil {
-			return f2, foundSize, nil
+			if kind != cache.CAS {
+				_, err = skipHeader(f2)
+			}
+			return f2, foundSize, err // err is probably nil.
 		}
 	}
 
@@ -546,7 +713,7 @@ func (c *DiskCache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
 	if found {
 		item := val.(*lruItem)
 		foundLocally = item.committed
-		size = item.size
+		size = item.size - headerSize[pb.DigestFunction_SHA256]
 	}
 	c.mu.Unlock()
 
@@ -576,17 +743,12 @@ func (c *DiskCache) Stats() (currentSize int64, numItems int) {
 	return c.lru.CurrentSize(), c.lru.Len()
 }
 
-func ensureDirExists(path string) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		err = os.MkdirAll(path, os.ModePerm)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-}
-
 func cacheKey(kind cache.EntryKind, hash string) string {
-	return filepath.Join(kind.String(), hash[:2], hash)
+	if kind == cache.CAS {
+		return filepath.Join(kind.String(), hash[:2], hash)
+	}
+
+	return filepath.Join(kind.String()+".v2", hash[:2], hash)
 }
 
 func cacheFilePath(kind cache.EntryKind, cacheDir string, hash string) string {
