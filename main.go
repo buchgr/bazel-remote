@@ -325,6 +325,12 @@ func main() {
 					unaryInterceptors = append(unaryInterceptors, gba.UnaryServerInterceptor)
 				}
 
+				if idleTimer != nil {
+					it := server.NewGrpcIdleTimer(idleTimer)
+					streamInterceptors = append(streamInterceptors, it.StreamServerInterceptor)
+					unaryInterceptors = append(unaryInterceptors, it.UnaryServerInterceptor)
+				}
+
 				opts = append(opts, grpc.ChainStreamInterceptor(streamInterceptors...))
 				opts = append(opts, grpc.ChainUnaryInterceptor(unaryInterceptors...))
 
