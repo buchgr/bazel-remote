@@ -8,6 +8,7 @@ go_library(
         "grpc_basic_auth.go",
         "grpc_bytestream.go",
         "grpc_cas.go",
+        "grpc_idle_timeout.go",
         "http.go",
     ],
     importpath = "github.com/buchgr/bazel-remote/server",
@@ -15,6 +16,7 @@ go_library(
     deps = [
         "//cache:go_default_library",
         "//cache/disk:go_default_library",
+        "//utils/idle:go_default_library",
         "@com_github_abbot_go_http_auth//:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/semver:go_default_library",

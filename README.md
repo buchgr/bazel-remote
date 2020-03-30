@@ -43,11 +43,6 @@ and the corresponding parts of the [Byte Stream API](https://github.com/googleap
 
 To query endpoint metrics see [github.com/grpc-ecosystem/go-grpc-prometheus's metrics documentation](https://github.com/grpc-ecosystem/go-grpc-prometheus#metrics).
 
-### Limitations
-
-- The gRPC backend does not currently work with the `--idle_timeout` flag,
-  only HTTP requests update the idle timer.
-
 ## Usage
 
 If a YAML configuration file is specified by the `--config_file` command line
