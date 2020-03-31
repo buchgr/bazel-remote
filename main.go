@@ -397,7 +397,7 @@ func wrapIdleHandler(handler http.HandlerFunc, idleTimer *idle.IdleTimer, access
 
 	go func() {
 		<-tearDown
-		accessLogger.Printf("Shutting down HTTP server after idle timeout")
+		accessLogger.Printf("Shutting down after idle timeout")
 		httpServer.Shutdown(context.Background())
 	}()
 
