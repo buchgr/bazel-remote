@@ -126,6 +126,10 @@ host: localhost
 # items are valid ActionResult protobuf messages.
 #disable_http_ac_validation: false
 
+# If set to true, do not check that CAS items referred
+# to by ActionResult messages are in the cache.
+#disable_grpc_ac_deps_check: false
+
 # At most one of the proxy backends can be selected:
 #
 #gcs_proxy:
