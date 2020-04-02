@@ -43,15 +43,6 @@ func RandomDataAndHash(size int64) ([]byte, string) {
 	return data, hashStr
 }
 
-func CreateTmpCacheDirs(t *testing.T) string {
-	path, err := ioutil.TempDir("", "bazel-remote-test")
-	if err != nil {
-		t.Error("Couldn't create tmp dir", err)
-	}
-	os.MkdirAll(path, os.ModePerm)
-	return path
-}
-
 // NewSilentLogger returns a cheap logger that doesn't print anything, useful
 // for tests.
 func NewSilentLogger() *log.Logger {

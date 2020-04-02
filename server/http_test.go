@@ -25,7 +25,7 @@ import (
 )
 
 func TestDownloadFile(t *testing.T) {
-	cacheDir := testutils.CreateTmpCacheDirs(t)
+	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
 	blobSize := int64(1024)
@@ -83,7 +83,7 @@ func TestDownloadFile(t *testing.T) {
 }
 
 func TestUploadFilesConcurrently(t *testing.T) {
-	cacheDir := testutils.CreateTmpCacheDirs(t)
+	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
 	const NumUploads = 1000
@@ -149,7 +149,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 }
 
 func TestUploadSameFileConcurrently(t *testing.T) {
-	cacheDir := testutils.CreateTmpCacheDirs(t)
+	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
 	data, hash := testutils.RandomDataAndHash(1024)
@@ -189,7 +189,7 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 }
 
 func TestUploadCorruptedFile(t *testing.T) {
-	cacheDir := testutils.CreateTmpCacheDirs(t)
+	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
 	data, hash := testutils.RandomDataAndHash(1024)
@@ -230,7 +230,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 }
 
 func TestUploadEmptyActionResult(t *testing.T) {
-	cacheDir := testutils.CreateTmpCacheDirs(t)
+	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
 	data, hash := testutils.RandomDataAndHash(0)
@@ -282,7 +282,7 @@ func TestUploadEmptyActionResult(t *testing.T) {
 }
 
 func TestStatusPage(t *testing.T) {
-	cacheDir := testutils.CreateTmpCacheDirs(t)
+	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
 	r, err := http.NewRequest("GET", "/status", bytes.NewReader([]byte{}))
