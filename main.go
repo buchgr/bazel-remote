@@ -243,6 +243,18 @@ func main() {
 			return nil
 		}
 
+		if ctx.NArg() > 0 {
+			fmt.Fprintf(ctx.App.Writer,
+				"Error: bazel-remote does not take positional aguments\n")
+			for i := 0; i < ctx.NArg(); i++ {
+				fmt.Fprintf(ctx.App.Writer, "arg: %s\n", ctx.Args().Get(i))
+			}
+			fmt.Fprintf(ctx.App.Writer, "\n")
+
+			cli.ShowAppHelp(ctx)
+			return nil
+		}
+
 		adjustRlimit()
 
 		accessLogger := log.New(os.Stdout, "", logFlags)
