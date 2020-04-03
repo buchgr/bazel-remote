@@ -240,7 +240,7 @@ func main() {
 		if err != nil {
 			fmt.Fprintf(ctx.App.Writer, "%v\n\n", err)
 			cli.ShowAppHelp(ctx)
-			return nil
+			return cli.Exit("", 1)
 		}
 
 		if ctx.NArg() > 0 {
@@ -252,7 +252,7 @@ func main() {
 			fmt.Fprintf(ctx.App.Writer, "\n")
 
 			cli.ShowAppHelp(ctx)
-			return nil
+			return cli.Exit("", 1)
 		}
 
 		adjustRlimit()
