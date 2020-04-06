@@ -357,19 +357,29 @@ func TestCacheCorruptedCASBlob(t *testing.T) {
 	}
 }
 
+// Create a random file of a certain size in the given directory, and
+// return its hash.
+func createRandomFile(dir string, size int64) (string, error) {
+	data, hash := testutils.RandomDataAndHash(size)
+	os.MkdirAll(dir, os.ModePerm)
+	filepath := dir + "/" + hash
+
+	return hash, ioutil.WriteFile(filepath, data, os.ModePerm)
+}
+
 func TestMigrateFromOldDirectoryStructure(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	acHash, err := testutils.CreateRandomFile(cacheDir+"/ac/", 512)
+	acHash, err := createRandomFile(cacheDir+"/ac/", 512)
 	if err != nil {
 		t.Fatal(err)
 	}
-	casHash1, err := testutils.CreateRandomFile(cacheDir+"/cas/", 1024)
+	casHash1, err := createRandomFile(cacheDir+"/cas/", 1024)
 	if err != nil {
 		t.Fatal(err)
 	}
-	casHash2, err := testutils.CreateRandomFile(cacheDir+"/cas/", 1024)
+	casHash2, err := createRandomFile(cacheDir+"/cas/", 1024)
 	if err != nil {
 		t.Fatal(err)
 	}
