@@ -5,19 +5,19 @@ import (
 	"time"
 )
 
-// IdleTimer keeps track of the request activity and notifies
+// Timer keeps track of the request activity and notifies
 // registered channels once an idle timeout has been reached.
-type IdleTimer struct {
+type Timer struct {
 	mu          sync.Mutex
 	timeout     time.Duration
 	notify      []chan struct{}
 	lastRequest time.Time
 }
 
-// NewTimer creates a new IdleTimer that will send notifications on
+// NewTimer creates a new Timer that will send notifications on
 // any registered channels once the idle timeout has been reached.
-func NewTimer(timeout time.Duration) *IdleTimer {
-	return &IdleTimer{
+func NewTimer(timeout time.Duration) *Timer {
+	return &Timer{
 		timeout:     timeout,
 		lastRequest: time.Now(),
 		notify:      make([]chan struct{}, 0),
@@ -26,18 +26,18 @@ func NewTimer(timeout time.Duration) *IdleTimer {
 
 // Register adds a channel that will be notified once the idle
 // timeout is reached.
-func (t *IdleTimer) Register(c chan struct{}) {
+func (t *Timer) Register(c chan struct{}) {
 	t.mu.Lock()
 	t.notify = append(t.notify, c)
 	t.mu.Unlock()
 }
 
 // Start begins the idle timer, and returns immediately.
-func (t *IdleTimer) Start() {
+func (t *Timer) Start() {
 	go t.start()
 }
 
-func (t *IdleTimer) start() {
+func (t *Timer) start() {
 	var elapsed time.Duration
 	ticker := time.NewTicker(time.Second)
 
@@ -58,7 +58,7 @@ func (t *IdleTimer) start() {
 
 // ResetTimer resets the idle timer countdown. It should be called once
 // at the start of every new request.
-func (t *IdleTimer) ResetTimer() {
+func (t *Timer) ResetTimer() {
 	now := time.Now()
 	t.mu.Lock()
 	t.lastRequest = now

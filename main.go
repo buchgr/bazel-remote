@@ -301,7 +301,7 @@ func main() {
 			cacheHandler = wrapAuthHandler(cacheHandler, htpasswdSecrets, c.Host)
 		}
 
-		var idleTimer *idle.IdleTimer
+		var idleTimer *idle.Timer
 		if c.IdleTimeout > 0 {
 			idleTimer = idle.NewTimer(c.IdleTimeout)
 			cacheHandler = wrapIdleHandler(cacheHandler, idleTimer, accessLogger, httpServer)
@@ -402,7 +402,7 @@ func main() {
 	}
 }
 
-func wrapIdleHandler(handler http.HandlerFunc, idleTimer *idle.IdleTimer, accessLogger cache.Logger, httpServer *http.Server) http.HandlerFunc {
+func wrapIdleHandler(handler http.HandlerFunc, idleTimer *idle.Timer, accessLogger cache.Logger, httpServer *http.Server) http.HandlerFunc {
 
 	tearDown := make(chan struct{})
 	idleTimer.Register(tearDown)
