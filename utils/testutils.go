@@ -10,6 +10,8 @@ import (
 	"testing"
 )
 
+// TempDir creates a temporary directory and returns its name. If an error
+// occurs, then it panics.
 func TempDir(t *testing.T) string {
 	dir, err := ioutil.TempDir("", "bazel-remote")
 	if err != nil {
@@ -18,6 +20,9 @@ func TempDir(t *testing.T) string {
 	return dir
 }
 
+// CreateCacheFile creates a random data file of the given size in the
+// provided directory (corresponding to one of bazel-remote's keyspaces)
+// and returns its sha256 hash and any error that occurred.
 func CreateCacheFile(dir string, size int64) (string, error) {
 	data, hash := RandomDataAndHash(size)
 	subdir := dir + "/" + hash[0:2]
@@ -27,6 +32,8 @@ func CreateCacheFile(dir string, size int64) (string, error) {
 	return hash, ioutil.WriteFile(filepath, data, os.ModePerm)
 }
 
+// RandomDataAndHash creates a random blob of the specified size, and
+// returns that blob along with its sha256 hash.
 func RandomDataAndHash(size int64) ([]byte, string) {
 	data := make([]byte, size)
 	rand.Read(data)
