@@ -9,10 +9,10 @@ import (
 )
 
 type GrpcIdleTimer struct {
-	idleTimer *idle.IdleTimer
+	idleTimer *idle.Timer
 }
 
-func NewGrpcIdleTimer(idleTimer *idle.IdleTimer) *GrpcIdleTimer {
+func NewGrpcIdleTimer(idleTimer *idle.Timer) *GrpcIdleTimer {
 	return &GrpcIdleTimer{idleTimer: idleTimer}
 }
 
