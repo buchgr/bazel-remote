@@ -21,14 +21,20 @@ var (
 		"access denied")
 )
 
+// GrpcBasicAuth wraps an auth.SecretProvider, and provides gRPC interceptors
+// that verify that requests can be authenticated using HTTP basic auth.
 type GrpcBasicAuth struct {
 	secrets auth.SecretProvider
 }
 
+// NewGrpcBasicAuth returns a GrpcBasicAuth that wraps the given
+// auth.SecretProvider.
 func NewGrpcBasicAuth(secrets auth.SecretProvider) *GrpcBasicAuth {
 	return &GrpcBasicAuth{secrets: secrets}
 }
 
+// StreamServerInterceptor returns a streaming server interceptor that
+// verifies that each request can be authenticated using HTTP basic auth.
 func (b *GrpcBasicAuth) StreamServerInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	username, password, err := getLogin(ss.Context())
 	if err != nil {
@@ -45,6 +51,8 @@ func (b *GrpcBasicAuth) StreamServerInterceptor(srv interface{}, ss grpc.ServerS
 	return handler(srv, ss)
 }
 
+// UnaryServerInterceptor returns a unary server interceptor that verifies
+// that each request can be authenticated using HTTP basic auth.
 func (b *GrpcBasicAuth) UnaryServerInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	username, password, err := getLogin(ctx)
 	if err != nil {
