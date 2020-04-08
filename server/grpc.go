@@ -36,6 +36,9 @@ type grpcServer struct {
 	depsCheck    bool
 }
 
+// ListenAndServeGRPC creates a new gRPC server and listens on the given
+// address. This function either returns an error quickly, or triggers a
+// blocking call to https://godoc.org/google.golang.org/grpc#Server.Serve
 func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 	validateACDeps bool,
 	c *disk.DiskCache, a cache.Logger, e cache.Logger) error {
