@@ -14,7 +14,7 @@ type GrpcIdleTimer struct {
 	idleTimer *idle.Timer
 }
 
-// NewGrpcIdleTimer retuns a GrpcIdleTimer that wraps the given idle.Timer.
+// NewGrpcIdleTimer returns a GrpcIdleTimer that wraps the given idle.Timer.
 func NewGrpcIdleTimer(idleTimer *idle.Timer) *GrpcIdleTimer {
 	return &GrpcIdleTimer{idleTimer: idleTimer}
 }
