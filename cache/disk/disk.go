@@ -567,7 +567,7 @@ func (c *DiskCache) MaxSize() int64 {
 	return c.lru.MaxSize()
 }
 
-// Return the current size of the cache in bytes, and the number of
+// Stats returns the current size of the cache in bytes, and the number of
 // items stored in the cache.
 func (c *DiskCache) Stats() (currentSize int64, numItems int) {
 	c.mu.Lock()
@@ -593,10 +593,10 @@ func cacheFilePath(kind cache.EntryKind, cacheDir string, hash string) string {
 	return filepath.Join(cacheDir, cacheKey(kind, hash))
 }
 
-// If `hash` refers to a valid ActionResult with all the dependencies
-// available in the CAS, return it and its serialized value.
-// If not, return nil values.
-// If something unexpected went wrong, return an error.
+// GetValidatedActionResult returns a valid ActionResult and its serialized
+// value from the CAS if it and all its dependencies are also available. If
+// not, nil values are returned. If something unexpected went wrong, return
+// an error.
 func (c *DiskCache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte, error) {
 	rdr, sizeBytes, err := c.Get(cache.AC, hash)
 	if err != nil {
