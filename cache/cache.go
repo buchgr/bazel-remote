@@ -8,13 +8,15 @@ import (
 type EntryKind int
 
 const (
-	// AC stands for Action Cache
+	// AC stands for Action Cache.
 	AC EntryKind = iota
-	// CAS stands for Content Addressable Storage
+
+	// CAS stands for Content Addressable Storage.
 	CAS
-	// Like Action Cache, but without ActionResult validation.
-	// Not exposed externally, only used for HTTP when running with
-	// the --disable_http_ac_validation commandline flag.
+
+	// RAW cache items are not validated. Not exposed externally, only
+	// used for HTTP when running with the --disable_http_ac_validation
+	// commandline flag.
 	RAW
 )
 
@@ -45,9 +47,8 @@ func (e *Error) Error() string {
 	return e.Text
 }
 
-// Cache backends implement this interface, and are optionally used
-// by DiskCache. CacheProxy implementations are expected to be safe
-// for concurrent use.
+// CacheProxy is the interface that (optional) proxy backends must implement.
+// Implementations are expected to be safe for concurrent use.
 type CacheProxy interface {
 	// Put should make a reasonable effort to proxy this data to the backend.
 	// This is allowed to fail silently (eg when under heavy load).
