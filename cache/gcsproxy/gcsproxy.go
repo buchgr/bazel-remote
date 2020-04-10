@@ -1,5 +1,5 @@
-// Package gcs provides cache implementation that proxies requests to/from
-// Google Cloud Storage (GCS).
+// Package gcsproxy provides cache implementation that proxies requests
+// to/from Google Cloud Storage (GCS).
 package gcsproxy
 
 import (
