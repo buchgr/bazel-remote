@@ -28,13 +28,12 @@ func checkSizeAndNumItems(t *testing.T, lru SizedLRU, expSize int64, expNum int)
 }
 
 func TestBasics(t *testing.T) {
-	MAX_SIZE := int64(10)
-	lru := NewSizedLRU(MAX_SIZE, nil)
+	maxSize := int64(10)
+	lru := NewSizedLRU(maxSize, nil)
 
 	// Empty cache
-	maxSize := lru.MaxSize()
-	if maxSize != MAX_SIZE {
-		t.Fatalf("MaxSize: expected %d, got %d", MAX_SIZE, maxSize)
+	if maxSize != lru.MaxSize() {
+		t.Fatalf("MaxSize: expected %d, got %d", maxSize, lru.MaxSize())
 	}
 
 	_, ok := lru.Get("1")
@@ -45,25 +44,25 @@ func TestBasics(t *testing.T) {
 	checkSizeAndNumItems(t, lru, 0, 0)
 
 	// Add an item
-	A_KEY := "akey"
-	AN_ITEM := testSizedItem{5, "hello"}
-	ok = lru.Add(A_KEY, &AN_ITEM)
+	aKey := "akey"
+	anItem := testSizedItem{5, "hello"}
+	ok = lru.Add(aKey, &anItem)
 	if !ok {
 		t.Fatalf("Add: failed inserting item")
 	}
 
-	getItem, getOk := lru.Get(A_KEY)
+	getItem, getOk := lru.Get(aKey)
 	if !getOk {
 		t.Fatalf("Get: failed getting item")
 	}
-	if *getItem.(*testSizedItem) != AN_ITEM {
+	if *getItem.(*testSizedItem) != anItem {
 		t.Fatalf("Get: got a different item back")
 	}
 
 	checkSizeAndNumItems(t, lru, 5, 1)
 
 	// Remove the item
-	lru.Remove(A_KEY)
+	lru.Remove(aKey)
 	checkSizeAndNumItems(t, lru, 0, 0)
 }
 
