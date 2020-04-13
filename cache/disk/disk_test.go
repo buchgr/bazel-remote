@@ -70,8 +70,8 @@ func checkItems(cache *DiskCache, expSize int64, expNum int) error {
 }
 
 const KEY = "a-key"
-const CONTENTS = "hello"
-const CONTENTS_HASH = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+const contents = "hello"
+const contentsHash = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
 
 func TestCacheBasics(t *testing.T) {
 	cacheDir := tempDir(t)
@@ -84,7 +84,7 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Non-existing item
-	rdr, _, err := testCache.Get(cache.CAS, CONTENTS_HASH)
+	rdr, _, err := testCache.Get(cache.CAS, contentsHash)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,25 +93,25 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Add an item
-	err = testCache.Put(cache.CAS, CONTENTS_HASH, int64(len(CONTENTS)), strings.NewReader(CONTENTS))
+	err = testCache.Put(cache.CAS, contentsHash, int64(len(contents)), strings.NewReader(contents))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Dig into the internals to make sure that the cache state has been
 	// updated correctly
-	err = checkItems(testCache, int64(len(CONTENTS)), 1)
+	err = checkItems(testCache, int64(len(contents)), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Get the item back
-	rdr, sizeBytes, err := testCache.Get(cache.CAS, CONTENTS_HASH)
+	rdr, sizeBytes, err := testCache.Get(cache.CAS, contentsHash)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = expectContentEquals(rdr, sizeBytes, []byte(CONTENTS))
+	err = expectContentEquals(rdr, sizeBytes, []byte(contents))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +281,7 @@ func TestCacheExistingFiles(t *testing.T) {
 	}
 
 	for _, it := range items {
-		err := ioutil.WriteFile(filepath.Join(cacheDir, it), []byte(CONTENTS), os.ModePerm)
+		err := ioutil.WriteFile(filepath.Join(cacheDir, it), []byte(contents), os.ModePerm)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -289,7 +289,7 @@ func TestCacheExistingFiles(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	const expectedSize = 4 * int64(len(CONTENTS))
+	const expectedSize = 4 * int64(len(contents))
 	testCache := New(cacheDir, expectedSize, nil)
 
 	err := checkItems(testCache, expectedSize, 4)
@@ -298,7 +298,7 @@ func TestCacheExistingFiles(t *testing.T) {
 	}
 
 	// Adding a new file should evict items[0] (the oldest)
-	err = testCache.Put(cache.CAS, CONTENTS_HASH, int64(len(CONTENTS)), strings.NewReader(CONTENTS))
+	err = testCache.Put(cache.CAS, contentsHash, int64(len(contents)), strings.NewReader(contents))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -322,7 +322,7 @@ func TestCacheBlobTooLarge(t *testing.T) {
 
 	for k := range []cache.EntryKind{cache.AC, cache.RAW} {
 		kind := cache.EntryKind(k)
-		err := testCache.Put(kind, hashStr("foo"), 10000, strings.NewReader(CONTENTS))
+		err := testCache.Put(kind, hashStr("foo"), 10000, strings.NewReader(contents))
 		if err == nil {
 			t.Fatal("Expected an error")
 		}
@@ -343,15 +343,15 @@ func TestCacheCorruptedCASBlob(t *testing.T) {
 	defer os.RemoveAll(cacheDir)
 	testCache := New(cacheDir, 1000, nil)
 
-	err := testCache.Put(cache.CAS, hashStr("foo"), int64(len(CONTENTS)),
-		strings.NewReader(CONTENTS))
+	err := testCache.Put(cache.CAS, hashStr("foo"), int64(len(contents)),
+		strings.NewReader(contents))
 	if err == nil {
 		t.Fatal("expected hash mismatch error")
 	}
 
 	// We expect the upload to succeed without validation:
-	err = testCache.Put(cache.RAW, hashStr("foo"), int64(len(CONTENTS)),
-		strings.NewReader(CONTENTS))
+	err = testCache.Put(cache.RAW, hashStr("foo"), int64(len(contents)),
+		strings.NewReader(contents))
 	if err != nil {
 		t.Fatal(err)
 	}
