@@ -42,7 +42,7 @@ var (
 	casClient pb.ContentAddressableStorageClient
 	bsClient  bytestream.ByteStreamClient
 	ctx       = context.Background()
-	diskCache *disk.DiskCache
+	diskCache *disk.Cache
 
 	badDigestTestCases = []badDigest{
 		{digest: pb.Digest{Hash: ""}, reason: "empty hash"},

@@ -44,8 +44,8 @@ func (i *lruItem) Size() int64 {
 	return i.size
 }
 
-// DiskCache is filesystem-based cache, with an optional backend proxy.
-type DiskCache struct {
+// Cache is a filesystem-based LRU cache, with an optional backend proxy.
+type Cache struct {
 	dir   string
 	proxy cache.CacheProxy
 
@@ -62,8 +62,8 @@ const sha256HashStrSize = sha256.Size * 2 // Two hex characters per byte.
 
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
 // with a maximum size of `maxSizeBytes` bytes and an optional backend `proxy`.
-// DiskCache is safe for concurrent use.
-func New(dir string, maxSizeBytes int64, proxy cache.CacheProxy) *DiskCache {
+// Cache is safe for concurrent use.
+func New(dir string, maxSizeBytes int64, proxy cache.CacheProxy) *Cache {
 	// Create the directory structure.
 	hexLetters := []byte("0123456789abcdef")
 	for _, c1 := range hexLetters {
@@ -144,7 +144,7 @@ func New(dir string, maxSizeBytes int64, proxy cache.CacheProxy) *DiskCache {
 		}
 	}
 
-	c := &DiskCache{
+	c := &Cache{
 		dir:   filepath.Clean(dir),
 		proxy: proxy,
 		mu:    &sync.Mutex{},
@@ -164,7 +164,7 @@ func New(dir string, maxSizeBytes int64, proxy cache.CacheProxy) *DiskCache {
 	return c
 }
 
-func (c *DiskCache) migrateDirectories() error {
+func (c *Cache) migrateDirectories() error {
 	err := migrateDirectory(filepath.Join(c.dir, cache.AC.String()))
 	if err != nil {
 		return err
@@ -200,7 +200,7 @@ func migrateDirectory(dir string) error {
 // loadExistingFiles lists all files in the cache directory, and adds them to the
 // LRU index so that they can be served. Files are sorted by access time first,
 // so that the eviction behavior is preserved across server restarts.
-func (c *DiskCache) loadExistingFiles() error {
+func (c *Cache) loadExistingFiles() error {
 	log.Printf("Loading existing files in %s.\n", c.dir)
 
 	// Walk the directory tree
@@ -248,7 +248,7 @@ func (c *DiskCache) loadExistingFiles() error {
 // Put stores a stream of `expectedSize` bytes from `r` into the cache.
 // If `hash` is not the empty string, and the contents don't match it,
 // a non-nil error is returned.
-func (c *DiskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.Reader) error {
+func (c *Cache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.Reader) error {
 
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
@@ -373,7 +373,7 @@ func (c *DiskCache) Put(kind cache.EntryKind, hash string, expectedSize int64, r
 // be requested from the proxy, in which case, a placeholder entry
 // has been added to the index and the caller must either replace
 // the entry with the actual size, or remove it from the LRU.
-func (c *DiskCache) availableOrTryProxy(key string) (available bool, tryProxy bool) {
+func (c *Cache) availableOrTryProxy(key string) (available bool, tryProxy bool) {
 	inProgress := false
 	tryProxy = false
 
@@ -404,7 +404,7 @@ func (c *DiskCache) availableOrTryProxy(key string) (available bool, tryProxy bo
 // and the number of bytes that can be read from it. If the item is not found, the
 // io.ReadCloser will be nil. If some error occurred when processing the request, then
 // it is returned.
-func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
+func (c *Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
@@ -529,7 +529,7 @@ func (c *DiskCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64
 //
 // If there is a local cache miss, the proxy backend (if there is
 // one) will be checked.
-func (c *DiskCache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
+func (c *Cache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
 
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
@@ -562,14 +562,14 @@ func (c *DiskCache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
 }
 
 // MaxSize returns the maximum cache size in bytes.
-func (c *DiskCache) MaxSize() int64 {
+func (c *Cache) MaxSize() int64 {
 	// The underlying value is never modified, no need to lock.
 	return c.lru.MaxSize()
 }
 
 // Stats returns the current size of the cache in bytes, and the number of
 // items stored in the cache.
-func (c *DiskCache) Stats() (currentSize int64, numItems int) {
+func (c *Cache) Stats() (currentSize int64, numItems int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -597,7 +597,7 @@ func cacheFilePath(kind cache.EntryKind, cacheDir string, hash string) string {
 // value from the CAS if it and all its dependencies are also available. If
 // not, nil values are returned. If something unexpected went wrong, return
 // an error.
-func (c *DiskCache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte, error) {
+func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte, error) {
 	rdr, sizeBytes, err := c.Get(cache.AC, hash)
 	if err != nil {
 		return nil, nil, err
