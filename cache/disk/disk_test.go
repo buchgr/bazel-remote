@@ -33,7 +33,7 @@ func tempDir(t *testing.T) string {
 	return dir
 }
 
-func checkItems(cache *DiskCache, expSize int64, expNum int) error {
+func checkItems(cache *Cache, expSize int64, expNum int) error {
 	if cache.lru.Len() != expNum {
 		return fmt.Errorf("expected %d files in the cache, found %d", expNum, cache.lru.Len())
 	}
@@ -203,11 +203,11 @@ func expectContentEquals(rdr io.ReadCloser, sizeBytes int64, expectedContent []b
 	return nil
 }
 
-func putGetCompare(kind cache.EntryKind, hash string, content string, testCache *DiskCache) error {
+func putGetCompare(kind cache.EntryKind, hash string, content string, testCache *Cache) error {
 	return putGetCompareBytes(kind, hash, []byte(content), testCache)
 }
 
-func putGetCompareBytes(kind cache.EntryKind, hash string, data []byte, testCache *DiskCache) error {
+func putGetCompareBytes(kind cache.EntryKind, hash string, data []byte, testCache *Cache) error {
 
 	r := bytes.NewReader(data)
 

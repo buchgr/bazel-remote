@@ -30,7 +30,7 @@ var (
 )
 
 type grpcServer struct {
-	cache        *disk.DiskCache
+	cache        *disk.Cache
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
 	depsCheck    bool
@@ -41,7 +41,7 @@ type grpcServer struct {
 // blocking call to https://godoc.org/google.golang.org/grpc#Server.Serve
 func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 	validateACDeps bool,
-	c *disk.DiskCache, a cache.Logger, e cache.Logger) error {
+	c *disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -53,7 +53,7 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 
 func serveGRPC(l net.Listener, opts []grpc.ServerOption,
 	validateACDepsCheck bool,
-	c *disk.DiskCache, a cache.Logger, e cache.Logger) error {
+	c *disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	srv := grpc.NewServer(opts...)
 	s := &grpcServer{

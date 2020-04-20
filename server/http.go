@@ -29,7 +29,7 @@ type HTTPCache interface {
 }
 
 type httpCache struct {
-	cache        *disk.DiskCache
+	cache        *disk.Cache
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
 	validateAC   bool
@@ -48,7 +48,7 @@ type statusPageData struct {
 // accessLogger will print one line for each HTTP request to stdout.
 // errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
 // be reported.
-func NewHTTPCache(cache *disk.DiskCache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, commit string) HTTPCache {
+func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, commit string) HTTPCache {
 
 	_, numItems := cache.Stats()
 
