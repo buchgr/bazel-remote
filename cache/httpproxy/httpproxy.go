@@ -82,7 +82,7 @@ func uploadFile(remote *http.Client, baseURL *url.URL, accessLogger cache.Logger
 
 // New creates a cache that proxies requests to a HTTP remote cache.
 func New(baseURL *url.URL, remote *http.Client, accessLogger cache.Logger,
-	errorLogger cache.Logger) cache.CacheProxy {
+	errorLogger cache.Logger) cache.Proxy {
 
 	uploadQueue := make(chan uploadReq, maxQueuedUploads)
 

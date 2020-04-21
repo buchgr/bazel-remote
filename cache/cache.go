@@ -47,9 +47,9 @@ func (e *Error) Error() string {
 	return e.Text
 }
 
-// CacheProxy is the interface that (optional) proxy backends must implement.
+// Proxy is the interface that (optional) proxy backends must implement.
 // Implementations are expected to be safe for concurrent use.
-type CacheProxy interface {
+type Proxy interface {
 	// Put should make a reasonable effort to proxy this data to the backend.
 	// This is allowed to fail silently (eg when under heavy load).
 	Put(kind EntryKind, hash string, size int64, rdr io.Reader)
