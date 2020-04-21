@@ -49,7 +49,7 @@ var errNotFound = errors.New("NOT FOUND")
 
 // New returns a new instance of the S3-API based cache
 func New(s3Config *config.S3CloudStorageConfig, accessLogger cache.Logger,
-	errorLogger cache.Logger) cache.CacheProxy {
+	errorLogger cache.Logger) cache.Proxy {
 
 	fmt.Println("Using S3 backend.")
 

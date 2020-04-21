@@ -260,7 +260,7 @@ func main() {
 		accessLogger := log.New(os.Stdout, "", logFlags)
 		errorLogger := log.New(os.Stderr, "", logFlags)
 
-		var proxyCache cache.CacheProxy
+		var proxyCache cache.Proxy
 		if c.GoogleCloudStorage != nil {
 			proxyCache, err = gcsproxy.New(c.GoogleCloudStorage.Bucket,
 				c.GoogleCloudStorage.UseDefaultCredentials, c.GoogleCloudStorage.JSONCredentialsFile,

@@ -47,7 +47,7 @@ func (i *lruItem) Size() int64 {
 // Cache is a filesystem-based LRU cache, with an optional backend proxy.
 type Cache struct {
 	dir   string
-	proxy cache.CacheProxy
+	proxy cache.Proxy
 
 	mu  *sync.Mutex
 	lru SizedLRU
@@ -63,7 +63,7 @@ const sha256HashStrSize = sha256.Size * 2 // Two hex characters per byte.
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
 // with a maximum size of `maxSizeBytes` bytes and an optional backend `proxy`.
 // Cache is safe for concurrent use.
-func New(dir string, maxSizeBytes int64, proxy cache.CacheProxy) *Cache {
+func New(dir string, maxSizeBytes int64, proxy cache.Proxy) *Cache {
 	// Create the directory structure.
 	hexLetters := []byte("0123456789abcdef")
 	for _, c1 := range hexLetters {
