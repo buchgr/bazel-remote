@@ -34,7 +34,7 @@ type HTTPBackendConfig struct {
 	BaseURL string `yaml:"url"`
 }
 
-// Config provides the configuration
+// Config holds the top-level configuration for bazel-remote.
 type Config struct {
 	Host                    string                    `yaml:"host"`
 	Port                    int                       `yaml:"port"`
