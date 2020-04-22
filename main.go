@@ -283,9 +283,6 @@ func main() {
 
 		diskCache := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, proxyCache)
 
-		metricsMdlw := httpmiddleware.New(httpmiddleware.Config{
-			Recorder: httpmetrics.NewRecorder(httpmetrics.Config{}),
-		})
 		mux := http.NewServeMux()
 		httpServer := &http.Server{
 			Addr:    c.Host + ":" + strconv.Itoa(c.Port),
@@ -294,6 +291,9 @@ func main() {
 
 		validateAC := !c.DisableHTTPACValidation
 		h := server.NewHTTPCache(diskCache, accessLogger, errorLogger, validateAC, gitCommit)
+		metricsMdlw := httpmiddleware.New(httpmiddleware.Config{
+			Recorder: httpmetrics.NewRecorder(httpmetrics.Config{}),
+		})
 		mux.Handle("/metrics", metricsMdlw.Handler("metrics", promhttp.Handler()))
 		mux.Handle("/status", metricsMdlw.Handler("status", http.HandlerFunc(h.StatusPageHandler)))
 
