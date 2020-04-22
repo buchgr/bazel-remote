@@ -286,13 +286,16 @@ func main() {
 		mux := http.NewServeMux()
 		httpServer := &http.Server{
 			Addr:    c.Host + ":" + strconv.Itoa(c.Port),
-			Handler: wrapMetricsHandler(mux),
+			Handler: mux,
 		}
 
 		validateAC := !c.DisableHTTPACValidation
 		h := server.NewHTTPCache(diskCache, accessLogger, errorLogger, validateAC, gitCommit)
-		mux.Handle("/metrics", promhttp.Handler())
-		mux.HandleFunc("/status", h.StatusPageHandler)
+		metricsMdlw := httpmiddleware.New(httpmiddleware.Config{
+			Recorder: httpmetrics.NewRecorder(httpmetrics.Config{}),
+		})
+		mux.Handle("/metrics", metricsMdlw.Handler("metrics", promhttp.Handler()))
+		mux.Handle("/status", metricsMdlw.Handler("status", http.HandlerFunc(h.StatusPageHandler)))
 
 		var htpasswdSecrets auth.SecretProvider
 		cacheHandler := h.CacheHandler
@@ -307,7 +310,9 @@ func main() {
 			cacheHandler = wrapIdleHandler(cacheHandler, idleTimer, accessLogger, httpServer)
 		}
 
-		mux.HandleFunc("/", cacheHandler)
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			metricsMdlw.Handler(r.Method, http.HandlerFunc(cacheHandler)).ServeHTTP(w, r)
+		})
 
 		if c.GRPCPort > 0 {
 
@@ -422,11 +427,4 @@ func wrapIdleHandler(handler http.HandlerFunc, idleTimer *idle.Timer, accessLogg
 func wrapAuthHandler(handler http.HandlerFunc, secrets auth.SecretProvider, host string) http.HandlerFunc {
 	authenticator := auth.NewBasicAuthenticator(host, secrets)
 	return auth.JustCheck(authenticator, handler)
-}
-
-func wrapMetricsHandler(handler http.Handler) http.Handler {
-	mdlw := httpmiddleware.New(httpmiddleware.Config{
-		Recorder: httpmetrics.NewRecorder(httpmetrics.Config{}),
-	})
-	return mdlw.Handler("", handler)
 }
