@@ -10,6 +10,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+// S3CloudStorageConfig stores the configuration of an S3 API proxy backend.
 type S3CloudStorageConfig struct {
 	Endpoint        string `yaml:"endpoint"`
 	Bucket          string `yaml:"bucket"`
@@ -21,12 +22,14 @@ type S3CloudStorageConfig struct {
 	Region          string `yaml:"region"`
 }
 
+// GoogleCloudStorageConfig stores the configuration of a GCS proxy backend.
 type GoogleCloudStorageConfig struct {
 	Bucket                string `yaml:"bucket"`
 	UseDefaultCredentials bool   `yaml:"use_default_credentials"`
 	JSONCredentialsFile   string `yaml:"json_credentials_file"`
 }
 
+// HTTPBackendConfig stores the configuration for a HTTP proxy backend.
 type HTTPBackendConfig struct {
 	BaseURL string `yaml:"url"`
 }
