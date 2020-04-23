@@ -54,7 +54,8 @@ type Config struct {
 	DisableGRPCACDepsCheck  bool                      `yaml:"disable_grpc_ac_deps_check"`
 }
 
-// New ...
+// New returns a validated Config with the specified values, and an error
+// if there were any problems with the validation.
 func New(dir string, maxSize int, host string, port int, grpcPort int,
 	profileHost string, profilePort int, htpasswdFile string,
 	tlsCertFile string, tlsKeyFile string, idleTimeout time.Duration,
@@ -86,7 +87,9 @@ func New(dir string, maxSize int, host string, port int, grpcPort int,
 	return &c, nil
 }
 
-// NewFromYamlFile ...
+// NewFromYamlFile reads configuration settings from a YAML file then returns
+// a validated Config with those settings, and an error if there were any
+// problems.
 func NewFromYamlFile(path string) (*Config, error) {
 	file, err := os.Open(path)
 	if err != nil {
