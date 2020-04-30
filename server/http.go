@@ -193,15 +193,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if kind == cache.CAS && hash == emptySha256 {
-			w.Header().Set("Content-Type", "application/octet-stream")
-			w.Header().Set("Content-Length", "0")
-			w.Write([]byte{})
-			h.logResponse(http.StatusOK, r)
-			return
-		}
-
-		rdr, sizeBytes, err := h.cache.Get(kind, hash)
+		rdr, sizeBytes, err := h.cache.Get(kind, hash, -1)
 		if err != nil {
 			if e, ok := err.(*cache.Error); ok {
 				http.Error(w, e.Error(), e.Code)
@@ -236,13 +228,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if contentLength == 0 && kind == cache.CAS {
-			if hash == emptySha256 {
-				w.WriteHeader(http.StatusOK)
-				h.logResponse(http.StatusOK, r)
-				return
-			}
-
+		if contentLength == 0 && kind == cache.CAS && hash != emptySha256 {
 			msg := fmt.Sprintf("Invalid empty blob hash: \"%s\"", hash)
 			http.Error(w, msg, http.StatusBadRequest)
 			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
@@ -303,16 +289,9 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if kind == cache.CAS && hash == emptySha256 {
-			w.Header().Set("Content-Length", "0")
-			w.WriteHeader(http.StatusOK)
-			h.logResponse(http.StatusOK, r)
-			return
-		}
-
 		// Unvalidated path:
 
-		ok, size := h.cache.Contains(kind, hash)
+		ok, size := h.cache.Contains(kind, hash, -1)
 		if !ok {
 			http.Error(w, "Not found", http.StatusNotFound)
 			h.logResponse(http.StatusNotFound, r)

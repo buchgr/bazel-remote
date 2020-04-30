@@ -1,6 +1,7 @@
 package disk
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -59,6 +60,7 @@ type nameAndInfo struct {
 }
 
 const sha256HashStrSize = sha256.Size * 2 // Two hex characters per byte.
+const emptySha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
 // with a maximum size of `maxSizeBytes` bytes and an optional backend `proxy`.
@@ -257,6 +259,11 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.
 			len(hash), sha256.Size)
 	}
 
+	if kind == cache.CAS && expectedSize == 0 && hash == emptySha256 {
+		io.Copy(ioutil.Discard, r)
+		return nil
+	}
+
 	key := cacheKey(kind, hash)
 
 	c.mu.Lock()
@@ -403,14 +410,20 @@ func (c *Cache) availableOrTryProxy(key string) (available bool, tryProxy bool) 
 // Get returns an io.ReadCloser with the content of the cache item stored under `hash`
 // and the number of bytes that can be read from it. If the item is not found, the
 // io.ReadCloser will be nil. If some error occurred when processing the request, then
-// it is returned.
-func (c *Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
+// it is returned. The 'size' of the content to be retreived shall be provided when
+// known, or as -1 when unknown.
+func (c *Cache) Get(kind cache.EntryKind, hash string, size int64) (io.ReadCloser, int64, error) {
 
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
 	if len(hash) != sha256HashStrSize {
 		return nil, -1, fmt.Errorf("Invalid hash size: %d, expected: %d",
 			len(hash), sha256.Size)
+	}
+
+	if kind == cache.CAS && size <= 0 && hash == emptySha256 {
+		cacheHits.Inc()
+		return ioutil.NopCloser(bytes.NewReader([]byte{})), 0, nil
 	}
 
 	var err error
@@ -423,11 +436,16 @@ func (c *Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, er
 		var fileInfo os.FileInfo
 		fileInfo, err = os.Stat(blobPath)
 		if err == nil {
+			foundSize := fileInfo.Size()
+			if isSizeMismatch(size, foundSize) {
+				cacheMisses.Inc()
+				return nil, -1, nil
+			}
 			var f *os.File
 			f, err = os.Open(blobPath)
 			if err == nil {
 				cacheHits.Inc()
-				return f, fileInfo.Size(), nil
+				return f, foundSize, nil
 			}
 		}
 
@@ -483,6 +501,9 @@ func (c *Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, er
 	if err != nil || r == nil {
 		return nil, -1, err
 	}
+	if isSizeMismatch(size, foundSize) {
+		return nil, -1, nil
+	}
 
 	f, err = os.Create(tmpFilePath)
 	if err != nil {
@@ -529,7 +550,10 @@ func (c *Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, er
 //
 // If there is a local cache miss, the proxy backend (if there is
 // one) will be checked.
-func (c *Cache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
+//
+// The 'size' of the potential content, shall be provided when known,
+// or as -1 when unknown.
+func (c *Cache) Contains(kind cache.EntryKind, hash string, size int64) (bool, int64) {
 
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
@@ -537,26 +561,37 @@ func (c *Cache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
 		return false, int64(-1)
 	}
 
-	var foundLocally bool
-	size := int64(-1)
+	if kind == cache.CAS && size <= 0 && hash == emptySha256 {
+		return true, 0
+	}
+
+	var found bool
+	foundSize := int64(-1)
 	key := cacheKey(kind, hash)
 
 	c.mu.Lock()
-	val, found := c.lru.Get(key)
+	val, isInLru := c.lru.Get(key)
 	// Uncommitted (i.e. uploading items) should be reported as not ok
-	if found {
+	if isInLru {
 		item := val.(*lruItem)
-		foundLocally = item.committed
-		size = item.size
+		found = item.committed
+		foundSize = item.size
 	}
 	c.mu.Unlock()
 
-	if foundLocally {
-		return true, size
+	if found {
+		if isSizeMismatch(size, foundSize) {
+			return false, int64(-1)
+		}
+		return true, foundSize
 	}
 
 	if c.proxy != nil {
-		return c.proxy.Contains(kind, hash)
+		found, foundSize = c.proxy.Contains(kind, hash)
+		if isSizeMismatch(size, foundSize) {
+			return false, int64(-1)
+		}
+		return found, foundSize
 	}
 
 	return false, int64(-1)
@@ -575,6 +610,10 @@ func (c *Cache) Stats() (currentSize int64, numItems int) {
 	defer c.mu.Unlock()
 
 	return c.lru.CurrentSize(), c.lru.Len()
+}
+
+func isSizeMismatch(requestedSize int64, foundSize int64) bool {
+	return requestedSize > -1 && foundSize > -1 && requestedSize != foundSize
 }
 
 func ensureDirExists(path string) {
@@ -599,7 +638,8 @@ func cacheFilePath(kind cache.EntryKind, cacheDir string, hash string) string {
 // not, nil values are returned. If something unexpected went wrong, return
 // an error.
 func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte, error) {
-	rdr, sizeBytes, err := c.Get(cache.AC, hash)
+
+	rdr, sizeBytes, err := c.Get(cache.AC, hash, -1)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -620,8 +660,8 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 	}
 
 	for _, f := range result.OutputFiles {
-		if len(f.Contents) == 0 && f.Digest.SizeBytes > 0 {
-			found, _ := c.Contains(cache.CAS, f.Digest.Hash)
+		if len(f.Contents) == 0 {
+			found, _ := c.Contains(cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
 			if !found {
 				return nil, nil, nil // aka "not found"
 			}
@@ -629,7 +669,7 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 	}
 
 	for _, d := range result.OutputDirectories {
-		r, size, err := c.Get(cache.CAS, d.TreeDigest.Hash)
+		r, size, err := c.Get(cache.CAS, d.TreeDigest.Hash, d.TreeDigest.SizeBytes)
 		if r == nil {
 			return nil, nil, err // aka "not found", or an err if non-nil
 		}
@@ -657,10 +697,10 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 		}
 
 		for _, f := range tree.Root.GetFiles() {
-			if f.Digest == nil || f.Digest.SizeBytes == 0 {
+			if f.Digest == nil {
 				continue
 			}
-			found, _ := c.Contains(cache.CAS, f.Digest.Hash)
+			found, _ := c.Contains(cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
 			if !found {
 				return nil, nil, nil // aka "not found"
 			}
@@ -668,10 +708,10 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 
 		for _, child := range tree.GetChildren() {
 			for _, f := range child.GetFiles() {
-				if f.Digest == nil || f.Digest.SizeBytes == 0 {
+				if f.Digest == nil {
 					continue
 				}
-				found, _ := c.Contains(cache.CAS, f.Digest.Hash)
+				found, _ := c.Contains(cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
 				if !found {
 					return nil, nil, nil // aka "not found"
 				}
@@ -679,15 +719,15 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 		}
 	}
 
-	if result.StdoutDigest != nil && result.StdoutDigest.SizeBytes > 0 {
-		found, _ := c.Contains(cache.CAS, result.StdoutDigest.Hash)
+	if result.StdoutDigest != nil {
+		found, _ := c.Contains(cache.CAS, result.StdoutDigest.Hash, result.StdoutDigest.SizeBytes)
 		if !found {
 			return nil, nil, nil // aka "not found"
 		}
 	}
 
-	if result.StderrDigest != nil && result.StderrDigest.SizeBytes > 0 {
-		found, _ := c.Contains(cache.CAS, result.StderrDigest.Hash)
+	if result.StderrDigest != nil {
+		found, _ := c.Contains(cache.CAS, result.StderrDigest.Hash, result.StderrDigest.SizeBytes)
 		if !found {
 			return nil, nil, nil // aka "not found"
 		}

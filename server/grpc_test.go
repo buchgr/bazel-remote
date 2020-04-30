@@ -573,7 +573,7 @@ func TestGrpcByteStreamDeadline(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, sz, err := diskCache.Get(cache.CAS, testBlobHash)
+	_, sz, err := diskCache.Get(cache.CAS, testBlobHash, testBlobSize)
 	if err != nil {
 		t.Fatalf("get error: %v\n", err)
 	}

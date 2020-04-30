@@ -87,17 +87,6 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 		return err
 	}
 
-	if size == 0 {
-		// While not technically an error, clients really shouldn't be
-		// asking for empty data with the bytestream API (IMO).
-		err = resp.Send(&bytestream.ReadResponse{Data: []byte{}})
-		if err != nil {
-			s.accessLogger.Printf("GRPC BYTESTREAM READ FAILED TO SEND RESPONSE: %s", err)
-			return status.Error(codes.Unknown, err.Error())
-		}
-		return nil
-	}
-
 	if req.ReadOffset > size {
 		msg := fmt.Sprintf("ReadOffset %d larger than expected data size %d resource: %s",
 			req.ReadOffset, size, req.ResourceName)
@@ -105,7 +94,7 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 		return status.Error(codes.OutOfRange, msg)
 	}
 
-	rdr, sizeBytes, err := s.cache.Get(cache.CAS, hash)
+	rdr, sizeBytes, err := s.cache.Get(cache.CAS, hash, size)
 	if err != nil {
 		msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED: %v", err)
 		s.accessLogger.Printf(msg)

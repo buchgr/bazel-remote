@@ -44,10 +44,14 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 		return nil, err
 	}
 
+	// Clients provides hash and size of the Action, but not size of the ActionResult
+	// checked by the the disk cache.
+	const unknownActionResultSize = -1
+
 	if !s.depsCheck {
 		logPrefix = "GRPC AC GET NODEPSCHECK"
 
-		rdr, sizeBytes, err := s.cache.Get(cache.AC, req.ActionDigest.Hash)
+		rdr, sizeBytes, err := s.cache.Get(cache.AC, req.ActionDigest.Hash, unknownActionResultSize)
 		if err != nil {
 			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 			return nil, status.Error(codes.Unknown, err.Error())
@@ -145,7 +149,7 @@ func (s *grpcServer) maybeInline(inline bool, slice *[]byte, digest **pb.Digest,
 			}
 		}
 
-		found, _ := s.cache.Contains(cache.CAS, (*digest).Hash)
+		found, _ := s.cache.Contains(cache.CAS, (*digest).Hash, (*digest).SizeBytes)
 		if !found {
 			err := s.cache.Put(cache.CAS, (*digest).Hash, (*digest).SizeBytes,
 				bytes.NewReader(*slice))

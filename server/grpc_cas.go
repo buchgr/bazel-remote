@@ -37,13 +37,7 @@ func (s *grpcServer) FindMissingBlobs(ctx context.Context,
 			return nil, err
 		}
 
-		if digest.SizeBytes == 0 {
-			// The hash was validated, so we know it's OK.
-			s.accessLogger.Printf("GRPC CAS HEAD %s OK", hash)
-			continue
-		}
-
-		found, _ := s.cache.Contains(cache.CAS, hash)
+		found, _ := s.cache.Contains(cache.CAS, hash, digest.GetSizeBytes())
 		if !found {
 			s.accessLogger.Printf("GRPC CAS HEAD %s NOT FOUND", hash)
 			resp.MissingBlobDigests = append(resp.MissingBlobDigests, digest)
@@ -106,7 +100,7 @@ func (s *grpcServer) getBlobData(hash string, size int64) ([]byte, error) {
 		return []byte{}, nil
 	}
 
-	rdr, sizeBytes, err := s.cache.Get(cache.CAS, hash)
+	rdr, sizeBytes, err := s.cache.Get(cache.CAS, hash, size)
 	if err != nil {
 		rdr.Close()
 		return []byte{}, err
