@@ -157,7 +157,7 @@ func TestEverything(t *testing.T) {
 	var found bool
 	var size int64
 
-	found, size = diskCache.Contains(cache.AC, hash)
+	found, size = diskCache.Contains(cache.AC, hash, int64(len(acData)))
 	if !found {
 		t.Fatalf("Expected to find AC item %s", hash)
 	}
@@ -166,7 +166,7 @@ func TestEverything(t *testing.T) {
 			len(acData), size)
 	}
 
-	found, size = diskCache.Contains(cache.CAS, hash)
+	found, size = diskCache.Contains(cache.CAS, hash, int64(len(casData)))
 	if !found {
 		t.Fatalf("Expected to find CAS item %s", hash)
 	}
@@ -180,7 +180,7 @@ func TestEverything(t *testing.T) {
 	var data []byte
 	var rc io.ReadCloser
 
-	rc, size, err = diskCache.Get(cache.AC, hash)
+	rc, size, err = diskCache.Get(cache.AC, hash, int64(len(acData)))
 	if err != nil {
 		t.Error(err)
 	}
@@ -200,7 +200,7 @@ func TestEverything(t *testing.T) {
 	}
 	rc.Close()
 
-	rc, size, err = diskCache.Get(cache.CAS, hash)
+	rc, size, err = diskCache.Get(cache.CAS, hash, int64(len(casData)))
 	if err != nil {
 		t.Error(err)
 	}
@@ -235,7 +235,7 @@ func TestEverything(t *testing.T) {
 
 	// Confirm that we can HEAD both values successfully.
 
-	found, size = diskCache.Contains(cache.AC, hash)
+	found, size = diskCache.Contains(cache.AC, hash, int64(len(acData)))
 	if !found {
 		t.Fatalf("Expected to find AC item %s", hash)
 	}
@@ -244,7 +244,7 @@ func TestEverything(t *testing.T) {
 			len(acData), size)
 	}
 
-	found, size = diskCache.Contains(cache.CAS, hash)
+	found, size = diskCache.Contains(cache.CAS, hash, int64(len(casData)))
 	if !found {
 		t.Fatalf("Expected to find CAS item %s", hash)
 	}
@@ -255,7 +255,7 @@ func TestEverything(t *testing.T) {
 
 	// Confirm that we can GET both values successfully.
 
-	rc, size, err = diskCache.Get(cache.AC, hash)
+	rc, size, err = diskCache.Get(cache.AC, hash, int64(len(acData)))
 	if err != nil {
 		t.Error(err)
 	}
@@ -275,7 +275,7 @@ func TestEverything(t *testing.T) {
 	}
 	rc.Close()
 
-	rc, size, err = diskCache.Get(cache.CAS, hash)
+	rc, size, err = diskCache.Get(cache.CAS, hash, int64(len(casData)))
 	if err != nil {
 		t.Error(err)
 	}

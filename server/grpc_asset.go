@@ -64,14 +64,14 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 
 			sha256Str = hex.EncodeToString(decoded)
 
-			found, size := s.cache.Contains(cache.CAS, sha256Str)
+			found, size := s.cache.Contains(cache.CAS, sha256Str, -1)
 			if !found {
 				continue
 			}
 
 			if size < 0 {
 				// We don't know the size yet (bad http backend?).
-				r, size, err := s.cache.Get(cache.CAS, sha256Str)
+				r, size, err := s.cache.Get(cache.CAS, sha256Str, -1)
 				if r != nil {
 					defer r.Close()
 				}

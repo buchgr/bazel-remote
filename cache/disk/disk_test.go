@@ -72,6 +72,7 @@ func checkItems(cache *Cache, expSize int64, expNum int) error {
 const KEY = "a-key"
 const contents = "hello"
 const contentsHash = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+const contentsLength = int64(len(contents))
 
 func TestCacheBasics(t *testing.T) {
 	cacheDir := tempDir(t)
@@ -84,7 +85,7 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Non-existing item
-	rdr, _, err := testCache.Get(cache.CAS, contentsHash)
+	rdr, _, err := testCache.Get(cache.CAS, contentsHash, contentsLength)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +107,7 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Get the item back
-	rdr, sizeBytes, err := testCache.Get(cache.CAS, contentsHash)
+	rdr, sizeBytes, err := testCache.Get(cache.CAS, contentsHash, contentsLength)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,6 +184,91 @@ func TestCachePutWrongSize(t *testing.T) {
 	}
 }
 
+func TestCacheGetContainsWrongSize(t *testing.T) {
+
+	cacheDir := tempDir(t)
+	defer os.RemoveAll(cacheDir)
+	testCache := New(cacheDir, 100, nil)
+
+	var found bool
+	var rdr io.ReadCloser
+
+	err := testCache.Put(cache.CAS, contentsHash, contentsLength, strings.NewReader(contents))
+	if err != nil {
+		t.Fatal("Expected success", err)
+	}
+
+	found, _ = testCache.Contains(cache.CAS, contentsHash, contentsLength+1)
+	if found {
+		t.Error("Expected not found, due to size being different")
+	}
+
+	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, contentsLength+1)
+	if rdr != nil {
+		t.Error("Expected not found, due to size being different")
+	}
+
+	found, _ = testCache.Contains(cache.CAS, contentsHash, -1)
+	if !found {
+		t.Error("Expected found, when unknown size")
+	}
+
+	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, -1)
+	if rdr == nil {
+		t.Error("Expected found, when unknown size")
+	}
+}
+
+func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
+
+	cacheDir := tempDir(t)
+	defer os.RemoveAll(cacheDir)
+	testCache := New(cacheDir, 100, new(proxyStub))
+
+	var found bool
+	var rdr io.ReadCloser
+
+	// The proxyStub contains the digest {contentsHash, contentsLength}.
+
+	found, _ = testCache.Contains(cache.CAS, contentsHash, contentsLength+1)
+	if found {
+		t.Error("Expected not found, due to size being different")
+	}
+
+	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, contentsLength+1)
+	if rdr != nil {
+		t.Error("Expected not found, due to size being different")
+	}
+	if err := checkItems(testCache, 0, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	found, _ = testCache.Contains(cache.CAS, contentsHash, -1)
+	if !found {
+		t.Error("Expected found, when unknown size")
+	}
+
+	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, -1)
+	if rdr == nil {
+		t.Error("Expected found, when unknown size")
+	}
+	if err := checkItems(testCache, contentsLength, 1); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type proxyStub struct{}
+
+func (d proxyStub) Put(kind cache.EntryKind, hash string, size int64, rdr io.Reader) {}
+
+func (d proxyStub) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
+	return ioutil.NopCloser(strings.NewReader(contents)), contentsLength, nil
+}
+
+func (d proxyStub) Contains(kind cache.EntryKind, hash string) (bool, int64) {
+	return true, contentsLength
+}
+
 func expectContentEquals(rdr io.ReadCloser, sizeBytes int64, expectedContent []byte) error {
 	if rdr == nil {
 		return fmt.Errorf("expected the item to exist")
@@ -216,7 +302,7 @@ func putGetCompareBytes(kind cache.EntryKind, hash string, data []byte, testCach
 		return err
 	}
 
-	rdr, sizeBytes, err := testCache.Get(kind, hash)
+	rdr, sizeBytes, err := testCache.Get(kind, hash, int64(len(data)))
 	if err != nil {
 		return err
 	}
@@ -307,7 +393,7 @@ func TestCacheExistingFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	found, _ := testCache.Contains(cache.CAS, "f53b46209596d170f7659a414c9ff9f6b545cf77ffd6e1cbe9bcc57e1afacfbd")
+	found, _ := testCache.Contains(cache.CAS, "f53b46209596d170f7659a414c9ff9f6b545cf77ffd6e1cbe9bcc57e1afacfbd", contentsLength)
 	if found {
 		t.Fatalf("%s should have been evicted", items[0])
 	}
@@ -390,17 +476,17 @@ func TestMigrateFromOldDirectoryStructure(t *testing.T) {
 	}
 
 	var found bool
-	found, _ = testCache.Contains(cache.AC, acHash)
+	found, _ = testCache.Contains(cache.AC, acHash, 512)
 	if !found {
 		t.Fatalf("Expected cache to contain AC entry '%s'", acHash)
 	}
 
-	found, _ = testCache.Contains(cache.CAS, casHash1)
+	found, _ = testCache.Contains(cache.CAS, casHash1, 1024)
 	if !found {
 		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash1)
 	}
 
-	found, _ = testCache.Contains(cache.CAS, casHash2)
+	found, _ = testCache.Contains(cache.CAS, casHash2, 1024)
 	if !found {
 		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash2)
 	}
@@ -436,17 +522,17 @@ func TestLoadExistingEntries(t *testing.T) {
 
 	var found bool
 
-	found, _ = testCache.Contains(cache.AC, acHash)
+	found, _ = testCache.Contains(cache.AC, acHash, blobSize)
 	if !found {
 		t.Fatalf("Expected cache to contain AC entry '%s'", acHash)
 	}
 
-	found, _ = testCache.Contains(cache.CAS, casHash)
+	found, _ = testCache.Contains(cache.CAS, casHash, blobSize)
 	if !found {
 		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash)
 	}
 
-	found, _ = testCache.Contains(cache.RAW, rawHash)
+	found, _ = testCache.Contains(cache.RAW, rawHash, blobSize)
 	if !found {
 		t.Fatalf("Expected cache to contain RAW entry '%s'", rawHash)
 	}
@@ -580,7 +666,7 @@ func TestHttpProxyBackend(t *testing.T) {
 	blob, casHash := testutils.RandomDataAndHash(blobSize)
 
 	// Non-existing item
-	r, _, err := testCache.Get(cache.CAS, casHash)
+	r, _, err := testCache.Get(cache.CAS, casHash, blobSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -614,12 +700,12 @@ func TestHttpProxyBackend(t *testing.T) {
 	// Confirm that it does not contain the item we added to the
 	// first testCache and the proxy backend.
 
-	found, _ := testCache.Contains(cache.CAS, casHash)
+	found, _ := testCache.Contains(cache.CAS, casHash, blobSize)
 	if found {
 		t.Fatalf("Expected the cache not to contain %s", casHash)
 	}
 
-	r, _, err = testCache.Get(cache.CAS, casHash)
+	r, _, err = testCache.Get(cache.CAS, casHash, blobSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -630,13 +716,13 @@ func TestHttpProxyBackend(t *testing.T) {
 	// Add the proxy backend and check that we can Get the item.
 	testCache.proxy = proxy
 
-	found, _ = testCache.Contains(cache.CAS, casHash)
+	found, _ = testCache.Contains(cache.CAS, casHash, blobSize)
 	if !found {
 		t.Fatalf("Expected the cache to contain %s (via the proxy)",
 			casHash)
 	}
 
-	r, fetchedSize, err := testCache.Get(cache.CAS, casHash)
+	r, fetchedSize, err := testCache.Get(cache.CAS, casHash, blobSize)
 	if err != nil {
 		t.Fatal(err)
 	}
