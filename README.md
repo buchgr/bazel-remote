@@ -29,6 +29,10 @@ unless validation is disabled by configuration. The HTTP server also supports re
 encoded protobuf ActionResult messages to the action cache by using HTTP headers `Accept: application/json`
 for GET requests and `Content-type: application/json` for PUT requests.
 
+The empty CAS blob is always available, even if the cache is empty. This can be used to test that
+a bazel-remote instance is running and accepting requests, for example:
+`curl --head --fail http://localhost:8080/cas/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
+
 ### Prometheus Metrics
 
 To query endpoint metrics see [github.com/slok/go-http-metrics's query examples](https://github.com/slok/go-http-metrics#prometheus-query-examples).
