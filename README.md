@@ -29,9 +29,32 @@ unless validation is disabled by configuration. The HTTP server also supports re
 encoded protobuf ActionResult messages to the action cache by using HTTP headers `Accept: application/json`
 for GET requests and `Content-type: application/json` for PUT requests.
 
+### Useful endpoints
+
+**/status**
+
+Returns the cache status/info.
+```
+$ curl http://localhost:8080/status
+{
+ "CurrSize": 414081715503,
+ "MaxSize": 8589934592000,
+ "NumFiles": 621413,
+ "ServerTime": 1588329927,
+ "GitCommit": "876822643dc8590f2a1d2724641a7078f564978f"
+}
+```
+
+**/cas/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855**
+
 The empty CAS blob is always available, even if the cache is empty. This can be used to test that
-a bazel-remote instance is running and accepting requests, for example:
-`curl --head --fail http://localhost:8080/cas/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
+a bazel-remote instance is running and accepting requests.
+```
+$ curl --head --fail http://localhost:8080/cas/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+HTTP/1.1 200 OK
+Content-Length: 0
+Date: Fri, 01 May 2020 10:42:06 GMT
+```
 
 ### Prometheus Metrics
 
