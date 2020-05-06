@@ -40,6 +40,9 @@ const (
 // is set through linker options.
 var gitCommit string
 
+// durationBuckets is the buckets used for Prometheus histograms in seconds.
+var durationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
+
 func main() {
 
 	log.SetFlags(logFlags)
@@ -197,6 +200,12 @@ func main() {
 			DefaultText: "false, ie enable ActionCache dependency checks",
 			EnvVars:     []string{"BAZEL_REMOTE_DISABLE_GRPS_AC_DEPS_CHECK"},
 		},
+		&cli.BoolFlag{
+			Name:        "enable_endpoint_metrics",
+			Usage:       "Whether to enable metrics for each HTTP/gRPC endpoint.",
+			DefaultText: "false, ie disable metrics",
+			EnvVars:     []string{"BAZEL_REMOTE_ENABLE_ENDPOINT_METRICS"},
+		},
 	}
 
 	app.Action = func(ctx *cli.Context) error {
@@ -234,6 +243,7 @@ func main() {
 				s3,
 				ctx.Bool("disable_http_ac_validation"),
 				ctx.Bool("disable_grpc_ac_deps_check"),
+				ctx.Bool("enable_endpoint_metrics"),
 			)
 		}
 
@@ -291,11 +301,6 @@ func main() {
 
 		validateAC := !c.DisableHTTPACValidation
 		h := server.NewHTTPCache(diskCache, accessLogger, errorLogger, validateAC, gitCommit)
-		metricsMdlw := httpmiddleware.New(httpmiddleware.Config{
-			Recorder: httpmetrics.NewRecorder(httpmetrics.Config{}),
-		})
-		mux.Handle("/metrics", metricsMdlw.Handler("metrics", promhttp.Handler()))
-		mux.Handle("/status", metricsMdlw.Handler("status", http.HandlerFunc(h.StatusPageHandler)))
 
 		var htpasswdSecrets auth.SecretProvider
 		cacheHandler := h.CacheHandler
@@ -310,9 +315,21 @@ func main() {
 			cacheHandler = wrapIdleHandler(cacheHandler, idleTimer, accessLogger, httpServer)
 		}
 
-		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			metricsMdlw.Handler(r.Method, http.HandlerFunc(cacheHandler)).ServeHTTP(w, r)
-		})
+		if c.EnableEndpointMetrics {
+			metricsMdlw := httpmiddleware.New(httpmiddleware.Config{
+				Recorder: httpmetrics.NewRecorder(httpmetrics.Config{
+					DurationBuckets: durationBuckets,
+				}),
+			})
+			mux.Handle("/metrics", metricsMdlw.Handler("metrics", promhttp.Handler()))
+			mux.Handle("/status", metricsMdlw.Handler("status", http.HandlerFunc(h.StatusPageHandler)))
+			mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+				metricsMdlw.Handler(r.Method, http.HandlerFunc(cacheHandler)).ServeHTTP(w, r)
+			})
+		} else {
+			mux.HandleFunc("/status", h.StatusPageHandler)
+			mux.HandleFunc("/", cacheHandler)
+		}
 
 		if c.GRPCPort > 0 {
 
@@ -324,8 +341,14 @@ func main() {
 				addr := c.Host + ":" + strconv.Itoa(c.GRPCPort)
 
 				opts := []grpc.ServerOption{}
-				streamInterceptors := []grpc.StreamServerInterceptor{grpc_prometheus.StreamServerInterceptor}
-				unaryInterceptors := []grpc.UnaryServerInterceptor{grpc_prometheus.UnaryServerInterceptor}
+				streamInterceptors := []grpc.StreamServerInterceptor{}
+				unaryInterceptors := []grpc.UnaryServerInterceptor{}
+
+				if c.EnableEndpointMetrics {
+					streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)
+					unaryInterceptors = append(unaryInterceptors, grpc_prometheus.UnaryServerInterceptor)
+					grpc_prometheus.EnableHandlingTimeHistogram(grpc_prometheus.WithHistogramBuckets(durationBuckets))
+				}
 
 				if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
 					creds, err2 := credentials.NewServerTLSFromFile(

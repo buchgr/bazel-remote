@@ -52,6 +52,7 @@ type Config struct {
 	IdleTimeout             time.Duration             `yaml:"idle_timeout"`
 	DisableHTTPACValidation bool                      `yaml:"disable_http_ac_validation"`
 	DisableGRPCACDepsCheck  bool                      `yaml:"disable_grpc_ac_deps_check"`
+	EnableEndpointMetrics   bool                      `yaml:"enable_endpoint_metrics"`
 }
 
 // New returns a validated Config with the specified values, and an error
@@ -60,7 +61,7 @@ func New(dir string, maxSize int, host string, port int, grpcPort int,
 	profileHost string, profilePort int, htpasswdFile string,
 	tlsCertFile string, tlsKeyFile string, idleTimeout time.Duration,
 	s3 *S3CloudStorageConfig, disableHTTPACValidation bool,
-	disableGRPCACDepsCheck bool) (*Config, error) {
+	disableGRPCACDepsCheck bool, enableEndpointMetrics bool) (*Config, error) {
 	c := Config{
 		Host:                    host,
 		Port:                    port,
@@ -78,6 +79,7 @@ func New(dir string, maxSize int, host string, port int, grpcPort int,
 		IdleTimeout:             idleTimeout,
 		DisableHTTPACValidation: disableHTTPACValidation,
 		DisableGRPCACDepsCheck:  disableGRPCACDepsCheck,
+		EnableEndpointMetrics:   enableEndpointMetrics,
 	}
 
 	err := validateConfig(&c)
