@@ -18,6 +18,7 @@ htpasswd_file: /opt/.htpasswd
 tls_cert_file: /opt/tls.cert
 tls_key_file:  /opt/tls.key
 disable_http_ac_validation: true
+enable_endpoint_metrics: true
 `
 
 	config, err := newFromYaml([]byte(yaml))
@@ -35,6 +36,7 @@ disable_http_ac_validation: true
 		TLSCertFile:             "/opt/tls.cert",
 		TLSKeyFile:              "/opt/tls.key",
 		DisableHTTPACValidation: true,
+		EnableEndpointMetrics:   true,
 	}
 
 	if !reflect.DeepEqual(config, expectedConfig) {
