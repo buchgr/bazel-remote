@@ -281,7 +281,8 @@ func main() {
 			proxyCache = s3proxy.New(c.S3CloudStorage, accessLogger, errorLogger)
 		}
 
-		diskCache := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, proxyCache)
+		diskCache := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, proxyCache,
+                                      c.ReadAfterWriteGuarantee, c.OverwriteCommited)
 
 		mux := http.NewServeMux()
 		httpServer := &http.Server{

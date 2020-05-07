@@ -31,6 +31,26 @@ var (
 		Name: "bazel_remote_disk_cache_misses",
 		Help: "The total number of disk backend cache misses",
 	})
+	evictedUncommited = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "bazel_remote_disk_cache_evicted_uncommited",
+		Help: "The total number of uncommited entries evicted from disk backend cache.",
+	})
+	newAcceptedWhenExistingCommited = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "bazel_remote_disk_cache_new_accepted_commited",
+		Help: "The total number of new disk backend put requests accepted when an already existing commited entry",
+	})
+	newDiscardedWhenExistingCommited = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "bazel_remote_disk_cache_new_discarded_commited",
+		Help: "The total number of new disk backend put requests discarded when an already existing commited entry",
+	})
+	newAcceptedWhenExistingUncommited = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "bazel_remote_disk_cache_new_accepted_uncommited",
+		Help: "The total number of new disk backend put requests accepted when an already existing uncommited entry",
+	})
+	newDiscardedWhenExistingUncommited = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "bazel_remote_disk_cache_new_discarded_uncommited",
+		Help: "The total number of new disk backend put requests discarded when an already existing uncommited entry",
+	})
 )
 
 // lruItem is the type of the values stored in SizedLRU to keep track of items.
@@ -51,6 +71,8 @@ type Cache struct {
 
 	mu  *sync.Mutex
 	lru SizedLRU
+        readAfterWriteGuarantee bool
+        overwriteCommited bool
 }
 
 type nameAndInfo struct {
@@ -63,7 +85,7 @@ const sha256HashStrSize = sha256.Size * 2 // Two hex characters per byte.
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
 // with a maximum size of `maxSizeBytes` bytes and an optional backend `proxy`.
 // Cache is safe for concurrent use.
-func New(dir string, maxSizeBytes int64, proxy cache.Proxy) *Cache {
+func New(dir string, maxSizeBytes int64, proxy cache.Proxy, readAfterWriteGuarantee bool, overwriteCommited bool) *Cache {
 	// Create the directory structure.
 	hexLetters := []byte("0123456789abcdef")
 	for _, c1 := range hexLetters {
@@ -101,47 +123,24 @@ func New(dir string, maxSizeBytes int64, proxy cache.Proxy) *Cache {
 			return
 		}
 
-		// There is an ongoing upload for the evicted item. The temp
-		// file may or may not exist at this point.
+		// If there are concurrent uploads ongoing for a key that is
+		// evicted, then those uploads are allowed to continue and will
+		// re-add themself when finished.
 		//
-		// We should either be able to remove both the temp file and
-		// the regular cache file, or to remove just the regular cache
-		// file. The temp file is renamed/moved to the regular cache
-		// file without holding the lock, so we must try removing the
-		// temp file first.
-
+		// Trying to delete those files in uploading state would be
+		// problematic since the eviction might occur when they
+		// released the lock after they added as uncommited in LRU,
+		// but before they created the temporary file, resulting in
+		// that they might continue creating both their temporary file
+		// and the real file after onEvict already finished.
+		//
 		// Note: if you hit this case, then your cache size might be
 		// too small (blobs are moved to the most-recently used end
 		// of the index when the upload begins, and these items are
 		// still uploading when they reach the least-recently used
 		// end of the index).
 
-		tf := f + ".tmp"
-		var fErr, tfErr error
-		removedCount := 0
-
-		tfErr = os.Remove(tf)
-		if tfErr == nil {
-			removedCount++
-		}
-
-		fErr = os.Remove(f)
-		if fErr == nil {
-			removedCount++
-		}
-
-		// We expect to have removed at least one file at this point.
-		if removedCount == 0 {
-			if !os.IsNotExist(tfErr) {
-				log.Printf("ERROR: failed to remove evicted item: %s / %v",
-					tf, tfErr)
-			}
-
-			if !os.IsNotExist(fErr) {
-				log.Printf("ERROR: failed to remove evicted item: %s / %v",
-					f, fErr)
-			}
-		}
+		evictedUncommited.Inc()
 	}
 
 	c := &Cache{
@@ -149,8 +148,12 @@ func New(dir string, maxSizeBytes int64, proxy cache.Proxy) *Cache {
 		proxy: proxy,
 		mu:    &sync.Mutex{},
 		lru:   NewSizedLRU(maxSizeBytes, onEvict),
+		readAfterWriteGuarantee: readAfterWriteGuarantee,
+		overwriteCommited: overwriteCommited,
 	}
 
+	log.Printf("Read after write guarantee: %t\n", c.readAfterWriteGuarantee)
+	log.Printf("Overwrite commited: %t\n", c.overwriteCommited)
 	err := c.migrateDirectories()
 	if err != nil {
 		log.Fatalf("Attempting to migrate the old directory structure to the new structure failed "+
@@ -261,24 +264,68 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.
 
 	c.mu.Lock()
 
-	// If there's an ongoing upload (i.e. cache key is present in uncommitted state),
-	// we drop the upload and discard the incoming stream. We do accept uploads
-	// of existing keys, as it should happen relatively rarely (e.g. race
-	// condition on the bazel side) but it's useful to overwrite poisoned items.
-	if existingItem, found := c.lru.Get(key); found {
-		if !existingItem.(*lruItem).committed {
-			c.mu.Unlock()
-			io.Copy(ioutil.Discard, r)
-			return nil
-		}
-	}
-
 	// Try to add the item to the LRU.
 	newItem := &lruItem{
 		size:      expectedSize,
 		committed: false,
 	}
-	ok := c.lru.Add(key, newItem)
+	ok := true
+	if existingItem, found := c.lru.Get(key); found {
+		if existingItem.(*lruItem).committed {
+			if c.overwriteCommited {
+				// Original bazel-remote had this behavour of accepting uploads
+				// of existing commited keys, and motivated it by it would
+				// happen relatively rarely (e.g. race condition on bazel side)
+				// and that it is useful to overwrite poisoned items.
+				newAcceptedWhenExistingCommited.Inc()
+				ok = c.lru.HasValidSize(newItem)
+			} else {
+				// Ignore new uploads of already existing keys.
+				// No need to consider readAfterWriteGuarantee
+				// because the original entry is already
+				// readable.
+				//
+				// Slightly more efficient, at least for remote execution
+				// use cases where bazel client uploads the same input
+				// files many times in paralllell.
+				newDiscardedWhenExistingCommited.Inc()
+				c.mu.Unlock()
+				io.Copy(ioutil.Discard, r)
+				return nil
+			}
+		} else {
+			if c.readAfterWriteGuarantee {
+				// Accept concurrent put requests. Handle all of
+				// them in parallell instead of having them
+				// wait for the first one to finish, in
+				// order to avoid that a fast uploader have
+				// to wait for a slow one. And also to avoid
+				// need for timeput handling if the first
+				// never finish.
+				newAcceptedWhenExistingUncommited.Inc()
+				ok = c.lru.HasValidSize(newItem)
+			} else {
+				// If ongoing upload (i.e. cache key is present
+				// in uncommitted state), we drop the upload,
+				// discard the incoming stream, and assume the
+				// other upload will soon finish successfully.
+				//
+				// Discarding is more efficient and often good
+				// enought when not needing guarantee about
+				// entries being readable directly after put
+				// request finish. However such guarantee is
+				// required when used as remote execution CAS
+				// and for bazel's builds-without-the-bytes feature.
+				newDiscardedWhenExistingUncommited.Inc()
+				c.mu.Unlock()
+				io.Copy(ioutil.Discard, r)
+				return nil
+			}
+		}
+	} else {
+	   ok = c.lru.Add(key, newItem)
+	}
+
 	c.mu.Unlock()
 	if !ok {
 		return &cache.Error{
@@ -293,11 +340,50 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.
 	shouldCommit := false
 	filePath := cacheFilePath(kind, c.dir, hash)
 	defer func() {
+
 		c.mu.Lock()
-		if shouldCommit {
-			newItem.committed = true
+		if c.lru.HasInstance(key, newItem) {
+			if shouldCommit {
+			      // This is the normal and fast path.
+			      newItem.committed = true
+			      // It could be that another concurrent put had just
+			      // overwritten our file before we mark it's key as
+			      // commited here, but if so that other will soon
+			      // re-add the file with the most recently written
+			      // size.
+			} else {
+			      c.lru.Remove(key)
+			}
 		} else {
-			c.lru.Remove(key)
+			if shouldCommit {
+				// Three ways to end up here:
+				//   a. Overwriting an already existing commited entry.
+				//   b. Concurrent put requests with same key.
+				//   c. Key evicted during put request of same key.
+				//
+				// Calling os.Stat while holding the lock should be acceptable since this
+				// is not the normal path, so performance is less critical.
+				fileStat, err := os.Stat(filePath)
+				if err == nil {
+					// There is no lock around file renaming, so we do not now if
+					// the current file on disk has been written by us or some
+					// other concurrent executing put request with the same key.
+					// Therefore get the correct size now while we are holding the
+					// lock to make sure we tell lru the correct size regardless of
+					// if it was written by us or not.
+					newItem.committed = true
+					newItem.size = fileStat.Size()
+					ok := c.lru.Add(key, newItem)
+					if !ok {
+						os.Remove(filePath)
+					}
+				} else {
+					// Our file has been evicted. Nothing needs to be done since
+					// we already verified this instance is no longer in LRU.
+				}
+			  } else {
+				  // We are not in LRU, and since upload failed, that how it should be.
+			  }
 		}
 		c.mu.Unlock()
 
@@ -310,12 +396,14 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.
 		}
 	}()
 
-	// Download to a temporary file
-	tmpFilePath := filePath + ".tmp"
-	f, err := os.Create(tmpFilePath)
+	// Download to a temporary file. Important with unique file name
+	// since concurrent uploads can go on in parallell.
+	f, err := ioutil.TempFile(cacheDirPath(kind, c.dir, hash), ".tmp")
 	if err != nil {
 		return err
 	}
+	tmpFilePath := f.Name()
+
 	defer func() {
 		if !shouldCommit {
 			// Only delete the temp file if moving it didn't succeed.
@@ -366,6 +454,7 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.
 	return err
 }
 
+
 // Return two bools, `available` is true if the item is in the local
 // cache and ready to use.
 //
@@ -388,7 +477,7 @@ func (c *Cache) availableOrTryProxy(key string) (available bool, tryProxy bool) 
 		// Reserve a place in the LRU.
 		// The caller must replace or remove this!
 		tryProxy = c.lru.Add(key, &lruItem{
-			size:      0,
+			size:	   0,
 			committed: false,
 		})
 	}
@@ -591,6 +680,10 @@ func cacheKey(kind cache.EntryKind, hash string) string {
 
 func cacheFilePath(kind cache.EntryKind, cacheDir string, hash string) string {
 	return filepath.Join(cacheDir, cacheKey(kind, hash))
+}
+
+func cacheDirPath(kind cache.EntryKind, cacheDir string, hash string) string {
+	return filepath.Join(cacheDir, kind.String(), hash[:2])
 }
 
 // GetValidatedActionResult returns a valid ActionResult and its serialized

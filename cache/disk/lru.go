@@ -26,9 +26,11 @@ type SizedLRU interface {
 	Add(key Key, value sizedItem) (ok bool)
 	Get(key Key) (value sizedItem, ok bool)
 	Remove(key Key)
+        HasInstance(key Key, value sizedItem) (has bool)
 	Len() int
 	CurrentSize() int64
 	MaxSize() int64
+        HasValidSize(value sizedItem) (ok bool)
 }
 
 type sizedLRU struct {
@@ -61,7 +63,7 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback) SizedLRU {
 // Add adds a (key, value) to the cache, evicting items as necessary. Add returns false (
 // and does not add the item) if the item size is larger than the maximum size of the cache.
 func (c *sizedLRU) Add(key Key, value sizedItem) (ok bool) {
-	if value.Size() > c.maxSize {
+	if !c.HasValidSize(value) {
 		return false
 	}
 
@@ -107,6 +109,15 @@ func (c *sizedLRU) Remove(key Key) {
 	}
 }
 
+// Returns true if a specific value instance is available via key
+func (c *sizedLRU) HasInstance(key Key, value sizedItem) (has bool) {
+       if ee, ok := c.cache[key]; ok {
+               return value == ee.Value.(*entry).value
+       } else {
+               return false
+       }
+}
+
 // Len returns the number of items in the cache
 func (c *sizedLRU) Len() int {
 	return len(c.cache)
@@ -118,6 +129,11 @@ func (c *sizedLRU) CurrentSize() int64 {
 
 func (c *sizedLRU) MaxSize() int64 {
 	return c.maxSize
+}
+
+
+func (c *sizedLRU) HasValidSize(value sizedItem) (ok bool) {
+        return value.Size() <= c.maxSize
 }
 
 func (c *sizedLRU) removeElement(e *list.Element) {

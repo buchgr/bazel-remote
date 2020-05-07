@@ -52,6 +52,8 @@ type Config struct {
 	IdleTimeout             time.Duration             `yaml:"idle_timeout"`
 	DisableHTTPACValidation bool                      `yaml:"disable_http_ac_validation"`
 	DisableGRPCACDepsCheck  bool                      `yaml:"disable_grpc_ac_deps_check"`
+        ReadAfterWriteGuarantee bool                      `yaml:"read_after_write_guarantee"`
+        OverwriteCommited       bool                      `yaml:"overwrite_commited"`
 }
 
 // New returns a validated Config with the specified values, and an error
@@ -78,6 +80,8 @@ func New(dir string, maxSize int, host string, port int, grpcPort int,
 		IdleTimeout:             idleTimeout,
 		DisableHTTPACValidation: disableHTTPACValidation,
 		DisableGRPCACDepsCheck:  disableGRPCACDepsCheck,
+                ReadAfterWriteGuarantee: false,
+                OverwriteCommited:       true,
 	}
 
 	err := validateConfig(&c)
