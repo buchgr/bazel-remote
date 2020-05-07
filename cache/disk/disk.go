@@ -539,9 +539,10 @@ func (c *Cache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
 
 	var foundLocally bool
 	size := int64(-1)
+	key := cacheKey(kind, hash)
 
 	c.mu.Lock()
-	val, found := c.lru.Get(cacheKey(kind, hash))
+	val, found := c.lru.Get(key)
 	// Uncommitted (i.e. uploading items) should be reported as not ok
 	if found {
 		item := val.(*lruItem)
