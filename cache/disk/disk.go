@@ -657,7 +657,7 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 		}
 
 		for _, f := range tree.Root.GetFiles() {
-			if f.Digest == nil {
+			if f.Digest == nil || f.Digest.SizeBytes == 0 {
 				continue
 			}
 			found, _ := c.Contains(cache.CAS, f.Digest.Hash)
@@ -668,7 +668,7 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 
 		for _, child := range tree.GetChildren() {
 			for _, f := range child.GetFiles() {
-				if f.Digest == nil {
+				if f.Digest == nil || f.Digest.SizeBytes == 0 {
 					continue
 				}
 				found, _ := c.Contains(cache.CAS, f.Digest.Hash)
