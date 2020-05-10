@@ -112,6 +112,20 @@ func main() {
 			DefaultText: "0, ie profiling disabled",
 			EnvVars:     []string{"BAZEL_REMOTE_PROFILE_PORT"},
 		},
+		&cli.DurationFlag{
+			Name:        "http_read_timeout",
+			Value:       0,
+			Usage:       "The HTTP read timeout for a client request in seconds (does not apply to the proxy backends or the profiling endpoint)",
+			DefaultText: "0s, ie disabled",
+			EnvVars:     []string{"BAZEL_REMOTE_HTTP_READ_TIMEOUT"},
+		},
+		&cli.DurationFlag{
+			Name:        "http_write_timeout",
+			Value:       0,
+			Usage:       "The HTTP write timeout for a server response in seconds (does not apply to the proxy backends or the profiling endpoint)",
+			DefaultText: "0s, ie disabled",
+			EnvVars:     []string{"BAZEL_REMOTE_HTTP_WRITE_TIMEOUT"},
+		},
 		&cli.StringFlag{
 			Name:    "htpasswd_file",
 			Value:   "",
@@ -253,6 +267,8 @@ func main() {
 				ctx.Bool("disable_grpc_ac_deps_check"),
 				ctx.Bool("enable_endpoint_metrics"),
 				ctx.Bool("experimental_remote_asset_api"),
+				ctx.Duration("http_read_timeout"),
+				ctx.Duration("http_write_timeout"),
 			)
 		}
 
@@ -304,8 +320,10 @@ func main() {
 
 		mux := http.NewServeMux()
 		httpServer := &http.Server{
-			Addr:    c.Host + ":" + strconv.Itoa(c.Port),
-			Handler: mux,
+			Addr:         c.Host + ":" + strconv.Itoa(c.Port),
+			Handler:      mux,
+			ReadTimeout:  c.HTTPReadTimeout,
+			WriteTimeout: c.HTTPWriteTimeout,
 		}
 
 		validateAC := !c.DisableHTTPACValidation

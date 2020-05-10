@@ -54,6 +54,8 @@ type Config struct {
 	DisableGRPCACDepsCheck     bool                      `yaml:"disable_grpc_ac_deps_check"`
 	EnableEndpointMetrics      bool                      `yaml:"enable_endpoint_metrics"`
 	ExperimentalRemoteAssetAPI bool                      `yaml:"experimental_remote_asset_api"`
+	HTTPReadTimeout            time.Duration             `yaml:"http_read_timeout"`
+	HTTPWriteTimeout           time.Duration             `yaml:"http_write_timeout"`
 }
 
 // New returns a validated Config with the specified values, and an error
@@ -63,7 +65,8 @@ func New(dir string, maxSize int, host string, port int, grpcPort int,
 	tlsCertFile string, tlsKeyFile string, idleTimeout time.Duration,
 	s3 *S3CloudStorageConfig, disableHTTPACValidation bool,
 	disableGRPCACDepsCheck bool, enableEndpointMetrics bool,
-	experimentalRemoteAssetAPI bool) (*Config, error) {
+	experimentalRemoteAssetAPI bool,
+	httpReadTimeout time.Duration, httpWriteTimeout time.Duration) (*Config, error) {
 	c := Config{
 		Host:                       host,
 		Port:                       port,
@@ -83,6 +86,8 @@ func New(dir string, maxSize int, host string, port int, grpcPort int,
 		DisableGRPCACDepsCheck:     disableGRPCACDepsCheck,
 		EnableEndpointMetrics:      enableEndpointMetrics,
 		ExperimentalRemoteAssetAPI: experimentalRemoteAssetAPI,
+		HTTPReadTimeout:            httpReadTimeout,
+		HTTPWriteTimeout:           httpWriteTimeout,
 	}
 
 	err := validateConfig(&c)
