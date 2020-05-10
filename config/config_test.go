@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -20,6 +21,8 @@ tls_key_file:  /opt/tls.key
 disable_http_ac_validation: true
 enable_endpoint_metrics: true
 experimental_remote_asset_api: true
+http_read_timeout: 5s
+http_write_timeout: 10s
 `
 
 	config, err := newFromYaml([]byte(yaml))
@@ -39,6 +42,8 @@ experimental_remote_asset_api: true
 		DisableHTTPACValidation:    true,
 		EnableEndpointMetrics:      true,
 		ExperimentalRemoteAssetAPI: true,
+		HTTPReadTimeout:            5 * time.Second,
+		HTTPWriteTimeout:           10 * time.Second,
 	}
 
 	if !reflect.DeepEqual(config, expectedConfig) {
