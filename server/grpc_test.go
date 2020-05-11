@@ -261,7 +261,7 @@ func TestGrpcAc(t *testing.T) {
 	}
 }
 
-func TestGrpcAcEmptySha256(t *testing.T) {
+func TestGrpcCasEmptySha256(t *testing.T) {
 
 	// Check that we can "download" an empty blob, even if it hasn't
 	// been uploaded.
