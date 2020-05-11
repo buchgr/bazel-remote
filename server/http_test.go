@@ -281,6 +281,35 @@ func TestUploadEmptyActionResult(t *testing.T) {
 	}
 }
 
+func TestEmptyBlobAvailable(t *testing.T) {
+	testEmptyBlobAvailable(t, "HEAD")
+	testEmptyBlobAvailable(t, "GET")
+}
+
+func testEmptyBlobAvailable(t *testing.T, method string) {
+	cacheDir := testutils.TempDir(t)
+	defer os.RemoveAll(cacheDir)
+
+	data, hash := testutils.RandomDataAndHash(0)
+	r, err := http.NewRequest(method, "/cas/"+hash, bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c := disk.New(cacheDir, 2048, nil)
+	validate := true
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), validate, "")
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(h.CacheHandler)
+	handler.ServeHTTP(rr, r)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Fatal("Handler returned wrong status code",
+			"expected ", http.StatusOK,
+			"got ", status)
+	}
+}
+
 func TestStatusPage(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
