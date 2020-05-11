@@ -316,6 +316,58 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 		SizeBytes: int64(len(stderrRaw)),
 	}
 
+	treeWithEmptyFile := pb.Tree{
+		Root: &pb.Directory{
+			Files: []*pb.FileNode{
+				{
+					Name: "emptyfile",
+					Digest: &pb.Digest{
+						Hash: emptySha256,
+					},
+				},
+			},
+		},
+		Children: []*pb.Directory{
+			&pb.Directory{
+				Files: []*pb.FileNode{
+					{
+						Name: "emptyfile",
+						Digest: &pb.Digest{
+							Hash: emptySha256,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	treeWithEmptyFileData, err := proto.Marshal(&treeWithEmptyFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	treeHash := sha256.Sum256(treeWithEmptyFileData)
+
+	treeWithEmptyFileDigest := pb.Digest{
+		Hash:      hex.EncodeToString(treeHash[:]),
+		SizeBytes: int64(len(treeWithEmptyFileData)),
+	}
+
+	// Note that we're uploading the tree data, but not the empty file blob.
+	treeUpReq := pb.BatchUpdateBlobsRequest{
+		InstanceName: "foo",
+		Requests: []*pb.BatchUpdateBlobsRequest_Request{
+			{
+				Digest: &treeWithEmptyFileDigest,
+				Data:   treeWithEmptyFileData,
+			},
+		},
+	}
+
+	_, err = casClient.BatchUpdateBlobs(ctx, &treeUpReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	ar := pb.ActionResult{
 		OutputFiles: []*pb.OutputFile{
 			{
@@ -330,6 +382,12 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 				Digest: &emptyFileDigest,
 				// Note: don't "upload" the empty slice.
 				//Contents: []byte{},
+			},
+		},
+		OutputDirectories: []*pb.OutputDirectory{
+			{
+				Path:       "somedir",
+				TreeDigest: &treeWithEmptyFileDigest,
 			},
 		},
 		StdoutRaw:    stdoutRaw,
@@ -415,6 +473,19 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 		if r.Status.GetCode() != int32(codes.OK) {
 			t.Fatal("missing blob:", r.Digest)
 		}
+	}
+
+	// Triple-check that we can get the inlined results.
+	getAcReq := pb.GetActionResultRequest{
+		ActionDigest:      &arDigest,
+		InlineStdout:      true,
+		InlineStderr:      true,
+		InlineOutputFiles: []string{},
+	}
+
+	_, err = acClient.GetActionResult(ctx, &getAcReq)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -504,6 +575,38 @@ func TestGrpcByteStreamDeadline(t *testing.T) {
 
 	if sz != int64(len(testBlob)) {
 		t.Errorf("expected size: %d, got: %d\n", len(testBlob), sz)
+	}
+}
+
+func TestGrpcByteStreamEmptySha256(t *testing.T) {
+	// We should always be able to read the empty blob.
+
+	resource := fmt.Sprintf("emptyRead/blobs/%s/0", emptySha256)
+	bsrReq := bytestream.ReadRequest{ResourceName: resource}
+
+	bsrc, err := bsClient.Read(ctx, &bsrReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var downloadedBlob []byte
+	for {
+		bsrResp, err := bsrc.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bsrResp == nil {
+			t.Fatalf("Expected non-nil response")
+		}
+
+		downloadedBlob = append(downloadedBlob, bsrResp.Data...)
+
+		if len(downloadedBlob) > 0 {
+			t.Fatalf("Downloaded too much data")
+		}
 	}
 }
 
