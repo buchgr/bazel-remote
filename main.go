@@ -113,14 +113,14 @@ func main() {
 		&cli.DurationFlag{
 			Name:        "http_read_timeout",
 			Value:       0,
-			Usage:       "The HTTP read timeout for a client request in seconds. (applies to the frontend not the proxy backend)",
+			Usage:       "The HTTP read timeout for a client request in seconds (does not apply to the proxy backends or the profiling endpoint)",
 			DefaultText: "0s, ie disabled",
 			EnvVars:     []string{"BAZEL_REMOTE_HTTP_READ_TIMEOUT"},
 		},
 		&cli.DurationFlag{
 			Name:        "http_write_timeout",
 			Value:       0,
-			Usage:       "The HTTP write timeout for a server response in seconds. (applies to the frontend not the proxy backend)",
+			Usage:       "The HTTP write timeout for a server response in seconds (does not apply to the proxy backends or the profiling endpoint)",
 			DefaultText: "0s, ie disabled",
 			EnvVars:     []string{"BAZEL_REMOTE_HTTP_WRITE_TIMEOUT"},
 		},

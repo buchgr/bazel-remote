@@ -103,8 +103,8 @@ GLOBAL OPTIONS:
    --grpc_port value             The port the EXPERIMENTAL gRPC server listens on. Set to 0 to disable. (default: 9092) [$BAZEL_REMOTE_GRPC_PORT]
    --profile_host value          A host address to listen on for profiling, if enabled by a valid --profile_port setting. (default: "127.0.0.1") [$BAZEL_REMOTE_PROFILE_HOST]
    --profile_port value          If a positive integer, serve /debug/pprof/* URLs from http://profile_host:profile_port. (default: 0, ie profiling disabled) [$BAZEL_REMOTE_PROFILE_PORT]
-   --http_read_timeout value     The HTTP read timeout for a client request in seconds. (applies to the frontend not the proxy backend) (default: 0s, ie disabled) [$BAZEL_REMOTE_HTTP_READ_TIMEOUT]
-   --http_write_timeout value    The HTTP write timeout for a server response in seconds. (applies to the frontend not the proxy backend) (default: 0s, ie disabled) [$BAZEL_REMOTE_HTTP_WRITE_TIMEOUT]
+   --http_read_timeout value     The HTTP read timeout for a client request in seconds (does not apply to the proxy backends or the profiling endpoint) [$BAZEL_REMOTE_HTTP_READ_TIMEOUT]
+   --http_write_timeout value    The HTTP write timeout for a server response in seconds (does not apply to the proxy backends or the profiling endpoint) [$BAZEL_REMOTE_HTTP_WRITE_TIMEOUT]
    --htpasswd_file value         Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html. [$BAZEL_REMOTE_HTPASSWD_FILE]
    --tls_enabled                 This flag has been deprecated. Specify tls_cert_file and tls_key_file instead. (default: false) [$BAZEL_REMOTE_TLS_ENABLED]
    --tls_cert_file value         Path to a pem encoded certificate file. [$BAZEL_REMOTE_TLS_CERT_FILE]
@@ -141,14 +141,10 @@ host: localhost
 #profile_host: 127.0.0.1
 #profile_port: 7070
 
-# If specified, the HTTP read timeout for a client request in seconds.
-# (applies to the frontend not the proxy backend)
+# HTTP read/write timeouts.
+# (does not apply to the proxy backends or the profiling endpoint)
 # Time units can be one of: "s", "m", "h".
 #http_read_timeout: 5s
-
-# If specified, the HTTP write timeout for a server response in seconds.
-# (applies to the frontend not the proxy backend)
-# Time units can be one of: "s", "m", "h".
 #http_write_timeout: 10s
 
 # If you want to require simple authentication:
