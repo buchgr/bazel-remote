@@ -6,8 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -16,7 +14,6 @@ import (
 
 	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
-	//grpc_status "google.golang.org/grpc/status"
 
 	asset "github.com/bazelbuild/remote-apis/build/bazel/remote/asset/v1"
 	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -27,10 +24,6 @@ import (
 // FetchServer implementation
 
 func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest) (*asset.FetchBlobResponse, error) {
-
-	resp := &asset.FetchBlobResponse{
-		BlobDigest: &pb.Digest{SizeBytes: -1},
-	}
 
 	var sha256Str string
 
@@ -89,11 +82,13 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 				}
 			}
 
-			resp.BlobDigest.Hash = sha256Str
-			resp.BlobDigest.SizeBytes = size
-			resp.Status = &status.Status{Code: int32(codes.OK)}
-
-			return resp, nil
+			return &asset.FetchBlobResponse{
+				Status: &status.Status{Code: int32(codes.OK)},
+				BlobDigest: &pb.Digest{
+					Hash:      sha256Str,
+					SizeBytes: size,
+				},
+			}, nil
 		}
 	}
 
@@ -102,25 +97,22 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 	for _, uri := range req.GetUris() {
 		ok, actualHash, size := s.fetchItem(uri, sha256Str)
 		if ok {
-			if actualHash == "" || size < 0 {
-				continue
-			}
-
-			resp.Uri = uri
-			resp.BlobDigest.Hash = actualHash
-			resp.BlobDigest.SizeBytes = size
-			resp.Status = &status.Status{Code: int32(codes.OK)}
-
-			return resp, nil
+			return &asset.FetchBlobResponse{
+				Status: &status.Status{Code: int32(codes.OK)},
+				BlobDigest: &pb.Digest{
+					Hash:      actualHash,
+					SizeBytes: size,
+				},
+				Uri: uri,
+			}, nil
 		}
 
 		// Not a simple file. Not yet handled...
 	}
 
-	resp.BlobDigest = nil
-	resp.Status = &status.Status{Code: int32(codes.NotFound)}
-
-	return resp, errors.New("asset not found")
+	return &asset.FetchBlobResponse{
+		Status: &status.Status{Code: int32(codes.NotFound)},
+	}, nil
 }
 
 // Simple files (not eg git).
@@ -155,10 +147,11 @@ func (s *grpcServer) fetchItem(uri string, expectedHash string) (bool, string, i
 		return false, "", int64(-1)
 	}
 	defer resp.Body.Close()
-	var rc io.ReadCloser = resp.Body
+	rc := resp.Body
 
-	if expectedHash == "" {
-		// We can't call Put until we know the hash.
+	expectedSize := resp.ContentLength
+	if expectedHash == "" || expectedSize < 0 {
+		// We can't call Put until we know the hash and size.
 
 		data, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
@@ -166,6 +159,7 @@ func (s *grpcServer) fetchItem(uri string, expectedHash string) (bool, string, i
 			return false, "", int64(-1)
 		}
 
+		expectedSize = int64(len(data))
 		hashBytes := sha256.Sum256(data)
 		hashStr := hex.EncodeToString(hashBytes[:])
 
@@ -179,13 +173,13 @@ func (s *grpcServer) fetchItem(uri string, expectedHash string) (bool, string, i
 		rc = ioutil.NopCloser(bytes.NewReader(data))
 	}
 
-	err = s.cache.Put(cache.CAS, expectedHash, resp.ContentLength, rc)
+	err = s.cache.Put(cache.CAS, expectedHash, expectedSize, rc)
 	if err != nil {
 		s.errorLogger.Printf("failed to Put %s: %v", expectedHash, err)
 		return false, "", int64(-1)
 	}
 
-	return true, expectedHash, resp.ContentLength
+	return true, expectedHash, expectedSize
 }
 
 func (s *grpcServer) FetchDirectory(context.Context, *asset.FetchDirectoryRequest) (*asset.FetchDirectoryResponse, error) {
