@@ -62,7 +62,7 @@ To query endpoint metrics see [github.com/slok/go-http-metrics's query examples]
 
 ## gRPC API
 
-bazel-remote also has experimental support for the ActionCache, ContentAddressableStorage and Capabilities services in the
+bazel-remote also supports the ActionCache, ContentAddressableStorage and Capabilities services in the
 [Bazel Remote Execution API v2](https://github.com/bazelbuild/remote-apis/blob/master/build/bazel/remote/execution/v2/remote_execution.proto),
 and the corresponding parts of the [Byte Stream API](https://github.com/googleapis/googleapis/blob/master/google/bytestream/bytestream.proto).
 
