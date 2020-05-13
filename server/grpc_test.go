@@ -328,7 +328,7 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 			},
 		},
 		Children: []*pb.Directory{
-			&pb.Directory{
+			{
 				Files: []*pb.FileNode{
 					{
 						Name: "emptyfile",
