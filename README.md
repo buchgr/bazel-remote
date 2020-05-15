@@ -261,5 +261,18 @@ for more details.
 
 ## Configuring Bazel
 
-Please take a look at Bazel's documentation section on [remote
-caching](https://docs.bazel.build/versions/master/remote-caching.html#run-bazel-using-the-remote-cache).
+To make bazel use remote cache, use the following flag:
+`--remote_cache=http://replace-with-your.host:port`. You can also use the
+following protocols instead of http: https, grpc or grpcs (depending on your
+bazel-remote configuration).
+
+Basic username/password authentication can be added like so:
+
+`--remote_cache=http://user:pass@replace-with-your.host:port`
+
+To avoid leaking your password in log files, you can place this flag in a
+[user-specific (and .gitignore'd) bazelrc file](https://docs.bazel.build/versions/master/best-practices.html#bazelrc).
+
+For more details, see Bazel's [remote
+caching](https://docs.bazel.build/versions/master/remote-caching.html#run-bazel-using-the-remote-cache)
+documentation.
