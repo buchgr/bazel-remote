@@ -206,6 +206,11 @@ func main() {
 			DefaultText: "false, ie disable metrics",
 			EnvVars:     []string{"BAZEL_REMOTE_ENABLE_ENDPOINT_METRICS"},
 		},
+		&cli.BoolFlag{
+			Name:        "experimental_remote_asset_api",
+			Usage:       "Whether to enable the experimental remote asset API implementation.",
+			DefaultText: "false, ie disable remote asset API",
+		},
 	}
 
 	app.Action = func(ctx *cli.Context) error {
@@ -383,8 +388,16 @@ func main() {
 				}
 				log.Println("gRPC AC dependency checks:", validateStatus)
 
+				enableRemoteAssetAPI := ctx.Bool("experimental_remote_asset_api")
+				remoteAssetStatus := "disabled"
+				if enableRemoteAssetAPI {
+					remoteAssetStatus = "enabled"
+				}
+				log.Println("experimental gRPC remote asset API:", remoteAssetStatus)
+
 				err3 := server.ListenAndServeGRPC(addr, opts,
 					validateAC,
+					enableRemoteAssetAPI,
 					diskCache, accessLogger, errorLogger)
 				if err3 != nil {
 					log.Fatal(err3)

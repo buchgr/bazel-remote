@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "grpc.go",
         "grpc_ac.go",
+        "grpc_asset.go",
         "grpc_basic_auth.go",
         "grpc_bytestream.go",
         "grpc_cas.go",
@@ -18,6 +19,7 @@ go_library(
         "//cache/disk:go_default_library",
         "//utils/idle:go_default_library",
         "@com_github_abbot_go_http_auth//:go_default_library",
+        "@com_github_bazelbuild_remote_apis//build/bazel/remote/asset/v1:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/semver:go_default_library",
         "@com_github_golang_protobuf//jsonpb:go_default_library_gen",
@@ -37,6 +39,7 @@ go_library(
 go_test(
     name = "go_default_test",
     srcs = [
+        "grpc_asset_test.go",
         "grpc_test.go",
         "http_test.go",
     ],
@@ -45,6 +48,7 @@ go_test(
         "//cache:go_default_library",
         "//cache/disk:go_default_library",
         "//utils:go_default_library",
+        "@com_github_bazelbuild_remote_apis//build/bazel/remote/asset/v1:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
         "@com_github_golang_protobuf//proto:go_default_library",
         "@com_github_google_uuid//:go_default_library",

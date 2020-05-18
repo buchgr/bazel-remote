@@ -70,6 +70,15 @@ and the corresponding parts of the [Byte Stream API](https://github.com/googleap
 
 To query endpoint metrics see [github.com/grpc-ecosystem/go-grpc-prometheus's metrics documentation](https://github.com/grpc-ecosystem/go-grpc-prometheus#metrics).
 
+### Experimental Remote Asset API Support
+
+There is (very) experimental support for a subset of the Fetch service in the
+[Remote Asset API](https://github.com/bazelbuild/remote-apis/blob/master/build/bazel/remote/asset/v1/remote_asset.proto)
+which can be enabled with the `--experimental_remote_asset_api` flag.
+
+To use this with Bazel, specify
+[--experimental_remote_downloader=grpc://replace-with-your.host:port](https://docs.bazel.build/versions/master/command-line-reference.html#flag--experimental_remote_downloader).
+
 ## Usage
 
 If a YAML configuration file is specified by the `--config_file` command line
@@ -95,31 +104,32 @@ COMMANDS:
    help, h  Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
-   --config_file value           Path to a YAML configuration file. If this flag is specified then all other flags are ignored. [$BAZEL_REMOTE_CONFIG_FILE]
-   --dir value                   Directory path where to store the cache contents. This flag is required. [$BAZEL_REMOTE_DIR]
-   --max_size value              The maximum size of the remote cache in GiB. This flag is required. (default: -1) [$BAZEL_REMOTE_MAX_SIZE]
-   --host value                  Address to listen on. Listens on all network interfaces by default. [$BAZEL_REMOTE_HOST]
-   --port value                  The port the HTTP server listens on. (default: 8080) [$BAZEL_REMOTE_PORT]
-   --grpc_port value             The port the EXPERIMENTAL gRPC server listens on. Set to 0 to disable. (default: 9092) [$BAZEL_REMOTE_GRPC_PORT]
-   --profile_host value          A host address to listen on for profiling, if enabled by a valid --profile_port setting. (default: "127.0.0.1") [$BAZEL_REMOTE_PROFILE_HOST]
-   --profile_port value          If a positive integer, serve /debug/pprof/* URLs from http://profile_host:profile_port. (default: 0, ie profiling disabled) [$BAZEL_REMOTE_PROFILE_PORT]
-   --htpasswd_file value         Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html. [$BAZEL_REMOTE_HTPASSWD_FILE]
-   --tls_enabled                 This flag has been deprecated. Specify tls_cert_file and tls_key_file instead. (default: false) [$BAZEL_REMOTE_TLS_ENABLED]
-   --tls_cert_file value         Path to a pem encoded certificate file. [$BAZEL_REMOTE_TLS_CERT_FILE]
-   --tls_key_file value          Path to a pem encoded key file. [$BAZEL_REMOTE_TLS_KEY_FILE]
-   --idle_timeout value          The maximum period of having received no request after which the server will shut itself down. (default: 0s, ie disabled) [$BAZEL_REMOTE_IDLE_TIMEOUT]
-   --s3.endpoint value           The S3/minio endpoint to use when using S3 cache backend. [$BAZEL_REMOTE_S3_ENDPOINT]
-   --s3.bucket value             The S3/minio bucket to use when using S3 cache backend. [$BAZEL_REMOTE_S3_BUCKET]
-   --s3.prefix value             The S3/minio object prefix to use when using S3 cache backend. [$BAZEL_REMOTE_S3_PREFIX]
-   --s3.access_key_id value      The S3/minio access key to use when using S3 cache backend. [$BAZEL_REMOTE_S3_ACCESS_KEY_ID]
-   --s3.secret_access_key value  The S3/minio secret access key to use when using S3 cache backend. [$BAZEL_REMOTE_S3_SECRET_ACCESS_KEY]
-   --s3.disable_ssl              Whether to disable TLS/SSL when using the S3 cache backend. (default: false, ie enable TLS/SSL) [$BAZEL_REMOTE_S3_DISABLE_SSL]
-   --s3.iam_role_endpoint value  Endpoint for using IAM security credentials, eg http://169.254.169.254 for EC2, http://169.254.170.2 for ECS. [$BAZEL_REMOTE_S3_IAM_ROLE_ENDPOINT]
-   --s3.region value             The AWS region. Required when using s3.iam_role_endpoint. [$BAZEL_REMOTE_S3_REGION]
-   --disable_http_ac_validation  Whether to disable ActionResult validation for HTTP requests. (default: false, ie enable validation) [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
-   --disable_grpc_ac_deps_check  Whether to disable ActionResult dependency check for gRPC GetActionResult requests. (default: false, ie enable ActionCache dependency checks) [$BAZEL_REMOTE_DISABLE_GRPS_AC_DEPS_CHECK]
-   --enable_endpoint_metrics     Whether to enable metrics for each HTTP/gRPC endpoint. (default: false, ie disable metrics) [$BAZEL_REMOTE_ENABLE_ENDPOINT_METRICS]
-   --help, -h                    show help (default: false)
+   --config_file value              Path to a YAML configuration file. If this flag is specified then all other flags are ignored. [$BAZEL_REMOTE_CONFIG_FILE]
+   --dir value                      Directory path where to store the cache contents. This flag is required. [$BAZEL_REMOTE_DIR]
+   --max_size value                 The maximum size of the remote cache in GiB. This flag is required. (default: -1) [$BAZEL_REMOTE_MAX_SIZE]
+   --host value                     Address to listen on. Listens on all network interfaces by default. [$BAZEL_REMOTE_HOST]
+   --port value                     The port the HTTP server listens on. (default: 8080) [$BAZEL_REMOTE_PORT]
+   --grpc_port value                The port the EXPERIMENTAL gRPC server listens on. Set to 0 to disable. (default: 9092) [$BAZEL_REMOTE_GRPC_PORT]
+   --profile_host value             A host address to listen on for profiling, if enabled by a valid --profile_port setting. (default: "127.0.0.1") [$BAZEL_REMOTE_PROFILE_HOST]
+   --profile_port value             If a positive integer, serve /debug/pprof/* URLs from http://profile_host:profile_port. (default: 0, ie profiling disabled) [$BAZEL_REMOTE_PROFILE_PORT]
+   --htpasswd_file value            Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html. [$BAZEL_REMOTE_HTPASSWD_FILE]
+   --tls_enabled                    This flag has been deprecated. Specify tls_cert_file and tls_key_file instead. (default: false) [$BAZEL_REMOTE_TLS_ENABLED]
+   --tls_cert_file value            Path to a pem encoded certificate file. [$BAZEL_REMOTE_TLS_CERT_FILE]
+   --tls_key_file value             Path to a pem encoded key file. [$BAZEL_REMOTE_TLS_KEY_FILE]
+   --idle_timeout value             The maximum period of having received no request after which the server will shut itself down. (default: 0s, ie disabled) [$BAZEL_REMOTE_IDLE_TIMEOUT]
+   --s3.endpoint value              The S3/minio endpoint to use when using S3 cache backend. [$BAZEL_REMOTE_S3_ENDPOINT]
+   --s3.bucket value                The S3/minio bucket to use when using S3 cache backend. [$BAZEL_REMOTE_S3_BUCKET]
+   --s3.prefix value                The S3/minio object prefix to use when using S3 cache backend. [$BAZEL_REMOTE_S3_PREFIX]
+   --s3.access_key_id value         The S3/minio access key to use when using S3 cache backend. [$BAZEL_REMOTE_S3_ACCESS_KEY_ID]
+   --s3.secret_access_key value     The S3/minio secret access key to use when using S3 cache backend. [$BAZEL_REMOTE_S3_SECRET_ACCESS_KEY]
+   --s3.disable_ssl                 Whether to disable TLS/SSL when using the S3 cache backend. (default: false, ie enable TLS/SSL) [$BAZEL_REMOTE_S3_DISABLE_SSL]
+   --s3.iam_role_endpoint value     Endpoint for using IAM security credentials, eg http://169.254.169.254 for EC2, http://169.254.170.2 for ECS. [$BAZEL_REMOTE_S3_IAM_ROLE_ENDPOINT]
+   --s3.region value                The AWS region. Required when using s3.iam_role_endpoint. [$BAZEL_REMOTE_S3_REGION]
+   --disable_http_ac_validation     Whether to disable ActionResult validation for HTTP requests. (default: false, ie enable validation) [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
+   --disable_grpc_ac_deps_check     Whether to disable ActionResult dependency checks for gRPC GetActionResult requests. (default: false, ie enable ActionCache dependency checks) [$BAZEL_REMOTE_DISABLE_GRPS_AC_DEPS_CHECK]
+   --enable_endpoint_metrics        Whether to enable metrics for each HTTP/gRPC endpoint. (default: false, ie disable metrics) [$BAZEL_REMOTE_ENABLE_ENDPOINT_METRICS]
+   --experimental_remote_asset_api  Whether to enable the experimental remote asset API implementation. (default: false, ie remote asset API disabled)
+   --help, -h                       show help (default: false)
 ```
 
 ### Example configuration file
