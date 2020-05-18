@@ -12,6 +12,7 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip" // Register gzip support.
 	"google.golang.org/grpc/status"
 
+	asset "github.com/bazelbuild/remote-apis/build/bazel/remote/asset/v1"
 	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/bazelbuild/remote-apis/build/bazel/semver"
 
@@ -41,6 +42,7 @@ type grpcServer struct {
 // blocking call to https://godoc.org/google.golang.org/grpc#Server.Serve
 func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 	validateACDeps bool,
+	enableRemoteAssetAPI bool,
 	c *disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	listener, err := net.Listen("tcp", addr)
@@ -48,11 +50,12 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 		return err
 	}
 
-	return serveGRPC(listener, opts, validateACDeps, c, a, e)
+	return serveGRPC(listener, opts, validateACDeps, enableRemoteAssetAPI, c, a, e)
 }
 
 func serveGRPC(l net.Listener, opts []grpc.ServerOption,
 	validateACDepsCheck bool,
+	enableRemoteAssetAPI bool,
 	c *disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	srv := grpc.NewServer(opts...)
@@ -64,6 +67,9 @@ func serveGRPC(l net.Listener, opts []grpc.ServerOption,
 	pb.RegisterCapabilitiesServer(srv, s)
 	pb.RegisterContentAddressableStorageServer(srv, s)
 	bytestream.RegisterByteStreamServer(srv, s)
+	if enableRemoteAssetAPI {
+		asset.RegisterFetchServer(srv, s)
+	}
 	return srv.Serve(l)
 }
 

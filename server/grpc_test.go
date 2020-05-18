@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	asset "github.com/bazelbuild/remote-apis/build/bazel/remote/asset/v1"
 	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
@@ -38,11 +39,12 @@ const bufSize = 1024 * 1024
 var (
 	listener *bufconn.Listener
 
-	acClient  pb.ActionCacheClient
-	casClient pb.ContentAddressableStorageClient
-	bsClient  bytestream.ByteStreamClient
-	ctx       = context.Background()
-	diskCache *disk.Cache
+	acClient    pb.ActionCacheClient
+	casClient   pb.ContentAddressableStorageClient
+	bsClient    bytestream.ByteStreamClient
+	assetClient asset.FetchClient
+	ctx         = context.Background()
+	diskCache   *disk.Cache
 
 	badDigestTestCases = []badDigest{
 		{digest: pb.Digest{Hash: ""}, reason: "empty hash"},
@@ -75,12 +77,14 @@ func TestMain(m *testing.M) {
 	listener = bufconn.Listen(bufSize)
 
 	validateAC := true
+	enableRemoteAssetAPI := true
 
 	go func() {
 		err2 := serveGRPC(
 			listener,
 			[]grpc.ServerOption{},
 			validateAC,
+			enableRemoteAssetAPI,
 			diskCache, accessLogger, errorLogger)
 		if err2 != nil {
 			fmt.Println(err2)
@@ -98,6 +102,7 @@ func TestMain(m *testing.M) {
 	casClient = pb.NewContentAddressableStorageClient(conn)
 	acClient = pb.NewActionCacheClient(conn)
 	bsClient = bytestream.NewByteStreamClient(conn)
+	assetClient = asset.NewFetchClient(conn)
 
 	os.Exit(m.Run())
 }
