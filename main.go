@@ -210,6 +210,7 @@ func main() {
 			Name:        "experimental_remote_asset_api",
 			Usage:       "Whether to enable the experimental remote asset API implementation.",
 			DefaultText: "false, ie disable remote asset API",
+			EnvVars:     []string{"BAZEL_REMOTE_EXPERIMENTAL_REMOTE_ASSET_API"},
 		},
 	}
 
@@ -249,6 +250,7 @@ func main() {
 				ctx.Bool("disable_http_ac_validation"),
 				ctx.Bool("disable_grpc_ac_deps_check"),
 				ctx.Bool("enable_endpoint_metrics"),
+				ctx.Bool("experimental_remote_asset_api"),
 			)
 		}
 
@@ -388,7 +390,7 @@ func main() {
 				}
 				log.Println("gRPC AC dependency checks:", validateStatus)
 
-				enableRemoteAssetAPI := ctx.Bool("experimental_remote_asset_api")
+				enableRemoteAssetAPI := c.ExperimentalRemoteAssetAPI
 				remoteAssetStatus := "disabled"
 				if enableRemoteAssetAPI {
 					remoteAssetStatus = "enabled"

@@ -128,7 +128,7 @@ GLOBAL OPTIONS:
    --disable_http_ac_validation     Whether to disable ActionResult validation for HTTP requests. (default: false, ie enable validation) [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
    --disable_grpc_ac_deps_check     Whether to disable ActionResult dependency checks for gRPC GetActionResult requests. (default: false, ie enable ActionCache dependency checks) [$BAZEL_REMOTE_DISABLE_GRPS_AC_DEPS_CHECK]
    --enable_endpoint_metrics        Whether to enable metrics for each HTTP/gRPC endpoint. (default: false, ie disable metrics) [$BAZEL_REMOTE_ENABLE_ENDPOINT_METRICS]
-   --experimental_remote_asset_api  Whether to enable the experimental remote asset API implementation. (default: false, ie remote asset API disabled)
+   --experimental_remote_asset_api  Whether to enable the experimental remote asset API implementation. (default: false, ie disable remote asset API) [$BAZEL_REMOTE_EXPERIMENTAL_REMOTE_ASSET_API]
    --help, -h                       show help (default: false)
 ```
 
@@ -197,6 +197,9 @@ host: localhost
 #profile_port: 7070
 # IP address to use, if profiling is enabled:
 #profile_host: 127.0.0.1
+
+# If true, enable experimental remote asset API support:
+#experimental_remote_asset_api: true
 ```
 
 ## Docker
