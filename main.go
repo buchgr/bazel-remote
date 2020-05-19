@@ -94,7 +94,7 @@ func main() {
 		&cli.IntFlag{
 			Name:    "grpc_port",
 			Value:   9092,
-			Usage:   "The port the EXPERIMENTAL gRPC server listens on. Set to 0 to disable.",
+			Usage:   "The port the gRPC server listens on. Set to 0 to disable.",
 			EnvVars: []string{"BAZEL_REMOTE_GRPC_PORT"},
 		},
 		&cli.StringFlag{

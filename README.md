@@ -109,7 +109,7 @@ GLOBAL OPTIONS:
    --max_size value                 The maximum size of the remote cache in GiB. This flag is required. (default: -1) [$BAZEL_REMOTE_MAX_SIZE]
    --host value                     Address to listen on. Listens on all network interfaces by default. [$BAZEL_REMOTE_HOST]
    --port value                     The port the HTTP server listens on. (default: 8080) [$BAZEL_REMOTE_PORT]
-   --grpc_port value                The port the EXPERIMENTAL gRPC server listens on. Set to 0 to disable. (default: 9092) [$BAZEL_REMOTE_GRPC_PORT]
+   --grpc_port value                The port the gRPC server listens on. Set to 0 to disable. (default: 9092) [$BAZEL_REMOTE_GRPC_PORT]
    --profile_host value             A host address to listen on for profiling, if enabled by a valid --profile_port setting. (default: "127.0.0.1") [$BAZEL_REMOTE_PROFILE_HOST]
    --profile_port value             If a positive integer, serve /debug/pprof/* URLs from http://profile_host:profile_port. (default: 0, ie profiling disabled) [$BAZEL_REMOTE_PROFILE_PORT]
    --htpasswd_file value            Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html. [$BAZEL_REMOTE_HTPASSWD_FILE]
