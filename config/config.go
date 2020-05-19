@@ -36,23 +36,24 @@ type HTTPBackendConfig struct {
 
 // Config holds the top-level configuration for bazel-remote.
 type Config struct {
-	Host                    string                    `yaml:"host"`
-	Port                    int                       `yaml:"port"`
-	GRPCPort                int                       `yaml:"grpc_port"`
-	ProfileHost             string                    `yaml:"profile_host"`
-	ProfilePort             int                       `yaml:"profile_port"`
-	Dir                     string                    `yaml:"dir"`
-	MaxSize                 int                       `yaml:"max_size"`
-	HtpasswdFile            string                    `yaml:"htpasswd_file"`
-	TLSCertFile             string                    `yaml:"tls_cert_file"`
-	TLSKeyFile              string                    `yaml:"tls_key_file"`
-	S3CloudStorage          *S3CloudStorageConfig     `yaml:"s3_proxy"`
-	GoogleCloudStorage      *GoogleCloudStorageConfig `yaml:"gcs_proxy"`
-	HTTPBackend             *HTTPBackendConfig        `yaml:"http_proxy"`
-	IdleTimeout             time.Duration             `yaml:"idle_timeout"`
-	DisableHTTPACValidation bool                      `yaml:"disable_http_ac_validation"`
-	DisableGRPCACDepsCheck  bool                      `yaml:"disable_grpc_ac_deps_check"`
-	EnableEndpointMetrics   bool                      `yaml:"enable_endpoint_metrics"`
+	Host                       string                    `yaml:"host"`
+	Port                       int                       `yaml:"port"`
+	GRPCPort                   int                       `yaml:"grpc_port"`
+	ProfileHost                string                    `yaml:"profile_host"`
+	ProfilePort                int                       `yaml:"profile_port"`
+	Dir                        string                    `yaml:"dir"`
+	MaxSize                    int                       `yaml:"max_size"`
+	HtpasswdFile               string                    `yaml:"htpasswd_file"`
+	TLSCertFile                string                    `yaml:"tls_cert_file"`
+	TLSKeyFile                 string                    `yaml:"tls_key_file"`
+	S3CloudStorage             *S3CloudStorageConfig     `yaml:"s3_proxy"`
+	GoogleCloudStorage         *GoogleCloudStorageConfig `yaml:"gcs_proxy"`
+	HTTPBackend                *HTTPBackendConfig        `yaml:"http_proxy"`
+	IdleTimeout                time.Duration             `yaml:"idle_timeout"`
+	DisableHTTPACValidation    bool                      `yaml:"disable_http_ac_validation"`
+	DisableGRPCACDepsCheck     bool                      `yaml:"disable_grpc_ac_deps_check"`
+	EnableEndpointMetrics      bool                      `yaml:"enable_endpoint_metrics"`
+	ExperimentalRemoteAssetAPI bool                      `yaml:"experimental_remote_asset_api"`
 }
 
 // New returns a validated Config with the specified values, and an error
@@ -61,25 +62,27 @@ func New(dir string, maxSize int, host string, port int, grpcPort int,
 	profileHost string, profilePort int, htpasswdFile string,
 	tlsCertFile string, tlsKeyFile string, idleTimeout time.Duration,
 	s3 *S3CloudStorageConfig, disableHTTPACValidation bool,
-	disableGRPCACDepsCheck bool, enableEndpointMetrics bool) (*Config, error) {
+	disableGRPCACDepsCheck bool, enableEndpointMetrics bool,
+	experimentalRemoteAssetAPI bool) (*Config, error) {
 	c := Config{
-		Host:                    host,
-		Port:                    port,
-		GRPCPort:                grpcPort,
-		ProfileHost:             profileHost,
-		ProfilePort:             profilePort,
-		Dir:                     dir,
-		MaxSize:                 maxSize,
-		HtpasswdFile:            htpasswdFile,
-		TLSCertFile:             tlsCertFile,
-		TLSKeyFile:              tlsKeyFile,
-		S3CloudStorage:          s3,
-		GoogleCloudStorage:      nil,
-		HTTPBackend:             nil,
-		IdleTimeout:             idleTimeout,
-		DisableHTTPACValidation: disableHTTPACValidation,
-		DisableGRPCACDepsCheck:  disableGRPCACDepsCheck,
-		EnableEndpointMetrics:   enableEndpointMetrics,
+		Host:                       host,
+		Port:                       port,
+		GRPCPort:                   grpcPort,
+		ProfileHost:                profileHost,
+		ProfilePort:                profilePort,
+		Dir:                        dir,
+		MaxSize:                    maxSize,
+		HtpasswdFile:               htpasswdFile,
+		TLSCertFile:                tlsCertFile,
+		TLSKeyFile:                 tlsKeyFile,
+		S3CloudStorage:             s3,
+		GoogleCloudStorage:         nil,
+		HTTPBackend:                nil,
+		IdleTimeout:                idleTimeout,
+		DisableHTTPACValidation:    disableHTTPACValidation,
+		DisableGRPCACDepsCheck:     disableGRPCACDepsCheck,
+		EnableEndpointMetrics:      enableEndpointMetrics,
+		ExperimentalRemoteAssetAPI: experimentalRemoteAssetAPI,
 	}
 
 	err := validateConfig(&c)
@@ -136,6 +139,10 @@ func validateConfig(c *Config) error {
 
 	if c.GRPCPort < 0 {
 		return errors.New("The 'grpc_port' flag/key must be 0 (disabled) or a positive integer")
+	}
+
+	if c.GRPCPort == 0 && c.ExperimentalRemoteAssetAPI {
+		return errors.New("Remote Asset API support depends on gRPC being enabled")
 	}
 
 	if (c.TLSCertFile != "" && c.TLSKeyFile == "") || (c.TLSCertFile == "" && c.TLSKeyFile != "") {
