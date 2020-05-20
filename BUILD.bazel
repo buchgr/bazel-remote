@@ -10,12 +10,7 @@ gazelle(
 
 go_library(
     name = "go_default_library",
-    srcs = [
-        "main.go",
-        "rlimit_darwin.go",
-        "rlimit_unix.go",
-        "rlimit_windows.go",
-    ],
+    srcs = ["main.go"],
     importpath = "github.com/buchgr/bazel-remote",
     visibility = ["//visibility:private"],
     deps = [
@@ -27,6 +22,7 @@ go_library(
         "//config:go_default_library",
         "//server:go_default_library",
         "//utils/idle:go_default_library",
+        "//utils/rlimit:go_default_library",
         "@com_github_abbot_go_http_auth//:go_default_library",
         "@com_github_grpc_ecosystem_go_grpc_prometheus//:go_default_library",
         "@com_github_prometheus_client_golang//prometheus/promhttp:go_default_library",

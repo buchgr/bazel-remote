@@ -22,6 +22,8 @@ import (
 	"github.com/buchgr/bazel-remote/config"
 	"github.com/buchgr/bazel-remote/server"
 	"github.com/buchgr/bazel-remote/utils/idle"
+	"github.com/buchgr/bazel-remote/utils/rlimit"
+
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpmetrics "github.com/slok/go-http-metrics/metrics/prometheus"
@@ -265,7 +267,7 @@ func main() {
 			return cli.Exit("", 1)
 		}
 
-		adjustRlimit()
+		rlimit.Raise()
 
 		accessLogger := log.New(os.Stdout, "", logFlags)
 		errorLogger := log.New(os.Stderr, "", logFlags)
