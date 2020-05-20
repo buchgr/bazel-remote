@@ -1,7 +1,7 @@
 // +build !darwin
 // +build !windows
 
-package main
+package rlimit
 
 import (
 	"log"
@@ -9,7 +9,7 @@ import (
 )
 
 // Raise the limit on the number of open files.
-func adjustRlimit() {
+func Raise() {
 	var limits syscall.Rlimit
 	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &limits)
 	if err != nil {

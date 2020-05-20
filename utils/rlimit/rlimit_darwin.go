@@ -1,6 +1,6 @@
 // +build darwin
 
-package main
+package rlimit
 
 import (
 	"log"
@@ -11,7 +11,7 @@ import (
 )
 
 // Raise the limit on the number of open files.
-func adjustRlimit() {
+func Raise() {
 	// Go 1.12 onwards uses getrlimit, which on macos does not return the
 	// correct hard limit for RLIM_NOFILE. We need to use the minimum of
 	// the max from getrlimit and the value from sysctl.
