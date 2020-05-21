@@ -218,7 +218,8 @@ $ docker run -v /path/to/cache/dir:/data -p 9090:8080 -p 9092:9092 buchgr/bazel-
 Note that you will need to change `/path/to/cache/dir` to a valid directory where the docker container can write to
 and read from. If you want the docker container to run in the background pass the `-d` flag right after `docker run`.
 
-You can change the maximum cache size by appending the `--max_size=N` flag with `N` being the max. size in Gibibytes.
+You can adjust the maximum cache size by appending `--max_size=N`, where N is
+the maximum size in Gibibytes.
 
 ### Build your own
 
