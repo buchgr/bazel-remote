@@ -207,7 +207,7 @@ host: localhost
 ### Prebuilt Image
 
 We publish docker images to [DockerHub](https://hub.docker.com/r/buchgr/bazel-remote-cache/) that you can use with
-`docker run`. The below command will start the remote cache on port `9090` for
+`docker run`. The following commands will start the remote cache on port `9090` for
 HTTP and `9092` for gRPC, with the default maximum cache size of `5 GiB`.
 
 ```bash
@@ -223,7 +223,7 @@ the maximum size in Gibibytes.
 
 ### Build your own
 
-The below command will build a docker image from source and install it into your local docker registry.
+The command below will build a docker image from source and install it into your local docker registry.
 
 ```bash
 $ bazel run :bazel-remote-image
@@ -248,7 +248,7 @@ $ bazel build :bazel-remote
 ### Authentication
 
 In order to pass a `.htpasswd` and/or server key file(s) to the cache inside a docker container, you first need
-to mount the file in the container and pass the path to the cache. The below example also configures TLS which is technically optional but highly recommended in order to not send passwords in plain text.
+to mount the file in the container and pass the path to the cache. The example below also configures TLS which is technically optional but highly recommended in order to not send passwords in plain text.
 
 ```bash
 $ docker run -v /path/to/cache/dir:/data \
