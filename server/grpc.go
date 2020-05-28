@@ -18,7 +18,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
-
+	"github.com/buchgr/bazel-remote/utils/metrics"
 	_ "github.com/mostynb/go-grpc-compression/snappy" // Register snappy
 	_ "github.com/mostynb/go-grpc-compression/zstd"   // and zstd support.
 )
@@ -39,6 +39,7 @@ type grpcServer struct {
 	errorLogger  cache.Logger
 	depsCheck    bool
 	mangleACKeys bool
+	metrics      metrics.Metrics
 }
 
 // ListenAndServeGRPC creates a new gRPC server and listens on the given
@@ -48,27 +49,28 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 	validateACDeps bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
-	c *disk.Cache, a cache.Logger, e cache.Logger) error {
+	c *disk.Cache, a cache.Logger, e cache.Logger, m metrics.Metrics) error {
 
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
 
-	return serveGRPC(listener, opts, validateACDeps, mangleACKeys, enableRemoteAssetAPI, c, a, e)
+	return serveGRPC(listener, opts, validateACDeps, mangleACKeys, enableRemoteAssetAPI, c, a, e, m)
 }
 
 func serveGRPC(l net.Listener, opts []grpc.ServerOption,
 	validateACDepsCheck bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
-	c *disk.Cache, a cache.Logger, e cache.Logger) error {
+	c *disk.Cache, a cache.Logger, e cache.Logger, m metrics.Metrics) error {
 
 	srv := grpc.NewServer(opts...)
 	s := &grpcServer{
 		cache: c, accessLogger: a, errorLogger: e,
 		depsCheck:    validateACDepsCheck,
 		mangleACKeys: mangleACKeys,
+		metrics:      m,
 	}
 	pb.RegisterActionCacheServer(srv, s)
 	pb.RegisterCapabilitiesServer(srv, s)

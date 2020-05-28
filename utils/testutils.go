@@ -8,6 +8,8 @@ import (
 	"log"
 	"os"
 	"testing"
+
+	"github.com/buchgr/bazel-remote/utils/metrics"
 )
 
 // TempDir creates a temporary directory and returns its name. If an error
@@ -46,4 +48,14 @@ func RandomDataAndHash(size int64) ([]byte, string) {
 // for tests.
 func NewSilentLogger() *log.Logger {
 	return log.New(ioutil.Discard, "", 0)
+}
+
+type metricsStub struct{}
+
+func NewMetricsStub() *metricsStub {
+	return new(metricsStub)
+}
+
+func (m metricsStub) IncomingRequestCompleted(kind metrics.Kind, method metrics.Method, status metrics.Status, headers map[string][]string, protocol metrics.Protocol) {
+	// Do nothing
 }

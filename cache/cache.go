@@ -21,6 +21,8 @@ const (
 	// used for HTTP when running with the --disable_http_ac_validation
 	// commandline flag.
 	RAW
+
+	UNKNOWN
 )
 
 func (e EntryKind) String() string {
@@ -30,7 +32,10 @@ func (e EntryKind) String() string {
 	if e == CAS {
 		return "cas"
 	}
-	return "raw"
+	if e == RAW {
+		return "raw"
+	}
+	return "unknown"
 }
 
 // Logger is designed to be satisfied by log.Logger.
