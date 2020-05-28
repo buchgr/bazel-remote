@@ -18,6 +18,7 @@ import (
 	"github.com/buchgr/bazel-remote/cache/s3proxy"
 
 	"github.com/buchgr/bazel-remote/cache/httpproxy"
+	"github.com/buchgr/bazel-remote/cache/metricsdecorator"
 
 	"github.com/buchgr/bazel-remote/config"
 	"github.com/buchgr/bazel-remote/server"
@@ -283,6 +284,7 @@ func main() {
 				ctx.Bool("disable_grpc_ac_deps_check"),
 				ctx.Bool("enable_ac_key_instance_mangling"),
 				ctx.Bool("enable_endpoint_metrics"),
+				nil,
 				ctx.Bool("experimental_remote_asset_api"),
 				ctx.Duration("http_read_timeout"),
 				ctx.Duration("http_write_timeout"),
@@ -335,6 +337,8 @@ func main() {
 
 		diskCache := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, proxyCache)
 
+		casAcCache := metricsdecorator.NewMetricsDecorator(c.Metrics, diskCache)
+
 		mux := http.NewServeMux()
 		httpServer := &http.Server{
 			Addr:         c.Host + ":" + strconv.Itoa(c.Port),
@@ -344,8 +348,7 @@ func main() {
 		}
 
 		validateAC := !c.DisableHTTPACValidation
-		h := server.NewHTTPCache(diskCache, accessLogger, errorLogger, validateAC, c.EnableACKeyInstanceMangling, gitCommit)
-
+		h := server.NewHTTPCache(casAcCache, diskCache, accessLogger, errorLogger, validateAC, c.EnableACKeyInstanceMangling, gitCommit)
 		var htpasswdSecrets auth.SecretProvider
 		cacheHandler := h.CacheHandler
 		if c.HtpasswdFile != "" {
@@ -444,7 +447,7 @@ func main() {
 					validateAC,
 					c.EnableACKeyInstanceMangling,
 					enableRemoteAssetAPI,
-					diskCache, accessLogger, errorLogger)
+					casAcCache, accessLogger, errorLogger)
 				if err3 != nil {
 					log.Fatal(err3)
 				}

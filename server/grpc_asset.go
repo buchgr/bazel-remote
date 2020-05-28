@@ -48,6 +48,8 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 	// key -> CAS sha256 + timestamp
 	// Should we place a limit on the size of the index?
 
+	reqCtx := newReqCtxGrpc(ctx)
+
 	for _, q := range req.GetQualifiers() {
 		if q.Name == "checksum.sri" && strings.HasPrefix(q.Value, "sha256-") {
 			// Ref: https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity
@@ -63,14 +65,14 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 
 			sha256Str = hex.EncodeToString(decoded)
 
-			found, size := s.cache.Contains(cache.CAS, sha256Str, -1)
+			found, size := s.cache.Contains(cache.CAS, sha256Str, -1, reqCtx)
 			if !found {
 				continue
 			}
 
 			if size < 0 {
 				// We don't know the size yet (bad http backend?).
-				r, size, err := s.cache.Get(cache.CAS, sha256Str, -1)
+				r, size, err := s.cache.Get(cache.CAS, sha256Str, -1, reqCtx)
 				if r != nil {
 					defer r.Close()
 				}
@@ -94,7 +96,7 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 	// Cache miss. See if we can download one of the URIs.
 
 	for _, uri := range req.GetUris() {
-		ok, actualHash, size := s.fetchItem(uri, sha256Str)
+		ok, actualHash, size := s.fetchItem(uri, sha256Str, reqCtx)
 		if ok {
 			return &asset.FetchBlobResponse{
 				Status: &status.Status{Code: int32(codes.OK)},
@@ -114,7 +116,7 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 	}, nil
 }
 
-func (s *grpcServer) fetchItem(uri string, expectedHash string) (bool, string, int64) {
+func (s *grpcServer) fetchItem(uri string, expectedHash string, reqCtx *reqCtxGrpc) (bool, string, int64) {
 	u, err := url.Parse(uri)
 	if err != nil {
 		s.errorLogger.Printf("unable to parse URI: %s err: %v", uri, err)
@@ -163,7 +165,7 @@ func (s *grpcServer) fetchItem(uri string, expectedHash string) (bool, string, i
 		rc = ioutil.NopCloser(bytes.NewReader(data))
 	}
 
-	err = s.cache.Put(cache.CAS, expectedHash, expectedSize, rc)
+	err = s.cache.Put(cache.CAS, expectedHash, expectedSize, rc, reqCtx)
 	if err != nil {
 		s.errorLogger.Printf("failed to Put %s: %v", expectedHash, err)
 		return false, "", int64(-1)

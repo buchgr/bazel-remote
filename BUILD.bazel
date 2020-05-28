@@ -19,6 +19,7 @@ go_library(
         "//cache/gcsproxy:go_default_library",
         "//cache/httpproxy:go_default_library",
         "//cache/s3proxy:go_default_library",
+        "//cache/metricsdecorator:go_default_library",
         "//config:go_default_library",
         "//server:go_default_library",
         "//utils/idle:go_default_library",

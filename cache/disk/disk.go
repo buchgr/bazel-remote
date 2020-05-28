@@ -27,6 +27,7 @@ import (
 	"github.com/golang/protobuf/proto"
 )
 
+// TODO remove these counters?
 var (
 	cacheHits = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "bazel_remote_disk_cache_hits",
@@ -230,7 +231,7 @@ func (c *Cache) loadExistingFiles() error {
 // Put stores a stream of `size` bytes from `r` into the cache.
 // If `hash` is not the empty string, and the contents don't match it,
 // a non-nil error is returned.
-func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) (rErr error) {
+func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader, reqCtx cache.RequestContext) (rErr error) {
 	if size < 0 {
 		return fmt.Errorf("Invalid (negative) size: %d", size)
 	}
@@ -471,7 +472,7 @@ func (c *Cache) availableOrTryProxy(key string, size int64, blobPath string) (rc
 // item is not found, the io.ReadCloser will be nil. If some error occurred
 // when processing the request, then it is returned. Callers should provide
 // the `size` of the item to be retrieved, or -1 if unknown.
-func (c *Cache) Get(kind cache.EntryKind, hash string, size int64) (rc io.ReadCloser, s int64, rErr error) {
+func (c *Cache) Get(kind cache.EntryKind, hash string, size int64, reqCtx cache.RequestContext) (rc io.ReadCloser, s int64, rErr error) {
 
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
@@ -575,7 +576,7 @@ func (c *Cache) Get(kind cache.EntryKind, hash string, size int64) (rc io.ReadCl
 // one) will be checked.
 //
 // Callers should provide the `size` of the item, or -1 if unknown.
-func (c *Cache) Contains(kind cache.EntryKind, hash string, size int64) (bool, int64) {
+func (c *Cache) Contains(kind cache.EntryKind, hash string, size int64, reqCtx cache.RequestContext) (bool, int64) {
 
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
@@ -648,9 +649,9 @@ func cacheFilePath(kind cache.EntryKind, cacheDir string, hash string) string {
 // value from the CAS if it and all its dependencies are also available. If
 // not, nil values are returned. If something unexpected went wrong, return
 // an error.
-func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte, error) {
+func (c *Cache) GetValidatedActionResult(hash string, reqCtx cache.RequestContext) (*pb.ActionResult, []byte, error) {
 
-	rc, sizeBytes, err := c.Get(cache.AC, hash, -1)
+	rc, sizeBytes, err := c.Get(cache.AC, hash, -1, reqCtx)
 	if rc != nil {
 		defer rc.Close()
 	}
@@ -675,7 +676,7 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 
 	for _, f := range result.OutputFiles {
 		if len(f.Contents) == 0 {
-			found, _ := c.Contains(cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
+			found, _ := c.Contains(cache.CAS, f.Digest.Hash, f.Digest.SizeBytes, reqCtx)
 			if !found {
 				return nil, nil, nil // aka "not found"
 			}
@@ -683,7 +684,7 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 	}
 
 	for _, d := range result.OutputDirectories {
-		r, size, err := c.Get(cache.CAS, d.TreeDigest.Hash, d.TreeDigest.SizeBytes)
+		r, size, err := c.Get(cache.CAS, d.TreeDigest.Hash, d.TreeDigest.SizeBytes, reqCtx)
 		if r == nil {
 			return nil, nil, err // aka "not found", or an err if non-nil
 		}
@@ -714,7 +715,7 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 			if f.Digest == nil {
 				continue
 			}
-			found, _ := c.Contains(cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
+			found, _ := c.Contains(cache.CAS, f.Digest.Hash, f.Digest.SizeBytes, reqCtx)
 			if !found {
 				return nil, nil, nil // aka "not found"
 			}
@@ -725,7 +726,7 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 				if f.Digest == nil {
 					continue
 				}
-				found, _ := c.Contains(cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
+				found, _ := c.Contains(cache.CAS, f.Digest.Hash, f.Digest.SizeBytes, reqCtx)
 				if !found {
 					return nil, nil, nil // aka "not found"
 				}
@@ -734,14 +735,14 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 	}
 
 	if result.StdoutDigest != nil {
-		found, _ := c.Contains(cache.CAS, result.StdoutDigest.Hash, result.StdoutDigest.SizeBytes)
+		found, _ := c.Contains(cache.CAS, result.StdoutDigest.Hash, result.StdoutDigest.SizeBytes, reqCtx)
 		if !found {
 			return nil, nil, nil // aka "not found"
 		}
 	}
 
 	if result.StderrDigest != nil {
-		found, _ := c.Contains(cache.CAS, result.StderrDigest.Hash, result.StderrDigest.SizeBytes)
+		found, _ := c.Contains(cache.CAS, result.StderrDigest.Hash, result.StderrDigest.SizeBytes, reqCtx)
 		if !found {
 			return nil, nil, nil // aka "not found"
 		}

@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"io"
 	"path/filepath"
+
+	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 )
 
 // EntryKind describes the kind of cache entry
@@ -49,6 +51,47 @@ type Error struct {
 func (e *Error) Error() string {
 	return e.Text
 }
+
+// Represent the context of an incoming request. For now it acts as an
+// adapter providing a common interface to headers from HTTP and gRPC
+// requests. In the future it could be extend if additional
+// information needs to be associated with a request, or be propagated
+// from HTTP/gRPC servers towards disk cache, or perhaps further
+// to proxies.
+type RequestContext interface {
+	// Return values for HTTP/gRPC header in the associated
+	// request. Returns a slice since there could be several
+	// headers with same name. Returns empty slice if no
+	// headers exist with the requested name.
+	// The headerName is expected in lowercase.
+	GetHeader(headerName string) (headerValues []string)
+}
+
+// TODO Document interface
+type CasAcCache interface {
+	// TODO change to io.ReadCloser?
+	Put(kind EntryKind, hash string, size int64, rdr io.Reader, reqCtx RequestContext) error
+
+	Get(kind EntryKind, hash string, size int64, reqCtx RequestContext) (io.ReadCloser, int64, error)
+
+	Contains(kind EntryKind, hash string, size int64, reqCtx RequestContext) (bool, int64)
+
+	GetValidatedActionResult(hash string, reqCtx RequestContext) (*pb.ActionResult, []byte, error)
+}
+
+// TODO Document interface
+type Stats interface {
+	Stats() (totalSize int64, reservedSize int64, numItems int)
+	MaxSize() int64
+}
+
+// TODO Should the proxy interface also be extended with RequestContext parameter? To allow
+//      for example forwarding of custom headers from client to proxy, or support for HTTP
+//      headers like Max-Forwards.
+
+// TODO Could the disk and proxies implement same interface? But proxies are not supporting
+//      GetValidatedActionResult and that method is important to have in the interface
+//      for cache.metricdecorator.
 
 // Proxy is the interface that (optional) proxy backends must implement.
 // Implementations are expected to be safe for concurrent use.

@@ -8,8 +8,10 @@ import (
 
 	"google.golang.org/genproto/googleapis/bytestream"
 	"google.golang.org/grpc"
+
 	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip" // Register gzip support.
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	asset "github.com/bazelbuild/remote-apis/build/bazel/remote/asset/v1"
@@ -17,8 +19,6 @@ import (
 	"github.com/bazelbuild/remote-apis/build/bazel/semver"
 
 	"github.com/buchgr/bazel-remote/cache"
-	"github.com/buchgr/bazel-remote/cache/disk"
-
 	_ "github.com/mostynb/go-grpc-compression/snappy" // Register snappy
 	_ "github.com/mostynb/go-grpc-compression/zstd"   // and zstd support.
 )
@@ -34,7 +34,7 @@ var (
 )
 
 type grpcServer struct {
-	cache        *disk.Cache
+	cache        cache.CasAcCache
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
 	depsCheck    bool
@@ -48,7 +48,7 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 	validateACDeps bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
-	c *disk.Cache, a cache.Logger, e cache.Logger) error {
+	c cache.CasAcCache, a cache.Logger, e cache.Logger) error {
 
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -62,7 +62,7 @@ func serveGRPC(l net.Listener, opts []grpc.ServerOption,
 	validateACDepsCheck bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
-	c *disk.Cache, a cache.Logger, e cache.Logger) error {
+	c cache.CasAcCache, a cache.Logger, e cache.Logger) error {
 
 	srv := grpc.NewServer(opts...)
 	s := &grpcServer{
@@ -138,4 +138,24 @@ func (s *grpcServer) validateHash(hash string, size int64, logPrefix string) err
 	}
 
 	return nil
+}
+
+type reqCtxGrpc struct {
+	ctx context.Context
+}
+
+func newReqCtxGrpc(ctx context.Context) *reqCtxGrpc {
+	rc := &reqCtxGrpc{
+		ctx: ctx,
+	}
+	return rc
+}
+
+func (h *reqCtxGrpc) GetHeader(headerName string) (headerValues []string) {
+	headers, _ := metadata.FromIncomingContext(h.ctx) // TODO avoid doing for each header?
+	if headerValues, ok := headers[headerName]; ok {
+		return headerValues
+	} else {
+		return []string{}
+	}
 }

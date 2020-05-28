@@ -16,7 +16,6 @@ import (
 
 	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buchgr/bazel-remote/cache"
-	"github.com/buchgr/bazel-remote/cache/disk"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 )
@@ -30,7 +29,8 @@ type HTTPCache interface {
 }
 
 type httpCache struct {
-	cache        *disk.Cache
+	cache        cache.CasAcCache
+	stats        cache.Stats
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
 	validateAC   bool
@@ -51,14 +51,14 @@ type statusPageData struct {
 // accessLogger will print one line for each HTTP request to stdout.
 // errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
 // be reported.
-func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, mangleACKeys bool, commit string) HTTPCache {
-
-	_, _, numItems := cache.Stats()
+func NewHTTPCache(cache cache.CasAcCache, stats cache.Stats, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, mangleACKeys bool, commit string) HTTPCache {
+	_, _, numItems := stats.Stats()
 
 	errorLogger.Printf("Loaded %d existing disk cache items.", numItems)
 
 	hc := &httpCache{
 		cache:        cache,
+		stats:        stats,
 		accessLogger: accessLogger,
 		errorLogger:  errorLogger,
 		validateAC:   validateAC,
@@ -102,8 +102,8 @@ func parseRequestURL(url string, validateAC bool) (kind cache.EntryKind, hash st
 
 	return cache.RAW, hash, instance, nil
 }
-func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request, hash string) {
-	_, data, err := h.cache.GetValidatedActionResult(hash)
+func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request, hash string, reqContext cache.RequestContext) {
+	_, data, err := h.cache.GetValidatedActionResult(hash, reqContext)
 	if err != nil {
 		http.Error(w, "Not found", http.StatusNotFound)
 		h.logResponse(http.StatusNotFound, r)
@@ -121,8 +121,8 @@ func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request
 	h.logResponse(http.StatusOK, r)
 }
 
-func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, hash string) {
-	_, data, err := h.cache.GetValidatedActionResult(hash)
+func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, hash string, reqContext cache.RequestContext) {
+	_, data, err := h.cache.GetValidatedActionResult(hash, reqContext)
 	if err != nil {
 		http.Error(w, "Not found", http.StatusNotFound)
 		h.logResponse(http.StatusNotFound, r)
@@ -151,6 +151,7 @@ func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, has
 			return
 		}
 
+		h.logResponse(http.StatusOK, r)
 		return
 	}
 
@@ -167,6 +168,8 @@ func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, has
 		h.logResponse(http.StatusInternalServerError, r)
 		return
 	}
+
+	h.logResponse(http.StatusOK, r)
 }
 
 // Helper function for logging responses
@@ -184,6 +187,8 @@ func (h *httpCache) logResponse(code int, r *http.Request) {
 func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
+	reqContext := newReqContextHttp(r)
+
 	kind, hash, instance, err := parseRequestURL(r.URL.Path, h.validateAC)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -199,11 +204,11 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 
 		if h.validateAC && kind == cache.AC {
-			h.handleGetValidAC(w, r, hash)
+			h.handleGetValidAC(w, r, hash, reqContext)
 			return
 		}
 
-		rdr, sizeBytes, err := h.cache.Get(kind, hash, -1)
+		rdr, sizeBytes, err := h.cache.Get(kind, hash, -1, reqContext)
 		if err != nil {
 			if e, ok := err.(*cache.Error); ok {
 				http.Error(w, e.Error(), e.Code)
@@ -280,7 +285,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			rc = ioutil.NopCloser(bytes.NewReader(data))
 		}
 
-		err := h.cache.Put(kind, hash, contentLength, rc)
+		err := h.cache.Put(kind, hash, contentLength, rc, reqContext)
 		if err != nil {
 			if cerr, ok := err.(*cache.Error); ok {
 				http.Error(w, err.Error(), cerr.Code)
@@ -295,19 +300,18 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodHead:
 
 		if h.validateAC && kind == cache.AC {
-			h.handleContainsValidAC(w, r, hash)
+			h.handleContainsValidAC(w, r, hash, reqContext)
 			return
 		}
 
 		// Unvalidated path:
 
-		ok, size := h.cache.Contains(kind, hash, -1)
+		ok, size := h.cache.Contains(kind, hash, -1, reqContext)
 		if !ok {
 			http.Error(w, "Not found", http.StatusNotFound)
 			h.logResponse(http.StatusNotFound, r)
 			return
 		}
-
 		w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
 		w.WriteHeader(http.StatusOK)
 		h.logResponse(http.StatusOK, r)
@@ -358,13 +362,13 @@ func addWorkerMetadataHTTP(addr string, ct string, orig []byte) (data []byte, co
 func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	totalSize, reservedSize, numItems := h.cache.Stats()
+	totalSize, reservedSize, numItems := h.stats.Stats()
 
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", " ")
 	enc.Encode(statusPageData{
-		MaxSize:      h.cache.MaxSize(),
+		MaxSize:      h.stats.MaxSize(),
 		CurrSize:     totalSize,
 		ReservedSize: reservedSize,
 		NumFiles:     numItems,
@@ -375,4 +379,24 @@ func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 
 func path(kind cache.EntryKind, hash string) string {
 	return fmt.Sprintf("/%s/%s", kind, hash)
+}
+
+type reqCtxHttp struct {
+	request *http.Request
+}
+
+func newReqContextHttp(request *http.Request) *reqCtxHttp {
+	rc := &reqCtxHttp{
+		request: request,
+	}
+	return rc
+}
+
+func (h *reqCtxHttp) GetHeader(headerName string) (headerValues []string) {
+	headerName = strings.Title(headerName)
+	if headerValues, ok := h.request.Header[headerName]; ok {
+		return headerValues
+	} else {
+		return []string{}
+	}
 }
