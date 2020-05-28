@@ -2,9 +2,10 @@
 
 package rlimit
 
-// On unix, we need to raise the limit on the number of open files.
-// Unsure if anything is required on windows, or if bazel-remote even
-// works on windows. But let's not intentionally prevent compiling
-// for windows.
+// bazel-remote does not work with windows, due to the way we interact
+// with the filesystem. Let's try to give a reasonable compile-time
+// error message to prevent windows users from wasting time trying.
+var _ = __BAZEL_REMOTE_WINDOWS_BUILDS_ARE_NOT_SUPPORTED__
+
 func Raise() {
 }
