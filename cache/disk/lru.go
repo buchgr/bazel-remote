@@ -4,6 +4,26 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	gaugeCacheSizeBytes = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "bazel_remote_disk_cache_size_bytes",
+		Help: "The current number of bytes in the disk backend",
+	})
+
+	counterEvictedBytes = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "bazel_remote_disk_cache_evicted_bytes_total",
+		Help: "The total number of bytes evicted from disk backend, due to full cache",
+	})
+
+	counterOverwrittenBytes = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "bazel_remote_disk_cache_overwritten_bytes_total",
+		Help: "The total number of bytes removed from disk backend, due to put of already existing key",
+	})
 )
 
 type sizedItem interface {
@@ -88,6 +108,7 @@ func (c *sizedLRU) Add(key Key, value sizedItem) (ok bool) {
 			return false
 		}
 		c.ll.MoveToFront(ee)
+		counterOverwrittenBytes.Add(float64(ee.Value.(*entry).value.Size()))
 		ee.Value.(*entry).value = value
 	} else {
 		sizeDelta = value.Size()
@@ -109,6 +130,8 @@ func (c *sizedLRU) Add(key Key, value sizedItem) (ok bool) {
 
 	c.currentSize += sizeDelta
 
+	gaugeCacheSizeBytes.Set(float64(c.currentSize))
+
 	return true
 }
 
@@ -126,6 +149,7 @@ func (c *sizedLRU) Get(key Key) (value sizedItem, ok bool) {
 func (c *sizedLRU) Remove(key Key) {
 	if ele, hit := c.cache[key]; hit {
 		c.removeElement(ele)
+		gaugeCacheSizeBytes.Set(float64(c.currentSize))
 	}
 }
 
@@ -221,6 +245,7 @@ func (c *sizedLRU) removeElement(e *list.Element) {
 	kv := e.Value.(*entry)
 	delete(c.cache, kv.key)
 	c.currentSize -= kv.value.Size()
+	counterEvictedBytes.Add(float64(kv.value.Size()))
 
 	if c.onEvict != nil {
 		c.onEvict(kv.key, kv.value)
