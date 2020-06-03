@@ -257,15 +257,25 @@ func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
 	}
 }
 
+// proxyStub implements the cache.Proxy interface for a single blob with
+// digest {contentsHash, contentsLength}.
 type proxyStub struct{}
 
 func (d proxyStub) Put(kind cache.EntryKind, hash string, size int64, rdr io.Reader) {}
 
 func (d proxyStub) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
+	if hash != contentsHash {
+		return nil, -1, nil
+	}
+
 	return ioutil.NopCloser(strings.NewReader(contents)), contentsLength, nil
 }
 
 func (d proxyStub) Contains(kind cache.EntryKind, hash string) (bool, int64) {
+	if hash != contentsHash {
+		return false, -1
+	}
+
 	return true, contentsLength
 }
 
