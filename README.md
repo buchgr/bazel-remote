@@ -151,11 +151,12 @@ host: localhost
 #profile_host: 127.0.0.1
 #profile_port: 7070
 
-# HTTP read/write timeouts.
-# (does not apply to the proxy backends or the profiling endpoint)
-# Time units can be one of: "s", "m", "h".
-#http_read_timeout: 5s
-#http_write_timeout: 10s
+# HTTP read/write timeouts. Note that these do not apply to the proxy
+# backends or the profiling endpoint. Reasonable values might be twice
+# the length of time that you expect a client to read/write the largest
+# likely blob. Units can be one of: "s", "m", "h".
+#http_read_timeout: 15s
+#http_write_timeout: 20s
 
 # If you want to require simple authentication:
 #htpasswd_file: path/to/.htpasswd
