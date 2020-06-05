@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"sync"
 
@@ -181,22 +182,50 @@ func (c *Cache) migrateDirectories() error {
 
 func migrateDirectory(dir string) error {
 	log.Printf("Migrating files (if any) to new directory structure: %s\n", dir)
-	return filepath.Walk(dir, func(name string, info os.FileInfo, err error) error {
-		if err != nil {
-			log.Println("Error while walking directory:", err)
-			return err
+
+	listing, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	// The v0 directory structure was lowercase sha256 hash filenames
+	// stored directly in the ac/ and cas/ directories.
+	hashKeyRegex := regexp.MustCompile("^[a-f0-9]{64}$")
+
+	// The v1 directory structure has subdirs for each two lowercase
+	// hex character pairs.
+	v1DirRegex := regexp.MustCompile("^[a-f0-9]{2}$")
+
+	for _, item := range listing {
+		oldName := item.Name()
+		oldNamePath := filepath.Join(dir, oldName)
+
+		if item.IsDir() {
+			if !v1DirRegex.MatchString(oldName) {
+				// Warn about non-v1 subdirectories.
+				log.Println("Warning: unexpected directory", oldNamePath)
+			}
+			continue
 		}
 
-		if info.IsDir() {
-			if name == dir {
-				return nil
-			}
-			return filepath.SkipDir
+		if !item.Mode().IsRegular() {
+			log.Println("Warning: skipping non-regular file:", oldNamePath)
+			continue
 		}
-		hash := filepath.Base(name)
-		newName := filepath.Join(filepath.Dir(name), hash[:2], hash)
-		return os.Rename(name, newName)
-	})
+
+		if !hashKeyRegex.MatchString(oldName) {
+			log.Println("Warning: skipping unexpected file:", oldNamePath)
+			continue
+		}
+
+		newName := filepath.Join(dir, oldName[:2], oldName)
+		err = os.Rename(filepath.Join(dir, oldName), newName)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // loadExistingFiles lists all files in the cache directory, and adds them to the
