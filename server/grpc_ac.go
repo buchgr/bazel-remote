@@ -222,6 +222,15 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 
 	for _, f := range req.ActionResult.OutputFiles {
 		if f != nil && len(f.Contents) > 0 {
+
+			if f.Digest == nil {
+				hashData := sha256.Sum256(f.Contents)
+				f.Digest = &pb.Digest{
+					Hash:      hex.EncodeToString(hashData[:]),
+					SizeBytes: int64(len(f.Contents)),
+				}
+			}
+
 			err = s.cache.Put(cache.CAS, f.Digest.Hash,
 				f.Digest.SizeBytes, bytes.NewReader(f.Contents))
 			if err != nil {
