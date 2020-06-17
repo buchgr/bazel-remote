@@ -1029,3 +1029,28 @@ func TestGrpcCasTreeRequest(t *testing.T) {
 		t.Fatal("Neither directory matches")
 	}
 }
+
+func TestBadUpdateActionRresultRequest(t *testing.T) {
+	digest := pb.Digest{
+		Hash:      "0123456789012345678901234567890123456789012345678901234567890123",
+		SizeBytes: 1,
+	}
+
+	upACReq := pb.UpdateActionResultRequest{
+		ActionDigest: &digest,
+		ActionResult: &pb.ActionResult{
+			OutputFiles: []*pb.OutputFile{
+				{
+					Path:     "foo/bar",
+					Contents: []byte{0, 1, 2, 3, 4},
+					// Note: nil digest.
+				},
+			},
+		},
+	}
+
+	_, err := acClient.UpdateActionResult(ctx, &upACReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
