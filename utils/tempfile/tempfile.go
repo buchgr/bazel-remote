@@ -9,7 +9,7 @@ import (
 
 type Creator struct {
 	mu   sync.Mutex
-	idum uint32 // Psuedo-random number generator state.
+	idum uint32 // Pseudo-random number generator state.
 }
 
 // NewCreator returns a new Creator, for creating temp files.
