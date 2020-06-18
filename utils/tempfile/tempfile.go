@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+// Creator maintains the state of a pseudo-random number generator
+// used to create temp files.
 type Creator struct {
 	mu   sync.Mutex
 	idum uint32 // Pseudo-random number generator state.
