@@ -305,7 +305,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 
 			if resp.CommittedSize > size {
 				recvResult <- fmt.Errorf("Client sent more than %d data! %d",
-					resp.CommittedSize, size)
+					size, resp.CommittedSize)
 				return
 			}
 
