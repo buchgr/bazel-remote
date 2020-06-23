@@ -16,6 +16,12 @@ tasks:
     - "..."
     test_targets:
     - "..."
+  ubuntu2004:
+    platform: ubuntu2004
+    build_targets:
+    - "..."
+    test_targets:
+    - "..."
   macos:
     platform: macos
     build_targets:
