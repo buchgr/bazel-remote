@@ -319,7 +319,8 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.
 	if !ok {
 		return &cache.Error{
 			Code: http.StatusInsufficientStorage,
-			Text: "The item that has been tried to insert was too big.",
+			Text: fmt.Sprintf("The item is larger (%d) than the cache's maximum size (%d).",
+				expectedSize, c.lru.MaxSize()),
 		}
 	}
 
