@@ -138,10 +138,11 @@ func (c *s3Cache) uploadFile(item uploadReq) {
 		item.size,                         // objectSize
 		"",                                // md5base64
 		uploadDigest,                      // sha256
-		map[string]string{
-			"Content-Type": "application/octet-stream",
+		minio.PutObjectOptions{
+			UserMetadata: map[string]string{
+				"Content-Type": "application/octet-stream",
+			},
 		}, // metadata
-		nil, // sse
 	)
 
 	logResponse(c.accessLogger, "UPLOAD", c.bucket, c.objectKey(item.hash, item.kind), err)

@@ -608,8 +608,8 @@ go_repository(
 go_repository(
     name = "com_github_minio_minio_go_v6",
     importpath = "github.com/minio/minio-go/v6",
-    sum = "h1:Hqm41952DdRNKXM+6hCnPXCsHCYSgLf03iuYoxJG2Wk=",
-    version = "v6.0.55",
+    sum = "h1:ixPkbKkyD7IhnluRgQpGSpHdpvNVaW6OD5R9IAO/9Tw=",
+    version = "v6.0.57",
 )
 
 go_repository(
@@ -967,4 +967,18 @@ go_repository(
     importpath = "google.golang.org/protobuf",
     sum = "h1:4MY060fB1DLGMB/7MBTLnwQUY6+F09GEiz6SsrNqyzM=",
     version = "v1.23.0",
+)
+
+go_repository(
+    name = "com_github_klauspost_cpuid",
+    importpath = "github.com/klauspost/cpuid",
+    sum = "h1:CCtW0xUnWGVINKvE/WWOYKdsPV6mawAtvQuSl8guwQs=",
+    version = "v1.2.3",
+)
+
+go_repository(
+    name = "com_github_minio_md5_simd",
+    importpath = "github.com/minio/md5-simd",
+    sum = "h1:QPfiOqlZH+Cj9teu0t9b1nTBfPbyTl16Of5MeuShdK4=",
+    version = "v1.1.0",
 )
