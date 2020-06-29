@@ -10,7 +10,7 @@ require (
 	github.com/google/go-cmp v0.4.0
 	github.com/google/uuid v1.1.1
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
-	github.com/minio/minio-go/v6 v6.0.55
+	github.com/minio/minio-go/v6 v6.0.57
 	github.com/prometheus/client_golang v1.6.0
 	github.com/prometheus/common v0.10.0 // indirect
 	github.com/slok/go-http-metrics v0.6.1
