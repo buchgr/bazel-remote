@@ -27,7 +27,8 @@ import (
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpmetrics "github.com/slok/go-http-metrics/metrics/prometheus"
-	httpmiddleware "github.com/slok/go-http-metrics/middleware"
+	middleware "github.com/slok/go-http-metrics/middleware"
+	middlewarestd "github.com/slok/go-http-metrics/middleware/std"
 	"github.com/urfave/cli/v2"
 
 	"google.golang.org/grpc"
@@ -343,15 +344,15 @@ func main() {
 		}
 
 		if c.EnableEndpointMetrics {
-			metricsMdlw := httpmiddleware.New(httpmiddleware.Config{
+			metricsMdlw := middleware.New(middleware.Config{
 				Recorder: httpmetrics.NewRecorder(httpmetrics.Config{
 					DurationBuckets: durationBuckets,
 				}),
 			})
-			mux.Handle("/metrics", metricsMdlw.Handler("metrics", promhttp.Handler()))
-			mux.Handle("/status", metricsMdlw.Handler("status", http.HandlerFunc(h.StatusPageHandler)))
+			mux.Handle("/metrics", middlewarestd.Handler("metrics", metricsMdlw, promhttp.Handler()))
+			mux.Handle("/status", middlewarestd.Handler("status", metricsMdlw, http.HandlerFunc(h.StatusPageHandler)))
 			mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-				metricsMdlw.Handler(r.Method, http.HandlerFunc(cacheHandler)).ServeHTTP(w, r)
+				middlewarestd.Handler(r.Method, metricsMdlw, http.HandlerFunc(cacheHandler)).ServeHTTP(w, r)
 			})
 		} else {
 			mux.HandleFunc("/status", h.StatusPageHandler)
