@@ -1,5 +1,6 @@
 load("@bazel_gazelle//:def.bzl", "gazelle")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_push")
+load("@io_bazel_rules_docker//contrib:passwd.bzl", "passwd_entry", "passwd_tar")
 load("@io_bazel_rules_docker//go:image.bzl", "go_image")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
@@ -43,6 +44,25 @@ go_binary(
     x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
 )
 
+# Create the non-root user, "bazelremote", so the container can run with reduced
+# privileges.
+BAZEL_REMOTE_USER = "bazelremote"
+passwd_entry(
+    name = "bazelremote_passwd_entry",
+    username = BAZEL_REMOTE_USER,
+    info = BAZEL_REMOTE_USER,
+    uid = 1000,
+    gid = 1000,
+    home = "/data",
+    create_home = True,
+)
+
+passwd_tar(
+    name = "passwd",
+    entries = [":bazelremote_passwd_entry"],
+    passwd_file_pkg_dir = "/etc",
+)
+
 go_image(
     name = "bazel-remote-base",
     embed = [":go_default_library"],
@@ -81,6 +101,8 @@ container_image(
         "--profile_port=6060",
     ],
     ports = ["8080"],
+    tars = [":passwd"],
+    user = BAZEL_REMOTE_USER,
     visibility = ["//visibility:public"],
 )
 
@@ -100,6 +122,8 @@ container_image(
         "--profile_port=6060",
     ],
     ports = ["8080"],
+    tars = [":passwd"],
+    user = BAZEL_REMOTE_USER,
     visibility = ["//visibility:public"],
 )
 
