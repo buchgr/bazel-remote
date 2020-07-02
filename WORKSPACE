@@ -48,8 +48,8 @@ go_repository(
     name = "org_golang_google_grpc",
     build_file_proto_mode = "disable",
     importpath = "google.golang.org/grpc",
-    sum = "h1:EC2SB8S04d2r73uptxphDSUG+kTKVgjRPF+N3xpxRB4=",
-    version = "v1.29.1",
+    sum = "h1:M5a8xTlYTxwMn5ZFkwhRabsygDY5G8TYLyQDBxJNAxE=",
+    version = "v1.30.0",
 )
 
 go_repository(
@@ -981,4 +981,25 @@ go_repository(
     importpath = "github.com/minio/md5-simd",
     sum = "h1:QPfiOqlZH+Cj9teu0t9b1nTBfPbyTl16Of5MeuShdK4=",
     version = "v1.1.0",
+)
+
+go_repository(
+    name = "com_github_golang_snappy",
+    importpath = "github.com/golang/snappy",
+    sum = "h1:Qgr9rKW7uDUkrbSmQeiDsGa8SjGyCOGtuasMWwvp2P4=",
+    version = "v0.0.1",
+)
+
+go_repository(
+    name = "com_github_klauspost_compress",
+    importpath = "github.com/klauspost/compress",
+    sum = "h1:a/y8CglcM7gLGYmlbP/stPE5sR3hbhFRUjCBfd/0B3I=",
+    version = "v1.10.10",
+)
+
+go_repository(
+    name = "com_github_mostynb_go_grpc_compression",
+    importpath = "github.com/mostynb/go-grpc-compression",
+    sum = "h1:IGmYH36TsaFrnIDMj0JD+WnFX3jKLYnNtRmbAkfNpRE=",
+    version = "v1.0.0",
 )

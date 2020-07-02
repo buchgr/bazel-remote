@@ -18,6 +18,9 @@ import (
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
+
+	_ "github.com/mostynb/go-grpc-compression/snappy" // Register snappy
+	_ "github.com/mostynb/go-grpc-compression/zstd"   // and zstd support.
 )
 
 const (

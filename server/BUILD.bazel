@@ -24,6 +24,8 @@ go_library(
         "@com_github_bazelbuild_remote_apis//build/bazel/semver:go_default_library",
         "@com_github_golang_protobuf//jsonpb:go_default_library_gen",
         "@com_github_golang_protobuf//proto:go_default_library",
+        "@com_github_mostynb_go_grpc_compression//snappy:go_default_library",
+        "@com_github_mostynb_go_grpc_compression//zstd:go_default_library",
         "@go_googleapis//google/bytestream:bytestream_go_proto",
         "@go_googleapis//google/rpc:code_go_proto",
         "@go_googleapis//google/rpc:status_go_proto",
