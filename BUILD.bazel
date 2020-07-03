@@ -3,6 +3,7 @@ load("@io_bazel_rules_docker//container:container.bzl", "container_image", "cont
 load("@io_bazel_rules_docker//contrib:passwd.bzl", "passwd_entry", "passwd_tar")
 load("@io_bazel_rules_docker//go:image.bzl", "go_image")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 gazelle(
     name = "gazelle",
@@ -44,16 +45,16 @@ go_binary(
     x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
 )
 
-# Create the non-root user, "bazelremote", so the container can run with reduced
+# Create the non-root user, "bazel-remote", so the container can run with reduced
 # privileges.
-BAZEL_REMOTE_USER_NAME = "bazelremote"
+BAZEL_REMOTE_USER_NAME = "bazel-remote"
 BAZEL_REMOTE_USER_ID = 1000
 passwd_entry(
     name = "bazelremote_passwd_entry",
     username = BAZEL_REMOTE_USER_NAME,
-    info = BAZEL_REMOTE_USER_NAME,
     uid = BAZEL_REMOTE_USER_ID,
-    home = "/data",
+    gid = BAZEL_REMOTE_USER_ID,
+    home = "/home/" + BAZEL_REMOTE_USER_NAME,
     create_home = True,
 )
 
@@ -85,6 +86,24 @@ go_image(
     x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
 )
 
+# Initialize the default /data storage directory since the bazel-remote
+# user does not have sufficient permissions at the root (/) directory.
+# Since an empty directory cannot be packaged by the pkg_tar rule, create
+# the "EMPTY" file.
+genrule(
+    name = "empty",
+    srcs = [],
+    outs = ["EMPTY"],
+    cmd = "touch $@",
+)
+
+pkg_tar(
+    name = "data_tar",
+    srcs = [":empty"],
+    package_dir = "/data",
+    owner = "{0}.{0}".format(BAZEL_REMOTE_USER_ID),
+)
+
 container_image(
     name = "bazel-remote-image",
     base = ":bazel-remote-base",
@@ -101,7 +120,10 @@ container_image(
         "--profile_port=6060",
     ],
     ports = ["8080"],
-    tars = [":passwd"],
+    tars = [
+        ":passwd",
+        ":data_tar",
+    ],
     user = str(BAZEL_REMOTE_USER_ID),
     visibility = ["//visibility:public"],
 )
@@ -122,7 +144,10 @@ container_image(
         "--profile_port=6060",
     ],
     ports = ["8080"],
-    tars = [":passwd"],
+    tars = [
+        ":passwd",
+        ":data_tar",
+    ],
     user = str(BAZEL_REMOTE_USER_ID),
     visibility = ["//visibility:public"],
 )
