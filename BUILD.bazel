@@ -48,7 +48,9 @@ go_binary(
 # Create the non-root user, "bazel-remote", so the container can run with reduced
 # privileges.
 BAZEL_REMOTE_USER_NAME = "bazel-remote"
+
 BAZEL_REMOTE_USER_ID = 1000
+
 passwd_entry(
     name = "bazelremote_passwd_entry",
     username = BAZEL_REMOTE_USER_NAME,
