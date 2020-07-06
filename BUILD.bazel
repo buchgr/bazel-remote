@@ -3,7 +3,6 @@ load("@io_bazel_rules_docker//container:container.bzl", "container_image", "cont
 load("@io_bazel_rules_docker//contrib:passwd.bzl", "passwd_entry", "passwd_tar")
 load("@io_bazel_rules_docker//go:image.bzl", "go_image")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
-load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 gazelle(
     name = "gazelle",
@@ -88,24 +87,6 @@ go_image(
     x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
 )
 
-# Initialize the default /data storage directory since the bazel-remote
-# user does not have sufficient permissions at the root (/) directory.
-# Since an empty directory cannot be packaged by the pkg_tar rule, create
-# the "EMPTY" file.
-genrule(
-    name = "empty",
-    srcs = [],
-    outs = ["EMPTY"],
-    cmd = "touch $@",
-)
-
-pkg_tar(
-    name = "data_tar",
-    srcs = [":empty"],
-    package_dir = "/data",
-    owner = "{0}.{0}".format(BAZEL_REMOTE_USER_ID),
-)
-
 container_image(
     name = "bazel-remote-image",
     base = ":bazel-remote-base",
@@ -124,7 +105,7 @@ container_image(
     ports = ["8080"],
     tars = [
         ":passwd",
-        ":data_tar",
+        "//docker:data_dir_tar",
     ],
     user = str(BAZEL_REMOTE_USER_ID),
     visibility = ["//visibility:public"],
@@ -148,7 +129,7 @@ container_image(
     ports = ["8080"],
     tars = [
         ":passwd",
-        ":data_tar",
+        "//docker:data_dir_tar",
     ],
     user = str(BAZEL_REMOTE_USER_ID),
     visibility = ["//visibility:public"],
