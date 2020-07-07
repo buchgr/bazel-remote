@@ -163,7 +163,7 @@ func (s *grpcServer) fetchItem(uri string, expectedHash string) (bool, string, i
 		hashBytes := sha256.Sum256(data)
 		hashStr := hex.EncodeToString(hashBytes[:])
 
-		if hashStr != expectedHash {
+		if expectedHash != "" && hashStr != expectedHash {
 			s.errorLogger.Printf("URI data has hash %s, expected %s",
 				hashStr, expectedHash)
 			return false, "", int64(-1)
