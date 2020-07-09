@@ -1,6 +1,5 @@
 load("@bazel_gazelle//:def.bzl", "gazelle")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_push")
-load("@io_bazel_rules_docker//contrib:passwd.bzl", "passwd_entry", "passwd_tar")
 load("@io_bazel_rules_docker//go:image.bzl", "go_image")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
@@ -44,26 +43,8 @@ go_binary(
     x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
 )
 
-# Create the non-root user, "bazel-remote", so the container can run with reduced
-# privileges.
-BAZEL_REMOTE_USER_NAME = "bazel-remote"
-
-BAZEL_REMOTE_USER_ID = 1000
-
-passwd_entry(
-    name = "bazelremote_passwd_entry",
-    username = BAZEL_REMOTE_USER_NAME,
-    uid = BAZEL_REMOTE_USER_ID,
-    gid = BAZEL_REMOTE_USER_ID,
-    home = "/home/" + BAZEL_REMOTE_USER_NAME,
-    create_home = True,
-)
-
-passwd_tar(
-    name = "passwd",
-    entries = [":bazelremote_passwd_entry"],
-    passwd_file_pkg_dir = "/etc",
-)
+# The distroless static container image's nonroot user id.
+BAZEL_REMOTE_USER_ID = 65532
 
 go_image(
     name = "bazel-remote-base",
@@ -104,7 +85,6 @@ container_image(
     ],
     ports = ["8080"],
     tars = [
-        ":passwd",
         "//docker:data_dir_tar",
     ],
     user = str(BAZEL_REMOTE_USER_ID),
@@ -128,7 +108,6 @@ container_image(
     ],
     ports = ["8080"],
     tars = [
-        ":passwd",
         "//docker:data_dir_tar",
     ],
     user = str(BAZEL_REMOTE_USER_ID),
