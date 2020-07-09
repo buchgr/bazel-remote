@@ -215,17 +215,21 @@ host: localhost
 
 ### Prebuilt Image
 
-We publish docker images to [DockerHub](https://hub.docker.com/r/buchgr/bazel-remote-cache/) that you can use with
-`docker run`. The following commands will start the remote cache on port `9090` for
-HTTP and `9092` for gRPC, with the default maximum cache size of `5 GiB`.
+We publish docker images to [DockerHub](https://hub.docker.com/r/buchgr/bazel-remote-cache/)
+that you can use with `docker run`. The following commands will start bazel-remote with uid
+and gid `1000` on port `9090` for HTTP and `9092` for gRPC, with the default maximum cache
+size of `5 GiB`.
 
 ```bash
 $ docker pull buchgr/bazel-remote-cache
-$ docker run -v /path/to/cache/dir:/data -p 9090:8080 -p 9092:9092 buchgr/bazel-remote-cache
+$ docker run -u 1000:1000 -v /path/to/cache/dir:/data \
+	-p 9090:8080 -p 9092:9092 buchgr/bazel-remote-cache
 ```
 
-Note that you will need to change `/path/to/cache/dir` to a valid directory where the docker container can write to
-and read from. If you want the docker container to run in the background pass the `-d` flag right after `docker run`.
+Note that you will need to change `/path/to/cache/dir` to a valid directory that is readable
+and writable by the specified user (or by uid/gid `65532` if no user was specified).
+
+If you want the docker container to run in the background pass the `-d` flag right after `docker run`.
 
 You can adjust the maximum cache size by appending `--max_size=N`, where N is
 the maximum size in Gibibytes.
