@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strings"
 
 	"google.golang.org/genproto/googleapis/rpc/status"
@@ -115,15 +114,6 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 	}, nil
 }
 
-// Simple files (not eg git).
-var simpleExtensions = map[string]struct{}{
-	".gz":  {},
-	".xz":  {},
-	".bz2": {},
-	".tar": {},
-	".zip": {},
-}
-
 func (s *grpcServer) fetchItem(uri string, expectedHash string) (bool, string, int64) {
 	u, err := url.Parse(uri)
 	if err != nil {
@@ -133,11 +123,6 @@ func (s *grpcServer) fetchItem(uri string, expectedHash string) (bool, string, i
 
 	if u.Scheme != "http" && u.Scheme != "https" {
 		s.errorLogger.Printf("unsupported URI: %s", uri)
-		return false, "", int64(-1)
-	}
-
-	_, simple := simpleExtensions[filepath.Ext(u.Path)]
-	if !simple {
 		return false, "", int64(-1)
 	}
 
