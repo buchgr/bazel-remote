@@ -3,7 +3,7 @@
 
 #
 # Build container
-FROM golang:1.14.3 AS builder
+FROM golang:1.14.5 AS builder
 
 # overwrite GOARCH with --build-arg GOARCH=arm64 when invoking docker build
 ARG GOARCH="amd64"
