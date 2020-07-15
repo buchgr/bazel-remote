@@ -149,6 +149,11 @@ func (s *grpcServer) fetchItem(uri string, expectedHash string) (bool, string, i
 	defer resp.Body.Close()
 	rc := resp.Body
 
+	s.accessLogger.Printf("GRPC ASSET FETCH %s %s", uri, resp.Status)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return false, "", int64(-1)
+	}
+
 	expectedSize := resp.ContentLength
 	if expectedHash == "" || expectedSize < 0 {
 		// We can't call Put until we know the hash and size.
