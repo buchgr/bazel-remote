@@ -61,6 +61,7 @@ func main() {
 	app.Description = "A remote build cache for Bazel."
 	app.Usage = "A remote build cache for Bazel"
 	app.HideVersion = true
+	app.HideHelpCommand = true
 
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{
