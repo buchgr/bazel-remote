@@ -95,13 +95,10 @@ NAME:
    bazel-remote - A remote build cache for Bazel
 
 USAGE:
-   bazel-remote [global options] command [command options] [arguments...]
+   bazel-remote [global options] [arguments...]
 
 DESCRIPTION:
    A remote build cache for Bazel.
-
-COMMANDS:
-   help, h  Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
    --config_file value              Path to a YAML configuration file. If this flag is specified then all other flags are ignored. [$BAZEL_REMOTE_CONFIG_FILE]
