@@ -196,13 +196,13 @@ func main() {
 		&cli.StringFlag{
 			Name:    "s3.iam_role_endpoint",
 			Value:   "",
-			Usage:   "Endpoint for using IAM security credentials, eg http://169.254.169.254 for EC2, http://169.254.170.2 for ECS.",
+			Usage:   "Endpoint for using IAM security credentials. By default it will look for credentials in the standard locations for the AWS platform.",
 			EnvVars: []string{"BAZEL_REMOTE_S3_IAM_ROLE_ENDPOINT"},
 		},
 		&cli.StringFlag{
 			Name:    "s3.region",
 			Value:   "",
-			Usage:   "The AWS region. Required when using s3.iam_role_endpoint.",
+			Usage:   "The AWS region. Required when not specifying S3/minio access keys.",
 			EnvVars: []string{"BAZEL_REMOTE_S3_REGION"},
 		},
 		&cli.BoolFlag{

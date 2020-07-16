@@ -56,7 +56,19 @@ func New(s3Config *config.S3CloudStorageConfig, accessLogger cache.Logger,
 	var minioCore *minio.Core
 	var err error
 
-	if s3Config.IAMRoleEndpoint != "" {
+	if s3Config.AccessKeyID != "" && s3Config.SecretAccessKey != "" {
+		// Initialize minio client object.
+		minioCore, err = minio.NewCore(
+			s3Config.Endpoint,
+			s3Config.AccessKeyID,
+			s3Config.SecretAccessKey,
+			!s3Config.DisableSSL,
+		)
+
+		if err != nil {
+			log.Fatalln(err)
+		}
+	} else {
 		// Initialize minio client object with IAM credentials
 		creds := credentials.NewIAM(s3Config.IAMRoleEndpoint)
 		minioClient, err := minio.NewWithCredentials(
@@ -72,18 +84,6 @@ func New(s3Config *config.S3CloudStorageConfig, accessLogger cache.Logger,
 
 		minioCore = &minio.Core{
 			Client: minioClient,
-		}
-	} else {
-		// Initialize minio client object.
-		minioCore, err = minio.NewCore(
-			s3Config.Endpoint,
-			s3Config.AccessKeyID,
-			s3Config.SecretAccessKey,
-			!s3Config.DisableSSL,
-		)
-
-		if err != nil {
-			log.Fatalln(err)
 		}
 	}
 
