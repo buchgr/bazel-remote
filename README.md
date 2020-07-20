@@ -192,7 +192,8 @@ host: localhost
 #  secret_access_key: EXAMPLE_SECRET_KEY
 #  disable_ssl: true
 #
-# Provide either iam_role_endpoint/region or access_key_id/secret_access_key
+# Provide either access_key_id/secret_access_key, or iam_role_endpoint/region.
+# iam_role_endpoint can also be left empty, and figured out automatically.
 #  iam_role_endpoint: http://169.254.169.254
 #  region: us-east-1
 #
