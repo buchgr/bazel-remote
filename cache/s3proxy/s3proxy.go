@@ -1,6 +1,7 @@
 package s3proxy
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,8 +9,8 @@ import (
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/config"
-	"github.com/minio/minio-go/v6"
-	"github.com/minio/minio-go/v6/pkg/credentials"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -58,26 +59,29 @@ func New(s3Config *config.S3CloudStorageConfig, accessLogger cache.Logger,
 
 	if s3Config.AccessKeyID != "" && s3Config.SecretAccessKey != "" {
 		// Initialize minio client object.
-		minioCore, err = minio.NewCore(
-			s3Config.Endpoint,
-			s3Config.AccessKeyID,
-			s3Config.SecretAccessKey,
-			!s3Config.DisableSSL,
-		)
-
+		opts := &minio.Options{
+			Creds:  credentials.NewStaticV4(s3Config.AccessKeyID, s3Config.SecretAccessKey, ""),
+			Secure: !s3Config.DisableSSL,
+			Region: s3Config.Region,
+		}
+		minioCore, err = minio.NewCore(s3Config.Endpoint, opts)
 		if err != nil {
 			log.Fatalln(err)
 		}
 	} else {
 		// Initialize minio client object with IAM credentials
-		creds := credentials.NewIAM(s3Config.IAMRoleEndpoint)
-		minioClient, err := minio.NewWithCredentials(
-			s3Config.Endpoint,
-			creds,
-			!s3Config.DisableSSL,
-			s3Config.Region,
-		)
+		opts := &minio.Options{
+			// This config value may be empty.
+			Creds: credentials.NewIAM(s3Config.IAMRoleEndpoint),
 
+			Region: s3Config.Region,
+			Secure: !s3Config.DisableSSL,
+		}
+
+		minioClient, err := minio.New(
+			s3Config.Endpoint,
+			opts,
+		)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -132,6 +136,7 @@ func (c *s3Cache) uploadFile(item uploadReq) {
 	}
 
 	_, err := c.mcore.PutObject(
+		context.Background(),
 		c.bucket,                          // bucketName
 		c.objectKey(item.hash, item.kind), // objectName
 		item.rdr,                          // reader
@@ -164,6 +169,7 @@ func (c *s3Cache) Put(kind cache.EntryKind, hash string, size int64, rdr io.Read
 func (c *s3Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 
 	object, info, _, err := c.mcore.GetObject(
+		context.Background(),
 		c.bucket,                 // bucketName
 		c.objectKey(hash, kind),  // objectName
 		minio.GetObjectOptions{}, // opts
@@ -189,6 +195,7 @@ func (c *s3Cache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
 	size := int64(-1)
 
 	s, err := c.mcore.StatObject(
+		context.Background(),
 		c.bucket,                  // bucketName
 		c.objectKey(hash, kind),   // objectName
 		minio.StatObjectOptions{}, // opts
