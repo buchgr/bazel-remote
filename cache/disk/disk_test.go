@@ -37,15 +37,8 @@ func checkItems(cache *Cache, expSize int64, expNum int) error {
 	if cache.lru.Len() != expNum {
 		return fmt.Errorf("expected %d files in the cache, found %d", expNum, cache.lru.Len())
 	}
-	if cache.lru.CurrentSize() != expSize {
-		return fmt.Errorf("expected %d bytes in the cache, found %d", expSize, cache.lru.CurrentSize())
-	}
-
-	// Dig into the internals of the cache to make sure that all items are committed.
-	for _, it := range cache.lru.(*sizedLRU).cache {
-		if it.Value.(*entry).value.(*lruItem).committed != true {
-			return fmt.Errorf("expected committed = true")
-		}
+	if cache.lru.TotalSize() != expSize {
+		return fmt.Errorf("expected %d bytes in the cache, found %d", expSize, cache.lru.TotalSize())
 	}
 
 	numFiles := 0
@@ -482,7 +475,7 @@ func TestMigrateFromOldDirectoryStructure(t *testing.T) {
 		t.Fatal(err)
 	}
 	testCache := New(cacheDir, 2560, nil)
-	_, numItems := testCache.Stats()
+	_, _, numItems := testCache.Stats()
 	if numItems != 3 {
 		t.Fatalf("Expected test cache size 3 but was %d", numItems)
 	}
@@ -526,7 +519,7 @@ func TestLoadExistingEntries(t *testing.T) {
 	}
 
 	testCache := New(cacheDir, blobSize*numBlobs, nil)
-	_, numItems := testCache.Stats()
+	_, _, numItems := testCache.Stats()
 	if int64(numItems) != numBlobs {
 		t.Fatalf("Expected test cache size %d but was %d",
 			numBlobs, numItems)
@@ -582,7 +575,7 @@ func TestDistinctKeyspaces(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, numItems := testCache.Stats()
+	_, _, numItems := testCache.Stats()
 	if numItems != 3 {
 		t.Fatalf("Expected test cache size 3 but was %d",
 			numItems)

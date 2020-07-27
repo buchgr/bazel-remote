@@ -14,8 +14,11 @@ import (
 	"regexp"
 	"sort"
 	"sync"
+	"syscall"
 
 	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/utils/tempfile"
+
 	"github.com/djherbis/atime"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -35,11 +38,12 @@ var (
 	})
 )
 
+var tfc = tempfile.NewCreator()
+
 // lruItem is the type of the values stored in SizedLRU to keep track of items.
 // It implements the sizedItem interface.
 type lruItem struct {
-	size      int64
-	committed bool
+	size int64
 }
 
 func (i *lruItem) Size() int64 {
@@ -91,59 +95,10 @@ func New(dir string, maxSizeBytes int64, proxy cache.Proxy) *Cache {
 	// This function is only called while the lock is held
 	// by the current goroutine.
 	onEvict := func(key Key, value sizedItem) {
-
 		f := filepath.Join(dir, key.(string))
-
-		if value.(*lruItem).committed {
-			// Common case. Just remove the cache file and we're done.
-			err := os.Remove(f)
-			if err != nil {
-				log.Printf("ERROR: failed to remove evicted cache file: %s", f)
-			}
-
-			return
-		}
-
-		// There is an ongoing upload for the evicted item. The temp
-		// file may or may not exist at this point.
-		//
-		// We should either be able to remove both the temp file and
-		// the regular cache file, or to remove just the regular cache
-		// file. The temp file is renamed/moved to the regular cache
-		// file without holding the lock, so we must try removing the
-		// temp file first.
-
-		// Note: if you hit this case, then your cache size might be
-		// too small (blobs are moved to the most-recently used end
-		// of the index when the upload begins, and these items are
-		// still uploading when they reach the least-recently used
-		// end of the index).
-
-		tf := f + ".tmp"
-		var fErr, tfErr error
-		removedCount := 0
-
-		tfErr = os.Remove(tf)
-		if tfErr == nil {
-			removedCount++
-		}
-
-		fErr = os.Remove(f)
-		if fErr == nil {
-			removedCount++
-		}
-
-		// We expect to have removed at least one file at this point.
-		if removedCount == 0 {
-			if !os.IsNotExist(tfErr) {
-				log.Printf("ERROR: failed to remove evicted item: %s / %v",
-					tf, tfErr)
-			}
-
-			if !os.IsNotExist(fErr) {
-				log.Printf("ERROR: failed to remove evicted item: %s / %v",
-					f, fErr)
-			}
+		err := os.Remove(f)
+		if err != nil {
+			log.Printf("ERROR: failed to remove evicted cache file: %s", f)
 		}
 	}
 
@@ -259,10 +214,7 @@ func (c *Cache) loadExistingFiles() error {
 	log.Println("Building LRU index.")
 	for _, f := range files {
 		relPath := f.name[len(c.dir)+1:]
-		ok := c.lru.Add(relPath, &lruItem{
-			size:      f.info.Size(),
-			committed: true,
-		})
+		ok := c.lru.Add(relPath, &lruItem{size: f.info.Size()})
 		if !ok {
 			err = os.Remove(filepath.Join(c.dir, relPath))
 			if err != nil {
@@ -275,10 +227,13 @@ func (c *Cache) loadExistingFiles() error {
 	return nil
 }
 
-// Put stores a stream of `expectedSize` bytes from `r` into the cache.
+// Put stores a stream of `size` bytes from `r` into the cache.
 // If `hash` is not the empty string, and the contents don't match it,
 // a non-nil error is returned.
-func (c *Cache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.Reader) error {
+func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) (rErr error) {
+	if size < 0 {
+		return fmt.Errorf("Invalid (negative) size: %d", size)
+	}
 
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
@@ -287,95 +242,121 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.
 			len(hash), sha256.Size)
 	}
 
-	if kind == cache.CAS && expectedSize == 0 && hash == emptySha256 {
+	if kind == cache.CAS && size == 0 && hash == emptySha256 {
 		io.Copy(ioutil.Discard, r)
 		return nil
 	}
 
 	key := cacheKey(kind, hash)
 
-	c.mu.Lock()
+	var tf *os.File // Tempfile.
 
-	// If there's an ongoing upload (i.e. cache key is present in uncommitted state),
-	// we drop the upload and discard the incoming stream. We do accept uploads
-	// of existing keys, as it should happen relatively rarely (e.g. race
-	// condition on the bazel side) but it's useful to overwrite poisoned items.
-	if existingItem, found := c.lru.Get(key); found {
-		if !existingItem.(*lruItem).committed {
-			c.mu.Unlock()
-			io.Copy(ioutil.Discard, r)
-			return nil
-		}
-	}
-
-	// Try to add the item to the LRU.
-	newItem := &lruItem{
-		size:      expectedSize,
-		committed: false,
-	}
-	ok := c.lru.Add(key, newItem)
-	c.mu.Unlock()
-	if !ok {
-		return &cache.Error{
-			Code: http.StatusInsufficientStorage,
-			Text: fmt.Sprintf("The item is larger (%d) than the cache's maximum size (%d).",
-				expectedSize, c.lru.MaxSize()),
-		}
-	}
-
-	// By the time this function exits, we should either mark the LRU item as committed
-	// (if the upload went well), or delete it. Capturing the flag variable is not very nice,
-	// but this stuff is really easy to get wrong without defer().
-	shouldCommit := false
-	filePath := cacheFilePath(kind, c.dir, hash)
+	// Cleanup intermediate state if something went wrong and we
+	// did not successfully commit.
+	unreserve := false
+	removeTempfile := false
 	defer func() {
-		c.mu.Lock()
-		if shouldCommit {
-			newItem.committed = true
-		} else {
-			c.lru.Remove(key)
+		// No lock required to remove stray tempfiles.
+		if removeTempfile {
+			os.Remove(tf.Name())
 		}
-		c.mu.Unlock()
 
-		if shouldCommit && c.proxy != nil {
-			// TODO: buffer in memory, avoid a filesystem round-trip?
-			fr, err := os.Open(filePath)
-			if err == nil {
-				c.proxy.Put(kind, hash, expectedSize, fr)
+		if unreserve {
+			c.mu.Lock()
+			err := c.lru.Unreserve(size)
+			if err != nil {
+				// Set named return value.
+				rErr = err
+				log.Printf(rErr.Error())
 			}
+			c.mu.Unlock()
 		}
 	}()
 
-	// Download to a temporary file
-	tmpFilePath := filePath + ".tmp"
-	f, err := os.Create(tmpFilePath)
+	if size > 0 {
+		c.mu.Lock()
+		ok, err := c.lru.Reserve(size)
+		if err != nil {
+			c.mu.Unlock()
+			return &cache.Error{
+				Code: http.StatusInternalServerError,
+				Text: err.Error(),
+			}
+		}
+		if !ok {
+			c.mu.Unlock()
+			return &cache.Error{
+				Code: http.StatusInsufficientStorage,
+				Text: fmt.Sprintf("The item (%d) + reserved space is larger than the cache's maximum size (%d).",
+					size, c.lru.MaxSize()),
+			}
+		}
+		c.mu.Unlock()
+		unreserve = true
+	}
+
+	// Final destination, if all goes well.
+	filePath := cacheFilePath(kind, c.dir, hash)
+
+	// We will download to this temporary file.
+	tf, err := tfc.Create(filePath)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if !shouldCommit {
-			// Only delete the temp file if moving it didn't succeed.
-			os.Remove(tmpFilePath)
+	removeTempfile = true
+
+	err = writeAndCloseFile(r, kind, hash, size, tf)
+	if err != nil {
+		return err
+	}
+
+	if c.proxy != nil {
+		rc, err := os.Open(tf.Name())
+		if err != nil {
+			log.Println("Failed to proxy Put:", err)
+		} else {
+			// Doesn't block, should be fast.
+			c.proxy.Put(kind, hash, size, rc)
 		}
-		// Just in case we didn't already close it.  No need to check errors.
-		f.Close()
+	}
+
+	unreserve, removeTempfile, err = c.commit(key, tf.Name(), filePath, size, size)
+
+	// Might be nil.
+	return err
+}
+
+func writeAndCloseFile(r io.Reader, kind cache.EntryKind, hash string, size int64, f *os.File) error {
+	closeFile := true
+	defer func() {
+		if closeFile {
+			f.Close()
+		}
 	}()
+
+	var err error
 
 	var bytesCopied int64
 	if kind == cache.CAS {
 		hasher := sha256.New()
-		if bytesCopied, err = io.Copy(io.MultiWriter(f, hasher), r); err != nil {
+		bytesCopied, err = io.Copy(io.MultiWriter(f, hasher), r)
+		if err != nil {
 			return err
 		}
 		actualHash := hex.EncodeToString(hasher.Sum(nil))
 		if actualHash != hash {
 			return fmt.Errorf(
-				"hashsums don't match. Expected %s, found %s", key, actualHash)
+				"checksums don't match. Expected %s, found %s", hash, actualHash)
 		}
 	} else {
 		if bytesCopied, err = io.Copy(f, r); err != nil {
 			return err
 		}
+	}
+
+	if isSizeMismatch(bytesCopied, size) {
+		return fmt.Errorf(
+			"sizes don't match. Expected %d, found %d", size, bytesCopied)
 	}
 
 	if err = f.Sync(); err != nil {
@@ -385,55 +366,104 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, expectedSize int64, r io.
 	if err = f.Close(); err != nil {
 		return err
 	}
+	closeFile = false
 
-	if bytesCopied != expectedSize {
-		return fmt.Errorf(
-			"sizes don't match. Expected %d, found %d", expectedSize, bytesCopied)
-	}
-
-	// Rename to the final path
-	err = os.Rename(tmpFilePath, filePath)
-	if err == nil {
-		// Only commit if renaming succeeded.
-		// This flag is used by the defer() block above.
-		shouldCommit = true
-	}
-
-	return err
+	return nil
 }
 
-// Return two bools, `available` is true if the item is in the local
-// cache and ready to use.
-//
-// `tryProxy` is true if the item is not in the local cache but can
-// be requested from the proxy, in which case, a placeholder entry
-// has been added to the index and the caller must either replace
-// the entry with the actual size, or remove it from the LRU.
-func (c *Cache) availableOrTryProxy(key string) (available bool, tryProxy bool) {
-	inProgress := false
-	tryProxy = false
+// This must be called when the lock is not held.
+func (c *Cache) commit(key string, tempfile string, finalPath string, reservedSize int64, foundSize int64) (unreserve bool, removeTempfile bool, err error) {
+	unreserve = reservedSize > 0
+	removeTempfile = true
 
 	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	existingItem, found := c.lru.Get(key)
-	if found {
-		if !existingItem.(*lruItem).committed {
-			inProgress = true
+	if unreserve {
+		err = c.lru.Unreserve(reservedSize)
+		if err != nil {
+			log.Println(err.Error())
+			return true, removeTempfile, err
 		}
-	} else if c.proxy != nil {
-		// Reserve a place in the LRU.
-		// The caller must replace or remove this!
-		tryProxy = c.lru.Add(key, &lruItem{
-			size:      0,
-			committed: false,
-		})
+	}
+	unreserve = false
+
+	if !c.lru.Add(key, &lruItem{size: foundSize}) {
+		err = fmt.Errorf("INTERNAL ERROR: failed to add: %s, size %d", key, foundSize)
+		log.Println(err.Error())
+		return unreserve, removeTempfile, err
 	}
 
-	c.mu.Unlock()
+	err = syscall.Rename(tempfile, finalPath)
+	if err != nil {
+		log.Printf("INTERNAL ERROR: failed to rename \"%s\" to \"%s\": %v",
+			tempfile, finalPath, err)
+		log.Println("Removing", key)
+		c.lru.Remove(key)
+		return unreserve, removeTempfile, err
+	}
+	removeTempfile = false
 
-	available = found && !inProgress
+	// Commit successful if we made it this far! \o/
+	return unreserve, removeTempfile, nil
+}
 
-	return available, tryProxy
+// Return a non-nil *os.File and non-negative size if the item is available
+// locally, and a boolean that indicates if the item is not available locally
+// but that we can try the proxy backend.
+func (c *Cache) availableOrTryProxy(key string, size int64, blobPath string) (rc io.ReadCloser, foundSize int64, tryProxy bool, err error) {
+	locked := true
+	c.mu.Lock()
+
+	val, available := c.lru.Get(key)
+	if available {
+		c.mu.Unlock() // We expect a cache hit below.
+		locked = false
+
+		item := val.(*lruItem)
+		if !isSizeMismatch(size, item.size) {
+			var f *os.File
+			f, err = os.Open(blobPath)
+			if err != nil {
+				// Race condition, was the item purged after we released the lock?
+				log.Printf("Warning: expected %s to exist on disk, undersized cache?", blobPath)
+			} else {
+				var fileInfo os.FileInfo
+				fileInfo, err = f.Stat()
+				foundSize := fileInfo.Size()
+				if isSizeMismatch(size, foundSize) {
+					// Race condition, was the item replaced after we released the lock?
+					log.Printf("Warning: expected %s to on disk to have size %d, found %d",
+						blobPath, size, foundSize)
+				} else {
+					return f, foundSize, false, nil
+				}
+			}
+		}
+	}
+	err = nil
+
+	if c.proxy != nil {
+		if size > 0 {
+			// If we know the size, attempt to reserve that much space.
+			if !locked {
+				c.mu.Lock()
+			}
+			tryProxy, err = c.lru.Reserve(size)
+			c.mu.Unlock()
+			locked = false
+		} else {
+			// If the size is unknown, take a risk and hope it's not
+			// too large.
+			tryProxy = true
+		}
+	}
+
+	if locked {
+		c.mu.Unlock()
+	}
+
+	return nil, -1, tryProxy, err
 }
 
 // Get returns an io.ReadCloser with the content of the cache item stored
@@ -441,7 +471,7 @@ func (c *Cache) availableOrTryProxy(key string) (available bool, tryProxy bool) 
 // item is not found, the io.ReadCloser will be nil. If some error occurred
 // when processing the request, then it is returned. Callers should provide
 // the `size` of the item to be retrieved, or -1 if unknown.
-func (c *Cache) Get(kind cache.EntryKind, hash string, size int64) (io.ReadCloser, int64, error) {
+func (c *Cache) Get(kind cache.EntryKind, hash string, size int64) (rc io.ReadCloser, s int64, rErr error) {
 
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
@@ -458,28 +488,41 @@ func (c *Cache) Get(kind cache.EntryKind, hash string, size int64) (io.ReadClose
 	var err error
 	key := cacheKey(kind, hash)
 
-	available, tryProxy := c.availableOrTryProxy(key)
+	var tf *os.File // Tempfile we will write to.
 
-	if available {
-		blobPath := cacheFilePath(kind, c.dir, hash)
-		var fileInfo os.FileInfo
-		fileInfo, err = os.Stat(blobPath)
-		if err == nil {
-			foundSize := fileInfo.Size()
-			if isSizeMismatch(size, foundSize) {
-				cacheMisses.Inc()
-				return nil, -1, nil
-			}
-			var f *os.File
-			f, err = os.Open(blobPath)
-			if err == nil {
-				cacheHits.Inc()
-				return f, foundSize, nil
-			}
+	// Cleanup intermediate state if something went wrong and we
+	// did not successfully commit.
+	unreserve := false
+	removeTempfile := false
+	defer func() {
+		// No lock required to remove stray tempfiles.
+		if removeTempfile {
+			os.Remove(tf.Name())
 		}
 
-		cacheMisses.Inc()
+		if unreserve {
+			c.mu.Lock()
+			err := c.lru.Unreserve(size)
+			if err != nil {
+				// Set named return value.
+				rErr = err
+				log.Printf(rErr.Error())
+			}
+			c.mu.Unlock()
+		}
+	}()
+
+	blobPath := cacheFilePath(kind, c.dir, hash)
+	f, foundSize, tryProxy, err := c.availableOrTryProxy(key, size, blobPath)
+	if err != nil {
 		return nil, -1, err
+	}
+	if tryProxy && size > 0 {
+		unreserve = true
+	}
+	if f != nil {
+		cacheHits.Inc()
+		return f, foundSize, nil
 	}
 
 	cacheMisses.Inc()
@@ -487,41 +530,6 @@ func (c *Cache) Get(kind cache.EntryKind, hash string, size int64) (io.ReadClose
 	if !tryProxy {
 		return nil, -1, nil
 	}
-
-	filePath := cacheFilePath(kind, c.dir, hash)
-	tmpFilePath := filePath + ".tmp"
-	shouldCommit := false
-	tmpFileCreated := false
-	foundSize := int64(-1)
-	var f *os.File
-
-	// We're allowed to try downloading this blob from the proxy.
-	// Before returning, we have to either commit the item and set
-	// its size, or remove the item from the LRU.
-	defer func() {
-		c.mu.Lock()
-
-		if shouldCommit {
-			// Overwrite the placeholder inserted by availableOrTryProxy.
-			// Call Add instead of updating the entry directly, so we
-			// update the currentSize value.
-			c.lru.Add(key, &lruItem{
-				size:      foundSize,
-				committed: true,
-			})
-		} else {
-			// Remove the placeholder.
-			c.lru.Remove(key)
-		}
-
-		c.mu.Unlock()
-
-		if !shouldCommit && tmpFileCreated {
-			os.Remove(tmpFilePath) // No need to check the error.
-		}
-
-		f.Close() // No need to check the error.
-	}()
 
 	r, foundSize, err := c.proxy.Get(kind, hash)
 	if r != nil {
@@ -534,44 +542,30 @@ func (c *Cache) Get(kind cache.EntryKind, hash string, size int64) (io.ReadClose
 		return nil, -1, nil
 	}
 
-	f, err = os.Create(tmpFilePath)
+	tf, err = tfc.Create(blobPath)
 	if err != nil {
 		return nil, -1, err
 	}
-	tmpFileCreated = true
+	removeTempfile = true
 
-	written, err := io.Copy(f, r)
+	err = writeAndCloseFile(r, kind, hash, foundSize, tf)
 	if err != nil {
 		return nil, -1, err
 	}
 
-	if written != foundSize {
+	rc, err = os.Open(tf.Name())
+	if err != nil {
 		return nil, -1, err
 	}
 
-	if err = f.Sync(); err != nil {
-		return nil, -1, err
+	unreserve, removeTempfile, err = c.commit(key, tf.Name(), blobPath, size, foundSize)
+	if err != nil {
+		rc.Close()
+		rc = nil
+		foundSize = -1
 	}
 
-	if err = f.Close(); err != nil {
-		return nil, -1, err
-	}
-
-	// Rename to the final path
-	err = os.Rename(tmpFilePath, filePath)
-	if err == nil {
-		// Only commit if renaming succeeded.
-		// This flag is used by the defer() block above.
-		shouldCommit = true
-
-		var f2 *os.File
-		f2, err = os.Open(filePath)
-		if err == nil {
-			return f2, foundSize, nil
-		}
-	}
-
-	return nil, -1, err
+	return rc, foundSize, err
 }
 
 // Contains returns true if the `hash` key exists in the cache, and
@@ -593,33 +587,26 @@ func (c *Cache) Contains(kind cache.EntryKind, hash string, size int64) (bool, i
 		return true, 0
 	}
 
-	var found bool
 	foundSize := int64(-1)
 	key := cacheKey(kind, hash)
 
 	c.mu.Lock()
-	val, isInLru := c.lru.Get(key)
-	// Uncommitted (i.e. uploading items) should be reported as not ok
-	if isInLru {
+	val, exists := c.lru.Get(key)
+	if exists {
 		item := val.(*lruItem)
-		found = item.committed
 		foundSize = item.size
 	}
 	c.mu.Unlock()
 
-	if found {
-		if isSizeMismatch(size, foundSize) {
-			return false, -1
-		}
+	if exists && !isSizeMismatch(size, foundSize) {
 		return true, foundSize
 	}
 
 	if c.proxy != nil {
-		found, foundSize = c.proxy.Contains(kind, hash)
-		if isSizeMismatch(size, foundSize) {
-			return false, -1
+		exists, foundSize = c.proxy.Contains(kind, hash)
+		if exists && !isSizeMismatch(size, foundSize) {
+			return true, foundSize
 		}
-		return found, foundSize
 	}
 
 	return false, -1
@@ -633,11 +620,11 @@ func (c *Cache) MaxSize() int64 {
 
 // Stats returns the current size of the cache in bytes, and the number of
 // items stored in the cache.
-func (c *Cache) Stats() (currentSize int64, numItems int) {
+func (c *Cache) Stats() (totalSize int64, reservedSize int64, numItems int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	return c.lru.CurrentSize(), c.lru.Len()
+	return c.lru.TotalSize(), c.lru.ReservedSize(), c.lru.Len()
 }
 
 func isSizeMismatch(requestedSize int64, foundSize int64) bool {

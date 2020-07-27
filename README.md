@@ -38,6 +38,7 @@ Returns the cache status/info.
 $ curl http://localhost:8080/status
 {
  "CurrSize": 414081715503,
+ "ReservedSize": 876400,
  "MaxSize": 8589934592000,
  "NumFiles": 621413,
  "ServerTime": 1588329927,

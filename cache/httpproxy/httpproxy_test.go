@@ -228,7 +228,7 @@ func TestEverything(t *testing.T) {
 
 	diskCache = disk.New(cacheDir2, diskCacheSize, proxyCache)
 
-	_, numItems := diskCache.Stats()
+	_, _, numItems := diskCache.Stats()
 	if numItems != 0 {
 		t.Fatalf("Expected an empty disk cache, found %d items", numItems)
 	}

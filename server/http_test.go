@@ -154,13 +154,15 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 
 	data, hash := testutils.RandomDataAndHash(1024)
 
-	c := disk.New(cacheDir, 1024, nil)
+	numWorkers := 100
+
+	c := disk.New(cacheDir, int64(len(data)*numWorkers), nil)
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
 	handler := http.HandlerFunc(h.CacheHandler)
 
 	var wg sync.WaitGroup
-	wg.Add(100)
-	for i := 0; i < 100; i++ {
+	wg.Add(numWorkers)
+	for i := 0; i < numWorkers; i++ {
 		go func() {
 			defer wg.Done()
 

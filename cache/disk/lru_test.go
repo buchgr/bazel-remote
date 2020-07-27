@@ -2,6 +2,7 @@ package disk
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"testing"
 )
@@ -16,9 +17,9 @@ func (it *testSizedItem) Size() int64 {
 }
 
 func checkSizeAndNumItems(t *testing.T, lru SizedLRU, expSize int64, expNum int) {
-	currentSize := lru.CurrentSize()
+	currentSize := lru.TotalSize()
 	if currentSize != expSize {
-		t.Fatalf("CurrentSize: expected %d, got %d", expSize, currentSize)
+		t.Fatalf("TotalSize: expected %d, got %d", expSize, currentSize)
 	}
 
 	numItems := lru.Len()
@@ -119,4 +120,137 @@ func TestRejectBigItem(t *testing.T) {
 	}
 
 	checkSizeAndNumItems(t, lru, 0, 0)
+}
+
+func TestReserveSharesSpace(t *testing.T) {
+	largeItem := testSizedItem{math.MaxInt64, "pretend large item"}
+
+	lru := NewSizedLRU(math.MaxInt64, nil)
+	lru.Add("foo", &largeItem)
+	ok, err := lru.Reserve(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("Should always be able to reserve 0")
+	}
+}
+
+func TestReserveAtCapacity(t *testing.T) {
+	var ok bool
+	var err error
+
+	lru := NewSizedLRU(math.MaxInt64, nil)
+
+	ok, err = lru.Reserve(math.MaxInt64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("Should be able to reserve all the space")
+	}
+	if lru.TotalSize() != math.MaxInt64 {
+		t.Fatalf("Expected total size %d, actual size %d", math.MaxInt64,
+			lru.TotalSize())
+	}
+
+	ok, err = lru.Reserve(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("Should always be able to reserve 0")
+	}
+	if lru.TotalSize() != math.MaxInt64 {
+		t.Fatalf("Expected total size %d, actual size %d", math.MaxInt64,
+			lru.TotalSize())
+	}
+
+	ok, err = lru.Reserve(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("Should not be able to reserve any space")
+	}
+	if lru.TotalSize() != math.MaxInt64 {
+		t.Fatalf("Expected total size %d, actual size %d", math.MaxInt64,
+			lru.TotalSize())
+	}
+}
+
+func TestReserveOverflow(t *testing.T) {
+	var lru SizedLRU
+	var ok bool
+	var err error
+
+	lru = NewSizedLRU(1, nil)
+
+	ok, err = lru.Reserve(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatalf("Expected to be able to reserve 1")
+	}
+
+	ok, err = lru.Reserve(math.MaxInt64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("Expected overflow")
+	}
+
+	lru = NewSizedLRU(10, nil)
+	ok, err = lru.Reserve(math.MaxInt64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("Expected overflow")
+	}
+}
+
+func TestUnreserve(t *testing.T) {
+	var ok bool
+	var err error
+
+	cap := int64(10)
+	lru := NewSizedLRU(cap, nil)
+
+	for i := int64(1); i <= cap; i++ {
+		ok, err = lru.Reserve(1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !ok {
+			t.Fatal("Expected to be able to reserve 1")
+		}
+		if lru.TotalSize() != i {
+			t.Fatalf("Expected total size %d, actual size %d", i,
+				lru.TotalSize())
+		}
+	}
+
+	if lru.TotalSize() != cap {
+		t.Fatalf("Expected total size %d, actual size %d", cap,
+			lru.TotalSize())
+	}
+
+	for i := cap; i > 0; i-- {
+		err = lru.Unreserve(1)
+		if err != nil {
+			t.Fatal("Expected to be able to unreserve 1:", err)
+		}
+		if lru.TotalSize() != i-1 {
+			t.Fatalf("Expected total size %d, actual size %d", i-1,
+				lru.TotalSize())
+		}
+	}
+
+	if lru.TotalSize() != 0 {
+		t.Fatalf("Expected total size 0, actual size %d",
+			lru.TotalSize())
+	}
 }
