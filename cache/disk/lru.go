@@ -27,16 +27,20 @@ type SizedLRU interface {
 	Get(key Key) (value sizedItem, ok bool)
 	Remove(key Key)
 	Len() int
-	CurrentSize() int64
+	CurrentSize() int64 // Returns the current used + reserved size.
 	MaxSize() int64
+
+	Reserve(size int64) (ok bool)   // Reserve some amount of cache space.
+	Unreserve(size int64) (ok bool) // Release some amount of reserved cache space.
 }
 
 type sizedLRU struct {
 	// Eviction double-linked list. Most recently accessed elements are at the front.
 	ll *list.List
 	// Map to access the items in O(1) time
-	cache       map[interface{}]*list.Element
-	currentSize int64
+	cache        map[interface{}]*list.Element
+	currentSize  int64 // Includes reserved size.
+	reservedSize int64
 	// SizedLRU will evict items as needed to maintain the total size of the cache
 	// below maxSize.
 	maxSize int64
@@ -118,6 +122,44 @@ func (c *sizedLRU) CurrentSize() int64 {
 
 func (c *sizedLRU) MaxSize() int64 {
 	return c.maxSize
+}
+
+func (c *sizedLRU) Reserve(size int64) bool {
+	if size < 0 || size > c.maxSize || c.reservedSize+size > c.maxSize {
+		return false
+	}
+
+	// Evict elements until we are able to reserve enough space.
+	for c.currentSize+size > c.maxSize {
+		ele := c.ll.Back()
+		if ele != nil {
+			c.removeElement(ele)
+		} else {
+			return false // This should have been caught at the start.
+		}
+	}
+
+	c.currentSize += size
+	c.reservedSize += size
+	return true
+}
+
+func (c *sizedLRU) Unreserve(size int64) bool {
+	if size < 0 {
+		return false
+	}
+
+	newC := c.currentSize - size
+	newR := c.reservedSize - size
+
+	if newC < 0 || newR < 0 {
+		return false
+	}
+
+	c.currentSize = newC
+	c.reservedSize = newR
+
+	return true
 }
 
 func (c *sizedLRU) removeElement(e *list.Element) {
