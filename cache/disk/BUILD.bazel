@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cache:go_default_library",
+        "//utils/tempfile:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
         "@com_github_djherbis_atime//:go_default_library",
         "@com_github_golang_protobuf//proto:go_default_library",

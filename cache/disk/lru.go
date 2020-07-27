@@ -2,6 +2,8 @@ package disk
 
 import (
 	"container/list"
+	"errors"
+	"fmt"
 )
 
 type sizedItem interface {
@@ -27,23 +29,32 @@ type SizedLRU interface {
 	Get(key Key) (value sizedItem, ok bool)
 	Remove(key Key)
 	Len() int
-	CurrentSize() int64 // Returns the current used + reserved size.
+	TotalSize() int64
+	ReservedSize() int64
 	MaxSize() int64
 
-	Reserve(size int64) (ok bool)   // Reserve some amount of cache space.
-	Unreserve(size int64) (ok bool) // Release some amount of reserved cache space.
+	// Reserve some amount of cache space.
+	Reserve(size int64) (ok bool, err error)
+
+	// Release some amount of reserved cache space.
+	Unreserve(size int64) error
 }
 
 type sizedLRU struct {
 	// Eviction double-linked list. Most recently accessed elements are at the front.
 	ll *list.List
 	// Map to access the items in O(1) time
-	cache        map[interface{}]*list.Element
-	currentSize  int64 // Includes reserved size.
+	cache map[interface{}]*list.Element
+
+	// Includes reserved size.
+	currentSize int64
+
 	reservedSize int64
+
 	// SizedLRU will evict items as needed to maintain the total size of the cache
 	// below maxSize.
 	maxSize int64
+
 	onEvict EvictCallback
 }
 
@@ -116,50 +127,86 @@ func (c *sizedLRU) Len() int {
 	return len(c.cache)
 }
 
-func (c *sizedLRU) CurrentSize() int64 {
+func (c *sizedLRU) TotalSize() int64 {
 	return c.currentSize
+}
+
+func (c *sizedLRU) ReservedSize() int64 {
+	return c.reservedSize
 }
 
 func (c *sizedLRU) MaxSize() int64 {
 	return c.maxSize
 }
 
-func (c *sizedLRU) Reserve(size int64) bool {
-	if size < 0 || size > c.maxSize || c.reservedSize+size > c.maxSize {
-		return false
+// This assumes that a is positive, b is non-negative, and c is positive.
+func sumLargerThan(a, b, c int64) bool {
+	sum := a + b
+	if sum > c {
+		return true
+	}
+
+	if sum <= 0 {
+		// This indicates int64 overflow occurred.
+		return true
+	}
+
+	return false
+}
+
+var errReservation = errors.New("internal reservation error")
+
+func (c *sizedLRU) Reserve(size int64) (bool, error) {
+	if size == 0 {
+		return true, nil
+	}
+
+	if size < 0 || size > c.maxSize {
+		return false, nil
+	}
+
+	if sumLargerThan(size, c.reservedSize, c.maxSize) {
+		// If size + c.reservedSize is larger than c.maxSize
+		// then we cannot evict enough items to make enough
+		// space.
+		return false, nil
 	}
 
 	// Evict elements until we are able to reserve enough space.
-	for c.currentSize+size > c.maxSize {
+	for sumLargerThan(size, c.currentSize, c.maxSize) {
 		ele := c.ll.Back()
 		if ele != nil {
 			c.removeElement(ele)
 		} else {
-			return false // This should have been caught at the start.
+			return false, errReservation // This should have been caught at the start.
 		}
 	}
 
 	c.currentSize += size
 	c.reservedSize += size
-	return true
+	return true, nil
 }
 
-func (c *sizedLRU) Unreserve(size int64) bool {
+func (c *sizedLRU) Unreserve(size int64) error {
+	if size == 0 {
+		return nil
+	}
+
 	if size < 0 {
-		return false
+		return fmt.Errorf("INTERNAL ERROR: should not try to unreserve negative value: %d", size)
 	}
 
 	newC := c.currentSize - size
 	newR := c.reservedSize - size
 
 	if newC < 0 || newR < 0 {
-		return false
+		return fmt.Errorf("INTERNAL ERROR: failed to unreserve: %d", size)
 	}
 
 	c.currentSize = newC
 	c.reservedSize = newR
 
-	return true
+	return nil
 }
 
 func (c *sizedLRU) removeElement(e *list.Element) {

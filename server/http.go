@@ -37,11 +37,12 @@ type httpCache struct {
 }
 
 type statusPageData struct {
-	CurrSize   int64
-	MaxSize    int64
-	NumFiles   int
-	ServerTime int64
-	GitCommit  string
+	CurrSize     int64
+	ReservedSize int64
+	MaxSize      int64
+	NumFiles     int
+	ServerTime   int64
+	GitCommit    string
 }
 
 // NewHTTPCache returns a new instance of the cache.
@@ -50,7 +51,7 @@ type statusPageData struct {
 // be reported.
 func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, commit string) HTTPCache {
 
-	_, numItems := cache.Stats()
+	_, _, numItems := cache.Stats()
 
 	errorLogger.Printf("Loaded %d existing disk cache items.", numItems)
 
@@ -348,17 +349,18 @@ func addWorkerMetadataHTTP(addr string, ct string, orig []byte) (data []byte, co
 func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	currentSize, numItems := h.cache.Stats()
+	totalSize, reservedSize, numItems := h.cache.Stats()
 
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", " ")
 	enc.Encode(statusPageData{
-		MaxSize:    h.cache.MaxSize(),
-		CurrSize:   currentSize,
-		NumFiles:   numItems,
-		ServerTime: time.Now().Unix(),
-		GitCommit:  h.gitCommit,
+		MaxSize:      h.cache.MaxSize(),
+		CurrSize:     totalSize,
+		ReservedSize: reservedSize,
+		NumFiles:     numItems,
+		ServerTime:   time.Now().Unix(),
+		GitCommit:    h.gitCommit,
 	})
 }
 
