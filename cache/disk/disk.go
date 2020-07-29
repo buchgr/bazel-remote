@@ -669,16 +669,19 @@ func cacheFilePath(kind cache.EntryKind, cacheDir string, hash string) string {
 // an error.
 func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte, error) {
 
-	rdr, sizeBytes, err := c.Get(cache.AC, hash, -1)
+	rc, sizeBytes, err := c.Get(cache.AC, hash, -1)
+	if rc != nil {
+		defer rc.Close()
+	}
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if rdr == nil || sizeBytes <= 0 {
+	if rc == nil || sizeBytes <= 0 {
 		return nil, nil, nil // aka "not found"
 	}
 
-	acdata, err := ioutil.ReadAll(rdr)
+	acdata, err := ioutil.ReadAll(rc)
 	if err != nil {
 		return nil, nil, err
 	}
