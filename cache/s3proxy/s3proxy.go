@@ -22,7 +22,7 @@ type uploadReq struct {
 	hash string
 	size int64
 	kind cache.EntryKind
-	rdr  io.Reader
+	rc   io.ReadCloser
 }
 
 type s3Cache struct {
@@ -139,7 +139,7 @@ func (c *s3Cache) uploadFile(item uploadReq) {
 		context.Background(),
 		c.bucket,                          // bucketName
 		c.objectKey(item.hash, item.kind), // objectName
-		item.rdr,                          // reader
+		item.rc,                           // reader
 		item.size,                         // objectSize
 		"",                                // md5base64
 		uploadDigest,                      // sha256
@@ -151,18 +151,21 @@ func (c *s3Cache) uploadFile(item uploadReq) {
 	)
 
 	logResponse(c.accessLogger, "UPLOAD", c.bucket, c.objectKey(item.hash, item.kind), err)
+
+	item.rc.Close()
 }
 
-func (c *s3Cache) Put(kind cache.EntryKind, hash string, size int64, rdr io.Reader) {
+func (c *s3Cache) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
 	select {
 	case c.uploadQueue <- uploadReq{
 		hash: hash,
 		size: size,
 		kind: kind,
-		rdr:  rdr,
+		rc:   rc,
 	}:
 	default:
 		c.errorLogger.Printf("too many uploads queued\n")
+		rc.Close()
 	}
 }
 
