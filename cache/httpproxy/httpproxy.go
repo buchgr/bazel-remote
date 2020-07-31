@@ -24,7 +24,7 @@ type uploadReq struct {
 	hash string
 	size int64
 	kind cache.EntryKind
-	rdr  io.Reader
+	rc   io.ReadCloser
 }
 
 type remoteHTTPProxyCache struct {
@@ -50,8 +50,9 @@ func uploadFile(remote *http.Client, baseURL *url.URL, accessLogger cache.Logger
 	errorLogger cache.Logger, item uploadReq) {
 
 	if item.size == 0 {
+		item.rc.Close()
 		// See https://github.com/golang/go/issues/20257#issuecomment-299509391
-		item.rdr = http.NoBody
+		item.rc = http.NoBody
 	}
 
 	url := requestURL(baseURL, item.hash, item.kind)
@@ -62,8 +63,12 @@ func uploadFile(remote *http.Client, baseURL *url.URL, accessLogger cache.Logger
 		return
 	}
 
-	req, err := http.NewRequest(http.MethodPut, url, item.rdr)
+	req, err := http.NewRequest(http.MethodPut, url, item.rc)
 	if err != nil {
+		// item.rc will be closed if we call req.Do(), but not if we
+		// return earlier.
+		item.rc.Close()
+
 		return
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
@@ -109,16 +114,17 @@ func logResponse(logger cache.Logger, method string, code int, url string) {
 	logger.Printf("HTTP %s %d %s", method, code, url)
 }
 
-func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64, rdr io.Reader) {
+func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
 	select {
 	case r.uploadQueue <- uploadReq{
 		hash: hash,
 		size: size,
 		kind: kind,
-		rdr:  rdr,
+		rc:   rc,
 	}:
 	default:
 		r.errorLogger.Printf("too many uploads queued")
+		rc.Close()
 	}
 }
 

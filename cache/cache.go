@@ -52,7 +52,7 @@ func (e *Error) Error() string {
 type Proxy interface {
 	// Put should make a reasonable effort to proxy this data to the backend.
 	// This is allowed to fail silently (eg when under heavy load).
-	Put(kind EntryKind, hash string, size int64, rdr io.Reader)
+	Put(kind EntryKind, hash string, size int64, rdr io.ReadCloser)
 
 	// Get should return the cache item identified by `hash`, or an error
 	// if something went wrong. If the item was not found, the io.ReadCloser

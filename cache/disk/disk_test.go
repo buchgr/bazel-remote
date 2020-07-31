@@ -94,7 +94,8 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Add an item
-	err = testCache.Put(cache.CAS, contentsHash, int64(len(contents)), strings.NewReader(contents))
+	err = testCache.Put(cache.CAS, contentsHash, int64(len(contents)),
+		ioutil.NopCloser(strings.NewReader(contents)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +148,8 @@ func TestCacheEviction(t *testing.T) {
 				sha256.Size*2, len(key), key)
 		}
 
-		err := testCache.Put(cache.AC, key, int64(i), strReader)
+		err := testCache.Put(cache.AC, key, int64(i),
+			ioutil.NopCloser(strReader))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -261,7 +263,7 @@ func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
 // digest {contentsHash, contentsLength}.
 type proxyStub struct{}
 
-func (d proxyStub) Put(kind cache.EntryKind, hash string, size int64, rdr io.Reader) {}
+func (d proxyStub) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {}
 
 func (d proxyStub) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 	if hash != contentsHash {
