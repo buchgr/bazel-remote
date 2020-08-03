@@ -51,7 +51,7 @@ type Cache struct {
 	dir   string
 	proxy cache.Proxy
 
-	mu  *sync.Mutex
+	mu  sync.Mutex
 	lru SizedLRU
 }
 
@@ -150,7 +150,6 @@ func New(dir string, maxSizeBytes int64, proxy cache.Proxy) *Cache {
 	c := &Cache{
 		dir:   filepath.Clean(dir),
 		proxy: proxy,
-		mu:    &sync.Mutex{},
 		lru:   NewSizedLRU(maxSizeBytes, onEvict),
 	}
 
