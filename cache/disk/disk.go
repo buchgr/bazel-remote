@@ -436,11 +436,11 @@ func (c *Cache) availableOrTryProxy(key string) (available bool, tryProxy bool) 
 	return available, tryProxy
 }
 
-// Get returns an io.ReadCloser with the content of the cache item stored under `hash`
-// and the number of bytes that can be read from it. If the item is not found, the
-// io.ReadCloser will be nil. If some error occurred when processing the request, then
-// it is returned. The 'size' of the content to be retreived shall be provided when
-// known, or as -1 when unknown.
+// Get returns an io.ReadCloser with the content of the cache item stored
+// under `hash` and the number of bytes that can be read from it. If the
+// item is not found, the io.ReadCloser will be nil. If some error occurred
+// when processing the request, then it is returned. Callers should provide
+// the `size` of the item to be retrieved, or -1 if unknown.
 func (c *Cache) Get(kind cache.EntryKind, hash string, size int64) (io.ReadCloser, int64, error) {
 
 	// The hash format is checked properly in the http/grpc code.
@@ -580,8 +580,7 @@ func (c *Cache) Get(kind cache.EntryKind, hash string, size int64) (io.ReadClose
 // If there is a local cache miss, the proxy backend (if there is
 // one) will be checked.
 //
-// The 'size' of the potential content, shall be provided when known,
-// or as -1 when unknown.
+// Callers should provide the `size` of the item, or -1 if unknown.
 func (c *Cache) Contains(kind cache.EntryKind, hash string, size int64) (bool, int64) {
 
 	// The hash format is checked properly in the http/grpc code.
