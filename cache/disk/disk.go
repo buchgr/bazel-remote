@@ -586,7 +586,7 @@ func (c *Cache) Contains(kind cache.EntryKind, hash string, size int64) (bool, i
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
 	if len(hash) != sha256HashStrSize {
-		return false, int64(-1)
+		return false, -1
 	}
 
 	if kind == cache.CAS && size <= 0 && hash == emptySha256 {
@@ -609,7 +609,7 @@ func (c *Cache) Contains(kind cache.EntryKind, hash string, size int64) (bool, i
 
 	if found {
 		if isSizeMismatch(size, foundSize) {
-			return false, int64(-1)
+			return false, -1
 		}
 		return true, foundSize
 	}
@@ -617,12 +617,12 @@ func (c *Cache) Contains(kind cache.EntryKind, hash string, size int64) (bool, i
 	if c.proxy != nil {
 		found, foundSize = c.proxy.Contains(kind, hash)
 		if isSizeMismatch(size, foundSize) {
-			return false, int64(-1)
+			return false, -1
 		}
 		return found, foundSize
 	}
 
-	return false, int64(-1)
+	return false, -1
 }
 
 // MaxSize returns the maximum cache size in bytes.
