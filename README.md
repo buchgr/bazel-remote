@@ -235,8 +235,9 @@ the maximum size in Gibibytes.
 ### Kubernetes note 
 
 Don't name your deployment `bazel-remote`!
-Kubernetes sets some env vars based on this name and they are overwritting env vars that `bazel-remote` is using.
-See [#257](https://github.com/buchgr/bazel-remote/issues/257) for details.
+
+Kubernetes sets some environment variables based on this name,
+which conflict with the `BAZEL_REMOTE_*` environment variables that bazel-remote tries to parse.
 
 ### Build your own
 
