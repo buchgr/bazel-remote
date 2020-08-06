@@ -232,6 +232,14 @@ If you want the docker container to run in the background pass the `-d` flag rig
 You can adjust the maximum cache size by appending `--max_size=N`, where N is
 the maximum size in Gibibytes.
 
+### Kubernetes note 
+
+Don't name your deployment `bazel-remote`!
+
+Kubernetes sets some environment variables based on this name, which conflict
+with the `BAZEL_REMOTE_*` environment variables that bazel-remote tries to
+parse.
+
 ### Build your own
 
 The command below will build a docker image from source and install it into your local docker registry.
