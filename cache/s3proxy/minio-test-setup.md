@@ -28,7 +28,7 @@ production use.
     	--s3.prefix files \
     	--s3.access_key_id minioadmin \
     	--s3.secret_access_key minioadmin \
-    	--s3.disable_ssl true
+    	--s3.disable_ssl
 
 ## Build something with the bazel-remote cache
 
