@@ -208,8 +208,8 @@ func TestUploadCorruptedFile(t *testing.T) {
 
 	if status := rr.Code; status != http.StatusInternalServerError {
 		t.Error("Handler returned wrong status code",
-			"expected ", http.StatusInternalServerError,
-			"got ", status)
+			"expected", http.StatusInternalServerError,
+			"got", status)
 	}
 
 	// Check that no file was saved in the cache
@@ -224,7 +224,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 	}
 	for _, fileEntry := range entries {
 		if !fileEntry.IsDir() {
-			t.Error("Unexpected file in the cache ", fileEntry.Name())
+			t.Error("Unexpected file in the cache", fileEntry.Name())
 		}
 	}
 }
@@ -249,8 +249,8 @@ func TestUploadEmptyActionResult(t *testing.T) {
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Fatal("Handler returned wrong status code",
-			"expected ", http.StatusOK,
-			"got ", status)
+			"expected", http.StatusOK,
+			"got", status)
 	}
 
 	cacheFile := filepath.Join(cacheDir, "ac", hash[:2], hash)
@@ -304,9 +304,9 @@ func testEmptyBlobAvailable(t *testing.T, method string) {
 	handler.ServeHTTP(rr, r)
 
 	if status := rr.Code; status != http.StatusOK {
-		t.Fatal("Handler returned wrong status code",
-			"expected ", http.StatusOK,
-			"got ", status)
+		t.Fatal("Handler returned wrong status code for",
+			"expected", http.StatusOK,
+			"got", status)
 	}
 }
 
@@ -327,8 +327,8 @@ func TestStatusPage(t *testing.T) {
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Error("StatusPageHandler returned wrong status code",
-			"expected ", http.StatusOK,
-			"got ", status)
+			"expected", http.StatusOK,
+			"got", status)
 	}
 
 	var data statusPageData
@@ -339,8 +339,8 @@ func TestStatusPage(t *testing.T) {
 
 	if numFiles := data.NumFiles; numFiles != 0 {
 		t.Error("StatusPageHandler returned wrong number of files",
-			"expected ", 0,
-			"got ", numFiles)
+			"expected", 0,
+			"got", numFiles)
 	}
 }
 

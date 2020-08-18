@@ -463,7 +463,7 @@ func main() {
 
 	serverErr := app.Run(os.Args)
 	if serverErr != nil {
-		log.Fatal("bazel-remote terminated: ", serverErr)
+		log.Fatal("bazel-remote terminated:", serverErr)
 	}
 }
 
