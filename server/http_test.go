@@ -304,7 +304,8 @@ func testEmptyBlobAvailable(t *testing.T, method string) {
 	handler.ServeHTTP(rr, r)
 
 	if status := rr.Code; status != http.StatusOK {
-		t.Fatal("Handler returned wrong status code for",
+		t.Fatal("Handler returned wrong status code for method",
+			method,
 			"expected", http.StatusOK,
 			"got", status)
 	}
