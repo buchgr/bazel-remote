@@ -2,6 +2,7 @@ package cache
 
 import (
 	"io"
+	"path/filepath"
 )
 
 // EntryKind describes the kind of cache entry
@@ -63,4 +64,9 @@ type Proxy interface {
 	// remote end, and the size if it exists (and -1 if the size is
 	// unknown).
 	Contains(kind EntryKind, hash string) (bool, int64)
+}
+
+// Key returns the proper cache key for an entry kind and hash
+func Key(kind EntryKind, hash string) string {
+	return filepath.Join(kind.String(), hash[:2], hash)
 }

@@ -114,9 +114,10 @@ func New(s3Config *config.S3CloudStorageConfig, accessLogger cache.Logger,
 
 func (c *s3Cache) objectKey(hash string, kind cache.EntryKind) string {
 	if c.prefix == "" {
-		return fmt.Sprintf("%s/%s", kind, hash)
+		return cache.Key(kind, hash)
 	}
-	return fmt.Sprintf("%s/%s/%s", c.prefix, kind, hash)
+
+	return fmt.Sprintf("%s/%s", c.prefix, cache.Key(kind, hash))
 }
 
 // Helper function for logging responses
