@@ -20,6 +20,7 @@ type S3CloudStorageConfig struct {
 	DisableSSL      bool   `yaml:"disable_ssl"`
 	IAMRoleEndpoint string `yaml:"iam_role_endpoint"`
 	Region          string `yaml:"region"`
+	KeyVersion      int    `yaml:"key_version"`
 }
 
 // GoogleCloudStorageConfig stores the configuration of a GCS proxy backend.
@@ -183,6 +184,10 @@ func validateConfig(c *Config) error {
 	if c.S3CloudStorage != nil {
 		if c.S3CloudStorage.AccessKeyID != "" && c.S3CloudStorage.IAMRoleEndpoint != "" {
 			return errors.New("Expected either 's3.access_key_id' or 's3.iam_role_endpoint', found both")
+		}
+
+		if c.S3CloudStorage.KeyVersion < 1 || c.S3CloudStorage.KeyVersion > 2 {
+			return fmt.Errorf("s3.key_version must be either 1 or 2, found %d", c.S3CloudStorage.KeyVersion)
 		}
 	}
 

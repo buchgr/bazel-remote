@@ -137,6 +137,7 @@ GLOBAL OPTIONS:
    --s3.disable_ssl                   Whether to disable TLS/SSL when using the S3 cache backend. (default: false, ie enable TLS/SSL) [$BAZEL_REMOTE_S3_DISABLE_SSL]
    --s3.iam_role_endpoint value       Endpoint for using IAM security credentials. By default it will look for credentials in the standard locations for the AWS platform. [$BAZEL_REMOTE_S3_IAM_ROLE_ENDPOINT]
    --s3.region value                  The AWS region. Required when not specifying S3/minio access keys. [$BAZEL_REMOTE_S3_REGION]
+   --s3.key_version value             Set to 1 for the legacy flat key format, or 2 for the newer format that reduces the impact of S3 rate limits. (default: 1) [$BAZEL_REMOTE_S3_KEY_VERSION]
    --disable_http_ac_validation       Whether to disable ActionResult validation for HTTP requests. (default: false, ie enable validation) [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
    --disable_grpc_ac_deps_check       Whether to disable ActionResult dependency checks for gRPC GetActionResult requests. (default: false, ie enable ActionCache dependency checks) [$BAZEL_REMOTE_DISABLE_GRPS_AC_DEPS_CHECK]
    --enable_ac_key_instance_mangling  Whether to enable mangling ActionCache keys with non-empty instance names. (default: false, ie disable mangling) [$BAZEL_REMOTE_ENABLE_AC_KEY_INSTANCE_MANGLING]
@@ -205,6 +206,7 @@ host: localhost
 #  access_key_id: EXAMPLE_ACCESS_KEY
 #  secret_access_key: EXAMPLE_SECRET_KEY
 #  disable_ssl: true
+#  key_version: 2
 #
 # Provide either access_key_id/secret_access_key, or iam_role_endpoint/region.
 # iam_role_endpoint can also be left empty, and figured out automatically.
@@ -246,7 +248,7 @@ If you want the docker container to run in the background pass the `-d` flag rig
 You can adjust the maximum cache size by appending `--max_size=N`, where N is
 the maximum size in Gibibytes.
 
-### Kubernetes note 
+### Kubernetes note
 
 Don't name your deployment `bazel-remote`!
 
@@ -323,3 +325,10 @@ To avoid leaking your password in log files, you can place this flag in a
 For more details, see Bazel's [remote
 caching](https://docs.bazel.build/versions/master/remote-caching.html#run-bazel-using-the-remote-cache)
 documentation.
+
+## AWS S3 note
+
+To avoid per-prefix rate limiting with Amazon S3, you may want to try using
+`--s3.key_format=2`, which stores blobs across a larger number of prefixes.
+Reference:
+[Optimizing Amazon S3 Performance](https://docs.aws.amazon.com/AmazonS3/latest/dev/optimizing-performance.html).

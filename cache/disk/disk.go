@@ -247,7 +247,7 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 		return nil
 	}
 
-	key := cacheKey(kind, hash)
+	key := cache.Key(kind, hash)
 
 	var tf *os.File // Tempfile.
 
@@ -486,7 +486,7 @@ func (c *Cache) Get(kind cache.EntryKind, hash string, size int64) (rc io.ReadCl
 	}
 
 	var err error
-	key := cacheKey(kind, hash)
+	key := cache.Key(kind, hash)
 
 	var tf *os.File // Tempfile we will write to.
 
@@ -588,7 +588,7 @@ func (c *Cache) Contains(kind cache.EntryKind, hash string, size int64) (bool, i
 	}
 
 	foundSize := int64(-1)
-	key := cacheKey(kind, hash)
+	key := cache.Key(kind, hash)
 
 	c.mu.Lock()
 	val, exists := c.lru.Get(key)
@@ -640,12 +640,8 @@ func ensureDirExists(path string) {
 	}
 }
 
-func cacheKey(kind cache.EntryKind, hash string) string {
-	return filepath.Join(kind.String(), hash[:2], hash)
-}
-
 func cacheFilePath(kind cache.EntryKind, cacheDir string, hash string) string {
-	return filepath.Join(cacheDir, cacheKey(kind, hash))
+	return filepath.Join(cacheDir, cache.Key(kind, hash))
 }
 
 // GetValidatedActionResult returns a valid ActionResult and its serialized

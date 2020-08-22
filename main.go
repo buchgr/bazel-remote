@@ -206,6 +206,13 @@ func main() {
 			Usage:   "The AWS region. Required when not specifying S3/minio access keys.",
 			EnvVars: []string{"BAZEL_REMOTE_S3_REGION"},
 		},
+		&cli.IntFlag{
+			Name:        "s3.key_version",
+			Usage:       "Set to 1 for the legacy flat key format, or 2 for the newer format that reduces the impact of S3 rate limits.",
+			Value:       1,
+			DefaultText: "1",
+			EnvVars:     []string{"BAZEL_REMOTE_S3_KEY_VERSION"},
+		},
 		&cli.BoolFlag{
 			Name:        "disable_http_ac_validation",
 			Usage:       "Whether to disable ActionResult validation for HTTP requests.",
@@ -256,6 +263,7 @@ func main() {
 					DisableSSL:      ctx.Bool("s3.disable_ssl"),
 					IAMRoleEndpoint: ctx.String("s3.iam_role_endpoint"),
 					Region:          ctx.String("s3.region"),
+					KeyVersion:      ctx.Int("s3.key_version"),
 				}
 			}
 			c, err = config.New(
