@@ -61,6 +61,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 			return nil, status.Error(codes.NotFound,
 				fmt.Sprintf("%s not found in AC", req.ActionDigest.Hash))
 		}
+		defer rdr.Close()
 
 		acdata, err := ioutil.ReadAll(rdr)
 		if err != nil {

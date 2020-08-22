@@ -105,6 +105,7 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 		s.accessLogger.Printf(msg)
 		return status.Error(codes.NotFound, msg)
 	}
+	defer rdr.Close()
 
 	if sizeBytes != size {
 		msg := fmt.Sprintf("Retrieved item had size %d expected %d",
