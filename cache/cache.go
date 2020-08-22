@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"path/filepath"
 )
 
 // EntryKind describes the kind of cache entry
@@ -84,4 +85,9 @@ func TransformActionCacheKey(key, instance string, logger Logger) string {
 	logger.Printf("REMAP AC HASH %s : %s => %s", key, instance, newKey)
 
 	return newKey
+}
+
+// Key returns the proper cache key for an entry kind and hash.
+func Key(kind EntryKind, hash string) string {
+	return filepath.Join(kind.String(), hash[:2], hash)
 }

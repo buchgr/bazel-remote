@@ -29,6 +29,7 @@ type s3Cache struct {
 	mcore        *minio.Core
 	prefix       string
 	bucket       string
+	keyVersion   int
 	uploadQueue  chan<- uploadReq
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
@@ -96,6 +97,7 @@ func New(s3Config *config.S3CloudStorageConfig, accessLogger cache.Logger,
 		mcore:        minioCore,
 		prefix:       s3Config.Prefix,
 		bucket:       s3Config.Bucket,
+		keyVersion:   s3Config.KeyVersion,
 		uploadQueue:  uploadQueue,
 		accessLogger: accessLogger,
 		errorLogger:  errorLogger,
@@ -113,10 +115,16 @@ func New(s3Config *config.S3CloudStorageConfig, accessLogger cache.Logger,
 }
 
 func (c *s3Cache) objectKey(hash string, kind cache.EntryKind) string {
-	if c.prefix == "" {
-		return fmt.Sprintf("%s/%s", kind, hash)
+	baseKey := fmt.Sprintf("%s/%s", kind, hash)
+	if c.keyVersion == 2 {
+		baseKey = cache.Key(kind, hash)
 	}
-	return fmt.Sprintf("%s/%s/%s", c.prefix, kind, hash)
+
+	if c.prefix == "" {
+		return baseKey
+	}
+
+	return fmt.Sprintf("%s/%s", c.prefix, baseKey)
 }
 
 // Helper function for logging responses
