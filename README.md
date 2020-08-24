@@ -14,6 +14,7 @@ commodity hardware and AWS servers. Outgoing bandwidth can exceed 15 Gbit/s on t
 ## HTTP/1.1 REST API
 
 Cache entries are set and retrieved by key, and there are two types of keys that can be used:
+
 1. Content addressed storage (CAS), where the key is the lowercase SHA256 hash of the stored value.
    The REST API for these entries is: `/cas/<key>` or with an optional but ignored cache pool name: `/<pool>/cas/<key>`.
 2. Action cache, where the key is an arbitrary 64 character lowercase hexadecimal string.
@@ -34,6 +35,7 @@ for GET requests and `Content-type: application/json` for PUT requests.
 **/status**
 
 Returns the cache status/info.
+
 ```
 $ curl http://localhost:8080/status
 {
@@ -49,6 +51,7 @@ $ curl http://localhost:8080/status
 
 The empty CAS blob is always available, even if the cache is empty. This can be used to test that
 a bazel-remote instance is running and accepting requests.
+
 ```
 $ curl --head --fail http://localhost:8080/cas/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 HTTP/1.1 200 OK
@@ -124,7 +127,7 @@ GLOBAL OPTIONS:
    --s3.disable_ssl                 Whether to disable TLS/SSL when using the S3 cache backend. (default: false, ie enable TLS/SSL) [$BAZEL_REMOTE_S3_DISABLE_SSL]
    --s3.iam_role_endpoint value     Endpoint for using IAM security credentials. By default it will look for credentials in the standard locations for the AWS platform. [$BAZEL_REMOTE_S3_IAM_ROLE_ENDPOINT]
    --s3.region value                The AWS region. Required when not specifying S3/minio access keys. [$BAZEL_REMOTE_S3_REGION]
-   --s3.new_key_format              Whether to enable the nested key format to enable higher s3 throughput. (default: false, ie use the legacy flat key format) [$BAZEL_NEW_KEY_FORMAT]
+   --s3.new_key_format              Whether to enable the nested key format to enable higher s3 throughput. (default: false, ie use the legacy flat key format) [$BAZEL_REMOTE_S3_NEW_KEY_FORMAT]
    --disable_http_ac_validation     Whether to disable ActionResult validation for HTTP requests. (default: false, ie enable validation) [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
    --disable_grpc_ac_deps_check     Whether to disable ActionResult dependency checks for gRPC GetActionResult requests. (default: false, ie enable ActionCache dependency checks) [$BAZEL_REMOTE_DISABLE_GRPS_AC_DEPS_CHECK]
    --enable_endpoint_metrics        Whether to enable metrics for each HTTP/gRPC endpoint. (default: false, ie disable metrics) [$BAZEL_REMOTE_ENABLE_ENDPOINT_METRICS]
@@ -192,6 +195,7 @@ host: localhost
 #  access_key_id: EXAMPLE_ACCESS_KEY
 #  secret_access_key: EXAMPLE_SECRET_KEY
 #  disable_ssl: true
+#  new_key_format: false
 #
 # Provide either access_key_id/secret_access_key, or iam_role_endpoint/region.
 # iam_role_endpoint can also be left empty, and figured out automatically.
@@ -233,7 +237,7 @@ If you want the docker container to run in the background pass the `-d` flag rig
 You can adjust the maximum cache size by appending `--max_size=N`, where N is
 the maximum size in Gibibytes.
 
-### Kubernetes note 
+### Kubernetes note
 
 Don't name your deployment `bazel-remote`!
 
@@ -310,3 +314,7 @@ To avoid leaking your password in log files, you can place this flag in a
 For more details, see Bazel's [remote
 caching](https://docs.bazel.build/versions/master/remote-caching.html#run-bazel-using-the-remote-cache)
 documentation.
+
+## AWS S3 Notes
+
+If you are experiencing rate limiting issues using S3 as your artifact storage, you may want to enable the new key format using the `s3.new_key_format` flag, which enables additional prefix paths on object keys allowing additional throughput. You can read more about s3 rate limiting [here](https://docs.aws.amazon.com/AmazonS3/latest/dev/optimizing-performance.html).
