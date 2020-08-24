@@ -124,6 +124,7 @@ GLOBAL OPTIONS:
    --s3.disable_ssl                 Whether to disable TLS/SSL when using the S3 cache backend. (default: false, ie enable TLS/SSL) [$BAZEL_REMOTE_S3_DISABLE_SSL]
    --s3.iam_role_endpoint value     Endpoint for using IAM security credentials. By default it will look for credentials in the standard locations for the AWS platform. [$BAZEL_REMOTE_S3_IAM_ROLE_ENDPOINT]
    --s3.region value                The AWS region. Required when not specifying S3/minio access keys. [$BAZEL_REMOTE_S3_REGION]
+   --s3.new_key_format              Whether to enable the nested key format to enable higher s3 throughput. (default: false, ie use the legacy flat key format) [$BAZEL_NEW_KEY_FORMAT]
    --disable_http_ac_validation     Whether to disable ActionResult validation for HTTP requests. (default: false, ie enable validation) [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
    --disable_grpc_ac_deps_check     Whether to disable ActionResult dependency checks for gRPC GetActionResult requests. (default: false, ie enable ActionCache dependency checks) [$BAZEL_REMOTE_DISABLE_GRPS_AC_DEPS_CHECK]
    --enable_endpoint_metrics        Whether to enable metrics for each HTTP/gRPC endpoint. (default: false, ie disable metrics) [$BAZEL_REMOTE_ENABLE_ENDPOINT_METRICS]

@@ -207,6 +207,12 @@ func main() {
 			EnvVars: []string{"BAZEL_REMOTE_S3_REGION"},
 		},
 		&cli.BoolFlag{
+			Name:        "s3.new_key_format",
+			Usage:       "Whether to enable the nested key format to enable higher s3 throughput.",
+			DefaultText: "false, ie use the legacy flat key format",
+			EnvVars:     []string{"BAZEL_REMOTE_S3_NEW_KEY_FORMAT"},
+		},
+		&cli.BoolFlag{
 			Name:        "disable_http_ac_validation",
 			Usage:       "Whether to disable ActionResult validation for HTTP requests.",
 			DefaultText: "false, ie enable validation",
@@ -250,6 +256,7 @@ func main() {
 					DisableSSL:      ctx.Bool("s3.disable_ssl"),
 					IAMRoleEndpoint: ctx.String("s3.iam_role_endpoint"),
 					Region:          ctx.String("s3.region"),
+					NewKeyFormat:    ctx.Bool("s3.new_key_format"),
 				}
 			}
 			c, err = config.New(

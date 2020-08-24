@@ -20,6 +20,7 @@ type S3CloudStorageConfig struct {
 	DisableSSL      bool   `yaml:"disable_ssl"`
 	IAMRoleEndpoint string `yaml:"iam_role_endpoint"`
 	Region          string `yaml:"region"`
+	NewKeyFormat    bool   `yaml:"new_key_format"`
 }
 
 // GoogleCloudStorageConfig stores the configuration of a GCS proxy backend.
