@@ -66,7 +66,7 @@ type Proxy interface {
 	Contains(kind EntryKind, hash string) (bool, int64)
 }
 
-// Key returns the proper cache key for an entry kind and hash
+// Key returns the proper cache key for an entry kind and hash.
 func Key(kind EntryKind, hash string) string {
 	return filepath.Join(kind.String(), hash[:2], hash)
 }
