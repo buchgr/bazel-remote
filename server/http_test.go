@@ -36,7 +36,7 @@ func TestDownloadFile(t *testing.T) {
 	}
 
 	c := disk.New(cacheDir, blobSize, nil)
-	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, false, "")
 
 	req, err := http.NewRequest("GET", "/cas/"+hash, bytes.NewReader([]byte{}))
 	if err != nil {
@@ -99,7 +99,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 	}
 
 	c := disk.New(cacheDir, 1000*1024, nil)
-	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, false, "")
 	handler := http.HandlerFunc(h.CacheHandler)
 
 	var wg sync.WaitGroup
@@ -157,7 +157,7 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 	numWorkers := 100
 
 	c := disk.New(cacheDir, int64(len(data)*numWorkers), nil)
-	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, false, "")
 	handler := http.HandlerFunc(h.CacheHandler)
 
 	var wg sync.WaitGroup
@@ -203,7 +203,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 	}
 
 	c := disk.New(cacheDir, 2048, nil)
-	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, false, "")
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.CacheHandler)
 	handler.ServeHTTP(rr, r)
@@ -244,7 +244,8 @@ func TestUploadEmptyActionResult(t *testing.T) {
 
 	c := disk.New(cacheDir, 2048, nil)
 	validate := true
-	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), validate, "")
+	mangle := false
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), validate, mangle, "")
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.CacheHandler)
 	handler.ServeHTTP(rr, r)
@@ -300,7 +301,8 @@ func testEmptyBlobAvailable(t *testing.T, method string) {
 
 	c := disk.New(cacheDir, 2048, nil)
 	validate := true
-	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), validate, "")
+	mangle := false
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), validate, mangle, "")
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.CacheHandler)
 	handler.ServeHTTP(rr, r)
@@ -323,7 +325,7 @@ func TestStatusPage(t *testing.T) {
 	}
 
 	c := disk.New(cacheDir, 2048, nil)
-	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, false, "")
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.StatusPageHandler)
 	handler.ServeHTTP(rr, r)
@@ -349,7 +351,7 @@ func TestStatusPage(t *testing.T) {
 
 func TestParseRequestURL(t *testing.T) {
 	{
-		_, _, err := parseRequestURL("invalid/url", true)
+		_, _, _, err := parseRequestURL("invalid/url", true)
 		if err == nil {
 			t.Error("Failed to reject an invalid URL")
 		}
@@ -358,7 +360,7 @@ func TestParseRequestURL(t *testing.T) {
 	const aSha256sum = "fec3be77b8aa0d307ed840581ded3d114c86f36d4914c81e33a72877020c0603"
 
 	{
-		kind, hash, err := parseRequestURL("cas/"+aSha256sum, true)
+		kind, hash, instance, err := parseRequestURL("cas/"+aSha256sum, true)
 		if err != nil {
 			t.Error("Failed to parse a valid CAS URL")
 		}
@@ -368,10 +370,13 @@ func TestParseRequestURL(t *testing.T) {
 		if kind != cache.CAS {
 			t.Errorf("Expected kind CAS but got %s", kind)
 		}
+		if instance != "" {
+			t.Errorf("Expected empty instance, got %s", instance)
+		}
 	}
 
 	{
-		kind, hash, err := parseRequestURL("ac/"+aSha256sum, true)
+		kind, hash, instance, err := parseRequestURL("ac/"+aSha256sum, true)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL")
 		}
@@ -381,10 +386,13 @@ func TestParseRequestURL(t *testing.T) {
 		if kind != cache.AC {
 			t.Errorf("Expected kind AC but got %s", kind)
 		}
+		if instance != "" {
+			t.Errorf("Expected empty instance, got %s", instance)
+		}
 	}
 
 	{
-		kind, hash, err := parseRequestURL("prefix/ac/"+aSha256sum, true)
+		kind, hash, instance, err := parseRequestURL("prefix/ac/"+aSha256sum, true)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL with prefix")
 		}
@@ -394,10 +402,13 @@ func TestParseRequestURL(t *testing.T) {
 		if kind != cache.AC {
 			t.Errorf("Expected kind AC but got %s", kind)
 		}
+		if instance != "prefix" {
+			t.Errorf("Expected instance \"prefix\", got %s", instance)
+		}
 	}
 
 	{
-		kind, hash, err := parseRequestURL("prefix/ac/"+aSha256sum, false)
+		kind, hash, instance, err := parseRequestURL("prefix/ac/"+aSha256sum, false)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL with prefix")
 		}
@@ -406,6 +417,25 @@ func TestParseRequestURL(t *testing.T) {
 		}
 		if kind != cache.RAW {
 			t.Errorf("Expected kind RAW but got %s", kind)
+		}
+		if instance != "prefix" {
+			t.Errorf("Expected instance \"prefix\", got %s", instance)
+		}
+	}
+
+	{
+		kind, hash, instance, err := parseRequestURL("prefix/with/slashes/ac/"+aSha256sum, false)
+		if err != nil {
+			t.Error("Failed to parse a valid AC URL with prefix containing slashes")
+		}
+		if hash != aSha256sum {
+			t.Error("Cache key parsed incorrectly")
+		}
+		if kind != cache.RAW {
+			t.Errorf("Expected kind RAW but got %s", kind)
+		}
+		if instance != "prefix/with/slashes" {
+			t.Errorf("Expected instance \"prefix/with/slashes\", got %s", instance)
 		}
 	}
 }
@@ -436,7 +466,7 @@ func TestRemoteReturnsNotFound(t *testing.T) {
 	defer os.RemoveAll(cacheDir)
 	emptyCache := disk.New(cacheDir, 1024, nil)
 
-	h := NewHTTPCache(emptyCache, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, "")
+	h := NewHTTPCache(emptyCache, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, false, "")
 	// create a fake http.Request
 	_, hash := testutils.RandomDataAndHash(1024)
 	url, _ := url.Parse(fmt.Sprintf("http://localhost:8080/ac/%s", hash))

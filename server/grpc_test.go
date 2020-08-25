@@ -77,6 +77,7 @@ func TestMain(m *testing.M) {
 	listener = bufconn.Listen(bufSize)
 
 	validateAC := true
+	mangleACKeys := false
 	enableRemoteAssetAPI := true
 
 	go func() {
@@ -84,6 +85,7 @@ func TestMain(m *testing.M) {
 			listener,
 			[]grpc.ServerOption{},
 			validateAC,
+			mangleACKeys,
 			enableRemoteAssetAPI,
 			diskCache, accessLogger, errorLogger)
 		if err2 != nil {

@@ -219,6 +219,12 @@ func main() {
 			EnvVars:     []string{"BAZEL_REMOTE_DISABLE_GRPS_AC_DEPS_CHECK"},
 		},
 		&cli.BoolFlag{
+			Name:        "enable_ac_key_instance_mangling",
+			Usage:       "Whether to enable mangling ActionCache keys with non-empty instance names.",
+			DefaultText: "false, ie disable mangling",
+			EnvVars:     []string{"BAZEL_REMOTE_ENABLE_AC_KEY_INSTANCE_MANGLING"},
+		},
+		&cli.BoolFlag{
 			Name:        "enable_endpoint_metrics",
 			Usage:       "Whether to enable metrics for each HTTP/gRPC endpoint.",
 			DefaultText: "false, ie disable metrics",
@@ -267,6 +273,7 @@ func main() {
 				s3,
 				ctx.Bool("disable_http_ac_validation"),
 				ctx.Bool("disable_grpc_ac_deps_check"),
+				ctx.Bool("enable_ac_key_instance_mangling"),
 				ctx.Bool("enable_endpoint_metrics"),
 				ctx.Bool("experimental_remote_asset_api"),
 				ctx.Duration("http_read_timeout"),
@@ -329,7 +336,7 @@ func main() {
 		}
 
 		validateAC := !c.DisableHTTPACValidation
-		h := server.NewHTTPCache(diskCache, accessLogger, errorLogger, validateAC, gitCommit)
+		h := server.NewHTTPCache(diskCache, accessLogger, errorLogger, validateAC, c.EnableACKeyInstanceMangling, gitCommit)
 
 		var htpasswdSecrets auth.SecretProvider
 		cacheHandler := h.CacheHandler
@@ -343,6 +350,12 @@ func main() {
 			idleTimer = idle.NewTimer(c.IdleTimeout)
 			cacheHandler = wrapIdleHandler(cacheHandler, idleTimer, accessLogger, httpServer)
 		}
+
+		acKeyManglingStatus := "disabled"
+		if c.EnableACKeyInstanceMangling {
+			acKeyManglingStatus = "enabled"
+		}
+		log.Println("Mangling non-empty instance names with AC keys:", acKeyManglingStatus)
 
 		if c.EnableEndpointMetrics {
 			metricsMdlw := middleware.New(middleware.Config{
@@ -421,6 +434,7 @@ func main() {
 
 				err3 := server.ListenAndServeGRPC(addr, opts,
 					validateAC,
+					c.EnableACKeyInstanceMangling,
 					enableRemoteAssetAPI,
 					diskCache, accessLogger, errorLogger)
 				if err3 != nil {

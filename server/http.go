@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
@@ -33,6 +34,7 @@ type httpCache struct {
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
 	validateAC   bool
+	mangleACKeys bool
 	gitCommit    string
 }
 
@@ -49,7 +51,7 @@ type statusPageData struct {
 // accessLogger will print one line for each HTTP request to stdout.
 // errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
 // be reported.
-func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, commit string) HTTPCache {
+func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, mangleACKeys bool, commit string) HTTPCache {
 
 	_, _, numItems := cache.Stats()
 
@@ -60,6 +62,7 @@ func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cach
 		accessLogger: accessLogger,
 		errorLogger:  errorLogger,
 		validateAC:   validateAC,
+		mangleACKeys: mangleACKeys,
 	}
 
 	if commit != "{STABLE_GIT_COMMIT}" {
@@ -70,32 +73,34 @@ func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cach
 }
 
 // Parse cache artifact information from the request URL
-func parseRequestURL(url string, validateAC bool) (cache.EntryKind, string, error) {
+func parseRequestURL(url string, validateAC bool) (kind cache.EntryKind, hash string, instance string, err error) {
 	m := blobNameSHA256.FindStringSubmatch(url)
 	if m == nil {
 		err := fmt.Errorf("resource name must be a SHA256 hash in hex. "+
 			"got '%s'", html.EscapeString(url))
-		return 0, "", err
+		return 0, "", "", err
 	}
+
+	instance = strings.TrimSuffix(m[1], "/")
 
 	parts := m[2:]
 	if len(parts) != 2 {
 		err := fmt.Errorf("the path '%s' is invalid. expected (ac/|cas/)sha256",
 			html.EscapeString(url))
-		return 0, "", err
+		return 0, "", "", err
 	}
 
 	// The regex ensures that parts[0] can only be "ac/" or "cas/"
-	hash := parts[1]
+	hash = parts[1]
 	if parts[0] == "cas/" {
-		return cache.CAS, hash, nil
+		return cache.CAS, hash, instance, nil
 	}
 
 	if validateAC {
-		return cache.AC, hash, nil
+		return cache.AC, hash, instance, nil
 	}
 
-	return cache.RAW, hash, nil
+	return cache.RAW, hash, instance, nil
 }
 func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request, hash string) {
 	_, data, err := h.cache.GetValidatedActionResult(hash)
@@ -179,11 +184,15 @@ func (h *httpCache) logResponse(code int, r *http.Request) {
 func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	kind, hash, err := parseRequestURL(r.URL.Path, h.validateAC)
+	kind, hash, instance, err := parseRequestURL(r.URL.Path, h.validateAC)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		h.logResponse(http.StatusBadRequest, r)
 		return
+	}
+
+	if h.mangleACKeys && kind == cache.AC {
+		hash = cache.TransformActionCacheKey(hash, instance, h.accessLogger)
 	}
 
 	switch m := r.Method; m {

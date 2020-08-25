@@ -19,6 +19,7 @@ htpasswd_file: /opt/.htpasswd
 tls_cert_file: /opt/tls.cert
 tls_key_file:  /opt/tls.key
 disable_http_ac_validation: true
+enable_ac_key_instance_mangling: true
 enable_endpoint_metrics: true
 experimental_remote_asset_api: true
 http_read_timeout: 5s
@@ -31,19 +32,20 @@ http_write_timeout: 10s
 	}
 
 	expectedConfig := &Config{
-		Host:                       "localhost",
-		Port:                       8080,
-		GRPCPort:                   9092,
-		Dir:                        "/opt/cache-dir",
-		MaxSize:                    100,
-		HtpasswdFile:               "/opt/.htpasswd",
-		TLSCertFile:                "/opt/tls.cert",
-		TLSKeyFile:                 "/opt/tls.key",
-		DisableHTTPACValidation:    true,
-		EnableEndpointMetrics:      true,
-		ExperimentalRemoteAssetAPI: true,
-		HTTPReadTimeout:            5 * time.Second,
-		HTTPWriteTimeout:           10 * time.Second,
+		Host:                        "localhost",
+		Port:                        8080,
+		GRPCPort:                    9092,
+		Dir:                         "/opt/cache-dir",
+		MaxSize:                     100,
+		HtpasswdFile:                "/opt/.htpasswd",
+		TLSCertFile:                 "/opt/tls.cert",
+		TLSKeyFile:                  "/opt/tls.key",
+		DisableHTTPACValidation:     true,
+		EnableACKeyInstanceMangling: true,
+		EnableEndpointMetrics:       true,
+		ExperimentalRemoteAssetAPI:  true,
+		HTTPReadTimeout:             5 * time.Second,
+		HTTPWriteTimeout:            10 * time.Second,
 	}
 
 	if !reflect.DeepEqual(config, expectedConfig) {

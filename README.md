@@ -15,13 +15,21 @@ commodity hardware and AWS servers. Outgoing bandwidth can exceed 15 Gbit/s on t
 
 Cache entries are set and retrieved by key, and there are two types of keys that can be used:
 1. Content addressed storage (CAS), where the key is the lowercase SHA256 hash of the stored value.
-   The REST API for these entries is: `/cas/<key>` or with an optional but ignored cache pool name: `/<pool>/cas/<key>`.
+   The REST API for these entries is: `/cas/<key>` or with an optional but ignored instance name:
+   `/<instance>/cas/<key>`.
 2. Action cache, where the key is an arbitrary 64 character lowercase hexadecimal string.
    Bazel uses the SHA256 hash of an action as the key, to store the metadata created by the action.
-   The REST API for these entries is: `/ac/<key>` or with an optional cache pool name: `/<pool>/ac/<key>`.
+   The REST API for these entries is: `/ac/<key>` or with an optional instance name: `/<instance>/ac/<key>`.
 
-Values are stored via HTTP PUT requests, and retrieved via GET requests. HEAD requests can be used to confirm
-whether a key exists or not.
+Values are stored via HTTP PUT requests, and retrieved via GET requests.
+HEAD requests can be used to confirm whether a key exists or not.
+
+If the `--enable_ac_key_instance_mangling` flag is specified and the instance
+name is not empty, then action cache keys are hashed along with the instance
+name to produce the action cache lookup key. Since the URL path is processed
+with Go's [path.Clean](https://golang.org/pkg/path/#Clean) function before
+extracting the instance name, clients should avoid using repeated slashes,
+`./` and `../` in the URL.
 
 Values stored in the action cache are validated as an ActionResult protobuf message as per the
 [Bazel Remote Execution API v2](https://github.com/bazelbuild/remote-apis/blob/master/build/bazel/remote/execution/v2/remote_execution.proto)
@@ -67,6 +75,10 @@ bazel-remote also supports the ActionCache, ContentAddressableStorage and Capabi
 [Bazel Remote Execution API v2](https://github.com/bazelbuild/remote-apis/blob/master/build/bazel/remote/execution/v2/remote_execution.proto),
 and the corresponding parts of the [Byte Stream API](https://github.com/googleapis/googleapis/blob/master/google/bytestream/bytestream.proto).
 
+When using the `--enable_ac_key_instance_mangling` feature, clients are
+advised to avoid repeated slashes, `../` and `./` strings in the instance
+name, for consistency with the HTTP interface.
+
 ### Prometheus Metrics
 
 To query endpoint metrics see [github.com/grpc-ecosystem/go-grpc-prometheus's metrics documentation](https://github.com/grpc-ecosystem/go-grpc-prometheus#metrics).
@@ -102,34 +114,35 @@ DESCRIPTION:
    A remote build cache for Bazel.
 
 GLOBAL OPTIONS:
-   --config_file value              Path to a YAML configuration file. If this flag is specified then all other flags are ignored. [$BAZEL_REMOTE_CONFIG_FILE]
-   --dir value                      Directory path where to store the cache contents. This flag is required. [$BAZEL_REMOTE_DIR]
-   --max_size value                 The maximum size of the remote cache in GiB. This flag is required. (default: -1) [$BAZEL_REMOTE_MAX_SIZE]
-   --host value                     Address to listen on. Listens on all network interfaces by default. [$BAZEL_REMOTE_HOST]
-   --port value                     The port the HTTP server listens on. (default: 8080) [$BAZEL_REMOTE_PORT]
-   --grpc_port value                The port the gRPC server listens on. Set to 0 to disable. (default: 9092) [$BAZEL_REMOTE_GRPC_PORT]
-   --profile_host value             A host address to listen on for profiling, if enabled by a valid --profile_port setting. (default: "127.0.0.1") [$BAZEL_REMOTE_PROFILE_HOST]
-   --profile_port value             If a positive integer, serve /debug/pprof/* URLs from http://profile_host:profile_port. (default: 0, ie profiling disabled) [$BAZEL_REMOTE_PROFILE_PORT]
-   --http_read_timeout value        The HTTP read timeout for a client request in seconds (does not apply to the proxy backends or the profiling endpoint) (default: 0s, ie disabled) [$BAZEL_REMOTE_HTTP_READ_TIMEOUT]
-   --http_write_timeout value       The HTTP write timeout for a server response in seconds (does not apply to the proxy backends or the profiling endpoint) (default: 0s, ie disabled) [$BAZEL_REMOTE_HTTP_WRITE_TIMEOUT]
-   --htpasswd_file value            Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html. [$BAZEL_REMOTE_HTPASSWD_FILE]
-   --tls_enabled                    This flag has been deprecated. Specify tls_cert_file and tls_key_file instead. (default: false) [$BAZEL_REMOTE_TLS_ENABLED]
-   --tls_cert_file value            Path to a pem encoded certificate file. [$BAZEL_REMOTE_TLS_CERT_FILE]
-   --tls_key_file value             Path to a pem encoded key file. [$BAZEL_REMOTE_TLS_KEY_FILE]
-   --idle_timeout value             The maximum period of having received no request after which the server will shut itself down. (default: 0s, ie disabled) [$BAZEL_REMOTE_IDLE_TIMEOUT]
-   --s3.endpoint value              The S3/minio endpoint to use when using S3 cache backend. [$BAZEL_REMOTE_S3_ENDPOINT]
-   --s3.bucket value                The S3/minio bucket to use when using S3 cache backend. [$BAZEL_REMOTE_S3_BUCKET]
-   --s3.prefix value                The S3/minio object prefix to use when using S3 cache backend. [$BAZEL_REMOTE_S3_PREFIX]
-   --s3.access_key_id value         The S3/minio access key to use when using S3 cache backend. [$BAZEL_REMOTE_S3_ACCESS_KEY_ID]
-   --s3.secret_access_key value     The S3/minio secret access key to use when using S3 cache backend. [$BAZEL_REMOTE_S3_SECRET_ACCESS_KEY]
-   --s3.disable_ssl                 Whether to disable TLS/SSL when using the S3 cache backend. (default: false, ie enable TLS/SSL) [$BAZEL_REMOTE_S3_DISABLE_SSL]
-   --s3.iam_role_endpoint value     Endpoint for using IAM security credentials. By default it will look for credentials in the standard locations for the AWS platform. [$BAZEL_REMOTE_S3_IAM_ROLE_ENDPOINT]
-   --s3.region value                The AWS region. Required when not specifying S3/minio access keys. [$BAZEL_REMOTE_S3_REGION]
-   --disable_http_ac_validation     Whether to disable ActionResult validation for HTTP requests. (default: false, ie enable validation) [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
-   --disable_grpc_ac_deps_check     Whether to disable ActionResult dependency checks for gRPC GetActionResult requests. (default: false, ie enable ActionCache dependency checks) [$BAZEL_REMOTE_DISABLE_GRPS_AC_DEPS_CHECK]
-   --enable_endpoint_metrics        Whether to enable metrics for each HTTP/gRPC endpoint. (default: false, ie disable metrics) [$BAZEL_REMOTE_ENABLE_ENDPOINT_METRICS]
-   --experimental_remote_asset_api  Whether to enable the experimental remote asset API implementation. (default: false, ie disable remote asset API) [$BAZEL_REMOTE_EXPERIMENTAL_REMOTE_ASSET_API]
-   --help, -h                       show help (default: false)
+   --config_file value                Path to a YAML configuration file. If this flag is specified then all other flags are ignored. [$BAZEL_REMOTE_CONFIG_FILE]
+   --dir value                        Directory path where to store the cache contents. This flag is required. [$BAZEL_REMOTE_DIR]
+   --max_size value                   The maximum size of the remote cache in GiB. This flag is required. (default: -1) [$BAZEL_REMOTE_MAX_SIZE]
+   --host value                       Address to listen on. Listens on all network interfaces by default. [$BAZEL_REMOTE_HOST]
+   --port value                       The port the HTTP server listens on. (default: 8080) [$BAZEL_REMOTE_PORT]
+   --grpc_port value                  The port the gRPC server listens on. Set to 0 to disable. (default: 9092) [$BAZEL_REMOTE_GRPC_PORT]
+   --profile_host value               A host address to listen on for profiling, if enabled by a valid --profile_port setting. (default: "127.0.0.1") [$BAZEL_REMOTE_PROFILE_HOST]
+   --profile_port value               If a positive integer, serve /debug/pprof/* URLs from http://profile_host:profile_port. (default: 0, ie profiling disabled) [$BAZEL_REMOTE_PROFILE_PORT]
+   --http_read_timeout value          The HTTP read timeout for a client request in seconds (does not apply to the proxy backends or the profiling endpoint) (default: 0s, ie disabled) [$BAZEL_REMOTE_HTTP_READ_TIMEOUT]
+   --http_write_timeout value         The HTTP write timeout for a server response in seconds (does not apply to the proxy backends or the profiling endpoint) (default: 0s, ie disabled) [$BAZEL_REMOTE_HTTP_WRITE_TIMEOUT]
+   --htpasswd_file value              Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html. [$BAZEL_REMOTE_HTPASSWD_FILE]
+   --tls_enabled                      This flag has been deprecated. Specify tls_cert_file and tls_key_file instead. (default: false) [$BAZEL_REMOTE_TLS_ENABLED]
+   --tls_cert_file value              Path to a pem encoded certificate file. [$BAZEL_REMOTE_TLS_CERT_FILE]
+   --tls_key_file value               Path to a pem encoded key file. [$BAZEL_REMOTE_TLS_KEY_FILE]
+   --idle_timeout value               The maximum period of having received no request after which the server will shut itself down. (default: 0s, ie disabled) [$BAZEL_REMOTE_IDLE_TIMEOUT]
+   --s3.endpoint value                The S3/minio endpoint to use when using S3 cache backend. [$BAZEL_REMOTE_S3_ENDPOINT]
+   --s3.bucket value                  The S3/minio bucket to use when using S3 cache backend. [$BAZEL_REMOTE_S3_BUCKET]
+   --s3.prefix value                  The S3/minio object prefix to use when using S3 cache backend. [$BAZEL_REMOTE_S3_PREFIX]
+   --s3.access_key_id value           The S3/minio access key to use when using S3 cache backend. [$BAZEL_REMOTE_S3_ACCESS_KEY_ID]
+   --s3.secret_access_key value       The S3/minio secret access key to use when using S3 cache backend. [$BAZEL_REMOTE_S3_SECRET_ACCESS_KEY]
+   --s3.disable_ssl                   Whether to disable TLS/SSL when using the S3 cache backend. (default: false, ie enable TLS/SSL) [$BAZEL_REMOTE_S3_DISABLE_SSL]
+   --s3.iam_role_endpoint value       Endpoint for using IAM security credentials. By default it will look for credentials in the standard locations for the AWS platform. [$BAZEL_REMOTE_S3_IAM_ROLE_ENDPOINT]
+   --s3.region value                  The AWS region. Required when not specifying S3/minio access keys. [$BAZEL_REMOTE_S3_REGION]
+   --disable_http_ac_validation       Whether to disable ActionResult validation for HTTP requests. (default: false, ie enable validation) [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
+   --disable_grpc_ac_deps_check       Whether to disable ActionResult dependency checks for gRPC GetActionResult requests. (default: false, ie enable ActionCache dependency checks) [$BAZEL_REMOTE_DISABLE_GRPS_AC_DEPS_CHECK]
+   --enable_ac_key_instance_mangling  Whether to enable mangling ActionCache keys with non-empty instance names. (default: false, ie disable mangling) [$BAZEL_REMOTE_ENABLE_AC_KEY_INSTANCE_MANGLING]
+   --enable_endpoint_metrics          Whether to enable metrics for each HTTP/gRPC endpoint. (default: false, ie disable metrics) [$BAZEL_REMOTE_ENABLE_ENDPOINT_METRICS]
+   --experimental_remote_asset_api    Whether to enable the experimental remote asset API implementation. (default: false, ie disable remote asset API) [$BAZEL_REMOTE_EXPERIMENTAL_REMOTE_ASSET_API]
+   --help, -h                         show help (default: false)
 ```
 
 ### Example configuration file
