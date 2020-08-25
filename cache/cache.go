@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 )
 
@@ -63,4 +65,23 @@ type Proxy interface {
 	// remote end, and the size if it exists (and -1 if the size is
 	// unknown).
 	Contains(kind EntryKind, hash string) (bool, int64)
+}
+
+// TransformActionCacheKey takes an ActionCache key and an instance name
+// and returns a new ActionCache key to use instead. If the instance name
+// is empty, then the original key is returned unchanged.
+func TransformActionCacheKey(key, instance string, logger Logger) string {
+	if instance == "" {
+		return key
+	}
+
+	h := sha256.New()
+	h.Write([]byte(key))
+	h.Write([]byte(instance))
+	b := h.Sum(nil)
+	newKey := hex.EncodeToString(b[:])
+
+	logger.Printf("REMAP AC HASH %s : %s => %s", key, instance, newKey)
+
+	return newKey
 }

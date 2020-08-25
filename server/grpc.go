@@ -38,6 +38,7 @@ type grpcServer struct {
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
 	depsCheck    bool
+	mangleACKeys bool
 }
 
 // ListenAndServeGRPC creates a new gRPC server and listens on the given
@@ -45,6 +46,7 @@ type grpcServer struct {
 // blocking call to https://godoc.org/google.golang.org/grpc#Server.Serve
 func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 	validateACDeps bool,
+	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
 	c *disk.Cache, a cache.Logger, e cache.Logger) error {
 
@@ -53,18 +55,20 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 		return err
 	}
 
-	return serveGRPC(listener, opts, validateACDeps, enableRemoteAssetAPI, c, a, e)
+	return serveGRPC(listener, opts, validateACDeps, mangleACKeys, enableRemoteAssetAPI, c, a, e)
 }
 
 func serveGRPC(l net.Listener, opts []grpc.ServerOption,
 	validateACDepsCheck bool,
+	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
 	c *disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	srv := grpc.NewServer(opts...)
 	s := &grpcServer{
 		cache: c, accessLogger: a, errorLogger: e,
-		depsCheck: validateACDepsCheck,
+		depsCheck:    validateACDepsCheck,
+		mangleACKeys: mangleACKeys,
 	}
 	pb.RegisterActionCacheServer(srv, s)
 	pb.RegisterCapabilitiesServer(srv, s)
