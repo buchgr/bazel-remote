@@ -74,7 +74,8 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback) SizedLRU {
 }
 
 // Add adds a (key, value) to the cache, evicting items as necessary. Add returns false (
-// and does not add the item) if the item size is larger than the maximum size of the cache.
+// and does not add the item) if the item size is larger than the maximum size of the cache,
+// or it cannot be added to the cache because too much space is reserved.
 func (c *sizedLRU) Add(key Key, value sizedItem) (ok bool) {
 	if value.Size() > c.maxSize {
 		return false
@@ -82,13 +83,19 @@ func (c *sizedLRU) Add(key Key, value sizedItem) (ok bool) {
 
 	var sizeDelta int64
 	if ee, ok := c.cache[key]; ok {
-		c.ll.MoveToFront(ee)
 		sizeDelta = value.Size() - ee.Value.(*entry).value.Size()
+		if c.reservedSize+sizeDelta > c.maxSize {
+			return false
+		}
+		c.ll.MoveToFront(ee)
 		ee.Value.(*entry).value = value
 	} else {
+		sizeDelta = value.Size()
+		if c.reservedSize+sizeDelta > c.maxSize {
+			return false
+		}
 		ele := c.ll.PushFront(&entry{key, value})
 		c.cache[key] = ele
-		sizeDelta = value.Size()
 	}
 
 	// Eviction. This is needed even if the key was already present, since the size of the
