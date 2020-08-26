@@ -122,7 +122,7 @@ func TestRejectBigItem(t *testing.T) {
 	checkSizeAndNumItems(t, lru, 0, 0)
 }
 
-func TestReserveSharesSpace(t *testing.T) {
+func TestReserveZeroAlwaysPossible(t *testing.T) {
 	largeItem := testSizedItem{math.MaxInt64, "pretend large item"}
 
 	lru := NewSizedLRU(math.MaxInt64, nil)
@@ -252,5 +252,32 @@ func TestUnreserve(t *testing.T) {
 	if lru.TotalSize() != 0 {
 		t.Fatalf("Expected total size 0, actual size %d",
 			lru.TotalSize())
+	}
+}
+
+func TestAddWithSpaceReserved(t *testing.T) {
+	lru := NewSizedLRU(2, nil)
+
+	ok, err := lru.Reserve(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatalf("Expected to be able to reserve 1")
+	}
+
+	ok = lru.Add("hello", &testSizedItem{2, "hello"})
+	if ok {
+		t.Fatal("Expected to not be able to add item with size 2")
+	}
+
+	err = lru.Unreserve(1)
+	if err != nil {
+		t.Fatal("Expected to be able to unreserve 1:", err)
+	}
+
+	ok = lru.Add("hello", &testSizedItem{2, "hello"})
+	if !ok {
+		t.Fatal("Expected to be able to add item with size 2")
 	}
 }
