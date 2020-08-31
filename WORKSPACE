@@ -48,8 +48,8 @@ go_repository(
     name = "org_golang_google_grpc",
     build_file_proto_mode = "disable",
     importpath = "google.golang.org/grpc",
-    sum = "h1:M5a8xTlYTxwMn5ZFkwhRabsygDY5G8TYLyQDBxJNAxE=",
-    version = "v1.30.0",
+    sum = "h1:T7P4R73V3SSDPhH7WW7ATbfViLtmamH0DKrP3f9AuDI=",
+    version = "v1.31.0",
 )
 
 go_repository(
@@ -433,8 +433,8 @@ go_repository(
 go_repository(
     name = "com_github_kr_pretty",
     importpath = "github.com/kr/pretty",
-    sum = "h1:L/CwN0zerZDmRFUapSPitk6f+Q3+0za1rQkzVuMiMFI=",
-    version = "v0.1.0",
+    sum = "h1:Fmg33tUaq4/8ym9TJN1x7sLJnHVwhP33CNkpYV/7rwI=",
+    version = "v0.2.1",
 )
 
 go_repository(
@@ -993,15 +993,15 @@ go_repository(
 go_repository(
     name = "com_github_klauspost_compress",
     importpath = "github.com/klauspost/compress",
-    sum = "h1:a/y8CglcM7gLGYmlbP/stPE5sR3hbhFRUjCBfd/0B3I=",
-    version = "v1.10.10",
+    sum = "h1:K9z59aO18Aywg2b/WSgBaUX99mHy2BES18Cr5lBKZHk=",
+    version = "v1.10.11",
 )
 
 go_repository(
     name = "com_github_mostynb_go_grpc_compression",
     importpath = "github.com/mostynb/go-grpc-compression",
-    sum = "h1:3+1P2NdIoXsH2BCIvaOfymaCkWM/F/1uCNyJi75GpBw=",
-    version = "v1.1.0",
+    sum = "h1:emrImHjSPW/H4aarNxuiPG1uN1WgIlVdR3M0LH5HH5E=",
+    version = "v1.1.2",
 )
 
 go_repository(
@@ -1086,4 +1086,11 @@ go_repository(
     importpath = "github.com/pierrec/lz4",
     sum = "h1:WCjObylUIOlKy/+7Abdn34TLIkXiA4UWUMhxq9m9ZXI=",
     version = "v2.5.2+incompatible",
+)
+
+go_repository(
+    name = "com_github_frankban_quicktest",
+    importpath = "github.com/frankban/quicktest",
+    sum = "h1:y7Vn4YH/rfUHOCwNhvkAcA0gMQvFdKzSE8Ri3qtcFlc=",
+    version = "v1.10.1",
 )
