@@ -156,7 +156,7 @@ max_size: 100
 host: localhost
 # The port to use for HTTP/HTTPS:
 #port: 8080
-# The port to use for (experimental) gRPC support:
+# The port to use for gRPC:
 #grpc_port: 9092
 
 # If profile_port is specified, then serve /debug/pprof/* URLs here:
