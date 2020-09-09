@@ -767,7 +767,84 @@ func TestGrpcByteStream(t *testing.T) {
 		_, err = wc.CloseAndRecv()
 		checkBadDigestErr(t, err, tc)
 	}
+}
 
+func TestGrpcByteStreamSkippedWrite(t *testing.T) {
+
+	// Must be large enough to test multiple iterations of the
+	// bytestream Read Recv loop.
+	testBlobSize := int64(maxChunkSize * 3 / 2)
+	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize)
+	testBlobDigest := pb.Digest{
+		Hash:      testBlobHash,
+		SizeBytes: int64(len(testBlob)),
+	}
+
+	bswc, err := bsClient.Write(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Write the blob, in two chunks.
+
+	cutoff := 128
+	firstBlobPart := testBlob[:cutoff]
+	secondBlobPart := testBlob[cutoff:]
+
+	bswReq := bytestream.WriteRequest{
+		ResourceName: fmt.Sprintf("someInstance/uploads/%s/blobs/%s/%d",
+			uuid.New().String(), testBlobDigest.Hash, len(testBlob)),
+		FinishWrite: false,
+		Data:        firstBlobPart,
+	}
+
+	err = bswc.Send(&bswReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bswReq.FinishWrite = true
+	bswReq.Data = secondBlobPart
+
+	err = bswc.Send(&bswReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bswResp, err := bswc.CloseAndRecv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bswResp.CommittedSize != int64(len(testBlob)) {
+		t.Fatalf("Error: expected to write: %d but committed: %d\n",
+			len(testBlob), bswResp.CommittedSize)
+	}
+
+	// Attempt to write the blob again with a new request.
+
+	bswc, err = bsClient.Write(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bswReq.FinishWrite = false
+	bswReq.Data = firstBlobPart
+
+	err = bswc.Send(&bswReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Expect success without writing the second blob.
+
+	bswResp, err = bswc.CloseAndRecv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bswResp.CommittedSize != int64(len(testBlob)) {
+		t.Fatalf("Error: expected to write: %d but committed: %d\n",
+			len(testBlob), bswResp.CommittedSize)
+	}
 }
 
 func TestGrpcCasBasics(t *testing.T) {
