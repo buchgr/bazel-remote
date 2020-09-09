@@ -279,6 +279,14 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 					return
 				}
 
+				exists, _ := s.cache.Contains(cache.CAS, hash, size)
+				if exists {
+					// Blob already exists, return without writing anything.
+					resp.CommittedSize = size
+					putResult <- io.EOF
+					return
+				}
+
 				resp.CommittedSize = req.WriteOffset
 				if req.WriteOffset > 0 {
 					// Maybe we should just reject this as an invalid request?
@@ -352,6 +360,16 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 			msg := "Cache Put closed unexpectedly."
 			s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", msg)
 			return status.Error(codes.Internal, msg)
+		}
+		if err == io.EOF {
+			s.accessLogger.Printf("GRPC BYTESTREAM SKIPPED WRITE: %s", <-resourceNameChan)
+
+			err = srv.SendAndClose(&resp)
+			if err != nil {
+				s.accessLogger.Printf("GRPC BYTESTREAM SKIPPED WRITE FAILED: %s", err)
+				return status.Error(codes.Internal, err.Error())
+			}
+			return nil
 		}
 		if err == nil {
 			// Unexpected early return. Should not happen.
