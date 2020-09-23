@@ -16,11 +16,8 @@ tf=$(date +%s)
 duration=$((tf - ti))
 echo "${duration}s"
 
-
-# TODO: replace this with something less hacky.
-output_binary=$(bazel aquery //:bazel-remote --output=textproto 2>/dev/null | awk '/exec_path:.*bazel-remote"/ { print $2 }' | tr -d '"')
-
-cp -f $output_binary ./
+# Copy the binary somewhere known, so we can run it manually.
+bazel run --run_under "cp -f " //:bazel-remote $(pwd)/
 
 echo "Starting test cache"
 test_cache_dir=./bazel-remote-tmp-cache
