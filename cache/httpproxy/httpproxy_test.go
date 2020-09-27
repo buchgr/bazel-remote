@@ -101,7 +101,7 @@ func TestEverything(t *testing.T) {
 	t.Log("cas HASH:", hash)
 	acData := []byte{1, 2, 3, 4}
 
-	proxyCache := New(url, &http.Client{}, accessLogger, errorLogger)
+	proxyCache := New(url, &http.Client{}, accessLogger, errorLogger, 100, 10000)
 	diskCacheSize := int64(len(casData) + 1024)
 	diskCache := disk.New(cacheDir, diskCacheSize, proxyCache)
 

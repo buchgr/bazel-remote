@@ -15,9 +15,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-const numUploaders = 100
-const maxQueuedUploads = 1000000
-
 type uploadReq struct {
 	hash string
 	size int64
@@ -51,7 +48,7 @@ var errNotFound = errors.New("NOT FOUND")
 
 // New returns a new instance of the S3-API based cache
 func New(s3Config *config.S3CloudStorageConfig, accessLogger cache.Logger,
-	errorLogger cache.Logger) cache.Proxy {
+	errorLogger cache.Logger, numUploaders, maxQueuedUploads int) cache.Proxy {
 
 	fmt.Println("Using S3 backend.")
 
@@ -92,23 +89,26 @@ func New(s3Config *config.S3CloudStorageConfig, accessLogger cache.Logger,
 		}
 	}
 
-	uploadQueue := make(chan uploadReq, maxQueuedUploads)
 	c := &s3Cache{
 		mcore:        minioCore,
 		prefix:       s3Config.Prefix,
 		bucket:       s3Config.Bucket,
 		keyVersion:   s3Config.KeyVersion,
-		uploadQueue:  uploadQueue,
 		accessLogger: accessLogger,
 		errorLogger:  errorLogger,
 	}
 
-	for uploader := 0; uploader < numUploaders; uploader++ {
-		go func() {
-			for item := range uploadQueue {
-				c.uploadFile(item)
-			}
-		}()
+	if maxQueuedUploads > 0 && numUploaders > 0 {
+		uploadQueue := make(chan uploadReq, maxQueuedUploads)
+		for uploader := 0; uploader < numUploaders; uploader++ {
+			go func() {
+				for item := range uploadQueue {
+					c.uploadFile(item)
+				}
+			}()
+		}
+
+		c.uploadQueue = uploadQueue
 	}
 
 	return c
@@ -164,6 +164,11 @@ func (c *s3Cache) uploadFile(item uploadReq) {
 }
 
 func (c *s3Cache) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
+	if c.uploadQueue == nil {
+		rc.Close()
+		return
+	}
+
 	select {
 	case c.uploadQueue <- uploadReq{
 		hash: hash,
