@@ -316,7 +316,7 @@ func main() {
 		if c.GoogleCloudStorage != nil {
 			proxyCache, err = gcsproxy.New(c.GoogleCloudStorage.Bucket,
 				c.GoogleCloudStorage.UseDefaultCredentials, c.GoogleCloudStorage.JSONCredentialsFile,
-				accessLogger, errorLogger)
+				accessLogger, errorLogger, c.GoogleCloudStorage.Uploaders.Num, c.GoogleCloudStorage.Uploaders.MaxQueued)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -328,9 +328,9 @@ func main() {
 				log.Fatal(err)
 			}
 			proxyCache = httpproxy.New(baseURL,
-				httpClient, accessLogger, errorLogger)
+				httpClient, accessLogger, errorLogger, c.HTTPBackend.Uploaders.Num, c.HTTPBackend.Uploaders.MaxQueued)
 		} else if c.S3CloudStorage != nil {
-			proxyCache = s3proxy.New(c.S3CloudStorage, accessLogger, errorLogger)
+			proxyCache = s3proxy.New(c.S3CloudStorage, accessLogger, errorLogger, c.S3CloudStorage.Uploaders.Num, c.S3CloudStorage.Uploaders.MaxQueued)
 		}
 
 		diskCache := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, proxyCache)

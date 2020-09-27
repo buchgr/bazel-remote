@@ -12,27 +12,36 @@ import (
 
 // S3CloudStorageConfig stores the configuration of an S3 API proxy backend.
 type S3CloudStorageConfig struct {
-	Endpoint        string `yaml:"endpoint"`
-	Bucket          string `yaml:"bucket"`
-	Prefix          string `yaml:"prefix"`
-	AccessKeyID     string `yaml:"access_key_id"`
-	SecretAccessKey string `yaml:"secret_access_key"`
-	DisableSSL      bool   `yaml:"disable_ssl"`
-	IAMRoleEndpoint string `yaml:"iam_role_endpoint"`
-	Region          string `yaml:"region"`
-	KeyVersion      int    `yaml:"key_version"`
+	Endpoint        string                `yaml:"endpoint"`
+	Bucket          string                `yaml:"bucket"`
+	Prefix          string                `yaml:"prefix"`
+	AccessKeyID     string                `yaml:"access_key_id"`
+	SecretAccessKey string                `yaml:"secret_access_key"`
+	DisableSSL      bool                  `yaml:"disable_ssl"`
+	IAMRoleEndpoint string                `yaml:"iam_role_endpoint"`
+	Region          string                `yaml:"region"`
+	KeyVersion      int                   `yaml:"key_version"`
+	Uploaders       *ProxyUploadersConfig `yaml:"uploaders"`
 }
 
 // GoogleCloudStorageConfig stores the configuration of a GCS proxy backend.
 type GoogleCloudStorageConfig struct {
-	Bucket                string `yaml:"bucket"`
-	UseDefaultCredentials bool   `yaml:"use_default_credentials"`
-	JSONCredentialsFile   string `yaml:"json_credentials_file"`
+	Bucket                string                `yaml:"bucket"`
+	UseDefaultCredentials bool                  `yaml:"use_default_credentials"`
+	JSONCredentialsFile   string                `yaml:"json_credentials_file"`
+	Uploaders             *ProxyUploadersConfig `yaml:"uploaders"`
 }
 
 // HTTPBackendConfig stores the configuration for a HTTP proxy backend.
 type HTTPBackendConfig struct {
-	BaseURL string `yaml:"url"`
+	BaseURL   string                `yaml:"url"`
+	Uploaders *ProxyUploadersConfig `yaml:"uploaders"`
+}
+
+// ProxyUploadersConfig stores the configuration for uploaders and queue size in a Proxy backend.
+type ProxyUploadersConfig struct {
+	Num       int `yaml:"num_uploaders"`
+	MaxQueued int `yaml:"max_queued"`
 }
 
 // Config holds the top-level configuration for bazel-remote.
@@ -136,6 +145,29 @@ func newFromYaml(data []byte) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Default to the settings used before making uploaders and queue size configurable
+	if c.GoogleCloudStorage != nil && c.GoogleCloudStorage.Uploaders == nil {
+		c.GoogleCloudStorage.Uploaders = &ProxyUploadersConfig{
+			Num:       100,
+			MaxQueued: 1000000,
+		}
+	}
+
+	if c.S3CloudStorage != nil && c.S3CloudStorage.Uploaders == nil {
+		c.S3CloudStorage.Uploaders = &ProxyUploadersConfig{
+			Num:       100,
+			MaxQueued: 1000000,
+		}
+	}
+
+	if c.HTTPBackend != nil && c.HTTPBackend.Uploaders == nil {
+		c.HTTPBackend.Uploaders = &ProxyUploadersConfig{
+			Num:       100,
+			MaxQueued: 1000000,
+		}
+	}
+
 	return &c, nil
 }
 
