@@ -46,6 +46,8 @@ http_write_timeout: 10s
 		ExperimentalRemoteAssetAPI:  true,
 		HTTPReadTimeout:             5 * time.Second,
 		HTTPWriteTimeout:            10 * time.Second,
+		NumUploaders:                100,
+		MaxQueuedUploads:            1000000,
 	}
 
 	if !reflect.DeepEqual(config, expectedConfig) {
@@ -80,6 +82,8 @@ gcs_proxy:
 			UseDefaultCredentials: false,
 			JSONCredentialsFile:   "/opt/creds.json",
 		},
+		NumUploaders:     100,
+		MaxQueuedUploads: 1000000,
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -110,6 +114,8 @@ http_proxy:
 		HTTPBackend: &HTTPBackendConfig{
 			BaseURL: "https://remote-cache.com:8080/cache",
 		},
+		NumUploaders:     100,
+		MaxQueuedUploads: 1000000,
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -180,6 +186,8 @@ s3_proxy:
 			SecretAccessKey: "EXAMPLE_SECRET_KEY",
 			KeyVersion:      2,
 		},
+		NumUploaders:     100,
+		MaxQueuedUploads: 1000000,
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -200,12 +208,14 @@ profile_port: 7070
 	}
 
 	expectedConfig := &Config{
-		Host:        "localhost",
-		Port:        1234,
-		Dir:         "/opt/cache-dir",
-		MaxSize:     42,
-		ProfilePort: 7070,
-		ProfileHost: "",
+		Host:             "localhost",
+		Port:             1234,
+		Dir:              "/opt/cache-dir",
+		MaxSize:          42,
+		ProfilePort:      7070,
+		ProfileHost:      "",
+		NumUploaders:     100,
+		MaxQueuedUploads: 1000000,
 	}
 
 	if !cmp.Equal(config, expectedConfig) {

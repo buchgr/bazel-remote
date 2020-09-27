@@ -19,7 +19,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/httpproxy"
-	"github.com/buchgr/bazel-remote/utils"
+	testutils "github.com/buchgr/bazel-remote/utils"
 
 	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/golang/protobuf/proto"
@@ -658,7 +658,7 @@ func TestHttpProxyBackend(t *testing.T) {
 	accessLogger := testutils.NewSilentLogger()
 	errorLogger := testutils.NewSilentLogger()
 
-	proxy := httpproxy.New(url, &http.Client{}, accessLogger, errorLogger)
+	proxy := httpproxy.New(url, &http.Client{}, accessLogger, errorLogger, 100, 1000000)
 
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)

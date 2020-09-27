@@ -17,9 +17,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-const numUploaders = 100
-const maxQueuedUploads = 1000000
-
 type uploadReq struct {
 	hash string
 	size int64
@@ -87,26 +84,31 @@ func uploadFile(remote *http.Client, baseURL *url.URL, accessLogger cache.Logger
 
 // New creates a cache that proxies requests to a HTTP remote cache.
 func New(baseURL *url.URL, remote *http.Client, accessLogger cache.Logger,
-	errorLogger cache.Logger) cache.Proxy {
+	errorLogger cache.Logger, numUploaders, maxQueuedUploads int) cache.Proxy {
 
-	uploadQueue := make(chan uploadReq, maxQueuedUploads)
-
-	for i := 0; i < numUploaders; i++ {
-		go func(remote *http.Client, baseURL *url.URL, accessLogger cache.Logger,
-			errorLogger cache.Logger) {
-			for item := range uploadQueue {
-				uploadFile(remote, baseURL, accessLogger, errorLogger, item)
-			}
-		}(remote, baseURL, accessLogger, errorLogger)
-	}
-
-	return &remoteHTTPProxyCache{
+	proxy := &remoteHTTPProxyCache{
 		remote:       remote,
 		baseURL:      baseURL,
-		uploadQueue:  uploadQueue,
 		accessLogger: accessLogger,
 		errorLogger:  errorLogger,
 	}
+
+	if maxQueuedUploads > 0 && numUploaders > 0 {
+		uploadQueue := make(chan uploadReq, maxQueuedUploads)
+
+		for i := 0; i < numUploaders; i++ {
+			go func(remote *http.Client, baseURL *url.URL, accessLogger cache.Logger,
+				errorLogger cache.Logger) {
+				for item := range uploadQueue {
+					uploadFile(remote, baseURL, accessLogger, errorLogger, item)
+				}
+			}(remote, baseURL, accessLogger, errorLogger)
+		}
+
+		proxy.uploadQueue = uploadQueue
+	}
+
+	return proxy
 }
 
 // Helper function for logging responses
@@ -115,6 +117,11 @@ func logResponse(logger cache.Logger, method string, code int, url string) {
 }
 
 func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
+	if r.uploadQueue == nil {
+		rc.Close()
+		return
+	}
+
 	select {
 	case r.uploadQueue <- uploadReq{
 		hash: hash,

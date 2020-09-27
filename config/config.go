@@ -47,9 +47,11 @@ type Config struct {
 	HtpasswdFile                string                    `yaml:"htpasswd_file"`
 	TLSCertFile                 string                    `yaml:"tls_cert_file"`
 	TLSKeyFile                  string                    `yaml:"tls_key_file"`
-	S3CloudStorage              *S3CloudStorageConfig     `yaml:"s3_proxy"`
-	GoogleCloudStorage          *GoogleCloudStorageConfig `yaml:"gcs_proxy"`
-	HTTPBackend                 *HTTPBackendConfig        `yaml:"http_proxy"`
+	S3CloudStorage              *S3CloudStorageConfig     `yaml:"s3_proxy,omitempty"`
+	GoogleCloudStorage          *GoogleCloudStorageConfig `yaml:"gcs_proxy,omitempty"`
+	HTTPBackend                 *HTTPBackendConfig        `yaml:"http_proxy,omitempty"`
+	NumUploaders                int                       `yaml:"num_uploaders"`
+	MaxQueuedUploads            int                       `yaml:"max_queued_uploads"`
 	IdleTimeout                 time.Duration             `yaml:"idle_timeout"`
 	DisableHTTPACValidation     bool                      `yaml:"disable_http_ac_validation"`
 	DisableGRPCACDepsCheck      bool                      `yaml:"disable_grpc_ac_deps_check"`
@@ -126,7 +128,11 @@ func NewFromYamlFile(path string) (*Config, error) {
 }
 
 func newFromYaml(data []byte) (*Config, error) {
-	c := Config{}
+	c := Config{
+		NumUploaders:     100,
+		MaxQueuedUploads: 1000000,
+	}
+
 	err := yaml.Unmarshal(data, &c)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse YAML config: %v", err)
@@ -136,6 +142,7 @@ func newFromYaml(data []byte) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &c, nil
 }
 

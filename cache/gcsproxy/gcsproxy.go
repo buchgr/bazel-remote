@@ -17,7 +17,7 @@ import (
 
 // New creates a cache that proxies requests to Google Cloud Storage.
 func New(bucket string, useDefaultCredentials bool, jsonCredentialsFile string,
-	accessLogger cache.Logger, errorLogger cache.Logger) (cache.Proxy, error) {
+	accessLogger cache.Logger, errorLogger cache.Logger, numUploaders, maxQueuedUploads int) (cache.Proxy, error) {
 	var remoteClient *http.Client
 	var err error
 
@@ -53,5 +53,5 @@ func New(bucket string, useDefaultCredentials bool, jsonCredentialsFile string,
 		Path:   bucket,
 	}
 
-	return httpproxy.New(&baseURL, remoteClient, accessLogger, errorLogger), nil
+	return httpproxy.New(&baseURL, remoteClient, accessLogger, errorLogger, numUploaders, maxQueuedUploads), nil
 }
