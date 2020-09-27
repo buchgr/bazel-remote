@@ -34,7 +34,7 @@ var (
 )
 
 type grpcServer struct {
-	cache        cache.CasAcCache
+	cache        cache.BlobAcStore
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
 	depsCheck    bool
@@ -48,7 +48,7 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 	validateACDeps bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
-	c cache.CasAcCache, a cache.Logger, e cache.Logger) error {
+	c cache.BlobAcStore, a cache.Logger, e cache.Logger) error {
 
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -62,7 +62,7 @@ func serveGRPC(l net.Listener, opts []grpc.ServerOption,
 	validateACDepsCheck bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
-	c cache.CasAcCache, a cache.Logger, e cache.Logger) error {
+	c cache.BlobAcStore, a cache.Logger, e cache.Logger) error {
 
 	srv := grpc.NewServer(opts...)
 	s := &grpcServer{

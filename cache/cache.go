@@ -68,15 +68,24 @@ type RequestContext interface {
 }
 
 // TODO Document interface
-type CasAcCache interface {
+type BlobStore interface {
 	// TODO change to io.ReadCloser?
 	Put(kind EntryKind, hash string, size int64, rdr io.Reader, reqCtx RequestContext) error
 
 	Get(kind EntryKind, hash string, size int64, reqCtx RequestContext) (io.ReadCloser, int64, error)
 
 	Contains(kind EntryKind, hash string, size int64, reqCtx RequestContext) (bool, int64)
+}
 
+// TODO Document interface
+type AcStore interface {
 	GetValidatedActionResult(hash string, reqCtx RequestContext) (*pb.ActionResult, []byte, error)
+}
+
+// TODO Document interface
+type BlobAcStore interface {
+	BlobStore
+	AcStore
 }
 
 // TODO Document interface
@@ -85,13 +94,9 @@ type Stats interface {
 	MaxSize() int64
 }
 
-// TODO Should the proxy interface also be extended with RequestContext parameter? To allow
-//      for example forwarding of custom headers from client to proxy, or support for HTTP
-//      headers like Max-Forwards.
-
-// TODO Could the disk and proxies implement same interface? But proxies are not supporting
-//      GetValidatedActionResult and that method is important to have in the interface
-//      for cache.metricdecorator.
+// TODO Could the proxies implement the BlobStore interface instead? And remove Proxy interface?
+//      Having access to the original headers would allow new use cases such as forwarding of
+//      custom headers from client via proxy, or support for HTTP headers like Max-Forwards.
 
 // Proxy is the interface that (optional) proxy backends must implement.
 // Implementations are expected to be safe for concurrent use.

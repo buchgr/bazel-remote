@@ -1,12 +1,16 @@
 package metricsdecorator
 
-// This is a decorator for any implementation of the cache.CasAcCache interface.
+// This is a decorator for any implementation of the cache.BlobAcStore interface.
 // It adds prometheus metrics for the cache requests.
 //
 // The decorator can report cache miss if AC is found but referenced CAS entries are missing.
-// That is possible since GetValidatedActionResult is part of the cache.CasAcCache
-// interface, not only the low level Get method.
-
+// That is possible since metricsdecorator supports GetValidatedActionResult in the
+// cache.BlobAcStore interface.
+//
+// TODO Consider allow using a metricsdecorator also for pure cache.BlobStore interfaces,
+//      in order to replace the current prometheus counters in the proxies? That would
+//      probably require better support for non AC requests in metricsdecorator and configurable
+//      counter name.
 import (
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/config"
@@ -21,7 +25,7 @@ import (
 type metrics struct {
 	categoryValues      map[string]map[string]struct{}
 	counterIncomingReqs *prometheus.CounterVec
-	parent              cache.CasAcCache
+	parent              cache.BlobAcStore
 }
 
 const statusOK = "ok"
@@ -34,7 +38,7 @@ const methodContains = "contains"
 
 // TODO add test cases for this file
 
-func NewMetricsDecorator(config *config.Metrics, parent cache.CasAcCache) cache.CasAcCache {
+func NewMetricsDecorator(config *config.Metrics, parent cache.BlobAcStore) cache.BlobAcStore {
 
 	labels := []string{"method", "status", "kind"}
 	categoryValues := make(map[string]map[string]struct{})

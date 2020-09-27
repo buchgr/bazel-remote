@@ -649,6 +649,9 @@ func cacheFilePath(kind cache.EntryKind, cacheDir string, hash string) string {
 // value from the CAS if it and all its dependencies are also available. If
 // not, nil values are returned. If something unexpected went wrong, return
 // an error.
+// TODO Consider separating implementation of cache.AcStore interface, to open up
+//      possibilities combining that functionality with proxies, and also allow
+//      bazel-remote configurations with proxy but no local disk storage?
 func (c *Cache) GetValidatedActionResult(hash string, reqCtx cache.RequestContext) (*pb.ActionResult, []byte, error) {
 
 	rc, sizeBytes, err := c.Get(cache.AC, hash, -1, reqCtx)
