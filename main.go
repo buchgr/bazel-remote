@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	_ "net/http/pprof" // Register pprof handlers with DefaultServeMux.
@@ -138,6 +141,12 @@ func main() {
 			Name:    "tls_enabled",
 			Usage:   "This flag has been deprecated. Specify tls_cert_file and tls_key_file instead.",
 			EnvVars: []string{"BAZEL_REMOTE_TLS_ENABLED"},
+		},
+		&cli.StringFlag{
+			Name:    "tls_ca_file",
+			Value:   "",
+			Usage:   "Path to a pem encoded certificate authority file.",
+			EnvVars: []string{"BAZEL_REMOTE_TLS_CA_FILE"},
 		},
 		&cli.StringFlag{
 			Name:    "tls_cert_file",
@@ -289,6 +298,7 @@ func main() {
 				ctx.String("htpasswd_file"),
 				ctx.Int("max_queued_uploads"),
 				ctx.Int("num_uploaders"),
+				ctx.String("tls_ca_file"),
 				ctx.String("tls_cert_file"),
 				ctx.String("tls_key_file"),
 				ctx.Duration("idle_timeout"),
@@ -349,11 +359,53 @@ func main() {
 
 		diskCache := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, proxyCache)
 
+		var tlsConfig *tls.Config
+		if len(c.TLSCaFile) != 0 {
+			caCertPool := x509.NewCertPool()
+			caCert, err := ioutil.ReadFile(c.TLSCaFile)
+			if err != nil {
+				log.Fatalf("Error reading TLS CA File: %v", err)
+			}
+			added := caCertPool.AppendCertsFromPEM(caCert)
+			if !added {
+				log.Fatalf("Failed to add certificate to cert pool.")
+			}
+
+			readCert, err := tls.LoadX509KeyPair(
+				c.TLSCertFile,
+				c.TLSKeyFile,
+			)
+			if err != nil {
+				log.Fatalf("Error reading certificate/key pair: %v", err)
+			}
+
+			tlsConfig = &tls.Config{
+				Certificates: []tls.Certificate{readCert},
+				ClientCAs:    caCertPool,
+				ClientAuth:   tls.RequireAndVerifyClientCert,
+			}
+		} else if len(c.TLSCertFile) != 0 && len(c.TLSKeyFile) != 0 {
+			readCert, err := tls.LoadX509KeyPair(
+				c.TLSCertFile,
+				c.TLSKeyFile,
+			)
+			if err != nil {
+				log.Fatalf("Error reading certificate/key pair: %v", err)
+			}
+
+			tlsConfig = &tls.Config{
+				Certificates: []tls.Certificate{readCert},
+			}
+		} else {
+			tlsConfig = nil
+		}
+
 		mux := http.NewServeMux()
 		httpServer := &http.Server{
 			Addr:         c.Host + ":" + strconv.Itoa(c.Port),
 			Handler:      mux,
 			ReadTimeout:  c.HTTPReadTimeout,
+			TLSConfig:    tlsConfig,
 			WriteTimeout: c.HTTPWriteTimeout,
 		}
 
@@ -414,13 +466,8 @@ func main() {
 					grpc_prometheus.EnableHandlingTimeHistogram(grpc_prometheus.WithHistogramBuckets(durationBuckets))
 				}
 
-				if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
-					creds, err2 := credentials.NewServerTLSFromFile(
-						c.TLSCertFile, c.TLSKeyFile)
-					if err2 != nil {
-						log.Fatal(err2)
-					}
-					opts = append(opts, grpc.Creds(creds))
+				if tlsConfig != nil {
+					opts = append(opts, grpc.Creds(credentials.NewTLS(tlsConfig)))
 				}
 
 				if htpasswdSecrets != nil {
