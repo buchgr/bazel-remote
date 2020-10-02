@@ -194,6 +194,11 @@ host: localhost
 
 # At most one of the proxy backends can be selected:
 #
+# If this is 0, proxy backends won't upload blobs.
+#num_uploaders: 100
+# The maximum number of proxy uploads to queue, before dropping uploads.
+#max_queued_uploads: 1000000
+#
 #gcs_proxy:
 #  bucket: gcs-bucket
 #  use_default_credentials: false
