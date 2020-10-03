@@ -15,6 +15,19 @@ import (
 // durationBuckets is the buckets used for Prometheus histograms in seconds.
 var durationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
 
+// map metric names to their help message
+var help = map[string]string{
+	"bazel_remote_disk_cache_hits":                    "The total number of disk backend cache hits",
+	"bazel_remote_disk_cache_misses":                  "The total number of disk backend cache misses",
+	"bazel_remote_disk_cache_size_bytes":              "The current number of bytes in the disk backend",
+	"bazel_remote_disk_cache_evicted_bytes_total":     "The total number of bytes evicted from disk backend, due to full cache",
+	"bazel_remote_disk_cache_overwritten_bytes_total": "The total number of bytes removed from disk backend, due to put of already existing key",
+	"bazel_remote_http_cache_hits":                    "The total number of HTTP backend cache hits",
+	"bazel_remote_http_cache_misses":                  "The total number of HTTP backend cache misses",
+	"bazel_remote_s3_cache_hits":                      "The total number of s3 backend cache hits",
+	"bazel_remote_s3_cache_misses":                    "The total number of s3 backend cache misses",
+}
+
 // NewCollector returns a prometheus backed collector
 func NewCollector() metric.Collector {
 	return &collector{}
@@ -39,13 +52,13 @@ type collector struct{}
 func (c *collector) NewCounter(name string) metric.Counter {
 	return promauto.NewCounter(prometheus.CounterOpts{
 		Name: name,
-		Help: "The total number of disk backend cache hits",
+		Help: help["name"],
 	})
 }
 
 func (c *collector) NewGuage(name string) metric.Gauge {
 	return promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "bazel_remote_disk_cache_size_bytes",
-		Help: "The current number of bytes in the disk backend",
+		Help: help["name"],
 	})
 }
