@@ -5,25 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/buchgr/bazel-remote/metric"
 )
 
 var (
-	gaugeCacheSizeBytes = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "bazel_remote_disk_cache_size_bytes",
-		Help: "The current number of bytes in the disk backend",
-	})
-
-	counterEvictedBytes = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "bazel_remote_disk_cache_evicted_bytes_total",
-		Help: "The total number of bytes evicted from disk backend, due to full cache",
-	})
-
-	counterOverwrittenBytes = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "bazel_remote_disk_cache_overwritten_bytes_total",
-		Help: "The total number of bytes removed from disk backend, due to put of already existing key",
-	})
+	gaugeCacheSizeBytes     metric.Gauge
+	counterEvictedBytes     metric.Counter
+	counterOverwrittenBytes metric.Counter
 )
 
 type sizedItem interface {
@@ -84,7 +72,17 @@ type entry struct {
 }
 
 // NewSizedLRU returns a new sizedLRU cache
-func NewSizedLRU(maxSize int64, onEvict EvictCallback) SizedLRU {
+func NewSizedLRU(maxSize int64, onEvict EvictCallback, collector metric.Collector) SizedLRU {
+	if collector != nil {
+		gaugeCacheSizeBytes = collector.NewGuage("bazel_remote_disk_cache_size_bytes")
+		counterEvictedBytes = collector.NewCounter("bazel_remote_disk_cache_evicted_bytes_total")
+		counterOverwrittenBytes = collector.NewCounter("bazel_remote_disk_cache_overwritten_bytes_total")
+	} else {
+		gaugeCacheSizeBytes = metric.NoOpGauge()
+		counterEvictedBytes = metric.NoOpCounter()
+		counterOverwrittenBytes = metric.NoOpCounter()
+	}
+
 	return &sizedLRU{
 		maxSize: maxSize,
 		ll:      list.New(),

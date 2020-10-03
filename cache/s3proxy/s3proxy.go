@@ -9,10 +9,9 @@ import (
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/config"
+	"github.com/buchgr/bazel-remote/metric"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 type uploadReq struct {
@@ -33,14 +32,8 @@ type s3Cache struct {
 }
 
 var (
-	cacheHits = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "bazel_remote_s3_cache_hits",
-		Help: "The total number of s3 backend cache hits",
-	})
-	cacheMisses = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "bazel_remote_s3_cache_misses",
-		Help: "The total number of s3 backend cache misses",
-	})
+	cacheHits   metric.Counter
+	cacheMisses metric.Counter
 )
 
 // Used in place of minio's verbose "NoSuchKey" error.
@@ -48,9 +41,17 @@ var errNotFound = errors.New("NOT FOUND")
 
 // New returns a new instance of the S3-API based cache
 func New(s3Config *config.S3CloudStorageConfig, accessLogger cache.Logger,
-	errorLogger cache.Logger, numUploaders, maxQueuedUploads int) cache.Proxy {
+	errorLogger cache.Logger, numUploaders, maxQueuedUploads int, collector metric.Collector) cache.Proxy {
 
 	fmt.Println("Using S3 backend.")
+
+	if collector != nil {
+		cacheHits = collector.NewCounter("bazel_remote_http_cache_hits")
+		cacheMisses = collector.NewCounter("bazel_remote_http_cache_misses")
+	} else {
+		cacheHits = metric.NoOpCounter()
+		cacheMisses = metric.NoOpCounter()
+	}
 
 	var minioCore *minio.Core
 	var err error

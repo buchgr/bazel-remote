@@ -16,6 +16,8 @@ import (
 	"github.com/buchgr/bazel-remote/cache/disk"
 	"github.com/buchgr/bazel-remote/cache/gcsproxy"
 	"github.com/buchgr/bazel-remote/cache/s3proxy"
+	"github.com/buchgr/bazel-remote/metric"
+	"github.com/buchgr/bazel-remote/metric/prometheus"
 
 	"github.com/buchgr/bazel-remote/cache/httpproxy"
 
@@ -25,10 +27,6 @@ import (
 	"github.com/buchgr/bazel-remote/utils/rlimit"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	httpmetrics "github.com/slok/go-http-metrics/metrics/prometheus"
-	middleware "github.com/slok/go-http-metrics/middleware"
-	middlewarestd "github.com/slok/go-http-metrics/middleware/std"
 	"github.com/urfave/cli/v2"
 
 	"google.golang.org/grpc"
@@ -42,9 +40,6 @@ const (
 // gitCommit is the version stamp for the server. The value of this var
 // is set through linker options.
 var gitCommit string
-
-// durationBuckets is the buckets used for Prometheus histograms in seconds.
-var durationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
 
 func main() {
 
@@ -312,11 +307,16 @@ func main() {
 		accessLogger := log.New(os.Stdout, "", logFlags)
 		errorLogger := log.New(os.Stderr, "", logFlags)
 
+		var metricCollector metric.Collector
+		if c.EnableEndpointMetrics {
+			metricCollector = prometheus.NewCollector()
+		}
+
 		var proxyCache cache.Proxy
 		if c.GoogleCloudStorage != nil {
 			proxyCache, err = gcsproxy.New(c.GoogleCloudStorage.Bucket,
 				c.GoogleCloudStorage.UseDefaultCredentials, c.GoogleCloudStorage.JSONCredentialsFile,
-				accessLogger, errorLogger, c.NumUploaders, c.MaxQueuedUploads)
+				accessLogger, errorLogger, c.NumUploaders, c.MaxQueuedUploads, metricCollector)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -328,12 +328,12 @@ func main() {
 				log.Fatal(err)
 			}
 			proxyCache = httpproxy.New(baseURL,
-				httpClient, accessLogger, errorLogger, c.NumUploaders, c.MaxQueuedUploads)
+				httpClient, accessLogger, errorLogger, c.NumUploaders, c.MaxQueuedUploads, metricCollector)
 		} else if c.S3CloudStorage != nil {
-			proxyCache = s3proxy.New(c.S3CloudStorage, accessLogger, errorLogger, c.NumUploaders, c.MaxQueuedUploads)
+			proxyCache = s3proxy.New(c.S3CloudStorage, accessLogger, errorLogger, c.NumUploaders, c.MaxQueuedUploads, metricCollector)
 		}
 
-		diskCache := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, proxyCache)
+		diskCache := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, proxyCache, metricCollector)
 
 		mux := http.NewServeMux()
 		httpServer := &http.Server{
@@ -365,17 +365,8 @@ func main() {
 		}
 		log.Println("Mangling non-empty instance names with AC keys:", acKeyManglingStatus)
 
-		if c.EnableEndpointMetrics {
-			metricsMdlw := middleware.New(middleware.Config{
-				Recorder: httpmetrics.NewRecorder(httpmetrics.Config{
-					DurationBuckets: durationBuckets,
-				}),
-			})
-			mux.Handle("/metrics", middlewarestd.Handler("metrics", metricsMdlw, promhttp.Handler()))
-			mux.Handle("/status", middlewarestd.Handler("status", metricsMdlw, http.HandlerFunc(h.StatusPageHandler)))
-			mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-				middlewarestd.Handler(r.Method, metricsMdlw, http.HandlerFunc(cacheHandler)).ServeHTTP(w, r)
-			})
+		if metricCollector != nil {
+			prometheus.WrapEndpoints(mux, cacheHandler, h.StatusPageHandler)
 		} else {
 			mux.HandleFunc("/status", h.StatusPageHandler)
 			mux.HandleFunc("/", cacheHandler)
@@ -397,7 +388,7 @@ func main() {
 				if c.EnableEndpointMetrics {
 					streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)
 					unaryInterceptors = append(unaryInterceptors, grpc_prometheus.UnaryServerInterceptor)
-					grpc_prometheus.EnableHandlingTimeHistogram(grpc_prometheus.WithHistogramBuckets(durationBuckets))
+					grpc_prometheus.EnableHandlingTimeHistogram(grpc_prometheus.WithHistogramBuckets([]float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}))
 				}
 
 				if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {

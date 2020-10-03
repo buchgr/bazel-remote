@@ -12,9 +12,7 @@ import (
 	"strconv"
 
 	"github.com/buchgr/bazel-remote/cache"
-
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/buchgr/bazel-remote/metric"
 )
 
 type uploadReq struct {
@@ -33,14 +31,8 @@ type remoteHTTPProxyCache struct {
 }
 
 var (
-	cacheHits = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "bazel_remote_http_cache_hits",
-		Help: "The total number of HTTP backend cache hits",
-	})
-	cacheMisses = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "bazel_remote_http_cache_misses",
-		Help: "The total number of HTTP backend cache misses",
-	})
+	cacheHits   metric.Counter
+	cacheMisses metric.Counter
 )
 
 func uploadFile(remote *http.Client, baseURL *url.URL, accessLogger cache.Logger,
@@ -84,7 +76,15 @@ func uploadFile(remote *http.Client, baseURL *url.URL, accessLogger cache.Logger
 
 // New creates a cache that proxies requests to a HTTP remote cache.
 func New(baseURL *url.URL, remote *http.Client, accessLogger cache.Logger,
-	errorLogger cache.Logger, numUploaders, maxQueuedUploads int) cache.Proxy {
+	errorLogger cache.Logger, numUploaders, maxQueuedUploads int, collector metric.Collector) cache.Proxy {
+
+	if collector != nil {
+		cacheHits = collector.NewCounter("bazel_remote_http_cache_hits")
+		cacheMisses = collector.NewCounter("bazel_remote_http_cache_misses")
+	} else {
+		cacheHits = metric.NoOpCounter()
+		cacheMisses = metric.NoOpCounter()
+	}
 
 	proxy := &remoteHTTPProxyCache{
 		remote:       remote,

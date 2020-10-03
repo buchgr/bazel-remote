@@ -17,25 +17,18 @@ import (
 	"syscall"
 
 	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/metric"
 	"github.com/buchgr/bazel-remote/utils/tempfile"
 
 	"github.com/djherbis/atime"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/golang/protobuf/proto"
 )
 
 var (
-	cacheHits = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "bazel_remote_disk_cache_hits",
-		Help: "The total number of disk backend cache hits",
-	})
-	cacheMisses = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "bazel_remote_disk_cache_misses",
-		Help: "The total number of disk backend cache misses",
-	})
+	cacheHits   metric.Counter
+	cacheMisses metric.Counter
 )
 
 var tfc = tempfile.NewCreator()
@@ -70,7 +63,7 @@ const emptySha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b785
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
 // with a maximum size of `maxSizeBytes` bytes and an optional backend `proxy`.
 // Cache is safe for concurrent use.
-func New(dir string, maxSizeBytes int64, proxy cache.Proxy) *Cache {
+func New(dir string, maxSizeBytes int64, proxy cache.Proxy, collector metric.Collector) *Cache {
 	// Create the directory structure.
 	hexLetters := []byte("0123456789abcdef")
 	for _, c1 := range hexLetters {
@@ -105,7 +98,7 @@ func New(dir string, maxSizeBytes int64, proxy cache.Proxy) *Cache {
 	c := &Cache{
 		dir:   filepath.Clean(dir),
 		proxy: proxy,
-		lru:   NewSizedLRU(maxSizeBytes, onEvict),
+		lru:   NewSizedLRU(maxSizeBytes, onEvict, collector),
 	}
 
 	err := c.migrateDirectories()
@@ -116,6 +109,15 @@ func New(dir string, maxSizeBytes int64, proxy cache.Proxy) *Cache {
 	err = c.loadExistingFiles()
 	if err != nil {
 		log.Fatalf("Loading of existing cache entries failed due to error: %v", err)
+	}
+
+	// Setup metrics
+	if collector != nil {
+		cacheHits = collector.NewCounter("bazel_remote_disk_cache_hits")
+		cacheMisses = collector.NewCounter("bazel_remote_disk_cache_misses")
+	} else {
+		cacheHits = metric.NoOpCounter()
+		cacheMisses = metric.NoOpCounter()
 	}
 
 	return c
