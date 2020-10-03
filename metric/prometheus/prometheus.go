@@ -52,13 +52,13 @@ type collector struct{}
 func (c *collector) NewCounter(name string) metric.Counter {
 	return promauto.NewCounter(prometheus.CounterOpts{
 		Name: name,
-		Help: help["name"],
+		Help: help[name],
 	})
 }
 
 func (c *collector) NewGuage(name string) metric.Gauge {
 	return promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "bazel_remote_disk_cache_size_bytes",
-		Help: help["name"],
+		Help: help[name],
 	})
 }
