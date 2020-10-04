@@ -125,6 +125,8 @@ GLOBAL OPTIONS:
    --http_read_timeout value          The HTTP read timeout for a client request in seconds (does not apply to the proxy backends or the profiling endpoint) (default: 0s, ie disabled) [$BAZEL_REMOTE_HTTP_READ_TIMEOUT]
    --http_write_timeout value         The HTTP write timeout for a server response in seconds (does not apply to the proxy backends or the profiling endpoint) (default: 0s, ie disabled) [$BAZEL_REMOTE_HTTP_WRITE_TIMEOUT]
    --htpasswd_file value              Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html. [$BAZEL_REMOTE_HTPASSWD_FILE]
+   --max_queued_uploads value         When using proxy backends, sets the maximum number of objects in queue for upload. If the queue is full, uploads will be skipped until the queue has space again. (default: 1000000) [$BAZEL_REMOTE_MAX_QUEUED_UPLOADS]
+   --num_uploaders value              When using proxy backends, sets the number of Goroutines to process parallel uploads to backend. (default: 100) [$BAZEL_REMOTE_NUM_UPLOADERS]
    --tls_enabled                      This flag has been deprecated. Specify tls_cert_file and tls_key_file instead. (default: false) [$BAZEL_REMOTE_TLS_ENABLED]
    --tls_cert_file value              Path to a pem encoded certificate file. [$BAZEL_REMOTE_TLS_CERT_FILE]
    --tls_key_file value               Path to a pem encoded key file. [$BAZEL_REMOTE_TLS_KEY_FILE]
