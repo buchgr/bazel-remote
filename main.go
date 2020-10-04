@@ -134,6 +134,18 @@ func main() {
 			Usage:   "Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.",
 			EnvVars: []string{"BAZEL_REMOTE_HTPASSWD_FILE"},
 		},
+		&cli.IntFlag{
+			Name:    "max_queued_uploads",
+			Value:   1000000,
+			Usage:   "When using proxy backends, sets the maximum number of objects in queue for upload. If the queue is full, uploads will be skipped until the queue has space again.",
+			EnvVars: []string{"BAZEL_REMOTE_MAX_QUEUED_UPLOADS"},
+		},
+		&cli.IntFlag{
+			Name:    "num_uploaders",
+			Value:   100,
+			Usage:   "When using proxy backends, sets the number of Goroutines to process parallel uploads to backend.",
+			EnvVars: []string{"BAZEL_REMOTE_NUM_UPLOADERS"},
+		},
 		&cli.BoolFlag{
 			Name:    "tls_enabled",
 			Usage:   "This flag has been deprecated. Specify tls_cert_file and tls_key_file instead.",
@@ -275,6 +287,8 @@ func main() {
 				ctx.String("profile_host"),
 				ctx.Int("profile_port"),
 				ctx.String("htpasswd_file"),
+				ctx.Int("max_queued_uploads"),
+				ctx.Int("num_uploaders"),
 				ctx.String("tls_cert_file"),
 				ctx.String("tls_key_file"),
 				ctx.Duration("idle_timeout"),
