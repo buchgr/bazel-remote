@@ -145,7 +145,7 @@ func main() {
 		&cli.StringFlag{
 			Name:    "tls_ca_file",
 			Value:   "",
-			Usage:   "Path to a pem encoded certificate authority file.",
+			Usage:   "Optional. Enables mTLS (authenticating client certificates), should be the certificate authority that signed the client certificates.",
 			EnvVars: []string{"BAZEL_REMOTE_TLS_CA_FILE"},
 		},
 		&cli.StringFlag{
@@ -396,8 +396,6 @@ func main() {
 			tlsConfig = &tls.Config{
 				Certificates: []tls.Certificate{readCert},
 			}
-		} else {
-			tlsConfig = nil
 		}
 
 		mux := http.NewServeMux()

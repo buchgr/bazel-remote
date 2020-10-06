@@ -180,8 +180,9 @@ func validateConfig(c *Config) error {
 	}
 
 	if c.TLSCaFile != "" && (c.TLSCertFile == "" || c.TLSKeyFile == "") {
-		return errors.New("When enabling mTLS one must specify a: 'tls_ca_file' " +
-			"as well as 'tls_cert_file', and 'tls_key_file'")
+		return errors.New("When enabling mTLS (authenticating client " +
+			"certificates) the server must have it's own 'tls_key_file' " +
+			"and 'tls_cert_file' specified.")
 	}
 
 	if c.GoogleCloudStorage != nil && c.HTTPBackend != nil && c.S3CloudStorage != nil {
