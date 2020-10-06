@@ -13,10 +13,12 @@ import (
 	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/utils/metrics"
 )
 
 var (
@@ -63,6 +65,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 		}
 		if rdr == nil || sizeBytes <= 0 {
 			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, "NOT FOUND")
+			s.incAcRequestMetrics(metrics.METHOD_GET, metrics.NOT_FOUND, ctx)
 			return nil, status.Error(codes.NotFound,
 				fmt.Sprintf("%s not found in AC", req.ActionDigest.Hash))
 		}
@@ -82,6 +85,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 		}
 
 		s.accessLogger.Printf("%s %s OK", logPrefix, req.ActionDigest.Hash)
+		s.incAcRequestMetrics(metrics.METHOD_GET, metrics.OK, ctx)
 		return result, nil
 	}
 
@@ -93,6 +97,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 
 	if result == nil {
 		s.accessLogger.Printf("%s %s NOT FOUND", logPrefix, req.ActionDigest.Hash)
+		s.incAcRequestMetrics(metrics.METHOD_GET, metrics.NOT_FOUND, ctx)
 		return nil, status.Error(codes.NotFound,
 			fmt.Sprintf("%s not found in AC", req.ActionDigest.Hash))
 	}
@@ -129,6 +134,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 	}
 
 	s.accessLogger.Printf("GRPC AC GET %s OK", req.ActionDigest.Hash)
+	s.incAcRequestMetrics(metrics.METHOD_GET, metrics.OK, ctx)
 
 	return result, nil
 }
@@ -290,6 +296,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 	}
 
 	s.accessLogger.Printf("GRPC AC PUT %s OK", req.ActionDigest.Hash)
+	s.incAcRequestMetrics(metrics.METHOD_PUT, metrics.OK, ctx)
 
 	// Trivia: the RE API wants us to return the ActionResult from the
 	// request, in order to follow this standard method style guide:
@@ -330,4 +337,9 @@ func addWorkerMetadataGRPC(ctx context.Context, ar *pb.ActionResult) {
 	}
 
 	ar.ExecutionMetadata.Worker = worker
+}
+
+func (s *grpcServer) incAcRequestMetrics(method metrics.Method, status metrics.Status, ctx context.Context) {
+	headers, _ := metadata.FromIncomingContext(ctx)
+	s.metrics.IncomingRequestCompleted(metrics.AC, method, status, headers, metrics.GRPC)
 }

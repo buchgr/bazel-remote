@@ -17,6 +17,7 @@ import (
 	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
+	"github.com/buchgr/bazel-remote/utils/metrics"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 )
@@ -36,6 +37,7 @@ type httpCache struct {
 	validateAC   bool
 	mangleACKeys bool
 	gitCommit    string
+	metrics      metrics.Metrics
 }
 
 type statusPageData struct {
@@ -51,8 +53,7 @@ type statusPageData struct {
 // accessLogger will print one line for each HTTP request to stdout.
 // errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
 // be reported.
-func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, mangleACKeys bool, commit string) HTTPCache {
-
+func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, metrics metrics.Metrics, validateAC bool, mangleACKeys bool, commit string) HTTPCache {
 	_, _, numItems := cache.Stats()
 
 	errorLogger.Printf("Loaded %d existing disk cache items.", numItems)
@@ -63,6 +64,7 @@ func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cach
 		errorLogger:  errorLogger,
 		validateAC:   validateAC,
 		mangleACKeys: mangleACKeys,
+		metrics:      metrics,
 	}
 
 	if commit != "{STABLE_GIT_COMMIT}" {
@@ -106,32 +108,32 @@ func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request
 	_, data, err := h.cache.GetValidatedActionResult(hash)
 	if err != nil {
 		http.Error(w, "Not found", http.StatusNotFound)
-		h.logResponse(http.StatusNotFound, r)
+		h.logResponse(http.StatusNotFound, r, cache.AC)
 		return
 	}
 
 	if data == nil {
 		http.Error(w, "Not found", http.StatusNotFound)
-		h.logResponse(http.StatusNotFound, r)
+		h.logResponse(http.StatusNotFound, r, cache.AC)
 		return
 	}
 
 	w.Header().Set("Content-Length", strconv.FormatInt(int64(len(data)), 10))
 	w.WriteHeader(http.StatusOK)
-	h.logResponse(http.StatusOK, r)
+	h.logResponse(http.StatusOK, r, cache.AC)
 }
 
 func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, hash string) {
 	_, data, err := h.cache.GetValidatedActionResult(hash)
 	if err != nil {
 		http.Error(w, "Not found", http.StatusNotFound)
-		h.logResponse(http.StatusNotFound, r)
+		h.logResponse(http.StatusNotFound, r, cache.AC)
 		return
 	}
 
 	if data == nil {
 		http.Error(w, "Not found", http.StatusNotFound)
-		h.logResponse(http.StatusNotFound, r)
+		h.logResponse(http.StatusNotFound, r, cache.AC)
 		return
 	}
 
@@ -139,7 +141,7 @@ func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, has
 		ar := &pb.ActionResult{}
 		err = proto.Unmarshal(data, ar)
 		if err != nil {
-			h.logResponse(http.StatusInternalServerError, r)
+			h.logResponse(http.StatusInternalServerError, r, cache.AC)
 			return
 		}
 
@@ -147,10 +149,11 @@ func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, has
 		marshaler := jsonpb.Marshaler{}
 		err = marshaler.Marshal(w, ar)
 		if err != nil {
-			h.logResponse(http.StatusInternalServerError, r)
+			h.logResponse(http.StatusInternalServerError, r, cache.AC)
 			return
 		}
 
+		h.logResponse(http.StatusOK, r, cache.AC)
 		return
 	}
 
@@ -159,18 +162,20 @@ func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, has
 	bytesWritten, err := w.Write(data)
 
 	if err != nil {
-		h.logResponse(http.StatusInternalServerError, r)
+		h.logResponse(http.StatusInternalServerError, r, cache.AC)
 		return
 	}
 
 	if bytesWritten != len(data) {
-		h.logResponse(http.StatusInternalServerError, r)
+		h.logResponse(http.StatusInternalServerError, r, cache.AC)
 		return
 	}
+
+	h.logResponse(http.StatusOK, r, cache.AC)
 }
 
 // Helper function for logging responses
-func (h *httpCache) logResponse(code int, r *http.Request) {
+func (h *httpCache) logResponse(code int, r *http.Request, kind cache.EntryKind) {
 	// Parse the client ip:port
 	var clientAddress string
 	var err error
@@ -179,6 +184,36 @@ func (h *httpCache) logResponse(code int, r *http.Request) {
 		clientAddress = r.RemoteAddr
 	}
 	h.accessLogger.Printf("%4s %d %15s %s", r.Method, code, clientAddress, r.URL.Path)
+	h.increaseMetrics(code, r, kind)
+}
+
+func (h *httpCache) increaseMetrics(code int, r *http.Request, kind cache.EntryKind) {
+	if kind == cache.AC {
+		// See comments in metrics.go about why only counting AC requests,
+		// and why mapping several statuses as "other".
+
+		var status metrics.Status
+		var method metrics.Method
+		switch r.Method {
+		case http.MethodGet:
+			method = metrics.METHOD_GET
+		case http.MethodPut:
+			method = metrics.METHOD_PUT
+		case http.MethodHead:
+			method = metrics.METHOD_HEAD
+		default:
+			method = metrics.METHOD_OTHER
+		}
+		switch code {
+		case http.StatusOK:
+			status = metrics.OK
+		case http.StatusNotFound:
+			status = metrics.NOT_FOUND
+		default:
+			status = metrics.OTHER_STATUS
+		}
+		h.metrics.IncomingRequestCompleted(metrics.AC, method, status, r.Header, metrics.HTTP)
+	}
 }
 
 func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
@@ -187,7 +222,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	kind, hash, instance, err := parseRequestURL(r.URL.Path, h.validateAC)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		h.logResponse(http.StatusBadRequest, r)
+		h.logResponse(http.StatusBadRequest, r, cache.UNKNOWN)
 		return
 	}
 
@@ -216,7 +251,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 		if rdr == nil {
 			http.Error(w, "Not found", http.StatusNotFound)
-			h.logResponse(http.StatusNotFound, r)
+			h.logResponse(http.StatusNotFound, r, kind)
 			return
 		}
 		defer rdr.Close()
@@ -225,7 +260,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", strconv.FormatInt(sizeBytes, 10))
 		io.Copy(w, rdr)
 
-		h.logResponse(http.StatusOK, r)
+		h.logResponse(http.StatusOK, r, kind)
 
 	case http.MethodPut:
 		contentLength := r.ContentLength
@@ -289,7 +324,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), err)
 		} else {
-			h.logResponse(http.StatusOK, r)
+			h.logResponse(http.StatusOK, r, kind)
 		}
 
 	case http.MethodHead:
@@ -304,18 +339,17 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		ok, size := h.cache.Contains(kind, hash, -1)
 		if !ok {
 			http.Error(w, "Not found", http.StatusNotFound)
-			h.logResponse(http.StatusNotFound, r)
+			h.logResponse(http.StatusNotFound, r, kind)
 			return
 		}
-
 		w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
 		w.WriteHeader(http.StatusOK)
-		h.logResponse(http.StatusOK, r)
+		h.logResponse(http.StatusOK, r, kind)
 
 	default:
 		msg := fmt.Sprintf("Method '%s' not supported.", html.EscapeString(m))
 		http.Error(w, msg, http.StatusMethodNotAllowed)
-		h.logResponse(http.StatusMethodNotAllowed, r)
+		h.logResponse(http.StatusMethodNotAllowed, r, kind)
 	}
 }
 

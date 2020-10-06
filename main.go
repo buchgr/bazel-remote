@@ -22,6 +22,7 @@ import (
 	"github.com/buchgr/bazel-remote/config"
 	"github.com/buchgr/bazel-remote/server"
 	"github.com/buchgr/bazel-remote/utils/idle"
+	"github.com/buchgr/bazel-remote/utils/metrics"
 	"github.com/buchgr/bazel-remote/utils/rlimit"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
@@ -297,6 +298,7 @@ func main() {
 				ctx.Bool("disable_grpc_ac_deps_check"),
 				ctx.Bool("enable_ac_key_instance_mangling"),
 				ctx.Bool("enable_endpoint_metrics"),
+				nil,
 				ctx.Bool("experimental_remote_asset_api"),
 				ctx.Duration("http_read_timeout"),
 				ctx.Duration("http_write_timeout"),
@@ -325,6 +327,7 @@ func main() {
 
 		accessLogger := log.New(os.Stdout, "", logFlags)
 		errorLogger := log.New(os.Stderr, "", logFlags)
+		metrics := metrics.NewMetrics(c.Metrics)
 
 		var proxyCache cache.Proxy
 		if c.GoogleCloudStorage != nil {
@@ -358,8 +361,7 @@ func main() {
 		}
 
 		validateAC := !c.DisableHTTPACValidation
-		h := server.NewHTTPCache(diskCache, accessLogger, errorLogger, validateAC, c.EnableACKeyInstanceMangling, gitCommit)
-
+		h := server.NewHTTPCache(diskCache, accessLogger, errorLogger, metrics, validateAC, c.EnableACKeyInstanceMangling, gitCommit)
 		var htpasswdSecrets auth.SecretProvider
 		cacheHandler := h.CacheHandler
 		if c.HtpasswdFile != "" {
@@ -458,7 +460,7 @@ func main() {
 					validateAC,
 					c.EnableACKeyInstanceMangling,
 					enableRemoteAssetAPI,
-					diskCache, accessLogger, errorLogger)
+					diskCache, accessLogger, errorLogger, metrics)
 				if err3 != nil {
 					log.Fatal(err3)
 				}

@@ -73,6 +73,7 @@ func TestMain(m *testing.M) {
 
 	accessLogger := testutils.NewSilentLogger()
 	errorLogger := testutils.NewSilentLogger()
+	metrics := testutils.NewMetricsStub()
 
 	listener = bufconn.Listen(bufSize)
 
@@ -87,7 +88,7 @@ func TestMain(m *testing.M) {
 			validateAC,
 			mangleACKeys,
 			enableRemoteAssetAPI,
-			diskCache, accessLogger, errorLogger)
+			diskCache, accessLogger, errorLogger, metrics)
 		if err2 != nil {
 			fmt.Println(err2)
 			os.Exit(1)

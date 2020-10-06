@@ -230,6 +230,23 @@ host: localhost
 
 # If true, enable experimental remote asset API support:
 #experimental_remote_asset_api: true
+
+# Allows mapping HTTP and gRPC headers to prometheus
+# labels. Headers can be set by bazel client as:
+# --remote_header=os=ubuntu18-04. Not all counters are
+# affected.
+#metrics:
+#  categories:
+#    os:
+#      - rhel7
+#      - rhel8
+#      - ubuntu16-04
+#      - ubuntu18-04
+#    branch:
+#      - master
+#    user:
+#      - ci
+
 ```
 
 ## Docker
