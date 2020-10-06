@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"io"
 	"path/filepath"
+
+	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 )
 
 // EntryKind describes the kind of cache entry
@@ -49,6 +51,52 @@ type Error struct {
 func (e *Error) Error() string {
 	return e.Text
 }
+
+// Represent the context of an incoming request. For now it acts as an
+// adapter providing a common interface to headers from HTTP and gRPC
+// requests. In the future it could be extend if additional
+// information needs to be associated with a request, or be propagated
+// from HTTP/gRPC servers towards disk cache, or perhaps further
+// to proxies.
+type RequestContext interface {
+	// Return values for HTTP/gRPC header in the associated
+	// request. Returns a slice since there could be several
+	// headers with same name. Returns empty slice if no
+	// headers exist with the requested name.
+	// The headerName is expected in lowercase.
+	GetHeader(headerName string) (headerValues []string)
+}
+
+// TODO Document interface
+type BlobStore interface {
+	// TODO change to io.ReadCloser?
+	Put(kind EntryKind, hash string, size int64, rdr io.Reader, reqCtx RequestContext) error
+
+	Get(kind EntryKind, hash string, size int64, reqCtx RequestContext) (io.ReadCloser, int64, error)
+
+	Contains(kind EntryKind, hash string, size int64, reqCtx RequestContext) (bool, int64)
+}
+
+// TODO Document interface
+type AcStore interface {
+	GetValidatedActionResult(hash string, reqCtx RequestContext) (*pb.ActionResult, []byte, error)
+}
+
+// TODO Document interface
+type BlobAcStore interface {
+	BlobStore
+	AcStore
+}
+
+// TODO Document interface
+type Stats interface {
+	Stats() (totalSize int64, reservedSize int64, numItems int)
+	MaxSize() int64
+}
+
+// TODO Could the proxies implement the BlobStore interface instead? And remove Proxy interface?
+//      Having access to the original headers would allow new use cases such as forwarding of
+//      custom headers from client via proxy, or support for HTTP headers like Max-Forwards.
 
 // Proxy is the interface that (optional) proxy backends must implement.
 // Implementations are expected to be safe for concurrent use.

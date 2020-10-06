@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "metricsdecorator.go",
+    ],
+    importpath = "github.com/buchgr/bazel-remote/cache/metricsdecorator",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//config:go_default_library",
+        "//cache:go_default_library",
+        "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
+        "@com_github_prometheus_client_golang//prometheus:go_default_library",
+        "@com_github_prometheus_client_golang//prometheus/promauto:go_default_library",
+    ],
+)
+

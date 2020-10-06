@@ -35,6 +35,11 @@ type HTTPBackendConfig struct {
 	BaseURL string `yaml:"url"`
 }
 
+// Metrics stores configuration for prometheus metrics.
+type Metrics struct {
+	Categories map[string][]string `yaml:"categories"`
+}
+
 // Config holds the top-level configuration for bazel-remote.
 type Config struct {
 	Host                        string                    `yaml:"host"`
@@ -57,6 +62,7 @@ type Config struct {
 	DisableGRPCACDepsCheck      bool                      `yaml:"disable_grpc_ac_deps_check"`
 	EnableACKeyInstanceMangling bool                      `yaml:"enable_ac_key_instance_mangling"`
 	EnableEndpointMetrics       bool                      `yaml:"enable_endpoint_metrics"`
+	Metrics                     *Metrics                  `yaml:"metrics"`
 	ExperimentalRemoteAssetAPI  bool                      `yaml:"experimental_remote_asset_api"`
 	HTTPReadTimeout             time.Duration             `yaml:"http_read_timeout"`
 	HTTPWriteTimeout            time.Duration             `yaml:"http_write_timeout"`
@@ -77,6 +83,7 @@ func New(dir string, maxSize int, host string, port int, grpcPort int,
 	disableGRPCACDepsCheck bool,
 	enableACKeyInstanceMangling bool,
 	enableEndpointMetrics bool,
+	metrics *Metrics,
 	experimentalRemoteAssetAPI bool,
 	httpReadTimeout time.Duration,
 	httpWriteTimeout time.Duration) (*Config, error) {
@@ -101,6 +108,7 @@ func New(dir string, maxSize int, host string, port int, grpcPort int,
 		DisableGRPCACDepsCheck:      disableGRPCACDepsCheck,
 		EnableACKeyInstanceMangling: enableACKeyInstanceMangling,
 		EnableEndpointMetrics:       enableEndpointMetrics,
+		Metrics:                     metrics,
 		ExperimentalRemoteAssetAPI:  experimentalRemoteAssetAPI,
 		HTTPReadTimeout:             httpReadTimeout,
 		HTTPWriteTimeout:            httpWriteTimeout,

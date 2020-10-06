@@ -78,7 +78,7 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Non-existing item
-	rdr, _, err := testCache.Get(cache.CAS, contentsHash, contentsLength)
+	rdr, _, err := testCache.Get(cache.CAS, contentsHash, contentsLength, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestCacheBasics(t *testing.T) {
 
 	// Add an item
 	err = testCache.Put(cache.CAS, contentsHash, int64(len(contents)),
-		ioutil.NopCloser(strings.NewReader(contents)))
+		ioutil.NopCloser(strings.NewReader(contents)), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Get the item back
-	rdr, sizeBytes, err := testCache.Get(cache.CAS, contentsHash, contentsLength)
+	rdr, sizeBytes, err := testCache.Get(cache.CAS, contentsHash, contentsLength, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestCacheEviction(t *testing.T) {
 		}
 
 		err := testCache.Put(cache.AC, key, int64(i),
-			ioutil.NopCloser(strReader))
+			ioutil.NopCloser(strReader), nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -164,16 +164,16 @@ func TestCachePutWrongSize(t *testing.T) {
 
 	var err error
 
-	err = testCache.Put(cache.AC, hash, int64(len(content)), strings.NewReader(content))
+	err = testCache.Put(cache.AC, hash, int64(len(content)), strings.NewReader(content), nil)
 	if err != nil {
 		t.Fatal("Expected success", err)
 	}
 
-	err = testCache.Put(cache.AC, hash, int64(len(content))+1, strings.NewReader(content))
+	err = testCache.Put(cache.AC, hash, int64(len(content))+1, strings.NewReader(content), nil)
 	if err == nil {
 		t.Error("Expected error due to size being different")
 	}
-	err = testCache.Put(cache.AC, hash, int64(len(content))-1, strings.NewReader(content))
+	err = testCache.Put(cache.AC, hash, int64(len(content))-1, strings.NewReader(content), nil)
 	if err == nil {
 		t.Error("Expected error due to size being different")
 	}
@@ -188,27 +188,27 @@ func TestCacheGetContainsWrongSize(t *testing.T) {
 	var found bool
 	var rdr io.ReadCloser
 
-	err := testCache.Put(cache.CAS, contentsHash, contentsLength, strings.NewReader(contents))
+	err := testCache.Put(cache.CAS, contentsHash, contentsLength, strings.NewReader(contents), nil)
 	if err != nil {
 		t.Fatal("Expected success", err)
 	}
 
-	found, _ = testCache.Contains(cache.CAS, contentsHash, contentsLength+1)
+	found, _ = testCache.Contains(cache.CAS, contentsHash, contentsLength+1, nil)
 	if found {
 		t.Error("Expected not found, due to size being different")
 	}
 
-	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, contentsLength+1)
+	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, contentsLength+1, nil)
 	if rdr != nil {
 		t.Error("Expected not found, due to size being different")
 	}
 
-	found, _ = testCache.Contains(cache.CAS, contentsHash, -1)
+	found, _ = testCache.Contains(cache.CAS, contentsHash, -1, nil)
 	if !found {
 		t.Error("Expected found, when unknown size")
 	}
 
-	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, -1)
+	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, -1, nil)
 	if rdr == nil {
 		t.Error("Expected found, when unknown size")
 	}
@@ -225,12 +225,12 @@ func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
 
 	// The proxyStub contains the digest {contentsHash, contentsLength}.
 
-	found, _ = testCache.Contains(cache.CAS, contentsHash, contentsLength+1)
+	found, _ = testCache.Contains(cache.CAS, contentsHash, contentsLength+1, nil)
 	if found {
 		t.Error("Expected not found, due to size being different")
 	}
 
-	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, contentsLength+1)
+	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, contentsLength+1, nil)
 	if rdr != nil {
 		t.Error("Expected not found, due to size being different")
 	}
@@ -238,12 +238,12 @@ func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	found, _ = testCache.Contains(cache.CAS, contentsHash, -1)
+	found, _ = testCache.Contains(cache.CAS, contentsHash, -1, nil)
 	if !found {
 		t.Error("Expected found, when unknown size")
 	}
 
-	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, -1)
+	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, -1, nil)
 	if rdr == nil {
 		t.Error("Expected found, when unknown size")
 	}
@@ -302,12 +302,12 @@ func putGetCompareBytes(kind cache.EntryKind, hash string, data []byte, testCach
 
 	r := bytes.NewReader(data)
 
-	err := testCache.Put(kind, hash, int64(len(data)), r)
+	err := testCache.Put(kind, hash, int64(len(data)), r, nil)
 	if err != nil {
 		return err
 	}
 
-	rdr, sizeBytes, err := testCache.Get(kind, hash, int64(len(data)))
+	rdr, sizeBytes, err := testCache.Get(kind, hash, int64(len(data)), nil)
 	if err != nil {
 		return err
 	}
@@ -389,7 +389,7 @@ func TestCacheExistingFiles(t *testing.T) {
 	}
 
 	// Adding a new file should evict items[0] (the oldest)
-	err = testCache.Put(cache.CAS, contentsHash, int64(len(contents)), strings.NewReader(contents))
+	err = testCache.Put(cache.CAS, contentsHash, int64(len(contents)), strings.NewReader(contents), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +398,7 @@ func TestCacheExistingFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	found, _ := testCache.Contains(cache.CAS, "f53b46209596d170f7659a414c9ff9f6b545cf77ffd6e1cbe9bcc57e1afacfbd", contentsLength)
+	found, _ := testCache.Contains(cache.CAS, "f53b46209596d170f7659a414c9ff9f6b545cf77ffd6e1cbe9bcc57e1afacfbd", contentsLength, nil)
 	if found {
 		t.Fatalf("%s should have been evicted", items[0])
 	}
@@ -413,7 +413,7 @@ func TestCacheBlobTooLarge(t *testing.T) {
 
 	for k := range []cache.EntryKind{cache.AC, cache.RAW} {
 		kind := cache.EntryKind(k)
-		err := testCache.Put(kind, hashStr("foo"), 10000, strings.NewReader(contents))
+		err := testCache.Put(kind, hashStr("foo"), 10000, strings.NewReader(contents), nil)
 		if err == nil {
 			t.Fatal("Expected an error")
 		}
@@ -435,14 +435,14 @@ func TestCacheCorruptedCASBlob(t *testing.T) {
 	testCache := New(cacheDir, 1000, nil)
 
 	err := testCache.Put(cache.CAS, hashStr("foo"), int64(len(contents)),
-		strings.NewReader(contents))
+		strings.NewReader(contents), nil)
 	if err == nil {
 		t.Fatal("expected hash mismatch error")
 	}
 
 	// We expect the upload to succeed without validation:
 	err = testCache.Put(cache.RAW, hashStr("foo"), int64(len(contents)),
-		strings.NewReader(contents))
+		strings.NewReader(contents), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -481,17 +481,17 @@ func TestMigrateFromOldDirectoryStructure(t *testing.T) {
 	}
 
 	var found bool
-	found, _ = testCache.Contains(cache.AC, acHash, 512)
+	found, _ = testCache.Contains(cache.AC, acHash, 512, nil)
 	if !found {
 		t.Fatalf("Expected cache to contain AC entry '%s'", acHash)
 	}
 
-	found, _ = testCache.Contains(cache.CAS, casHash1, 1024)
+	found, _ = testCache.Contains(cache.CAS, casHash1, 1024, nil)
 	if !found {
 		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash1)
 	}
 
-	found, _ = testCache.Contains(cache.CAS, casHash2, 1024)
+	found, _ = testCache.Contains(cache.CAS, casHash2, 1024, nil)
 	if !found {
 		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash2)
 	}
@@ -527,17 +527,17 @@ func TestLoadExistingEntries(t *testing.T) {
 
 	var found bool
 
-	found, _ = testCache.Contains(cache.AC, acHash, blobSize)
+	found, _ = testCache.Contains(cache.AC, acHash, blobSize, nil)
 	if !found {
 		t.Fatalf("Expected cache to contain AC entry '%s'", acHash)
 	}
 
-	found, _ = testCache.Contains(cache.CAS, casHash, blobSize)
+	found, _ = testCache.Contains(cache.CAS, casHash, blobSize, nil)
 	if !found {
 		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash)
 	}
 
-	found, _ = testCache.Contains(cache.RAW, rawHash, blobSize)
+	found, _ = testCache.Contains(cache.RAW, rawHash, blobSize, nil)
 	if !found {
 		t.Fatalf("Expected cache to contain RAW entry '%s'", rawHash)
 	}
@@ -671,7 +671,7 @@ func TestHttpProxyBackend(t *testing.T) {
 	blob, casHash := testutils.RandomDataAndHash(blobSize)
 
 	// Non-existing item
-	r, _, err := testCache.Get(cache.CAS, casHash, blobSize)
+	r, _, err := testCache.Get(cache.CAS, casHash, blobSize, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -684,7 +684,7 @@ func TestHttpProxyBackend(t *testing.T) {
 	}
 
 	err = testCache.Put(cache.CAS, casHash, int64(len(blob)),
-		bytes.NewReader(blob))
+		bytes.NewReader(blob), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -705,12 +705,12 @@ func TestHttpProxyBackend(t *testing.T) {
 	// Confirm that it does not contain the item we added to the
 	// first testCache and the proxy backend.
 
-	found, _ := testCache.Contains(cache.CAS, casHash, blobSize)
+	found, _ := testCache.Contains(cache.CAS, casHash, blobSize, nil)
 	if found {
 		t.Fatalf("Expected the cache not to contain %s", casHash)
 	}
 
-	r, _, err = testCache.Get(cache.CAS, casHash, blobSize)
+	r, _, err = testCache.Get(cache.CAS, casHash, blobSize, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -721,13 +721,13 @@ func TestHttpProxyBackend(t *testing.T) {
 	// Add the proxy backend and check that we can Get the item.
 	testCache.proxy = proxy
 
-	found, _ = testCache.Contains(cache.CAS, casHash, blobSize)
+	found, _ = testCache.Contains(cache.CAS, casHash, blobSize, nil)
 	if !found {
 		t.Fatalf("Expected the cache to contain %s (via the proxy)",
 			casHash)
 	}
 
-	r, fetchedSize, err := testCache.Get(cache.CAS, casHash, blobSize)
+	r, fetchedSize, err := testCache.Get(cache.CAS, casHash, blobSize, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -772,7 +772,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 	grokHashStr := hex.EncodeToString(grokHash[:])
 
 	err = testCache.Put(cache.CAS, grokHashStr, int64(len(grokData)),
-		bytes.NewReader(grokData))
+		bytes.NewReader(grokData), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -782,7 +782,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 	fooHashStr := hex.EncodeToString(fooHash[:])
 
 	err = testCache.Put(cache.CAS, fooHashStr, int64(len(fooData)),
-		bytes.NewReader(fooData))
+		bytes.NewReader(fooData), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -814,7 +814,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 	barDataHashStr := hex.EncodeToString(barDataHash[:])
 
 	err = testCache.Put(cache.CAS, barDataHashStr, int64(len(barData)),
-		bytes.NewReader(barData))
+		bytes.NewReader(barData), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -839,7 +839,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 	rootDataHashStr := hex.EncodeToString(rootDataHash[:])
 
 	err = testCache.Put(cache.CAS, rootDataHashStr, int64(len(rootData)),
-		bytes.NewReader(rootData))
+		bytes.NewReader(rootData), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -856,7 +856,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 	treeDataHashStr := hex.EncodeToString(treeDataHash[:])
 
 	err = testCache.Put(cache.CAS, treeDataHashStr, int64(len(treeData)),
-		bytes.NewReader(treeData))
+		bytes.NewReader(treeData), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -898,7 +898,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 	arDataHashStr := hex.EncodeToString(arDataHash[:])
 
 	err = testCache.Put(cache.AC, arDataHashStr, int64(len(arData)),
-		bytes.NewReader(arData))
+		bytes.NewReader(arData), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -910,7 +910,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 	// to assume that the value should be returned unchanged by the cache
 	// layer.
 
-	rAR, rData, err := testCache.GetValidatedActionResult(arDataHashStr)
+	rAR, rData, err := testCache.GetValidatedActionResult(arDataHashStr, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

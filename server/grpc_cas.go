@@ -37,7 +37,7 @@ func (s *grpcServer) FindMissingBlobs(ctx context.Context,
 			return nil, err
 		}
 
-		found, _ := s.cache.Contains(cache.CAS, hash, digest.GetSizeBytes())
+		found, _ := s.cache.Contains(cache.CAS, hash, digest.GetSizeBytes(), newReqCtxGrpc(ctx))
 		if !found {
 			s.accessLogger.Printf("GRPC CAS HEAD %s NOT FOUND", hash)
 			resp.MissingBlobDigests = append(resp.MissingBlobDigests, digest)
@@ -75,7 +75,7 @@ func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 		resp.Responses = append(resp.Responses, &rr)
 
 		err = s.cache.Put(cache.CAS, req.Digest.Hash,
-			int64(len(req.Data)), bytes.NewReader(req.Data))
+			int64(len(req.Data)), bytes.NewReader(req.Data), newReqCtxGrpc(ctx))
 		if err != nil {
 			s.errorLogger.Printf("%s %s %s", errorPrefix, req.Digest.Hash, err)
 			rr.Status.Code = int32(code.Code_UNKNOWN)
@@ -91,7 +91,7 @@ func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 // Return the data for a blob, or an error.  If the blob was not
 // found, the returned error is errBlobNotFound. Only use this
 // function when it's OK to buffer the entire blob in memory.
-func (s *grpcServer) getBlobData(hash string, size int64) ([]byte, error) {
+func (s *grpcServer) getBlobData(hash string, size int64, reqCtx *reqCtxGrpc) ([]byte, error) {
 	if size < 0 {
 		return []byte{}, errBadSize
 	}
@@ -100,7 +100,7 @@ func (s *grpcServer) getBlobData(hash string, size int64) ([]byte, error) {
 		return []byte{}, nil
 	}
 
-	rdr, sizeBytes, err := s.cache.Get(cache.CAS, hash, size)
+	rdr, sizeBytes, err := s.cache.Get(cache.CAS, hash, size, reqCtx)
 	if err != nil {
 		rdr.Close()
 		return []byte{}, err
@@ -124,10 +124,10 @@ func (s *grpcServer) getBlobData(hash string, size int64) ([]byte, error) {
 	return data, rdr.Close()
 }
 
-func (s *grpcServer) getBlobResponse(digest *pb.Digest) *pb.BatchReadBlobsResponse_Response {
+func (s *grpcServer) getBlobResponse(digest *pb.Digest, reqCtx *reqCtxGrpc) *pb.BatchReadBlobsResponse_Response {
 	r := pb.BatchReadBlobsResponse_Response{Digest: digest}
 
-	data, err := s.getBlobData(digest.Hash, digest.SizeBytes)
+	data, err := s.getBlobData(digest.Hash, digest.SizeBytes, reqCtx)
 	if err == errBlobNotFound {
 		s.accessLogger.Printf("GRPC CAS GET %s NOT FOUND", digest.Hash)
 		r.Status = &status.Status{Code: int32(code.Code_NOT_FOUND)}
@@ -163,7 +163,7 @@ func (s *grpcServer) BatchReadBlobs(ctx context.Context,
 		if err != nil {
 			return nil, err
 		}
-		resp.Responses = append(resp.Responses, s.getBlobResponse(digest))
+		resp.Responses = append(resp.Responses, s.getBlobResponse(digest, newReqCtxGrpc(ctx)))
 	}
 
 	return &resp, nil
@@ -171,6 +171,8 @@ func (s *grpcServer) BatchReadBlobs(ctx context.Context,
 
 func (s *grpcServer) GetTree(in *pb.GetTreeRequest,
 	stream pb.ContentAddressableStorage_GetTreeServer) error {
+
+	reqCtx := newReqCtxGrpc(stream.Context())
 
 	resp := pb.GetTreeResponse{
 		Directories: make([]*pb.Directory, 0),
@@ -181,7 +183,7 @@ func (s *grpcServer) GetTree(in *pb.GetTreeRequest,
 		return err
 	}
 
-	data, err := s.getBlobData(in.RootDigest.Hash, in.RootDigest.SizeBytes)
+	data, err := s.getBlobData(in.RootDigest.Hash, in.RootDigest.SizeBytes, reqCtx)
 	if err == errBlobNotFound {
 		s.accessLogger.Printf("GRPC CAS GETTREEREQUEST %s NOT FOUND",
 			in.RootDigest.Hash)
@@ -199,7 +201,7 @@ func (s *grpcServer) GetTree(in *pb.GetTreeRequest,
 		return grpc_status.Error(codes.DataLoss, err.Error())
 	}
 
-	err = s.fillDirectories(&resp, &dir, errorPrefix)
+	err = s.fillDirectories(&resp, &dir, errorPrefix, reqCtx)
 	if err != nil {
 		return err
 	}
@@ -214,7 +216,7 @@ func (s *grpcServer) GetTree(in *pb.GetTreeRequest,
 
 // Attempt to populate `resp`. Return errors for invalid requests, but
 // otherwise attempt to return as many blobs as possible.
-func (s *grpcServer) fillDirectories(resp *pb.GetTreeResponse, dir *pb.Directory, errorPrefix string) error {
+func (s *grpcServer) fillDirectories(resp *pb.GetTreeResponse, dir *pb.Directory, errorPrefix string, reqCtx *reqCtxGrpc) error {
 
 	// Add this dir.
 	resp.Directories = append(resp.Directories, dir)
@@ -227,7 +229,7 @@ func (s *grpcServer) fillDirectories(resp *pb.GetTreeResponse, dir *pb.Directory
 			return err
 		}
 
-		data, err := s.getBlobData(dirNode.Digest.Hash, dirNode.Digest.SizeBytes)
+		data, err := s.getBlobData(dirNode.Digest.Hash, dirNode.Digest.SizeBytes, reqCtx)
 		if err == errBlobNotFound {
 			s.accessLogger.Printf("GRPC GETTREEREQUEST BLOB %s NOT FOUND",
 				dirNode.Digest.Hash)
@@ -248,7 +250,7 @@ func (s *grpcServer) fillDirectories(resp *pb.GetTreeResponse, dir *pb.Directory
 		s.accessLogger.Printf("GRPC GETTREEREQUEST BLOB %s ADDED OK",
 			dirNode.Digest.Hash)
 
-		err = s.fillDirectories(resp, &dirMsg, errorPrefix)
+		err = s.fillDirectories(resp, &dirMsg, errorPrefix, reqCtx)
 		if err != nil {
 			return err
 		}
