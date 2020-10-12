@@ -291,8 +291,11 @@ $ bazel build :bazel-remote
 
 ### Authentication
 
-In order to pass a `.htpasswd` and/or server key file(s) to the cache inside a docker container, you first need
-to mount the file in the container and pass the path to the cache. The example below also configures TLS which is technically optional but highly recommended in order to not send passwords in plain text.
+In order to pass a `.htpasswd` and/or server key file(s) to the cache
+inside a docker container, you first need to mount the file in the
+container and pass the path to the cache. The example below also
+configures TLS which is technically optional but highly recommended
+in order to not send passwords in plain text.
 
 ```bash
 $ docker run -v /path/to/cache/dir:/data \
@@ -306,7 +309,11 @@ $ docker run -v /path/to/cache/dir:/data \
 	--htpasswd_file /etc/bazel-remote/htpasswd --max_size=5
 ```
 
-If you prefer not using `.htpasswd` files it is also possible to authenticate with mTLS (also can be known as "authenticating client certificates"). You can do this by passing in the the cert/key the server should use, as well as the certificate authority that signed the client certificates:
+If you prefer not using `.htpasswd` files it is also possible to
+authenticate with mTLS (also can be known as "authenticating client
+certificates"). You can do this by passing in the the cert/key the
+server should use, as well as the certificate authority that signed
+the client certificates:
 
 ```bash
 $ docker run -v /path/to/cache/dir:/data \
