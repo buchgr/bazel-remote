@@ -6,7 +6,7 @@ bazel-remote is a HTTP/1.1 and gRPC server that is intended to be used as a remo
 [Bazel](https://bazel.build). The cache contents are stored in a directory on disk. One can specify a maximum cache
 size and bazel-remote will automatically enforce this limit and clean the cache by deleting files based on their
 last access time. The cache supports HTTP basic authentication with usernames and passwords being specified by a
-`.htpasswd` file.
+`.htpasswd` file, and also mutual TLS authentication.
 
 **Project status**: bazel-remote has been serving TBs of cache artifacts per day since April 2018, both on
 commodity hardware and AWS servers. Outgoing bandwidth can exceed 15 Gbit/s on the right AWS instance type.
@@ -345,6 +345,14 @@ Basic username/password authentication can be added like so:
 
 To avoid leaking your password in log files, you can place this flag in a
 [user-specific (and .gitignore'd) bazelrc file](https://docs.bazel.build/versions/master/best-practices.html#bazelrc).
+
+To use mutual TLS with bazel, use a `grpcs` URL for the `--remote_cache`
+argument, and add the following flags:
+```bash
+	--tls_certificate=path/to/ca.cert
+	--tls_client_certificate=path/to/client/cert.cert
+	--tls_client_key=path/to/client/cert.key
+```
 
 For more details, see Bazel's [remote
 caching](https://docs.bazel.build/versions/master/remote-caching.html#run-bazel-using-the-remote-cache)
