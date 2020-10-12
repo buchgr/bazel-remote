@@ -45,6 +45,7 @@ type Config struct {
 	Dir                         string                    `yaml:"dir"`
 	MaxSize                     int                       `yaml:"max_size"`
 	HtpasswdFile                string                    `yaml:"htpasswd_file"`
+	TLSCaFile                   string                    `yaml:"tls_ca_file"`
 	TLSCertFile                 string                    `yaml:"tls_cert_file"`
 	TLSKeyFile                  string                    `yaml:"tls_key_file"`
 	S3CloudStorage              *S3CloudStorageConfig     `yaml:"s3_proxy,omitempty"`
@@ -69,6 +70,7 @@ func New(dir string, maxSize int, host string, port int, grpcPort int,
 	htpasswdFile string,
 	maxQueuedUploads int,
 	numUploaders int,
+	tlsCaFile string,
 	tlsCertFile string,
 	tlsKeyFile string,
 	idleTimeout time.Duration,
@@ -91,6 +93,7 @@ func New(dir string, maxSize int, host string, port int, grpcPort int,
 		HtpasswdFile:                htpasswdFile,
 		MaxQueuedUploads:            maxQueuedUploads,
 		NumUploaders:                numUploaders,
+		TLSCaFile:                   tlsCaFile,
 		TLSCertFile:                 tlsCertFile,
 		TLSKeyFile:                  tlsKeyFile,
 		S3CloudStorage:              s3,
@@ -174,6 +177,12 @@ func validateConfig(c *Config) error {
 	if (c.TLSCertFile != "" && c.TLSKeyFile == "") || (c.TLSCertFile == "" && c.TLSKeyFile != "") {
 		return errors.New("When enabling TLS one must specify both " +
 			"'tls_key_file' and 'tls_cert_file'")
+	}
+
+	if c.TLSCaFile != "" && (c.TLSCertFile == "" || c.TLSKeyFile == "") {
+		return errors.New("When enabling mTLS (authenticating client " +
+			"certificates) the server must have it's own 'tls_key_file' " +
+			"and 'tls_cert_file' specified.")
 	}
 
 	if c.GoogleCloudStorage != nil && c.HTTPBackend != nil && c.S3CloudStorage != nil {
