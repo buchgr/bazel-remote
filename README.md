@@ -308,15 +308,15 @@ If you prefer not using `.htpasswd` files it is also possible to authenticate wi
 
 ```bash
 $ docker run -v /path/to/cache/dir:/data \
-  -v /path/to/certificate_authority:/etc/bazel-remote/ca_cert \
-  -v /path/to/server_cert:/etc/bazel-remote/server_cert \
-  -v /path/to/server_key:/etc/bazel-remote/server_key \
-  -p 9090:8080 -p 9092:9092 buchgr/bazel-remote-cache \
-  --tls_enabled=true \
-  --tls_ca_file=/etc/bazel-remote/ca_cert \
-  --tls_cert_file=/etc/bazel-remote/server_cert \
-  --tls_key_file=/etc/bazel-remote/server_key \
-  --max_size=5
+	-v /path/to/certificate_authority:/etc/bazel-remote/ca_cert \
+	-v /path/to/server_cert:/etc/bazel-remote/server_cert \
+	-v /path/to/server_key:/etc/bazel-remote/server_key \
+	-p 9090:8080 -p 9092:9092 buchgr/bazel-remote-cache \
+	--tls_enabled=true \
+	--tls_ca_file=/etc/bazel-remote/ca_cert \
+	--tls_cert_file=/etc/bazel-remote/server_cert \
+	--tls_key_file=/etc/bazel-remote/server_key \
+	--max_size=5
 ```
 
 ### Profiling
