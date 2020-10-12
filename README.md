@@ -126,6 +126,7 @@ GLOBAL OPTIONS:
    --http_write_timeout value         The HTTP write timeout for a server response in seconds (does not apply to the proxy backends or the profiling endpoint) (default: 0s, ie disabled) [$BAZEL_REMOTE_HTTP_WRITE_TIMEOUT]
    --htpasswd_file value              Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html. [$BAZEL_REMOTE_HTPASSWD_FILE]
    --tls_enabled                      This flag has been deprecated. Specify tls_cert_file and tls_key_file instead. (default: false) [$BAZEL_REMOTE_TLS_ENABLED]
+   --tls_ca_file value                Optional. Enables mTLS (authenticating client certificates), should be the certificate authority that signed the client certificates. [$BAZEL_REMOTE_TLS_CA_FILE]
    --tls_cert_file value              Path to a pem encoded certificate file. [$BAZEL_REMOTE_TLS_CERT_FILE]
    --tls_key_file value               Path to a pem encoded key file. [$BAZEL_REMOTE_TLS_KEY_FILE]
    --idle_timeout value               The maximum period of having received no request after which the server will shut itself down. (default: 0s, ie disabled) [$BAZEL_REMOTE_IDLE_TIMEOUT]
