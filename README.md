@@ -172,12 +172,14 @@ host: localhost
 #http_read_timeout: 15s
 #http_write_timeout: 20s
 
-# If you want to require simple authentication:
-#htpasswd_file: path/to/.htpasswd
-
 # Specify a certificate if you want to use HTTPS:
 #tls_cert_file: path/to/tls.cert
 #tls_key_file:  path/to/tls.key
+# If you want to use mutual TLS with client certificates:
+#tls_ca_file: path/to/ca/cert.pem
+
+# Alternatively, you can use simple authentication:
+#htpasswd_file: path/to/.htpasswd
 
 # If specified, bazel-remote should exit after being idle
 # for this long. Time units can be one of: "s", "m", "h".
