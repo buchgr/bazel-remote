@@ -237,6 +237,10 @@ func (s *grpcServer) parseWriteResource(r string) (string, int64, error) {
 		return "", 0, status.Errorf(codes.InvalidArgument, "Unable to parse size: %s", rem[3])
 	}
 
+	if size < 0 {
+		return "", 0, status.Errorf(codes.InvalidArgument, "Invalid size (must be non-negative): %s", rem[3])
+	}
+
 	err = s.validateHash(hash, size, "GRPC BYTESTREAM READ FAILED")
 	if err != nil {
 		return "", 0, err
