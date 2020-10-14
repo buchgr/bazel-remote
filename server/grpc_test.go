@@ -1133,3 +1133,150 @@ func TestBadUpdateActionRresultRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestParseReadResource(t *testing.T) {
+	// Format: [{instance_name}]/blobs/{hash}/{size}
+
+	s := &grpcServer{
+		accessLogger: testutils.NewSilentLogger(),
+		errorLogger:  testutils.NewSilentLogger(),
+	}
+
+	unusedLogPrefix := "foo"
+
+	tcs := []struct {
+		resourceName string
+		expectedHash string
+		expectedSize int64
+		expectError  bool
+	}{
+		{
+			// No instance specified.
+			"blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
+			"0123456789012345678901234567890123456789012345678901234567890123",
+			42,
+			false,
+		},
+		{
+			// Instance specified.
+			"foo/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
+			"0123456789012345678901234567890123456789012345678901234567890123",
+			42,
+			false,
+		},
+		{
+			// Instance specified, containing '/'.
+			"foo/bar/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
+			"0123456789012345678901234567890123456789012345678901234567890123",
+			42,
+			false,
+		},
+		{
+			// Missing "/blobs/".
+			resourceName: "foo/bar/0123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
+
+		// Instance names cannot contain the following path segments: blobs,
+		// uploads, actions, actionResults, operations or `capabilities. We
+		// only care about "blobs".
+		{
+			resourceName: "blobs/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
+		{
+			resourceName: "blobs/foo/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
+		{
+			resourceName: "foo/blobs/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
+
+		// Invalid hashes (we only support lowercase SHA256).
+		{
+			resourceName: "foo/blobs/blobs/01234567890123456789012345678901234567890123456789012345678901234/42",
+			expectError:  true,
+		},
+		{
+			resourceName: "foo/blobs/012345678901234567890123456789012345678901234567890123456789012/42",
+			expectError:  true,
+		},
+		{
+			resourceName: "foo/blobs/g123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
+		{
+			resourceName: "foo/blobs/A123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true, // Must be lowercase.
+		},
+		{
+			resourceName: "foo/blobs//42",
+			expectError:  true,
+		},
+
+		// Invalid sizes (must be valid non-negative int64).
+		{
+			resourceName: "foo/blobs/0123456789012345678901234567890123456789012345678901234567890123/-0",
+			expectError:  true,
+		},
+		{
+			// We use -1 as a placeholder for "size unknown" when validating AC digests, but it's invalid here.
+			resourceName: "foo/blobs/0123456789012345678901234567890123456789012345678901234567890123/-1",
+			expectError:  true,
+		},
+		{
+			resourceName: "foo/blobs/0123456789012345678901234567890123456789012345678901234567890123/3.14",
+			expectError:  true,
+		},
+		{
+			// Size: max(int64) + 1
+			resourceName: "foo/blobs/0123456789012345678901234567890123456789012345678901234567890123/9223372036854775808",
+			expectError:  true,
+		},
+
+		// Trailing garbage.
+		{
+			resourceName: "blobs/0123456789012345678901234567890123456789012345678901234567890123/42abc",
+			expectError:  true,
+		},
+		{
+			resourceName: "blobs/0123456789012345678901234567890123456789012345678901234567890123/42/abc",
+			expectError:  true,
+		},
+
+		// Misc.
+		{
+			resourceName: "foo/blobs/a",
+			expectError:  true,
+		},
+		{
+			resourceName: "foo/blobs//42",
+			expectError:  true,
+		},
+	}
+
+	for _, tc := range tcs {
+		hash, size, err := s.parseReadResource(tc.resourceName, unusedLogPrefix)
+
+		if tc.expectError {
+			if err == nil {
+				t.Fatalf("Expected an error for %q, got nil and hash: %q size: %d", tc.resourceName, hash, size)
+			}
+
+			continue
+		}
+
+		if !tc.expectError && (err != nil) {
+			t.Fatalf("Expected an success for %q, got error %q", tc.resourceName, err)
+		}
+
+		if hash != tc.expectedHash {
+			t.Fatalf("Expected hash: %q did not match actual hash: %q in %q", tc.expectedHash, hash, tc.resourceName)
+		}
+
+		if size != tc.expectedSize {
+			t.Fatalf("Expected size: %d did not match actual size: %d in %q", tc.expectedSize, size, tc.resourceName)
+		}
+	}
+}
