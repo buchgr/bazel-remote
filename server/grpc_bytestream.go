@@ -48,41 +48,9 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 
 	limitedSend := req.ReadLimit != 0
 
-	// req.ResourceName should be of the format:
-	// [{instance_name}]/blobs/{hash}/{size}
-
 	errorPrefix := "GRPC BYTESTREAM READ"
 
-	fields := strings.Split(req.ResourceName, "/")
-	var rem []string
-	for i := range fields {
-		if fields[i] == "blobs" {
-			rem = fields[i+1:]
-			break
-		}
-	}
-
-	if len(rem) != 2 {
-		msg := fmt.Sprintf("Unable to parse resource name: %s", req.ResourceName)
-		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
-		return status.Error(codes.InvalidArgument, msg)
-	}
-
-	size, err := strconv.ParseInt(rem[1], 10, 64)
-	if err != nil {
-		msg := fmt.Sprintf("Invalid size: %s", rem[1])
-		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
-		return status.Error(codes.InvalidArgument, msg)
-	}
-	if size < 0 {
-		msg := fmt.Sprintf("Invalid size (must be non-negative): %s", rem[1])
-		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
-		return status.Error(codes.InvalidArgument, msg)
-	}
-
-	hash := rem[0]
-
-	err = s.validateHash(hash, size, errorPrefix)
+	hash, size, err := s.parseReadResource(req.ResourceName, errorPrefix)
 	if err != nil {
 		return err
 	}
@@ -160,6 +128,55 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 			return status.Error(codes.Unknown, msg)
 		}
 	}
+}
+
+// Parse a ReadRequest.ResourceName, return the validated hash, size and an error.
+func (s *grpcServer) parseReadResource(name string, errorPrefix string) (string, int64, error) {
+
+	// The resource name should be of the format:
+	// [{instance_name}]/blobs/{hash}/{size}
+
+	// Instance_name is ignored in this bytestream implementation, so don't
+	// bother returning it. It is not allowed to contain "blobs" as a distinct
+	// path segment.
+
+	fields := strings.Split(name, "/")
+	var rem []string
+	found := false
+	for i := range fields {
+		if fields[i] == "blobs" {
+			rem = fields[i+1:]
+			found = true
+			break
+		}
+	}
+
+	if !found || len(rem) != 2 {
+		msg := fmt.Sprintf("Unable to parse resource name: %s", name)
+		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
+		return "", 0, status.Error(codes.InvalidArgument, msg)
+	}
+
+	hash := rem[0]
+
+	size, err := strconv.ParseInt(rem[1], 10, 64)
+	if err != nil {
+		msg := fmt.Sprintf("Invalid size: %s", rem[1])
+		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
+		return "", 0, status.Error(codes.InvalidArgument, msg)
+	}
+	if size < 0 {
+		msg := fmt.Sprintf("Invalid size (must be non-negative): %s", rem[1])
+		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
+		return "", 0, status.Error(codes.InvalidArgument, msg)
+	}
+
+	err = s.validateHash(hash, size, errorPrefix)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return hash, size, nil
 }
 
 // Seek to offset in Reader r, from the current position.
