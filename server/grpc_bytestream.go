@@ -213,10 +213,14 @@ func seekWriterTo(w io.Writer, offset int64) {
 	// check: processed == offset
 }
 
-// Parse a WriteRequest.ResourceName, return the hash, size and an error.
+// Parse a WriteRequest.ResourceName, return the validated hash, size and an error.
 func (s *grpcServer) parseWriteResource(r string) (string, int64, error) {
+
 	// req.ResourceName is of the form:
 	// [{instance_name}/]uploads/{uuid}/blobs/{hash}/{size}[/{optionalmetadata}]
+
+	// We don't use the uuid so don't bother validating it.
+	// The path segment must exist but can be empty.
 
 	fields := strings.Split(r, "/")
 	var rem []string
