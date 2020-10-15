@@ -14,8 +14,8 @@ import (
 	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
 
-	asset "github.com/bazelbuild/remote-apis/build/bazel/remote/asset/v1"
-	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	asset "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/asset/v1"
+	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
 
 	"github.com/buchgr/bazel-remote/cache"
 )

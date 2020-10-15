@@ -12,9 +12,9 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip" // Register gzip support.
 	"google.golang.org/grpc/status"
 
-	asset "github.com/bazelbuild/remote-apis/build/bazel/remote/asset/v1"
-	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
-	"github.com/bazelbuild/remote-apis/build/bazel/semver"
+	asset "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/asset/v1"
+	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
+	"github.com/buchgr/bazel-remote/genproto/build/bazel/semver"
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"

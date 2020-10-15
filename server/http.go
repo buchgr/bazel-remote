@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
+	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 )
