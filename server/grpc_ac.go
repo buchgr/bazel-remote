@@ -10,7 +10,7 @@ import (
 	"net"
 	"strings"
 
-	pb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
