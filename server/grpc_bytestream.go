@@ -344,8 +344,8 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 			resp.CommittedSize += int64(n)
 
 			if resp.CommittedSize > size {
-				recvResult <- fmt.Errorf("Client sent more than %d data! %d",
-					size, resp.CommittedSize)
+				msg := fmt.Sprintf("Client sent more than %d data! %d", size, resp.CommittedSize)
+				recvResult <- status.Error(codes.OutOfRange, msg)
 				return
 			}
 
@@ -353,9 +353,9 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 			// EOF at the start of each loop.
 			if req.FinishWrite {
 				if resp.CommittedSize != size {
-					err := fmt.Errorf("Unexpected amount of data read: %d expected: %d",
+					msg := fmt.Sprintf("Unexpected amount of data read: %d expected: %d",
 						resp.CommittedSize, size)
-					recvResult <- status.Error(codes.Unknown, err.Error())
+					recvResult <- status.Error(codes.Unknown, msg)
 					return
 				}
 
