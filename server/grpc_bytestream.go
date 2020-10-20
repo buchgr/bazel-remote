@@ -365,11 +365,18 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 		}
 	}()
 
+	resourceName := "unknown-resource"
+
 	select {
 	case err, ok := <-recvResult:
 		if !ok {
-			msg := "Receive loop closed unexpectedly."
-			s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", msg)
+			select {
+			case resourceName = <-resourceNameChan:
+			default:
+			}
+
+			msg := fmt.Sprintf("GRPC BYTESTREAM WRITE FAILED: %s Receive loop closed unexpectedly.", resourceName)
+			s.accessLogger.Printf(msg)
 			return status.Error(codes.Internal, msg)
 		}
 		if err == io.EOF {
@@ -377,57 +384,77 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 			break
 		}
 		if err != nil {
+			select {
+			case resourceName = <-resourceNameChan:
+			default:
+			}
+
 			pw.CloseWithError(err)
-			s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s",
-				err.Error())
+			s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s %s",
+				resourceName, err.Error())
 			return err
 		}
 
 	case err, ok := <-putResult:
+		select {
+		case resourceName = <-resourceNameChan:
+		default:
+		}
+
 		if !ok {
-			msg := "Cache Put closed unexpectedly."
-			s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", msg)
+
+			msg := fmt.Sprintf("GRPC BYTESTREAM WRITE FAILED: %s Cache Put closed unexpectedly", resourceName)
+			s.accessLogger.Printf(msg)
 			return status.Error(codes.Internal, msg)
 		}
 		if err == io.EOF {
-			s.accessLogger.Printf("GRPC BYTESTREAM SKIPPED WRITE: %s", <-resourceNameChan)
+			s.accessLogger.Printf("GRPC BYTESTREAM SKIPPED WRITE: %s", resourceName)
 
 			err = srv.SendAndClose(&resp)
 			if err != nil {
-				s.accessLogger.Printf("GRPC BYTESTREAM SKIPPED WRITE FAILED: %s", err)
-				return status.Error(codes.Internal, err.Error())
+				msg := fmt.Sprintf("GRPC BYTESTREAM SKIPPED WRITE FAILED: %s %v", resourceName, err)
+				s.accessLogger.Printf(msg)
+				return status.Error(codes.Internal, msg)
 			}
 			return nil
 		}
 		if err == nil {
 			// Unexpected early return. Should not happen.
-			s.accessLogger.Printf("GRPC BYTESTREAM WRITE CACHE INTERNAL ERROR")
-			return status.Error(codes.Internal, "Cache attempt failed.")
+			msg := fmt.Sprintf("GRPC BYTESTREAM WRITE INTERNAL ERROR %s", resourceName)
+			s.accessLogger.Printf(msg)
+			return status.Error(codes.Internal, msg)
 		}
 
-		s.accessLogger.Printf("GRPC BYTESTREAM WRITE CACHE ERROR: %s",
-			err.Error())
-		return err
+		msg := fmt.Sprintf("GRPC BYTESTREAM WRITE CACHE ERROR: %s %v", resourceName, err)
+		s.accessLogger.Printf(msg)
+		return status.Error(codes.Internal, msg)
+	}
+
+	select {
+	case resourceName = <-resourceNameChan:
+	default:
 	}
 
 	err, ok := <-putResult
 	if !ok {
-		msg := "Cache Put closed unexpectedly."
-		s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", msg)
-		return status.Error(codes.Unknown, msg)
+		msg := fmt.Sprintf("GRPC BYTESTREAM WRITE FAILED: %s cache Put closed unexpectedly", resourceName)
+		s.accessLogger.Printf(msg)
+		return status.Error(codes.Internal, msg)
 	}
 	if err != nil {
-		s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", err)
-		return status.Error(codes.Unknown, err.Error())
+		msg := fmt.Sprintf("GRPC BYTESTREAM WRITE FAILED: %s %v", resourceName, err)
+		s.accessLogger.Printf(msg)
+		return status.Error(codes.Unknown, msg)
 	}
 
 	err = srv.SendAndClose(&resp)
 	if err != nil {
-		s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", err)
-		return status.Error(codes.Unknown, err.Error())
+		msg := fmt.Sprintf("GRPC BYTESTREAM WRITE FAILED: %s %v", resourceName, err)
+		s.accessLogger.Printf(msg)
+		return status.Error(codes.Unknown, msg)
 	}
 
-	s.accessLogger.Printf("GRPC BYTESTREAM WRITE COMPLETED: %s", <-resourceNameChan)
+	s.accessLogger.Printf("GRPC BYTESTREAM WRITE COMPLETED: %s", resourceName)
 	return nil
 }
 
