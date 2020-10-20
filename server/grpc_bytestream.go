@@ -62,9 +62,9 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 		return status.Error(codes.OutOfRange, msg)
 	}
 
-	rdr, sizeBytes, err := s.cache.Get(cache.CAS, hash, size)
+	rdr, foundSize, err := s.cache.Get(cache.CAS, hash, size)
 	if err != nil {
-		msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED: %v", err)
+		msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED: %s %v", hash, err)
 		s.accessLogger.Printf(msg)
 		return status.Error(codes.Unknown, msg)
 	}
@@ -75,11 +75,12 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 	}
 	defer rdr.Close()
 
-	if sizeBytes != size {
-		msg := fmt.Sprintf("Retrieved item had size %d expected %d",
-			sizeBytes, size)
-		s.accessLogger.Printf("GRPC BYTESTREAM READ FAILED (BAD ITEM?): %v", err)
-		return status.Error(codes.DataLoss, msg)
+	if foundSize != size {
+		// This should have been caught above.
+		msg := fmt.Sprintf("GRPC BYTESTREAM READ BLOB SIZE MISMATCH: %s (EXPECTED %d, FOUND %d)",
+			hash, size, foundSize)
+		s.accessLogger.Printf(msg)
+		return status.Error(codes.Internal, msg)
 	}
 
 	bufSize := size
@@ -102,7 +103,8 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 		if n > 0 {
 			if limitedSend {
 				if (sendLimitRemaining - int64(n)) < 0 {
-					msg := "GRPC BYTESTREAM READ FAILED: READ LIMIT EXCEEDED"
+					msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED: %s READ LIMIT EXCEEDED", hash)
+					s.accessLogger.Printf(msg)
 					return status.Error(codes.OutOfRange, msg)
 				}
 				sendLimitRemaining -= int64(n)
@@ -111,8 +113,9 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 			chunkResp.Data = buf[:n]
 			sendErr := resp.Send(&chunkResp)
 			if sendErr != nil {
-				s.accessLogger.Printf("GRPC BYTESTREAM READ FAILED TO SEND RESPONSE: %s", sendErr)
-				return status.Error(codes.Unknown, sendErr.Error())
+				msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED TO SEND RESPONSE: %s %v", hash, sendErr)
+				s.accessLogger.Printf(msg)
+				return status.Error(codes.Unknown, msg)
 			}
 		}
 
@@ -123,7 +126,7 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 		}
 
 		if err != nil {
-			msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED: %v", err)
+			msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED: %s %v", hash, err)
 			s.accessLogger.Printf(msg)
 			return status.Error(codes.Unknown, msg)
 		}
