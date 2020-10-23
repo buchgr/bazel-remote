@@ -37,7 +37,7 @@ func TestBasics(t *testing.T) {
 	// Add an item
 	aKey := "akey"
 	anItem := lruItem{size: 5}
-	ok = lru.Add(aKey, &anItem)
+	ok = lru.Add(aKey, anItem)
 	if !ok {
 		t.Fatalf("Add: failed inserting item")
 	}
@@ -46,7 +46,7 @@ func TestBasics(t *testing.T) {
 	if !getOk {
 		t.Fatalf("Get: failed getting item")
 	}
-	if getItem.(*lruItem).size != anItem.size {
+	if getItem.size != anItem.size {
 		t.Fatalf("Get: got a different item back")
 	}
 
@@ -60,7 +60,7 @@ func TestBasics(t *testing.T) {
 func TestEviction(t *testing.T) {
 	// Keep track of evictions using the callback
 	var evictions []int
-	onEvict := func(key Key, value sizedItem) {
+	onEvict := func(key Key, value lruItem) {
 		evictions = append(evictions, key.(int))
 	}
 
@@ -86,7 +86,7 @@ func TestEviction(t *testing.T) {
 
 	for i, thisExpected := range expectedSizesNumItems {
 		item := lruItem{size: int64(i)}
-		ok := lru.Add(i, &item)
+		ok := lru.Add(i, item)
 		if !ok {
 			t.Fatalf("Add: failed adding %d", i)
 		}
@@ -104,7 +104,7 @@ func TestRejectBigItem(t *testing.T) {
 	// Bounded caches should reject big items
 	lru := NewSizedLRU(10, nil)
 
-	ok := lru.Add("hello", &lruItem{size: 11})
+	ok := lru.Add("hello", lruItem{size: 11})
 	if ok {
 		t.Fatalf("Add succeeded, expected it to fail")
 	}
@@ -116,7 +116,7 @@ func TestReserveZeroAlwaysPossible(t *testing.T) {
 	largeItem := lruItem{size: math.MaxInt64}
 
 	lru := NewSizedLRU(math.MaxInt64, nil)
-	lru.Add("foo", &largeItem)
+	lru.Add("foo", largeItem)
 	ok, err := lru.Reserve(0)
 	if err != nil {
 		t.Fatal(err)
@@ -256,7 +256,7 @@ func TestAddWithSpaceReserved(t *testing.T) {
 		t.Fatalf("Expected to be able to reserve 1")
 	}
 
-	ok = lru.Add("hello", &lruItem{size: 2})
+	ok = lru.Add("hello", lruItem{size: 2})
 	if ok {
 		t.Fatal("Expected to not be able to add item with size 2")
 	}
@@ -266,7 +266,7 @@ func TestAddWithSpaceReserved(t *testing.T) {
 		t.Fatal("Expected to be able to unreserve 1:", err)
 	}
 
-	ok = lru.Add("hello", &lruItem{size: 2})
+	ok = lru.Add("hello", lruItem{size: 2})
 	if !ok {
 		t.Fatal("Expected to be able to add item with size 2")
 	}
