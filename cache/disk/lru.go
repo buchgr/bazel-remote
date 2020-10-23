@@ -39,28 +39,12 @@ type sizedItem interface {
 type Key interface{}
 
 // EvictCallback is the type of callbacks that are invoked when items are evicted.
-type EvictCallback func(key Key, value sizedItem)
+type EvictCallback func(key Key, value lruItem)
 
 // SizedLRU is an LRU cache that will keep its total size below maxSize by evicting
 // items.
 // SizedLRU is not thread-safe.
-type SizedLRU interface {
-	Add(key Key, value sizedItem) (ok bool)
-	Get(key Key) (value sizedItem, ok bool)
-	Remove(key Key)
-	Len() int
-	TotalSize() int64
-	ReservedSize() int64
-	MaxSize() int64
-
-	// Reserve some amount of cache space.
-	Reserve(size int64) (ok bool, err error)
-
-	// Release some amount of reserved cache space.
-	Unreserve(size int64) error
-}
-
-type sizedLRU struct {
+type SizedLRU struct {
 	// Eviction double-linked list. Most recently accessed elements are at the front.
 	ll *list.List
 	// Map to access the items in O(1) time
@@ -80,12 +64,12 @@ type sizedLRU struct {
 
 type entry struct {
 	key   Key
-	value sizedItem
+	value lruItem
 }
 
-// NewSizedLRU returns a new sizedLRU cache
+// NewSizedLRU returns a new SizedLRU cache
 func NewSizedLRU(maxSize int64, onEvict EvictCallback) SizedLRU {
-	return &sizedLRU{
+	return SizedLRU{
 		maxSize: maxSize,
 		ll:      list.New(),
 		cache:   make(map[interface{}]*list.Element),
@@ -96,22 +80,22 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback) SizedLRU {
 // Add adds a (key, value) to the cache, evicting items as necessary. Add returns false (
 // and does not add the item) if the item size is larger than the maximum size of the cache,
 // or it cannot be added to the cache because too much space is reserved.
-func (c *sizedLRU) Add(key Key, value sizedItem) (ok bool) {
-	if value.Size() > c.maxSize {
+func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
+	if value.size > c.maxSize {
 		return false
 	}
 
 	var sizeDelta int64
 	if ee, ok := c.cache[key]; ok {
-		sizeDelta = value.Size() - ee.Value.(*entry).value.Size()
+		sizeDelta = value.size - ee.Value.(*entry).value.size
 		if c.reservedSize+sizeDelta > c.maxSize {
 			return false
 		}
 		c.ll.MoveToFront(ee)
-		counterOverwrittenBytes.Add(float64(ee.Value.(*entry).value.Size()))
+		counterOverwrittenBytes.Add(float64(ee.Value.(*entry).value.size))
 		ee.Value.(*entry).value = value
 	} else {
-		sizeDelta = value.Size()
+		sizeDelta = value.size
 		if c.reservedSize+sizeDelta > c.maxSize {
 			return false
 		}
@@ -136,7 +120,7 @@ func (c *sizedLRU) Add(key Key, value sizedItem) (ok bool) {
 }
 
 // Get looks up a key in the cache
-func (c *sizedLRU) Get(key Key) (value sizedItem, ok bool) {
+func (c *SizedLRU) Get(key Key) (value lruItem, ok bool) {
 	if ele, hit := c.cache[key]; hit {
 		c.ll.MoveToFront(ele)
 		return ele.Value.(*entry).value, true
@@ -146,7 +130,7 @@ func (c *sizedLRU) Get(key Key) (value sizedItem, ok bool) {
 }
 
 // Remove removes a (key, value) from the cache
-func (c *sizedLRU) Remove(key Key) {
+func (c *SizedLRU) Remove(key Key) {
 	if ele, hit := c.cache[key]; hit {
 		c.removeElement(ele)
 		gaugeCacheSizeBytes.Set(float64(c.currentSize))
@@ -154,19 +138,19 @@ func (c *sizedLRU) Remove(key Key) {
 }
 
 // Len returns the number of items in the cache
-func (c *sizedLRU) Len() int {
+func (c *SizedLRU) Len() int {
 	return len(c.cache)
 }
 
-func (c *sizedLRU) TotalSize() int64 {
+func (c *SizedLRU) TotalSize() int64 {
 	return c.currentSize
 }
 
-func (c *sizedLRU) ReservedSize() int64 {
+func (c *SizedLRU) ReservedSize() int64 {
 	return c.reservedSize
 }
 
-func (c *sizedLRU) MaxSize() int64 {
+func (c *SizedLRU) MaxSize() int64 {
 	return c.maxSize
 }
 
@@ -187,7 +171,7 @@ func sumLargerThan(a, b, c int64) bool {
 
 var errReservation = errors.New("internal reservation error")
 
-func (c *sizedLRU) Reserve(size int64) (bool, error) {
+func (c *SizedLRU) Reserve(size int64) (bool, error) {
 	if size == 0 {
 		return true, nil
 	}
@@ -218,7 +202,7 @@ func (c *sizedLRU) Reserve(size int64) (bool, error) {
 	return true, nil
 }
 
-func (c *sizedLRU) Unreserve(size int64) error {
+func (c *SizedLRU) Unreserve(size int64) error {
 	if size == 0 {
 		return nil
 	}
@@ -240,12 +224,12 @@ func (c *sizedLRU) Unreserve(size int64) error {
 	return nil
 }
 
-func (c *sizedLRU) removeElement(e *list.Element) {
+func (c *SizedLRU) removeElement(e *list.Element) {
 	c.ll.Remove(e)
 	kv := e.Value.(*entry)
 	delete(c.cache, kv.key)
-	c.currentSize -= kv.value.Size()
-	counterEvictedBytes.Add(float64(kv.value.Size()))
+	c.currentSize -= kv.value.size
+	counterEvictedBytes.Add(float64(kv.value.size))
 
 	if c.onEvict != nil {
 		c.onEvict(kv.key, kv.value)

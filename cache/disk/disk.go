@@ -41,13 +41,8 @@ var (
 var tfc = tempfile.NewCreator()
 
 // lruItem is the type of the values stored in SizedLRU to keep track of items.
-// It implements the sizedItem interface.
 type lruItem struct {
 	size int64
-}
-
-func (i *lruItem) Size() int64 {
-	return i.size
 }
 
 // Cache is a filesystem-based LRU cache, with an optional backend proxy.
@@ -94,7 +89,7 @@ func New(dir string, maxSizeBytes int64, proxy cache.Proxy) *Cache {
 	// The eviction callback deletes the file from disk.
 	// This function is only called while the lock is held
 	// by the current goroutine.
-	onEvict := func(key Key, value sizedItem) {
+	onEvict := func(key Key, value lruItem) {
 		f := filepath.Join(dir, key.(string))
 		err := os.Remove(f)
 		if err != nil {
@@ -214,7 +209,7 @@ func (c *Cache) loadExistingFiles() error {
 	log.Println("Building LRU index.")
 	for _, f := range files {
 		relPath := f.name[len(c.dir)+1:]
-		ok := c.lru.Add(relPath, &lruItem{size: f.info.Size()})
+		ok := c.lru.Add(relPath, lruItem{size: f.info.Size()})
 		if !ok {
 			err = os.Remove(filepath.Join(c.dir, relPath))
 			if err != nil {
@@ -388,7 +383,7 @@ func (c *Cache) commit(key string, tempfile string, finalPath string, reservedSi
 	}
 	unreserve = false
 
-	if !c.lru.Add(key, &lruItem{size: foundSize}) {
+	if !c.lru.Add(key, lruItem{size: foundSize}) {
 		err = fmt.Errorf("INTERNAL ERROR: failed to add: %s, size %d", key, foundSize)
 		log.Println(err.Error())
 		return unreserve, removeTempfile, err
@@ -415,12 +410,11 @@ func (c *Cache) availableOrTryProxy(key string, size int64, blobPath string) (rc
 	locked := true
 	c.mu.Lock()
 
-	val, available := c.lru.Get(key)
+	item, available := c.lru.Get(key)
 	if available {
 		c.mu.Unlock() // We expect a cache hit below.
 		locked = false
 
-		item := val.(*lruItem)
 		if !isSizeMismatch(size, item.size) {
 			var f *os.File
 			f, err = os.Open(blobPath)
@@ -591,9 +585,8 @@ func (c *Cache) Contains(kind cache.EntryKind, hash string, size int64) (bool, i
 	key := cache.Key(kind, hash)
 
 	c.mu.Lock()
-	val, exists := c.lru.Get(key)
+	item, exists := c.lru.Get(key)
 	if exists {
-		item := val.(*lruItem)
 		foundSize = item.size
 	}
 	c.mu.Unlock()
