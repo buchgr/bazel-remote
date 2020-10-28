@@ -69,7 +69,11 @@ func TestMain(m *testing.M) {
 	}
 	defer os.RemoveAll(dir)
 
-	diskCache = disk.New(dir, int64(10*maxChunkSize), nil)
+	diskCache, err = disk.New(dir, int64(10*maxChunkSize), nil)
+	if err != nil {
+		fmt.Println("Test setup failed")
+		os.Exit(1)
+	}
 
 	accessLogger := testutils.NewSilentLogger()
 	errorLogger := testutils.NewSilentLogger()

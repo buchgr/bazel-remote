@@ -65,7 +65,7 @@ const emptySha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b785
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
 // with a maximum size of `maxSizeBytes` bytes and an optional backend `proxy`.
 // Cache is safe for concurrent use.
-func New(dir string, maxSizeBytes int64, proxy cache.Proxy) *Cache {
+func New(dir string, maxSizeBytes int64, proxy cache.Proxy) (*Cache, error) {
 	// Create the directory structure.
 	hexLetters := []byte("0123456789abcdef")
 	for _, c1 := range hexLetters {
@@ -73,15 +73,15 @@ func New(dir string, maxSizeBytes int64, proxy cache.Proxy) *Cache {
 			subDir := string(c1) + string(c2)
 			err := os.MkdirAll(filepath.Join(dir, cache.CAS.String(), subDir), os.ModePerm)
 			if err != nil {
-				log.Fatal(err)
+				return nil, err
 			}
 			err = os.MkdirAll(filepath.Join(dir, cache.AC.String(), subDir), os.ModePerm)
 			if err != nil {
-				log.Fatal(err)
+				return nil, err
 			}
 			err = os.MkdirAll(filepath.Join(dir, cache.RAW.String(), subDir), os.ModePerm)
 			if err != nil {
-				log.Fatal(err)
+				return nil, err
 			}
 		}
 	}
@@ -105,15 +105,14 @@ func New(dir string, maxSizeBytes int64, proxy cache.Proxy) *Cache {
 
 	err := c.migrateDirectories()
 	if err != nil {
-		log.Fatalf("Attempting to migrate the old directory structure to the new structure failed "+
-			"with error: %v", err)
+		return nil, fmt.Errorf("Attempting to migrate the old directory structure failed: %w", err)
 	}
 	err = c.loadExistingFiles()
 	if err != nil {
-		log.Fatalf("Loading of existing cache entries failed due to error: %v", err)
+		return nil, fmt.Errorf("Loading of existing cache entries failed due to error: %w", err)
 	}
 
-	return c
+	return c, nil
 }
 
 func (c *Cache) migrateDirectories() error {

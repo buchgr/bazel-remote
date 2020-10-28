@@ -357,7 +357,10 @@ func main() {
 			proxyCache = s3proxy.New(c.S3CloudStorage, accessLogger, errorLogger, c.NumUploaders, c.MaxQueuedUploads)
 		}
 
-		diskCache := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, proxyCache)
+		diskCache, err := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, proxyCache)
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		var tlsConfig *tls.Config
 		if len(c.TLSCaFile) != 0 {

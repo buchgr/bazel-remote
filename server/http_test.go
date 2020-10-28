@@ -35,7 +35,10 @@ func TestDownloadFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := disk.New(cacheDir, blobSize, nil)
+	c, err := disk.New(cacheDir, blobSize, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, false, "")
 
 	req, err := http.NewRequest("GET", "/cas/"+hash, bytes.NewReader([]byte{}))
@@ -98,7 +101,10 @@ func TestUploadFilesConcurrently(t *testing.T) {
 		requests[i] = r
 	}
 
-	c := disk.New(cacheDir, 1000*1024, nil)
+	c, err := disk.New(cacheDir, 1000*1024, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, false, "")
 	handler := http.HandlerFunc(h.CacheHandler)
 
@@ -156,7 +162,10 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 
 	numWorkers := 100
 
-	c := disk.New(cacheDir, int64(len(data)*numWorkers), nil)
+	c, err := disk.New(cacheDir, int64(len(data)*numWorkers), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, false, "")
 	handler := http.HandlerFunc(h.CacheHandler)
 
@@ -202,7 +211,10 @@ func TestUploadCorruptedFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := disk.New(cacheDir, 2048, nil)
+	c, err := disk.New(cacheDir, 2048, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, false, "")
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.CacheHandler)
@@ -242,7 +254,10 @@ func TestUploadEmptyActionResult(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := disk.New(cacheDir, 2048, nil)
+	c, err := disk.New(cacheDir, 2048, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	validate := true
 	mangle := false
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), validate, mangle, "")
@@ -299,7 +314,10 @@ func testEmptyBlobAvailable(t *testing.T, method string) {
 		t.Fatal(err)
 	}
 
-	c := disk.New(cacheDir, 2048, nil)
+	c, err := disk.New(cacheDir, 2048, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	validate := true
 	mangle := false
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), validate, mangle, "")
@@ -324,7 +342,10 @@ func TestStatusPage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := disk.New(cacheDir, 2048, nil)
+	c, err := disk.New(cacheDir, 2048, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, false, "")
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.StatusPageHandler)
@@ -464,7 +485,10 @@ func TestRemoteReturnsNotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(cacheDir)
-	emptyCache := disk.New(cacheDir, 1024, nil)
+	emptyCache, err := disk.New(cacheDir, 1024, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	h := NewHTTPCache(emptyCache, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, false, "")
 	// create a fake http.Request
