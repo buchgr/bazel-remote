@@ -70,9 +70,12 @@ const contentsLength = int64(len(contents))
 func TestCacheBasics(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache := New(cacheDir, 100, nil)
+	testCache, err := New(cacheDir, 100, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	err := checkItems(testCache, 0, 0)
+	err = checkItems(testCache, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +118,10 @@ func TestCacheBasics(t *testing.T) {
 func TestCacheEviction(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache := New(cacheDir, 10, nil)
+	testCache, err := New(cacheDir, 10, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	expectedSizesNumItems := []struct {
 		expSize int64
@@ -157,12 +163,13 @@ func TestCacheEviction(t *testing.T) {
 func TestCachePutWrongSize(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache := New(cacheDir, 100, nil)
+	testCache, err := New(cacheDir, 100, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	content := "hello"
 	hash := hashStr(content)
-
-	var err error
 
 	err = testCache.Put(cache.AC, hash, int64(len(content)), strings.NewReader(content))
 	if err != nil {
@@ -183,12 +190,15 @@ func TestCacheGetContainsWrongSize(t *testing.T) {
 
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache := New(cacheDir, 100, nil)
+	testCache, err := New(cacheDir, 100, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	var found bool
 	var rdr io.ReadCloser
 
-	err := testCache.Put(cache.CAS, contentsHash, contentsLength, strings.NewReader(contents))
+	err = testCache.Put(cache.CAS, contentsHash, contentsLength, strings.NewReader(contents))
 	if err != nil {
 		t.Fatal("Expected success", err)
 	}
@@ -218,7 +228,10 @@ func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
 
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache := New(cacheDir, 100, new(proxyStub))
+	testCache, err := New(cacheDir, 100, new(proxyStub))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	var found bool
 	var rdr io.ReadCloser
@@ -324,9 +337,11 @@ func hashStr(content string) string {
 func TestOverwrite(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache := New(cacheDir, 10, nil)
+	testCache, err := New(cacheDir, 10, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	var err error
 	err = putGetCompare(cache.CAS, hashStr("hello"), "hello", testCache)
 	if err != nil {
 		t.Fatal(err)
@@ -381,9 +396,12 @@ func TestCacheExistingFiles(t *testing.T) {
 	}
 
 	const expectedSize = 4 * int64(len(contents))
-	testCache := New(cacheDir, expectedSize, nil)
+	testCache, err := New(cacheDir, expectedSize, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	err := checkItems(testCache, expectedSize, 4)
+	err = checkItems(testCache, expectedSize, 4)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -409,7 +427,10 @@ func TestCacheExistingFiles(t *testing.T) {
 func TestCacheBlobTooLarge(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache := New(cacheDir, 100, nil)
+	testCache, err := New(cacheDir, 100, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	for k := range []cache.EntryKind{cache.AC, cache.RAW} {
 		kind := cache.EntryKind(k)
@@ -432,9 +453,12 @@ func TestCacheBlobTooLarge(t *testing.T) {
 func TestCacheCorruptedCASBlob(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache := New(cacheDir, 1000, nil)
+	testCache, err := New(cacheDir, 1000, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	err := testCache.Put(cache.CAS, hashStr("foo"), int64(len(contents)),
+	err = testCache.Put(cache.CAS, hashStr("foo"), int64(len(contents)),
 		strings.NewReader(contents))
 	if err == nil {
 		t.Fatal("expected hash mismatch error")
@@ -474,7 +498,11 @@ func TestMigrateFromOldDirectoryStructure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	testCache := New(cacheDir, 2560, nil)
+	testCache, err := New(cacheDir, 2560, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	_, _, numItems := testCache.Stats()
 	if numItems != 3 {
 		t.Fatalf("Expected test cache size 3 but was %d", numItems)
@@ -518,7 +546,11 @@ func TestLoadExistingEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testCache := New(cacheDir, blobSize*numBlobs, nil)
+	testCache, err := New(cacheDir, blobSize*numBlobs, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	_, _, numItems := testCache.Stats()
 	if int64(numItems) != numBlobs {
 		t.Fatalf("Expected test cache size %d but was %d",
@@ -550,15 +582,16 @@ func TestDistinctKeyspaces(t *testing.T) {
 	blobSize := 1024
 	cacheSize := int64(blobSize * 3)
 
-	testCache := New(cacheDir, cacheSize, nil)
+	testCache, err := New(cacheDir, cacheSize, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	blob, casHash := testutils.RandomDataAndHash(1024)
 
 	// Add the same blob with the same key, to each of the three
 	// keyspaces, and verify that we have exactly three items in
 	// the cache.
-
-	var err error
 
 	err = putGetCompareBytes(cache.CAS, casHash, blob, testCache)
 	if err != nil {
@@ -665,7 +698,10 @@ func TestHttpProxyBackend(t *testing.T) {
 
 	cacheSize := int64(1024 * 10)
 
-	testCache := New(cacheDir, cacheSize, proxy)
+	testCache, err := New(cacheDir, cacheSize, proxy)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	blobSize := int64(1024)
 	blob, casHash := testutils.RandomDataAndHash(blobSize)
@@ -700,7 +736,10 @@ func TestHttpProxyBackend(t *testing.T) {
 	// Create a new (empty) testCache, without a proxy backend.
 	cacheDir = testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache = New(cacheDir, cacheSize, nil)
+	testCache, err = New(cacheDir, cacheSize, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Confirm that it does not contain the item we added to the
 	// first testCache and the proxy backend.
@@ -759,13 +798,14 @@ func TestGetValidatedActionResult(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	testCache := New(cacheDir, 1024*32, nil)
+	testCache, err := New(cacheDir, 1024*32, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Create a directory tree like so:
 	// /bar/foo.txt
 	// /bar/grok.txt
-
-	var err error
 
 	grokData := []byte("grok test data")
 	grokHash := sha256.Sum256(grokData)
