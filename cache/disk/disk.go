@@ -402,7 +402,7 @@ func (c *Cache) commit(key string, tempfile string, finalPath string, reservedSi
 	return unreserve, removeTempfile, nil
 }
 
-// Return a non-nil *os.File and non-negative size if the item is available
+// Return a non-nil io.ReadCloser and non-negative size if the item is available
 // locally, and a boolean that indicates if the item is not available locally
 // but that we can try the proxy backend.
 func (c *Cache) availableOrTryProxy(key string, size int64, blobPath string) (rc io.ReadCloser, foundSize int64, tryProxy bool, err error) {
