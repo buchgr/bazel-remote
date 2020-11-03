@@ -115,51 +115,6 @@ func TestCacheBasics(t *testing.T) {
 	}
 }
 
-func TestCacheEviction(t *testing.T) {
-	cacheDir := tempDir(t)
-	defer os.RemoveAll(cacheDir)
-	testCache, err := New(cacheDir, 10, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expectedSizesNumItems := []struct {
-		expSize int64
-		expNum  int
-	}{
-		{0, 1},  // 0
-		{1, 2},  // 0, 1
-		{3, 3},  // 0, 1, 2
-		{6, 4},  // 0, 1, 2, 3
-		{10, 5}, // 0, 1, 2, 3, 4
-		{9, 2},  // 4, 5
-		{6, 1},  // 6
-		{7, 1},  // 7
-	}
-
-	for i, thisExp := range expectedSizesNumItems {
-		strReader := strings.NewReader(strings.Repeat("a", i))
-
-		// Suitably-sized, unique key for these testcases:
-		key := fmt.Sprintf("%0*d", sha256HashStrSize, i)
-		if len(key) != sha256.Size*2 {
-			t.Fatalf("invalid testcase- key length should be %d, not %d: %s",
-				sha256.Size*2, len(key), key)
-		}
-
-		err := testCache.Put(cache.AC, key, int64(i),
-			ioutil.NopCloser(strReader))
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		err = checkItems(testCache, thisExp.expSize, thisExp.expNum)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
 func TestCachePutWrongSize(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
