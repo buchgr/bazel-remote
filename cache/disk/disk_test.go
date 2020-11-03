@@ -237,30 +237,39 @@ func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
 
 	// The proxyStub contains the digest {contentsHash, contentsLength}.
 
+	if testCache.lru.Len() != 0 {
+		t.Fatalf("Expected to start with an empty disk cache, found %d items",
+			testCache.lru.Len())
+	}
+
 	found, _ = testCache.Contains(cache.CAS, contentsHash, contentsLength+1)
 	if found {
-		t.Error("Expected not found, due to size being different")
+		t.Fatal("Expected not found, due to size being different")
 	}
 
 	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, contentsLength+1)
 	if rdr != nil {
-		t.Error("Expected not found, due to size being different")
+		t.Fatal("Expected not found, due to size being different")
 	}
-	if err := checkItems(testCache, 0, 0); err != nil {
-		t.Fatal(err)
+
+	if testCache.lru.Len() != 0 {
+		t.Fatalf("Expected cache to be empty at this point, found %d items",
+			testCache.lru.Len())
 	}
 
 	found, _ = testCache.Contains(cache.CAS, contentsHash, -1)
 	if !found {
-		t.Error("Expected found, when unknown size")
+		t.Fatal("Expected found, when unknown size")
 	}
 
 	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, -1)
 	if rdr == nil {
-		t.Error("Expected found, when unknown size")
+		t.Fatal("Expected found, when unknown size")
 	}
-	if err := checkItems(testCache, contentsLength, 1); err != nil {
-		t.Fatal(err)
+
+	if testCache.lru.Len() != 1 {
+		t.Fatalf("Expected one item to be in the cache at this point, found %d items",
+			testCache.lru.Len())
 	}
 }
 
