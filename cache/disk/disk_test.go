@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -382,51 +383,95 @@ func TestCacheExistingFiles(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	ensureDirExists(filepath.Join(cacheDir, "cas", "f5"))
-	ensureDirExists(filepath.Join(cacheDir, "cas", "fd"))
-	ensureDirExists(filepath.Join(cacheDir, "ac", "73"))
-	ensureDirExists(filepath.Join(cacheDir, "raw", "73"))
-
-	items := []string{
-		"cas/f5/f53b46209596d170f7659a414c9ff9f6b545cf77ffd6e1cbe9bcc57e1afacfbd",
-		"cas/fd/fdce205a735f407ae2910426611893d99ed985e3d9a341820283ea0b7d046ee3",
-		"ac/73/733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
-		"raw/73/733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
+	items := []struct {
+		contents string
+		hash     string
+		file     string
+	}{
+		{
+			"hej",
+			"9c478bf63e9500cb5db1e85ece82f18c8eb9e52e2f9135acd7f10972c8d563ba",
+			"cas/9c/9c478bf63e9500cb5db1e85ece82f18c8eb9e52e2f9135acd7f10972c8d563ba",
+		},
+		{
+			"världen",
+			"d497feaa39156f4ae61317db9d2adc3a8f2ff1437fd48ccb56f814f0b7ac5fe1",
+			"cas/d4/d497feaa39156f4ae61317db9d2adc3a8f2ff1437fd48ccb56f814f0b7ac5fe1",
+		},
+		{
+			"foo",
+			"733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
+			"ac/73/733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
+		},
+		{
+			"bar",
+			"733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
+			"raw/73/733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
+		},
 	}
 
+	var err error
 	for _, it := range items {
-		err := ioutil.WriteFile(filepath.Join(cacheDir, it), []byte(contents), os.ModePerm)
+
+		fp := path.Join(cacheDir, it.file)
+		ensureDirExists(path.Dir(fp))
+
+		err = ioutil.WriteFile(fp, []byte(it.contents), os.ModePerm)
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		// Wait a bit to account for atime granularity
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	const expectedSize = 4 * int64(len(contents))
-	testCache, err := New(cacheDir, expectedSize, nil)
+	testCache, err := New(cacheDir, 1024, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = checkItems(testCache, expectedSize, 4)
-	if err != nil {
-		t.Fatal(err)
+	evicted := []Key{}
+	origOnEvict := testCache.lru.onEvict
+	testCache.lru.onEvict = func(key Key, value lruItem) {
+		evicted = append(evicted, key.(string))
+		origOnEvict(key, value)
 	}
 
-	// Adding a new file should evict items[0] (the oldest)
-	err = testCache.Put(cache.CAS, contentsHash, int64(len(contents)), strings.NewReader(contents))
-	if err != nil {
-		t.Fatal(err)
+	if testCache.lru.Len() != 4 {
+		t.Fatal("expected four items in the cache, found", testCache.lru.Len())
 	}
 
-	err = checkItems(testCache, expectedSize, 4)
-	if err != nil {
-		t.Fatal(err)
+	// Adding new blobs should eventually evict the oldest (items[0]).
+	for i := 0; i < 100; i++ {
+		data, hash := testutils.RandomDataAndHash(32)
+
+		if items[0].hash == hash {
+			// Add any item but this one, to ensure it will be evicted first.
+			continue
+		}
+
+		err = testCache.Put(cache.CAS, hash, int64(len(data)),
+			bytes.NewReader(data))
+		if err != nil {
+			t.Fatal("failed to Put CAS blob", hash, err)
+		}
+
+		if len(evicted) == 0 {
+			// Nothing evicted yet.
+			continue
+		}
+
+		if evicted[0] != items[0].file {
+			t.Fatalf("Expected first evicted item to be %s, was %s",
+				items[0].file, evicted[0])
+		}
+
+		break // First item evicted as expected.
 	}
-	found, _ := testCache.Contains(cache.CAS, "f53b46209596d170f7659a414c9ff9f6b545cf77ffd6e1cbe9bcc57e1afacfbd", contentsLength)
+
+	found, _ := testCache.Contains(cache.CAS, items[0].hash, contentsLength)
 	if found {
-		t.Fatalf("%s should have been evicted", items[0])
+		t.Fatalf("%s should have been evicted", items[0].file)
 	}
 }
 
