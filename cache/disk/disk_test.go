@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -32,35 +31,6 @@ func tempDir(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return dir
-}
-
-func checkItems(cache *Cache, expSize int64, expNum int) error {
-	if cache.lru.Len() != expNum {
-		return fmt.Errorf("expected %d files in the cache, found %d", expNum, cache.lru.Len())
-	}
-	if cache.lru.TotalSize() != expSize {
-		return fmt.Errorf("expected %d bytes in the cache, found %d", expSize, cache.lru.TotalSize())
-	}
-
-	numFiles := 0
-	err := filepath.Walk(cache.dir, func(name string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			numFiles++
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	if numFiles != expNum {
-		return fmt.Errorf("expected %d files on disk, found %d", expNum, numFiles)
-	}
-
-	return nil
 }
 
 const KEY = "a-key"
