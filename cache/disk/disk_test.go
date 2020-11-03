@@ -70,18 +70,24 @@ const contentsLength = int64(len(contents))
 func TestCacheBasics(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache, err := New(cacheDir, 100, nil)
+
+	itemSize := int64(256)
+	cacheSize := itemSize
+
+	testCache, err := New(cacheDir, cacheSize, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = checkItems(testCache, 0, 0)
-	if err != nil {
-		t.Fatal(err)
+	if testCache.lru.Len() != 0 {
+		t.Fatalf("Expected to start with an empty disk cache, found %d items",
+			testCache.lru.Len())
 	}
 
-	// Non-existing item
-	rdr, _, err := testCache.Get(cache.CAS, contentsHash, contentsLength)
+	data, hash := testutils.RandomDataAndHash(itemSize)
+
+	// Non-existing item.
+	rdr, _, err := testCache.Get(cache.CAS, hash, itemSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,27 +95,20 @@ func TestCacheBasics(t *testing.T) {
 		t.Fatal("expected the item not to exist")
 	}
 
-	// Add an item
-	err = testCache.Put(cache.CAS, contentsHash, int64(len(contents)),
-		ioutil.NopCloser(strings.NewReader(contents)))
+	// Add an item.
+	err = testCache.Put(cache.CAS, hash, itemSize,
+		ioutil.NopCloser(bytes.NewReader(data)))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Dig into the internals to make sure that the cache state has been
-	// updated correctly
-	err = checkItems(testCache, int64(len(contents)), 1)
+	// Get the item back.
+	rdr, sizeBytes, err := testCache.Get(cache.CAS, hash, itemSize)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Get the item back
-	rdr, sizeBytes, err := testCache.Get(cache.CAS, contentsHash, contentsLength)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = expectContentEquals(rdr, sizeBytes, []byte(contents))
+	err = expectContentEquals(rdr, sizeBytes, data)
 	if err != nil {
 		t.Fatal(err)
 	}
