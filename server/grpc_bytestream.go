@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -19,12 +20,6 @@ const (
 	// The maximum chunk size to write back to the client in Send calls.
 	// Inspired by Goma's FileBlob.FILE_CHUNK maxium size.
 	maxChunkSize = 2 * 1024 * 1024 // 2M
-)
-
-var (
-	// Used by seekWriterTo to simulate seeking in Writers that aren't
-	// Seekers, without reallocating each time.
-	zeros = [1024 * 1024]byte{} // 1M
 )
 
 // ByteStreamServer interface:
@@ -192,30 +187,6 @@ func seekReaderTo(r io.Reader, offset int64) {
 	}
 }
 
-// Seek to offset in Writer w, from the current position.
-func seekWriterTo(w io.Writer, offset int64) {
-	switch s := w.(type) {
-	case io.Seeker:
-		s.Seek(offset, io.SeekCurrent)
-		return
-	}
-
-	blockSize := int64(len(zeros))
-	if blockSize > offset {
-		blockSize = offset
-	}
-
-	processed := int64(0)
-	for processed < offset {
-		if processed+blockSize > offset {
-			blockSize = offset - processed
-		}
-		w.Write(zeros[:blockSize])
-		processed += blockSize
-	}
-	// check: processed == offset
-}
-
 // Parse a WriteRequest.ResourceName, return the validated hash, size and an error.
 func (s *grpcServer) parseWriteResource(r string) (string, int64, error) {
 
@@ -255,6 +226,8 @@ func (s *grpcServer) parseWriteResource(r string) (string, int64, error) {
 
 	return hash, size, nil
 }
+
+var errWriteOffset error = errors.New("bytestream writes from non-zero offsets are unsupported")
 
 func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 
@@ -316,10 +289,11 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 				}
 
 				resp.CommittedSize = req.WriteOffset
-				if req.WriteOffset > 0 {
-					// Maybe we should just reject this as an invalid request?
-					// We always return 0 in QueryWriteStatus.
-					seekWriterTo(pw, req.WriteOffset)
+				if req.WriteOffset != 0 {
+					err = errWriteOffset
+					s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", err)
+					recvResult <- err
+					return
 				}
 
 				go func() {
