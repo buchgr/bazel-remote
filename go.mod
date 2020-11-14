@@ -12,7 +12,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/klauspost/cpuid v1.3.1 // indirect
 	github.com/minio/minio-go/v7 v7.0.1
-	github.com/mostynb/go-grpc-compression v1.1.2
+	github.com/mostynb/go-grpc-compression v1.1.3
 	github.com/prometheus/client_golang v1.7.1
 	github.com/slok/go-http-metrics v0.8.0
 	github.com/smartystreets/goconvey v1.6.4 // indirect
