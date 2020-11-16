@@ -2,6 +2,7 @@ package httpproxy
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
+	"github.com/buchgr/bazel-remote/cache/disk/casblob"
 	testutils "github.com/buchgr/bazel-remote/utils"
 )
 
@@ -32,11 +34,16 @@ func (s *testServer) handler(w http.ResponseWriter, r *http.Request) {
 
 	fields := strings.Split(r.URL.Path, "/")
 
+	kind := fields[1]
 	kindMap := s.ac
-	if fields[1] == "ac" {
+	if kind == "ac" {
 		kindMap = s.ac
-	} else if fields[1] == "cas" {
+	} else if kind == "cas.v2" {
 		kindMap = s.cas
+	} else {
+		msg := fmt.Sprintf("unsupported URL: %q", r.URL.Path)
+		http.Error(w, msg, http.StatusBadRequest)
+		return
 	}
 	hash := fields[2]
 
@@ -102,7 +109,7 @@ func TestEverything(t *testing.T) {
 	acData := []byte{1, 2, 3, 4}
 
 	proxyCache := New(url, &http.Client{}, accessLogger, errorLogger, 100, 10000)
-	diskCacheSize := int64(len(casData) + 1024)
+	diskCacheSize := int64(len(casData) + 2048)
 	diskCache, err := disk.New(cacheDir, diskCacheSize, proxyCache)
 	if err != nil {
 		t.Fatal(err)
@@ -148,11 +155,43 @@ func TestEverything(t *testing.T) {
 			t.Fatal("Proxied AC value does not match")
 		}
 	}
+
 	for _, v := range s.cas {
-		if !bytes.Equal(v, casData) {
+
+		// TODO: tweak the GetUncompressedReadCloser API to accept more than os.File.
+
+		tmpfile, err := ioutil.TempFile("", "bazel-remote-httpproxy-test")
+		if err != nil {
+			t.Fatal(err)
+		}
+		tfn := tmpfile.Name()
+		defer os.Remove(tfn)
+
+		_, err = io.Copy(tmpfile, bytes.NewReader(v))
+		if err != nil {
+			t.Fatal(err)
+		}
+		tmpfile2, err := os.Open(tfn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(tmpfile2.Name())
+
+		rc, err := casblob.GetUncompressedReadCloser(tmpfile2, int64(len(casData)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rc.Close()
+		vData, err := ioutil.ReadAll(rc)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Equal(vData, casData) {
 			t.Fatal("Proxied CAS value does not match")
 		}
 	}
+
 	s.mu.Unlock()
 
 	// Confirm that we can HEAD both values successfully.

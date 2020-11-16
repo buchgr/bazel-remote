@@ -10,6 +10,7 @@ require (
 	github.com/google/go-cmp v0.5.0
 	github.com/google/uuid v1.1.1
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
+	github.com/klauspost/compress v1.11.2
 	github.com/klauspost/cpuid v1.3.1 // indirect
 	github.com/minio/minio-go/v7 v7.0.1
 	github.com/mostynb/go-grpc-compression v1.1.4

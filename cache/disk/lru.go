@@ -81,21 +81,21 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback) SizedLRU {
 // and does not add the item) if the item size is larger than the maximum size of the cache,
 // or it cannot be added to the cache because too much space is reserved.
 func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
-	if value.size > c.maxSize {
+	if value.sizeOnDisk > c.maxSize {
 		return false
 	}
 
 	var sizeDelta int64
 	if ee, ok := c.cache[key]; ok {
-		sizeDelta = value.size - ee.Value.(*entry).value.size
+		sizeDelta = value.sizeOnDisk - ee.Value.(*entry).value.sizeOnDisk
 		if c.reservedSize+sizeDelta > c.maxSize {
 			return false
 		}
 		c.ll.MoveToFront(ee)
-		counterOverwrittenBytes.Add(float64(ee.Value.(*entry).value.size))
+		counterOverwrittenBytes.Add(float64(ee.Value.(*entry).value.sizeOnDisk))
 		ee.Value.(*entry).value = value
 	} else {
-		sizeDelta = value.size
+		sizeDelta = value.sizeOnDisk
 		if c.reservedSize+sizeDelta > c.maxSize {
 			return false
 		}
@@ -228,8 +228,8 @@ func (c *SizedLRU) removeElement(e *list.Element) {
 	c.ll.Remove(e)
 	kv := e.Value.(*entry)
 	delete(c.cache, kv.key)
-	c.currentSize -= kv.value.size
-	counterEvictedBytes.Add(float64(kv.value.size))
+	c.currentSize -= kv.value.sizeOnDisk
+	counterEvictedBytes.Add(float64(kv.value.sizeOnDisk))
 
 	if c.onEvict != nil {
 		c.onEvict(kv.key, kv.value)

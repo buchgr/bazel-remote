@@ -1,11 +1,16 @@
 package s3proxy
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"net/http"
+	"net/url"
+	"time"
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/config"
@@ -115,10 +120,10 @@ func New(s3Config *config.S3CloudStorageConfig, accessLogger cache.Logger,
 }
 
 func (c *s3Cache) objectKey(hash string, kind cache.EntryKind) string {
-	baseKey := fmt.Sprintf("%s/%s", kind, hash)
-	if c.keyVersion == 2 {
-		baseKey = cache.Key(kind, hash)
-	}
+
+	// For CAS blobs this includes "cas.v2" to distinguish compressed
+	// blobs from older uncompressed blobs.
+	baseKey := cache.FileLocation(kind, hash)
 
 	if c.prefix == "" {
 		return baseKey
@@ -138,11 +143,6 @@ func logResponse(log cache.Logger, method, bucket, key string, err error) {
 }
 
 func (c *s3Cache) uploadFile(item uploadReq) {
-	uploadDigest := ""
-	if item.kind == cache.CAS {
-		uploadDigest = item.hash
-	}
-
 	_, err := c.mcore.PutObject(
 		context.Background(),
 		c.bucket,                          // bucketName
@@ -150,7 +150,7 @@ func (c *s3Cache) uploadFile(item uploadReq) {
 		item.rc,                           // reader
 		item.size,                         // objectSize
 		"",                                // md5base64
-		uploadDigest,                      // sha256
+		"",                                // sha256
 		minio.PutObjectOptions{
 			UserMetadata: map[string]string{
 				"Content-Type": "application/octet-stream",
@@ -209,21 +209,81 @@ func (c *s3Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, 
 
 func (c *s3Cache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
 	size := int64(-1)
+	exists := false
 
-	s, err := c.mcore.StatObject(
-		context.Background(),
-		c.bucket,                  // bucketName
-		c.objectKey(hash, kind),   // objectName
-		minio.StatObjectOptions{}, // opts
-	)
+	if kind != cache.CAS {
+		s, err := c.mcore.StatObject(
+			context.Background(),
+			c.bucket,                  // bucketName
+			c.objectKey(hash, kind),   // objectName
+			minio.StatObjectOptions{}, // opts
+		)
 
-	exists := (err == nil)
-	if err != nil {
-		err = errNotFound
-	} else {
-		size = s.Size
+		exists = (err == nil)
+		if err != nil {
+			err = errNotFound
+		} else {
+			size = s.Size
+		}
+
+		logResponse(c.accessLogger, "CONTAINS", c.bucket, c.objectKey(hash, kind), err)
+
+		return exists, size
 	}
 
+	// Handle the more complicated, compressed CAS blob case.
+
+	// https://github.com/minio/minio-go/issues/1106
+
+	var err error
+	var uncompressedSize int64
+	var n int
+	var req *http.Request
+	var rsp *http.Response
+	var blobHeader []byte
+	var u *url.URL
+
+	u, err = c.mcore.PresignedGetObject(context.Background(), c.bucket,
+		c.objectKey(hash, kind), time.Second*20, make(url.Values))
+	if err != nil {
+		goto end
+	}
+
+	// TODO: The following code is essentially duplicated from the
+	// httpproxy code. Refactor and reuse it (and drop the goto's)?
+
+	req, err = http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		goto end
+	}
+	req.Header.Add("Range", "bytes=0-7")
+	rsp, err = http.DefaultClient.Do(req) // FIXME: use a single http.Client
+	if err != nil {
+		goto end
+	}
+	if rsp.StatusCode != http.StatusOK && rsp.StatusCode != http.StatusPartialContent {
+		goto end
+	}
+
+	blobHeader = make([]byte, 8)
+	n, err = io.ReadFull(rsp.Body, blobHeader)
+	if err != nil {
+		goto end
+	}
+	defer rsp.Body.Close()
+	if n != 8 {
+		goto end
+	}
+
+	err = binary.Read(bytes.NewReader(blobHeader), binary.LittleEndian,
+		&uncompressedSize)
+	if err != nil {
+		goto end
+	}
+	exists = true
+	size = uncompressedSize
+
+end:
 	logResponse(c.accessLogger, "CONTAINS", c.bucket, c.objectKey(hash, kind), err)
 
 	return exists, size

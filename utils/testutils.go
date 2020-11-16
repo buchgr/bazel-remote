@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"io/ioutil"
 	"log"
-	"os"
 	"testing"
 )
 
@@ -18,18 +17,6 @@ func TempDir(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return dir
-}
-
-// CreateCacheFile creates a random data file of the given size in the
-// provided directory (corresponding to one of bazel-remote's keyspaces)
-// and returns its sha256 hash and any error that occurred.
-func CreateCacheFile(dir string, size int64) (string, error) {
-	data, hash := RandomDataAndHash(size)
-	subdir := dir + "/" + hash[0:2]
-	os.MkdirAll(subdir, os.ModePerm)
-	filepath := subdir + "/" + hash
-
-	return hash, ioutil.WriteFile(filepath, data, os.ModePerm)
 }
 
 // RandomDataAndHash creates a random blob of the specified size, and

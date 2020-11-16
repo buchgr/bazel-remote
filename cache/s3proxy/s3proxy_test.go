@@ -8,9 +8,8 @@ import (
 )
 
 func TestObjectKey(t *testing.T) {
-	result, expected := "", ""
 	logger := &log.Logger{}
-	tc := &s3Cache{
+	s := &s3Cache{
 		mcore:        nil,
 		bucket:       "test",
 		keyVersion:   1,
@@ -19,30 +18,25 @@ func TestObjectKey(t *testing.T) {
 		errorLogger:  logger,
 	}
 
-	// Legacy key format tests
-	tc.keyVersion = 1
-	tc.prefix = ""
-	result, expected = tc.objectKey("1234", cache.CAS), "cas/1234"
-	checkTestCase(t, result, expected, "legacy format without prefix")
-
-	tc.prefix = "test"
-	result, expected = tc.objectKey("1234", cache.CAS), "test/cas/1234"
-	checkTestCase(t, result, expected, "legacy format with prefix")
-
 	// New key format tests
-	tc.keyVersion = 2
+	s.keyVersion = 2
 
-	tc.prefix = ""
-	result, expected = tc.objectKey("1234", cache.CAS), "cas/12/1234"
-	checkTestCase(t, result, expected, "new format with prefix")
+	testCases := []struct {
+		prefix   string
+		key      string
+		kind     cache.EntryKind
+		expected string
+	}{
+		{"", "1234", cache.CAS, "cas.v2/12/1234"},
+		{"test", "1234", cache.CAS, "test/cas.v2/12/1234"},
+	}
 
-	tc.prefix = "test"
-	result, expected = tc.objectKey("1234", cache.CAS), "test/cas/12/1234"
-	checkTestCase(t, result, expected, "new format with prefix")
-}
-
-func checkTestCase(t *testing.T, result string, expected string, testCase string) {
-	if result != expected {
-		t.Errorf("%s objectKey did not match. (result: '%s' expected: '%s'", testCase, result, expected)
+	for _, tc := range testCases {
+		s.prefix = tc.prefix
+		result := s.objectKey(tc.key, tc.kind)
+		if result != tc.expected {
+			t.Errorf("objectKey did not match. (result: '%s' expected: '%s'",
+				result, tc.expected)
+		}
 	}
 }

@@ -30,12 +30,20 @@ func TestDownloadFile(t *testing.T) {
 
 	blobSize := int64(1024)
 
-	hash, err := testutils.CreateCacheFile(filepath.Join(cacheDir, "cas"), blobSize)
+	data, hash := testutils.RandomDataAndHash(blobSize)
+	err := os.MkdirAll(filepath.Join(cacheDir, "cas"), 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = ioutil.WriteFile(filepath.Join(cacheDir, "cas", hash), data, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	c, err := disk.New(cacheDir, blobSize, nil)
+	// Add some overhead for likely CAS blob storage expansion.
+	cacheSize := blobSize * 2
+
+	c, err := disk.New(cacheDir, cacheSize, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +58,7 @@ func TestDownloadFile(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
-		t.Fatal("Handler returned wrong status code",
+		t.Fatal("Handler returned wrong status code for", hash,
 			"expected", http.StatusOK,
 			"got", status,
 		)
@@ -90,10 +98,11 @@ func TestUploadFilesConcurrently(t *testing.T) {
 	defer os.RemoveAll(cacheDir)
 
 	const NumUploads = 1000
+	const blobSize = 1024
 
 	var requests [NumUploads]*http.Request
 	for i := 0; i < NumUploads; i++ {
-		data, hash := testutils.RandomDataAndHash(1024)
+		data, hash := testutils.RandomDataAndHash(blobSize)
 		r, err := http.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(data))
 		if err != nil {
 			t.Fatal(err)
@@ -101,7 +110,10 @@ func TestUploadFilesConcurrently(t *testing.T) {
 		requests[i] = r
 	}
 
-	c, err := disk.New(cacheDir, 1000*1024, nil)
+	// Add some overhead for likely CAS blob storage expansion.
+	cacheSize := int64(NumUploads * blobSize * 2)
+
+	c, err := disk.New(cacheDir, cacheSize, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +174,10 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 
 	numWorkers := 100
 
-	c, err := disk.New(cacheDir, int64(len(data)*numWorkers), nil)
+	// Add some overhead for likely CAS blob storage expansion.
+	cacheSize := int64(len(data) * numWorkers * 2)
+
+	c, err := disk.New(cacheDir, cacheSize, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

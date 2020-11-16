@@ -3,20 +3,22 @@ package disk
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"syscall"
 
 	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/cache/disk/casblob"
 	"github.com/buchgr/bazel-remote/utils/tempfile"
 
 	"github.com/djherbis/atime"
@@ -42,7 +44,8 @@ var tfc = tempfile.NewCreator()
 
 // lruItem is the type of the values stored in SizedLRU to keep track of items.
 type lruItem struct {
-	size int64
+	size       int64
+	sizeOnDisk int64
 }
 
 // Cache is a filesystem-based LRU cache, with an optional backend proxy.
@@ -71,15 +74,15 @@ func New(dir string, maxSizeBytes int64, proxy cache.Proxy) (*Cache, error) {
 	for _, c1 := range hexLetters {
 		for _, c2 := range hexLetters {
 			subDir := string(c1) + string(c2)
-			err := os.MkdirAll(filepath.Join(dir, cache.CAS.String(), subDir), os.ModePerm)
+			err := os.MkdirAll(filepath.Join(dir, cache.CAS.DirName(), subDir), os.ModePerm)
 			if err != nil {
 				return nil, err
 			}
-			err = os.MkdirAll(filepath.Join(dir, cache.AC.String(), subDir), os.ModePerm)
+			err = os.MkdirAll(filepath.Join(dir, cache.AC.DirName(), subDir), os.ModePerm)
 			if err != nil {
 				return nil, err
 			}
-			err = os.MkdirAll(filepath.Join(dir, cache.RAW.String(), subDir), os.ModePerm)
+			err = os.MkdirAll(filepath.Join(dir, cache.RAW.DirName(), subDir), os.ModePerm)
 			if err != nil {
 				return nil, err
 			}
@@ -90,7 +93,19 @@ func New(dir string, maxSizeBytes int64, proxy cache.Proxy) (*Cache, error) {
 	// This function is only called while the lock is held
 	// by the current goroutine.
 	onEvict := func(key Key, value lruItem) {
-		f := filepath.Join(dir, key.(string))
+		ks := key.(string)
+		hash := ks[len(ks)-sha256.Size*2:]
+		var kind cache.EntryKind = cache.AC
+		if strings.HasPrefix(ks, "cas") {
+			kind = cache.CAS
+		} else if strings.HasPrefix(ks, "ac") {
+			kind = cache.AC
+		} else if strings.HasPrefix(ks, "raw") {
+			kind = cache.RAW
+		}
+
+		f := filepath.Join(dir, cache.FileLocation(kind, hash))
+
 		err := os.Remove(f)
 		if err != nil {
 			log.Printf("ERROR: failed to remove evicted cache file: %s", f)
@@ -116,11 +131,11 @@ func New(dir string, maxSizeBytes int64, proxy cache.Proxy) (*Cache, error) {
 }
 
 func (c *Cache) migrateDirectories() error {
-	err := migrateDirectory(filepath.Join(c.dir, cache.AC.String()))
+	err := migrateDirectory(c.dir, cache.AC)
 	if err != nil {
 		return err
 	}
-	err = migrateDirectory(filepath.Join(c.dir, cache.CAS.String()))
+	err = migrateDirectory(c.dir, cache.CAS)
 	if err != nil {
 		return err
 	}
@@ -128,10 +143,17 @@ func (c *Cache) migrateDirectories() error {
 	return nil
 }
 
-func migrateDirectory(dir string) error {
-	log.Printf("Migrating files (if any) to new directory structure: %s\n", dir)
+func migrateDirectory(baseDir string, kind cache.EntryKind) error {
+	sourceDir := path.Join(baseDir, kind.String())
 
-	listing, err := ioutil.ReadDir(dir)
+	_, err := os.Stat(sourceDir)
+	if os.IsNotExist(err) {
+		return nil
+	}
+
+	log.Println("Migrating files (if any) to new directory structure:", sourceDir)
+
+	listing, err := ioutil.ReadDir(sourceDir)
 	if err != nil {
 		return err
 	}
@@ -144,15 +166,26 @@ func migrateDirectory(dir string) error {
 	// hex character pairs.
 	v1DirRegex := regexp.MustCompile("^[a-f0-9]{2}$")
 
+	targetDir := path.Join(baseDir, kind.DirName())
+
 	for _, item := range listing {
 		oldName := item.Name()
-		oldNamePath := filepath.Join(dir, oldName)
+		oldNamePath := filepath.Join(sourceDir, oldName)
 
 		if item.IsDir() {
 			if !v1DirRegex.MatchString(oldName) {
 				// Warn about non-v1 subdirectories.
 				log.Println("Warning: unexpected directory", oldNamePath)
 			}
+
+			destDir := filepath.Join(targetDir, oldName[:2])
+			err = migrateV1Subdir(oldNamePath, destDir, kind)
+			if err != nil {
+				log.Printf("Warning: failed to read subdir %q: %s",
+					oldNamePath, err)
+				continue
+			}
+
 			continue
 		}
 
@@ -166,14 +199,105 @@ func migrateDirectory(dir string) error {
 			continue
 		}
 
-		newName := filepath.Join(dir, oldName[:2], oldName)
-		err = os.Rename(filepath.Join(dir, oldName), newName)
+		// oldName can now be assumed to be a hash.
+		hash := oldName
+
+		src := filepath.Join(sourceDir, oldName)
+		dest := filepath.Join(targetDir, oldName[:2], oldName)
+		if kind == cache.CAS {
+			err = migrateCASFile(src, dest, hash)
+		} else {
+			// TODO: make this work across filesystems?
+			err = os.Rename(src, dest)
+		}
 		if err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error {
+
+	listing, err := ioutil.ReadDir(oldDir)
+	if err != nil {
+		return err
+	}
+
+	hashKeyRegex := regexp.MustCompile("^[a-f0-9]{64}$")
+
+	if kind == cache.CAS {
+		for _, item := range listing {
+
+			oldPath := path.Join(oldDir, item.Name())
+
+			if !hashKeyRegex.MatchString(item.Name()) {
+				return fmt.Errorf("Unexpected file: %s", oldPath)
+			}
+
+			destPath := path.Join(destDir, item.Name())
+
+			err = migrateCASFile(oldPath, destPath, item.Name())
+			if err != nil {
+				return fmt.Errorf("Failed to migrate CAS blob %s: %w",
+					oldPath, err)
+			}
+		}
+
+		return os.Remove(oldDir)
+	}
+
+	for _, item := range listing {
+		oldPath := path.Join(oldDir, item.Name())
+
+		if !hashKeyRegex.MatchString(item.Name()) {
+			return fmt.Errorf("Unexpected file: %s", oldPath)
+		}
+
+		destPath := path.Join(destDir, item.Name())
+
+		// TODO: support cross-filesystem migration.
+		err = os.Rename(oldPath, destPath)
+		if err != nil {
+			return fmt.Errorf("Failed to migrate blob %s: %w", oldPath, err)
+		}
+	}
+
+	return nil
+}
+
+func migrateCASFile(src string, dest string, hash string) error {
+
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	fi, err := srcFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	origSize := fi.Size()
+
+	destFile, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	_, err = casblob.WriteAndClose(srcFile, destFile,
+		casblob.Zstandard, hash, origSize)
+	if err != nil {
+		return err
+	}
+
+	err = os.Remove(src)
+	if err != nil {
+		return fmt.Errorf("Failed to remove %s: %w", src, err)
+	}
+
+	return err
 }
 
 // loadExistingFiles lists all files in the cache directory, and adds them to the
@@ -208,7 +332,32 @@ func (c *Cache) loadExistingFiles() error {
 	log.Println("Building LRU index.")
 	for _, f := range files {
 		relPath := f.name[len(c.dir)+1:]
-		ok := c.lru.Add(relPath, lruItem{size: f.info.Size()})
+		var lookupKey string
+
+		sizeOnDisk := f.info.Size()
+		size := sizeOnDisk
+
+		fields := strings.Split(relPath, "/")
+		hash := fields[len(fields)-1]
+
+		if strings.HasPrefix(relPath, "cas.v2/") {
+			size, err = casblob.GetLogicalSize(f.name)
+			if err != nil {
+				return err
+			}
+			lookupKey = "cas/" + hash
+		} else if strings.HasPrefix(relPath, "ac/") {
+			lookupKey = "ac/" + hash
+		} else if strings.HasPrefix(relPath, "raw/") {
+			lookupKey = "raw/" + hash
+		} else {
+			return fmt.Errorf("Unrecognised file in cache dir: %q", relPath)
+		}
+
+		ok := c.lru.Add(lookupKey, lruItem{
+			size:       size,
+			sizeOnDisk: sizeOnDisk,
+		})
 		if !ok {
 			err = os.Remove(filepath.Join(c.dir, relPath))
 			if err != nil {
@@ -218,6 +367,7 @@ func (c *Cache) loadExistingFiles() error {
 	}
 
 	log.Println("Finished loading disk cache files.")
+
 	return nil
 }
 
@@ -241,7 +391,7 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 		return nil
 	}
 
-	key := cache.Key(kind, hash)
+	key := cache.LookupKey(kind, hash)
 
 	var tf *os.File // Tempfile.
 
@@ -299,7 +449,8 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 	}
 	removeTempfile = true
 
-	err = writeAndCloseFile(r, kind, hash, size, tf)
+	var sizeOnDisk int64
+	sizeOnDisk, err = writeAndCloseFile(r, kind, hash, size, tf)
 	if err != nil {
 		return err
 	}
@@ -310,17 +461,17 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 			log.Println("Failed to proxy Put:", err)
 		} else {
 			// Doesn't block, should be fast.
-			c.proxy.Put(kind, hash, size, rc)
+			c.proxy.Put(kind, hash, sizeOnDisk, rc)
 		}
 	}
 
-	unreserve, removeTempfile, err = c.commit(key, tf.Name(), filePath, size, size)
+	unreserve, removeTempfile, err = c.commit(key, tf.Name(), filePath, size, size, sizeOnDisk)
 
 	// Might be nil.
 	return err
 }
 
-func writeAndCloseFile(r io.Reader, kind cache.EntryKind, hash string, size int64, f *os.File) error {
+func writeAndCloseFile(r io.Reader, kind cache.EntryKind, hash string, size int64, f *os.File) (int64, error) {
 	closeFile := true
 	defer func() {
 		if closeFile {
@@ -329,44 +480,40 @@ func writeAndCloseFile(r io.Reader, kind cache.EntryKind, hash string, size int6
 	}()
 
 	var err error
+	var sizeOnDisk int64
 
-	var bytesCopied int64
 	if kind == cache.CAS {
-		hasher := sha256.New()
-		bytesCopied, err = io.Copy(io.MultiWriter(f, hasher), r)
+		sizeOnDisk, err = casblob.WriteAndClose(r, f, casblob.Zstandard, hash, size)
 		if err != nil {
-			return err
+			return -1, err
 		}
-		actualHash := hex.EncodeToString(hasher.Sum(nil))
-		if actualHash != hash {
-			return fmt.Errorf(
-				"checksums don't match. Expected %s, found %s", hash, actualHash)
-		}
-	} else {
-		if bytesCopied, err = io.Copy(f, r); err != nil {
-			return err
-		}
+		closeFile = false
+		return sizeOnDisk, nil
 	}
 
-	if isSizeMismatch(bytesCopied, size) {
-		return fmt.Errorf(
-			"sizes don't match. Expected %d, found %d", size, bytesCopied)
+	if sizeOnDisk, err = io.Copy(f, r); err != nil {
+		return -1, err
+	}
+
+	if isSizeMismatch(sizeOnDisk, size) {
+		return -1, fmt.Errorf(
+			"sizes don't match. Expected %d, found %d", size, sizeOnDisk)
 	}
 
 	if err = f.Sync(); err != nil {
-		return err
+		return -1, err
 	}
 
 	if err = f.Close(); err != nil {
-		return err
+		return -1, err
 	}
 	closeFile = false
 
-	return nil
+	return sizeOnDisk, nil
 }
 
 // This must be called when the lock is not held.
-func (c *Cache) commit(key string, tempfile string, finalPath string, reservedSize int64, foundSize int64) (unreserve bool, removeTempfile bool, err error) {
+func (c *Cache) commit(key string, tempfile string, finalPath string, reservedSize int64, foundSize int64, sizeOnDisk int64) (unreserve bool, removeTempfile bool, err error) {
 	unreserve = reservedSize > 0
 	removeTempfile = true
 
@@ -382,8 +529,9 @@ func (c *Cache) commit(key string, tempfile string, finalPath string, reservedSi
 	}
 	unreserve = false
 
-	if !c.lru.Add(key, lruItem{size: foundSize}) {
-		err = fmt.Errorf("INTERNAL ERROR: failed to add: %s, size %d", key, foundSize)
+	if !c.lru.Add(key, lruItem{size: foundSize, sizeOnDisk: sizeOnDisk}) {
+		err = fmt.Errorf("INTERNAL ERROR: failed to add: %s, size %d (on disk: %d): %w",
+			key, foundSize, sizeOnDisk, err)
 		log.Println(err.Error())
 		return unreserve, removeTempfile, err
 	}
@@ -405,7 +553,7 @@ func (c *Cache) commit(key string, tempfile string, finalPath string, reservedSi
 // Return a non-nil io.ReadCloser and non-negative size if the item is available
 // locally, and a boolean that indicates if the item is not available locally
 // but that we can try the proxy backend.
-func (c *Cache) availableOrTryProxy(key string, size int64, blobPath string) (rc io.ReadCloser, foundSize int64, tryProxy bool, err error) {
+func (c *Cache) availableOrTryProxy(key string, size int64, blobPath string, kind cache.EntryKind) (rc io.ReadCloser, foundSize int64, tryProxy bool, err error) {
 	locked := true
 	c.mu.Lock()
 
@@ -420,6 +568,13 @@ func (c *Cache) availableOrTryProxy(key string, size int64, blobPath string) (rc
 			if err != nil {
 				// Race condition, was the item purged after we released the lock?
 				log.Printf("Warning: expected %s to exist on disk, undersized cache?", blobPath)
+			} else if kind == cache.CAS {
+				rc, err = casblob.GetUncompressedReadCloser(f, size)
+				if err != nil {
+					log.Printf("Warning: expected item to be on disk, but something happened: %v", err)
+				} else {
+					return rc, item.size, false, nil
+				}
 			} else {
 				var fileInfo os.FileInfo
 				fileInfo, err = f.Stat()
@@ -479,7 +634,7 @@ func (c *Cache) Get(kind cache.EntryKind, hash string, size int64) (rc io.ReadCl
 	}
 
 	var err error
-	key := cache.Key(kind, hash)
+	key := cache.LookupKey(kind, hash)
 
 	var tf *os.File // Tempfile we will write to.
 
@@ -506,7 +661,7 @@ func (c *Cache) Get(kind cache.EntryKind, hash string, size int64) (rc io.ReadCl
 	}()
 
 	blobPath := cacheFilePath(kind, c.dir, hash)
-	f, foundSize, tryProxy, err := c.availableOrTryProxy(key, size, blobPath)
+	f, foundSize, tryProxy, err := c.availableOrTryProxy(key, size, blobPath, kind)
 	if err != nil {
 		return nil, -1, err
 	}
@@ -531,7 +686,8 @@ func (c *Cache) Get(kind cache.EntryKind, hash string, size int64) (rc io.ReadCl
 	if err != nil || r == nil {
 		return nil, -1, err
 	}
-	if isSizeMismatch(size, foundSize) {
+
+	if kind != cache.CAS && isSizeMismatch(size, foundSize) {
 		return nil, -1, nil
 	}
 
@@ -541,24 +697,48 @@ func (c *Cache) Get(kind cache.EntryKind, hash string, size int64) (rc io.ReadCl
 	}
 	removeTempfile = true
 
-	err = writeAndCloseFile(r, kind, hash, foundSize, tf)
+	tfName := tf.Name()
+
+	var sizeOnDisk int64
+	sizeOnDisk, err = io.Copy(tf, r)
+	tf.Close()
 	if err != nil {
 		return nil, -1, err
 	}
 
-	rc, err = os.Open(tf.Name())
+	logicalSize := foundSize
+
+	if kind == cache.CAS {
+		logicalSize, err = casblob.GetLogicalSize(tfName)
+		if err != nil {
+			return nil, -1, err
+		}
+		if isSizeMismatch(size, logicalSize) {
+			return nil, -1, nil
+		}
+	}
+
+	rcf, err := os.Open(tfName)
 	if err != nil {
 		return nil, -1, err
 	}
+	if kind != cache.CAS {
+		rc = rcf
+	} else {
+		rc, err = casblob.GetUncompressedReadCloser(rcf, size)
+		if err != nil {
+			return nil, -1, err
+		}
+	}
 
-	unreserve, removeTempfile, err = c.commit(key, tf.Name(), blobPath, size, foundSize)
+	unreserve, removeTempfile, err = c.commit(key, tfName, blobPath, size, foundSize, sizeOnDisk)
 	if err != nil {
 		rc.Close()
 		rc = nil
 		foundSize = -1
 	}
 
-	return rc, foundSize, err
+	return rc, logicalSize, err
 }
 
 // Contains returns true if the `hash` key exists in the cache, and
@@ -581,7 +761,7 @@ func (c *Cache) Contains(kind cache.EntryKind, hash string, size int64) (bool, i
 	}
 
 	foundSize := int64(-1)
-	key := cache.Key(kind, hash)
+	key := cache.LookupKey(kind, hash)
 
 	c.mu.Lock()
 	item, exists := c.lru.Get(key)
@@ -633,7 +813,7 @@ func ensureDirExists(path string) {
 }
 
 func cacheFilePath(kind cache.EntryKind, cacheDir string, hash string) string {
-	return filepath.Join(cacheDir, cache.Key(kind, hash))
+	return filepath.Join(cacheDir, cache.FileLocation(kind, hash))
 }
 
 // GetValidatedActionResult returns a valid ActionResult and its serialized
