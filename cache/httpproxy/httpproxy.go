@@ -3,6 +3,8 @@
 package httpproxy
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -190,14 +192,55 @@ func (r *remoteHTTPProxyCache) Contains(kind cache.EntryKind, hash string) (bool
 
 	url := requestURL(r.baseURL, hash, kind)
 
-	rsp, err := r.remote.Head(url)
-	if err == nil && rsp.StatusCode == http.StatusOK {
-		return true, rsp.ContentLength
+	if kind != cache.CAS {
+		rsp, err := r.remote.Head(url)
+		if err == nil && rsp.StatusCode == http.StatusOK {
+			return true, rsp.ContentLength
+		}
+
+		return false, -1
 	}
 
-	return false, int64(-1)
+	// The following code is a little ugly. We can't use a HEAD request,
+	// because we need the uncompressed size from the header of the blob.
+	// That value is stored in the first 8 bytes of compressed CAS blobs,
+	// so attempt a GET range-request to get that value and decode it here.
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return false, -1
+	}
+
+	req.Header.Add("Range", "bytes=0-7")
+	rsp, err := r.remote.Do(req)
+	if err != nil || (rsp.StatusCode != http.StatusOK && rsp.StatusCode != http.StatusPartialContent) {
+		return false, -1
+	}
+
+	blobHeader := make([]byte, 8)
+	n, err := io.ReadFull(rsp.Body, blobHeader)
+	if err != nil {
+		return false, -1
+	}
+	defer rsp.Body.Close()
+	if n != 8 {
+		return false, -1
+	}
+
+	var uncompressedSize int64
+	err = binary.Read(bytes.NewReader(blobHeader), binary.LittleEndian,
+		&uncompressedSize)
+	if err != nil {
+		return false, -1
+	}
+
+	return true, uncompressedSize
 }
 
 func requestURL(baseURL *url.URL, hash string, kind cache.EntryKind) string {
+	if kind == cache.CAS {
+		// We need to distinguish these from uncompressed CAS blobs.
+		return fmt.Sprintf("%s/cas.v2/%s", baseURL, hash)
+	}
 	return fmt.Sprintf("%s/%s/%s", baseURL, kind, hash)
 }

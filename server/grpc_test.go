@@ -69,7 +69,10 @@ func TestMain(m *testing.M) {
 	}
 	defer os.RemoveAll(dir)
 
-	diskCache, err = disk.New(dir, int64(10*maxChunkSize), nil)
+	// Add some overhead for likely CAS blob storage expansion.
+	cacheSize := int64(10 * maxChunkSize * 2)
+
+	diskCache, err = disk.New(dir, cacheSize, nil)
 	if err != nil {
 		fmt.Println("Test setup failed")
 		os.Exit(1)
@@ -482,7 +485,7 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 		}
 
 		if r.Status.GetCode() != int32(codes.OK) {
-			t.Fatal("missing blob:", r.Digest)
+			t.Fatal("missing blob:", r.Digest, "message:", r.Status.GetMessage())
 		}
 	}
 

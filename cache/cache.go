@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
-	"path/filepath"
+	"path"
 )
 
 // EntryKind describes the kind of cache entry
@@ -29,6 +29,16 @@ func (e EntryKind) String() string {
 	}
 	if e == CAS {
 		return "cas"
+	}
+	return "raw"
+}
+
+func (e EntryKind) DirName() string {
+	if e == AC {
+		return "ac"
+	}
+	if e == CAS {
+		return "cas.v2"
 	}
 	return "raw"
 }
@@ -88,6 +98,17 @@ func TransformActionCacheKey(key, instance string, logger Logger) string {
 }
 
 // Key returns the proper cache key for an entry kind and hash.
-func Key(kind EntryKind, hash string) string {
-	return filepath.Join(kind.String(), hash[:2], hash)
+func FileLocation(kind EntryKind, hash string) string {
+	var kindWithVersion string
+	if kind == CAS {
+		kindWithVersion = "cas.v2"
+	} else {
+		kindWithVersion = kind.String()
+	}
+
+	return path.Join(kindWithVersion, hash[:2], hash)
+}
+
+func LookupKey(kind EntryKind, hash string) string {
+	return kind.String() + "/" + hash
 }

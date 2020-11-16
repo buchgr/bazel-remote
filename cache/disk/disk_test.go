@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/cache/disk/casblob"
 	"github.com/buchgr/bazel-remote/cache/httpproxy"
 	testutils "github.com/buchgr/bazel-remote/utils"
 
@@ -43,7 +44,9 @@ func TestCacheBasics(t *testing.T) {
 	defer os.RemoveAll(cacheDir)
 
 	itemSize := int64(256)
-	cacheSize := itemSize
+
+	// Add some overhead for likely CAS blob storage expansion.
+	cacheSize := int64(itemSize * 2)
 
 	testCache, err := New(cacheDir, cacheSize, nil)
 	if err != nil {
@@ -203,18 +206,39 @@ func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
 // digest {contentsHash, contentsLength}.
 type proxyStub struct{}
 
-func (d proxyStub) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {}
+func (d proxyStub) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
+	// Not implemented.
+}
 
 func (d proxyStub) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
-	if hash != contentsHash {
+	if hash != contentsHash || kind != cache.CAS {
 		return nil, -1, nil
 	}
 
-	return ioutil.NopCloser(strings.NewReader(contents)), contentsLength, nil
+	tmpfile, err := ioutil.TempFile("", "proxyStubGet")
+	if err != nil {
+		return nil, -1, err
+	}
+	tfn := tmpfile.Name()
+	defer os.Remove(tfn)
+
+	_, err = casblob.WriteAndClose(ioutil.NopCloser(
+		strings.NewReader(contents)), tmpfile, casblob.Zstandard,
+		hash, contentsLength)
+	if err != nil {
+		return nil, -1, err
+	}
+
+	readme, err := os.Open(tfn)
+	if err != nil {
+		return nil, -1, err
+	}
+
+	return readme, contentsLength, nil
 }
 
 func (d proxyStub) Contains(kind cache.EntryKind, hash string) (bool, int64) {
-	if hash != contentsHash {
+	if hash != contentsHash || kind != cache.CAS {
 		return false, -1
 	}
 
@@ -271,7 +295,8 @@ func hashStr(content string) string {
 func TestOverwrite(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache, err := New(cacheDir, 10, nil)
+
+	testCache, err := New(cacheDir, 100, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,26 +336,31 @@ func TestCacheExistingFiles(t *testing.T) {
 	items := []struct {
 		contents string
 		hash     string
+		key      string
 		file     string
 	}{
 		{
 			"hej",
 			"9c478bf63e9500cb5db1e85ece82f18c8eb9e52e2f9135acd7f10972c8d563ba",
-			"cas/9c/9c478bf63e9500cb5db1e85ece82f18c8eb9e52e2f9135acd7f10972c8d563ba",
+			"cas/9c478bf63e9500cb5db1e85ece82f18c8eb9e52e2f9135acd7f10972c8d563ba",
+			"cas.v2/9c/9c478bf63e9500cb5db1e85ece82f18c8eb9e52e2f9135acd7f10972c8d563ba",
 		},
 		{
 			"världen",
 			"d497feaa39156f4ae61317db9d2adc3a8f2ff1437fd48ccb56f814f0b7ac5fe1",
-			"cas/d4/d497feaa39156f4ae61317db9d2adc3a8f2ff1437fd48ccb56f814f0b7ac5fe1",
+			"cas/d497feaa39156f4ae61317db9d2adc3a8f2ff1437fd48ccb56f814f0b7ac5fe1",
+			"cas.v2/d4/d497feaa39156f4ae61317db9d2adc3a8f2ff1437fd48ccb56f814f0b7ac5fe1",
 		},
 		{
 			"foo",
 			"733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
+			"ac/733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
 			"ac/73/733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
 		},
 		{
 			"bar",
 			"733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
+			"raw/733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
 			"raw/73/733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
 		},
 	}
@@ -341,7 +371,17 @@ func TestCacheExistingFiles(t *testing.T) {
 		fp := path.Join(cacheDir, it.file)
 		ensureDirExists(path.Dir(fp))
 
-		err = ioutil.WriteFile(fp, []byte(it.contents), os.ModePerm)
+		if strings.HasPrefix(it.file, "cas.v2/") {
+			r := bytes.NewReader([]byte(it.contents))
+			var f *os.File
+			f, err = os.Create(fp)
+			if err == nil {
+				_, err = casblob.WriteAndClose(r, f, casblob.Zstandard,
+					it.hash, int64(len(it.contents)))
+			}
+		} else {
+			err = ioutil.WriteFile(fp, []byte(it.contents), os.ModePerm)
+		}
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -350,7 +390,10 @@ func TestCacheExistingFiles(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	testCache, err := New(cacheDir, 1024, nil)
+	// Add some overhead for likely CAS blob storage expansion.
+	const cacheSize = 1024
+
+	testCache, err := New(cacheDir, cacheSize, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,9 +429,9 @@ func TestCacheExistingFiles(t *testing.T) {
 			continue
 		}
 
-		if evicted[0] != items[0].file {
+		if evicted[0] != items[0].key {
 			t.Fatalf("Expected first evicted item to be %s, was %s",
-				items[0].file, evicted[0])
+				items[0].key, evicted[0])
 		}
 
 		break // First item evicted as expected.
@@ -460,23 +503,62 @@ func createRandomFile(dir string, size int64) (string, error) {
 	return hash, ioutil.WriteFile(filepath, data, os.ModePerm)
 }
 
+func createRandomV1CASFile(dir string, size int64) (string, error) {
+	data, hash := testutils.RandomDataAndHash(size)
+	os.MkdirAll(dir, os.ModePerm)
+	filePath := dir + "/" + hash
+
+	err := ioutil.WriteFile(filePath, data, os.ModePerm)
+	if err != nil {
+		return "", err
+	}
+
+	return hash, nil
+}
+
+func createRandomCASFile(dir string, size int64) (string, error) {
+	data, hash := testutils.RandomDataAndHash(size)
+	os.MkdirAll(dir, os.ModePerm)
+	filePath := dir + "/" + hash
+
+	f, err := os.Create(filePath)
+	if err != nil {
+		return "", nil
+	}
+
+	r := bytes.NewReader(data)
+
+	_, err = casblob.WriteAndClose(r, f, casblob.Zstandard, hash, int64(len(data)))
+	if err != nil {
+		return "", nil
+	}
+
+	return hash, nil
+}
+
 func TestMigrateFromOldDirectoryStructure(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	acHash, err := createRandomFile(cacheDir+"/ac/", 512)
+	acHash, err := createRandomFile(cacheDir+"/ac", 512)
 	if err != nil {
 		t.Fatal(err)
 	}
-	casHash1, err := createRandomFile(cacheDir+"/cas/", 1024)
+
+	casHash1, err := createRandomV1CASFile(cacheDir+"/cas", 1024)
 	if err != nil {
 		t.Fatal(err)
 	}
-	casHash2, err := createRandomFile(cacheDir+"/cas/", 1024)
+
+	casHash2, err := createRandomV1CASFile(cacheDir+"/cas", 1024)
 	if err != nil {
 		t.Fatal(err)
 	}
-	testCache, err := New(cacheDir, 2560, nil)
+
+	// Add some overhead for likely CAS blob storage expansion.
+	const cacheSize = 2560 * 2
+
+	testCache, err := New(cacheDir, cacheSize, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -511,20 +593,42 @@ func TestLoadExistingEntries(t *testing.T) {
 	numBlobs := int64(3)
 	blobSize := int64(1024)
 
-	acHash, err := testutils.CreateCacheFile(cacheDir+"/ac/", blobSize)
+	var err error
+
+	acData, acHash := testutils.RandomDataAndHash(blobSize)
+	err = os.MkdirAll(path.Join(cacheDir, "ac"), 0755)
 	if err != nil {
 		t.Fatal(err)
 	}
-	casHash, err := testutils.CreateCacheFile(cacheDir+"/cas/", blobSize)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rawHash, err := testutils.CreateCacheFile(cacheDir+"/raw/", blobSize)
+	err = ioutil.WriteFile(path.Join(cacheDir, "ac", acHash), acData, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	testCache, err := New(cacheDir, blobSize*numBlobs, nil)
+	casData, casHash := testutils.RandomDataAndHash(blobSize)
+	err = os.MkdirAll(path.Join(cacheDir, "cas"), 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = ioutil.WriteFile(path.Join(cacheDir, "cas", casHash), casData, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rawData, rawHash := testutils.RandomDataAndHash(blobSize)
+	err = os.MkdirAll(path.Join(cacheDir, "raw"), 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = ioutil.WriteFile(path.Join(cacheDir, "raw", rawHash), rawData, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Add some overhead for likely CAS blob storage expansion.
+	cacheSize := int64(blobSize * numBlobs * 2)
+
+	testCache, err := New(cacheDir, cacheSize, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -558,7 +662,9 @@ func TestDistinctKeyspaces(t *testing.T) {
 	defer os.RemoveAll(cacheDir)
 
 	blobSize := 1024
-	cacheSize := int64(blobSize * 3)
+
+	// Add some overhead for likely CAS blob storage expansion.
+	cacheSize := int64(blobSize*3) * 2
 
 	testCache, err := New(cacheDir, cacheSize, nil)
 	if err != nil {
@@ -674,7 +780,8 @@ func TestHttpProxyBackend(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	cacheSize := int64(1024 * 10)
+	// Add some overhead for likely CAS blob storage expansion.
+	cacheSize := int64(1024*10) * 2
 
 	testCache, err := New(cacheDir, cacheSize, proxy)
 	if err != nil {
