@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -39,12 +40,13 @@ type httpCache struct {
 }
 
 type statusPageData struct {
-	CurrSize     int64
-	ReservedSize int64
-	MaxSize      int64
-	NumFiles     int
-	ServerTime   int64
-	GitCommit    string
+	CurrSize      int64
+	ReservedSize  int64
+	MaxSize       int64
+	NumFiles      int
+	ServerTime    int64
+	GitCommit     string
+	NumGoroutines int
 }
 
 // NewHTTPCache returns a new instance of the cache.
@@ -360,16 +362,19 @@ func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 
 	totalSize, reservedSize, numItems := h.cache.Stats()
 
+	goroutines := runtime.NumGoroutine()
+
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", " ")
 	enc.Encode(statusPageData{
-		MaxSize:      h.cache.MaxSize(),
-		CurrSize:     totalSize,
-		ReservedSize: reservedSize,
-		NumFiles:     numItems,
-		ServerTime:   time.Now().Unix(),
-		GitCommit:    h.gitCommit,
+		MaxSize:       h.cache.MaxSize(),
+		CurrSize:      totalSize,
+		ReservedSize:  reservedSize,
+		NumFiles:      numItems,
+		ServerTime:    time.Now().Unix(),
+		GitCommit:     h.gitCommit,
+		NumGoroutines: goroutines,
 	})
 }
 
