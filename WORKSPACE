@@ -969,8 +969,8 @@ go_repository(
 go_repository(
     name = "com_github_klauspost_compress",
     importpath = "github.com/klauspost/compress",
-    sum = "h1:K9z59aO18Aywg2b/WSgBaUX99mHy2BES18Cr5lBKZHk=",
-    version = "v1.10.11",
+    sum = "h1:dB4Bn0tN3wdCzQxnS8r06kV74qN/TAfaIS0bVE8h3jc=",
+    version = "v1.11.3",
 )
 
 go_repository(
