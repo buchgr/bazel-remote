@@ -206,7 +206,16 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		rdr, sizeBytes, err := h.cache.Get(kind, hash, -1, 0)
+		var rdr io.ReadCloser
+		var sizeBytes int64
+
+		zstdCompressed := false
+		if kind == cache.CAS && strings.Contains(r.Header.Get("Accept-Encoding"), "zstd") {
+			rdr, sizeBytes, err = h.cache.GetZstd(hash, -1, 0)
+			zstdCompressed = true
+		} else {
+			rdr, sizeBytes, err = h.cache.Get(kind, hash, -1, 0)
+		}
 		if err != nil {
 			if e, ok := err.(*cache.Error); ok {
 				http.Error(w, e.Error(), e.Code)
@@ -225,7 +234,14 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		defer rdr.Close()
 
 		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Header().Set("Content-Length", strconv.FormatInt(sizeBytes, 10))
+		if zstdCompressed {
+			// TODO: calculate Content-Length for compressed blobs too
+			// (unless compressing on the fly).
+			w.Header().Set("Content-Encoding", "zstd")
+		} else {
+			w.Header().Set("Content-Length", strconv.FormatInt(sizeBytes, 10))
+		}
+
 		io.Copy(w, rdr)
 
 		h.logResponse(http.StatusOK, r)
