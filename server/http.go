@@ -18,11 +18,14 @@ import (
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
 	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
+	"github.com/klauspost/compress/zstd"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 )
 
 var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{64})$")
+
+var decoder, _ = zstd.NewReader(nil)
 
 // HTTPCache ...
 type HTTPCache interface {
@@ -249,6 +252,22 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPut:
 		contentLength := r.ContentLength
 
+		// If custom header X-Digest-SizeBytes is set, use that for the
+		// size of the blob instead of Content-Length (which only works
+		// for uncompressed PUTs).
+		sb := r.Header.Get("X-Digest-SizeBytes")
+		if sb != "" {
+			cl, err := strconv.Atoi(sb)
+			if err != nil {
+				msg := fmt.Sprintf("PUT with unparseable X-Digest-SizeBytes header: %v", sb)
+				http.Error(w, msg, http.StatusBadRequest)
+				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
+				return
+			}
+
+			contentLength = int64(cl)
+		}
+
 		if contentLength == -1 {
 			// We need the content-length header to make sure we have enough disk space.
 			msg := fmt.Sprintf("PUT without Content-Length (key = %s)", path(kind, hash))
@@ -264,16 +283,42 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		rc := r.Body
+		zstdCompressed := false
+
+		// Content-Encoding must be one of "identity", "zstd" or not present.
+		ce := r.Header.Get("Content-Encoding")
+		if ce == "zstd" {
+			zstdCompressed = true
+		} else if ce != "" && ce != "identity" {
+			msg := fmt.Sprintf("Unsupported content-encoding: %q", ce)
+			http.Error(w, msg, http.StatusBadRequest)
+			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
+			return
+		}
+
+		var rdr io.Reader = r.Body
 		if h.validateAC && kind == cache.AC {
 			// verify that this is a valid ActionResult
 
-			data, err := ioutil.ReadAll(rc)
+			data, err := ioutil.ReadAll(rdr)
 			if err != nil {
 				msg := "failed to read request body"
 				http.Error(w, msg, http.StatusInternalServerError)
 				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
 				return
+			}
+
+			if zstdCompressed {
+				uncompressed, err := decoder.DecodeAll(data, nil)
+				if err != nil {
+					msg := fmt.Sprintf("failed to uncompress zstd-encoded request body: %v", err)
+					http.Error(w, msg, http.StatusBadRequest)
+					h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
+					return
+				}
+
+				data = uncompressed
+				zstdCompressed = false
 			}
 
 			if int64(len(data)) != contentLength {
@@ -296,10 +341,27 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			// Note: we do not currently verify that the blobs exist
 			// in the CAS.
 
-			rc = ioutil.NopCloser(bytes.NewReader(data))
+			rdr = bytes.NewReader(data)
 		}
 
-		err := h.cache.Put(kind, hash, contentLength, rc)
+		if zstdCompressed {
+			z, err := zstd.NewReader(rdr) // TODO: use a pool.
+			if err != nil {
+				if z != nil {
+					defer z.Close()
+				}
+				msg := fmt.Sprintf("Failed to create zstd reader: %v", err)
+				http.Error(w, msg, http.StatusInternalServerError)
+				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
+				return
+			}
+
+			rc := z.IOReadCloser()
+			defer rc.Close()
+			rdr = rc
+		}
+
+		err := h.cache.Put(kind, hash, contentLength, rdr)
 		if err != nil {
 			if cerr, ok := err.(*cache.Error); ok {
 				http.Error(w, err.Error(), cerr.Code)
