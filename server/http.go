@@ -25,7 +25,9 @@ import (
 
 var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{64})$")
 
-var decoder, _ = zstd.NewReader(nil)
+var decoder, _ = zstd.NewReader(nil) // TODO: raise WithDecoderConcurrency ?
+
+var singleDecoder = zstd.WithDecoderConcurrency(1)
 
 // HTTPCache ...
 type HTTPCache interface {
@@ -345,7 +347,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if zstdCompressed {
-			z, err := zstd.NewReader(rdr) // TODO: use a pool.
+			z, err := zstd.NewReader(rdr, singleDecoder) // TODO: use a pool.
 			if err != nil {
 				if z != nil {
 					defer z.Close()

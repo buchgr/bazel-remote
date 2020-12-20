@@ -22,11 +22,13 @@ const (
 	Zstandard CompressionType = 1
 )
 
-var zstdLevelOpt = zstd.WithEncoderLevel(zstd.SpeedFastest)
-var encoder, _ = zstd.NewWriter(nil, zstdLevelOpt)
-var decoder, _ = zstd.NewReader(nil)
+var zstdFastestLevel = zstd.WithEncoderLevel(zstd.SpeedFastest)
 
-const defaultChunkSize = 1024 * 1024 * 1 // 1M
+var encoder, _ = zstd.NewWriter(nil, zstdFastestLevel) // TODO: raise WithEncoderConcurrency ?
+var decoder, _ = zstd.NewReader(nil) // TODO: raise WithDecoderConcurrency ?
+
+var singleDecoder = zstd.WithDecoderConcurrency(1)
+var singleEncoder = zstd.WithEncoderConcurrency(1)
 
 const defaultChunkSize = 1024 * 1024 * 1 // 1M
 
@@ -185,7 +187,7 @@ func GetUncompressedReadCloser(f *os.File, expectedSize int64, offset int64) (io
 		f.Seek(h.chunkOffsets[chunkNum], io.SeekStart)
 	}
 	if remainder == 0 {
-		z, err := zstd.NewReader(f) // TODO: use a pool, or a chunk decoder.
+		z, err := zstd.NewReader(f, singleDecoder) // TODO: use a pool, or a chunk decoder.
 		if err != nil {
 			f.Close()
 			return nil, err
@@ -219,7 +221,7 @@ func GetUncompressedReadCloser(f *os.File, expectedSize int64, offset int64) (io
 		return ioutil.NopCloser(r), nil
 	}
 
-	z, err := zstd.NewReader(f) // TODO: use a pool.
+	z, err := zstd.NewReader(f, singleDecoder) // TODO: use a pool.
 	if err != nil {
 		f.Close()
 		return nil, err
@@ -265,7 +267,7 @@ func GetZstdReadCloser(f *os.File, expectedSize int64, offset int64) (io.ReadClo
 		pr, pw := io.Pipe()
 
 		// TODO: use a pool
-		enc, err := zstd.NewWriter(pw, zstd.WithEncoderLevel(zstd.SpeedFastest))
+		enc, err := zstd.NewWriter(pw, zstdFastestLevel, singleEncoder)
 		if err != nil {
 			f.Close()
 			return nil, err

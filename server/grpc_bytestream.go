@@ -405,7 +405,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 
 				var rc io.ReadCloser = pr
 				if cmp == casblob.Zstandard {
-					dec, err = zstd.NewReader(pr) // TODO: use a pool.
+					dec, err = zstd.NewReader(pr, singleDecoder) // TODO: use a pool.
 					if err != nil {
 						s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", err)
 						recvResult <- err
