@@ -70,7 +70,7 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 
 			if size < 0 {
 				// We don't know the size yet (bad http backend?).
-				r, size, err := s.cache.Get(cache.CAS, sha256Str, -1)
+				r, size, err := s.cache.Get(cache.CAS, sha256Str, -1, 0)
 				if r != nil {
 					defer r.Close()
 				}

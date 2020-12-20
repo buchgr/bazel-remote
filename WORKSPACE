@@ -976,8 +976,8 @@ go_repository(
 go_repository(
     name = "com_github_mostynb_go_grpc_compression",
     importpath = "github.com/mostynb/go-grpc-compression",
-    sum = "h1:emrImHjSPW/H4aarNxuiPG1uN1WgIlVdR3M0LH5HH5E=",
-    version = "v1.1.2",
+    sum = "h1:wlscKqxoQsZQxUi6uTER+Gh9MbcUFUa4Cw5A69pj/c8=",
+    version = "v1.1.4",
 )
 
 go_repository(

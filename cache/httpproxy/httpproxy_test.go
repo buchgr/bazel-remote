@@ -177,7 +177,7 @@ func TestEverything(t *testing.T) {
 		}
 		defer os.Remove(tmpfile2.Name())
 
-		rc, err := casblob.GetUncompressedReadCloser(tmpfile2, int64(len(casData)))
+		rc, err := casblob.GetUncompressedReadCloser(tmpfile2, int64(len(casData)), 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -222,7 +222,7 @@ func TestEverything(t *testing.T) {
 	var data []byte
 	var rc io.ReadCloser
 
-	rc, size, err = diskCache.Get(cache.AC, hash, int64(len(acData)))
+	rc, size, err = diskCache.Get(cache.AC, hash, int64(len(acData)), 0)
 	if err != nil {
 		t.Error(err)
 	}
@@ -242,7 +242,7 @@ func TestEverything(t *testing.T) {
 	}
 	rc.Close()
 
-	rc, size, err = diskCache.Get(cache.CAS, hash, int64(len(casData)))
+	rc, size, err = diskCache.Get(cache.CAS, hash, int64(len(casData)), 0)
 	if err != nil {
 		t.Error(err)
 	}
@@ -273,7 +273,7 @@ func TestEverything(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, numItems := diskCache.Stats()
+	_, _, numItems, _ := diskCache.Stats()
 	if numItems != 0 {
 		t.Fatalf("Expected an empty disk cache, found %d items", numItems)
 	}
@@ -300,7 +300,7 @@ func TestEverything(t *testing.T) {
 
 	// Confirm that we can GET both values successfully.
 
-	rc, size, err = diskCache.Get(cache.AC, hash, int64(len(acData)))
+	rc, size, err = diskCache.Get(cache.AC, hash, int64(len(acData)), 0)
 	if err != nil {
 		t.Error(err)
 	}
@@ -320,7 +320,7 @@ func TestEverything(t *testing.T) {
 	}
 	rc.Close()
 
-	rc, size, err = diskCache.Get(cache.CAS, hash, int64(len(casData)))
+	rc, size, err = diskCache.Get(cache.CAS, hash, int64(len(casData)), 0)
 	if err != nil {
 		t.Error(err)
 	}

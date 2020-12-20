@@ -3,14 +3,13 @@ module github.com/buchgr/bazel-remote
 require (
 	cloud.google.com/go v0.61.0 // indirect
 	github.com/abbot/go-http-auth v0.4.1-0.20181019201920-860ed7f246ff
-	github.com/bazelbuild/remote-apis v0.0.0-20200708200203-1252343900d9
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/djherbis/atime v1.0.0
 	github.com/golang/protobuf v1.4.2
 	github.com/google/go-cmp v0.5.0
 	github.com/google/uuid v1.1.1
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
-	github.com/klauspost/compress v1.11.2
+	github.com/klauspost/compress v1.11.3
 	github.com/klauspost/cpuid v1.3.1 // indirect
 	github.com/minio/minio-go/v7 v7.0.1
 	github.com/mostynb/go-grpc-compression v1.1.4
@@ -26,4 +25,4 @@ require (
 	gopkg.in/yaml.v2 v2.3.0
 )
 
-go 1.14
+go 1.15

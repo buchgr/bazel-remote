@@ -40,13 +40,14 @@ type httpCache struct {
 }
 
 type statusPageData struct {
-	CurrSize      int64
-	ReservedSize  int64
-	MaxSize       int64
-	NumFiles      int
-	ServerTime    int64
-	GitCommit     string
-	NumGoroutines int
+	CurrSize         int64
+	UncompressedSize int64
+	ReservedSize     int64
+	MaxSize          int64
+	NumFiles         int
+	ServerTime       int64
+	GitCommit        string
+	NumGoroutines    int
 }
 
 // NewHTTPCache returns a new instance of the cache.
@@ -55,7 +56,7 @@ type statusPageData struct {
 // be reported.
 func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, mangleACKeys bool, commit string) HTTPCache {
 
-	_, _, numItems := cache.Stats()
+	_, _, numItems, _ := cache.Stats()
 
 	errorLogger.Printf("Loaded %d existing disk cache items.", numItems)
 
@@ -205,7 +206,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		rdr, sizeBytes, err := h.cache.Get(kind, hash, -1)
+		rdr, sizeBytes, err := h.cache.Get(kind, hash, -1, 0)
 		if err != nil {
 			if e, ok := err.(*cache.Error); ok {
 				http.Error(w, e.Error(), e.Code)
@@ -360,7 +361,7 @@ func addWorkerMetadataHTTP(addr string, ct string, orig []byte) (data []byte, co
 func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	totalSize, reservedSize, numItems := h.cache.Stats()
+	totalSize, reservedSize, numItems, uncompressedSize := h.cache.Stats()
 
 	goroutines := runtime.NumGoroutine()
 
@@ -368,13 +369,14 @@ func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", " ")
 	enc.Encode(statusPageData{
-		MaxSize:       h.cache.MaxSize(),
-		CurrSize:      totalSize,
-		ReservedSize:  reservedSize,
-		NumFiles:      numItems,
-		ServerTime:    time.Now().Unix(),
-		GitCommit:     h.gitCommit,
-		NumGoroutines: goroutines,
+		MaxSize:          h.cache.MaxSize(),
+		CurrSize:         totalSize,
+		UncompressedSize: uncompressedSize,
+		ReservedSize:     reservedSize,
+		NumFiles:         numItems,
+		ServerTime:       time.Now().Unix(),
+		GitCommit:        h.gitCommit,
+		NumGoroutines:    goroutines,
 	})
 }
 

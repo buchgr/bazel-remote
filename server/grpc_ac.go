@@ -56,7 +56,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 	if !s.depsCheck {
 		logPrefix = "GRPC AC GET NODEPSCHECK"
 
-		rdr, sizeBytes, err := s.cache.Get(cache.AC, req.ActionDigest.Hash, unknownActionResultSize)
+		rdr, sizeBytes, err := s.cache.Get(cache.AC, req.ActionDigest.Hash, unknownActionResultSize, 0)
 		if err != nil {
 			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 			return nil, status.Error(codes.Unknown, err.Error())

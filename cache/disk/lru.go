@@ -15,6 +15,11 @@ var (
 		Help: "The current number of bytes in the disk backend",
 	})
 
+	gaugeCacheLogicalBytes = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "bazel_remote_disk_cache_logical_bytes",
+		Help: "The current number of bytes in the disk backend if they were uncompressed",
+	})
+
 	counterEvictedBytes = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "bazel_remote_disk_cache_evicted_bytes_total",
 		Help: "The total number of bytes evicted from disk backend, due to full cache",
@@ -50,13 +55,18 @@ type SizedLRU struct {
 	// Map to access the items in O(1) time
 	cache map[interface{}]*list.Element
 
-	// Includes reserved size.
+	// Total cache size including reserved bytes.
 	currentSize int64
 
+	// Total size of all blobs in uncompressed form.
+	// This does not include reserved space.
+	uncompressedSize int64
+
+	// Number of bytes reserved for incoming blobs.
 	reservedSize int64
 
-	// SizedLRU will evict items as needed to maintain the total size of the cache
-	// below maxSize.
+	// SizedLRU will evict items as needed to maintain the total size of the
+	// cache below maxSize.
 	maxSize int64
 
 	onEvict EvictCallback
@@ -85,12 +95,13 @@ func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
 		return false
 	}
 
-	var sizeDelta int64
+	var sizeDelta, uncompressedSizeDelta int64
 	if ee, ok := c.cache[key]; ok {
 		sizeDelta = value.sizeOnDisk - ee.Value.(*entry).value.sizeOnDisk
 		if c.reservedSize+sizeDelta > c.maxSize {
 			return false
 		}
+		uncompressedSizeDelta = value.size - ee.Value.(*entry).value.size
 		c.ll.MoveToFront(ee)
 		counterOverwrittenBytes.Add(float64(ee.Value.(*entry).value.sizeOnDisk))
 		ee.Value.(*entry).value = value
@@ -99,6 +110,7 @@ func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
 		if c.reservedSize+sizeDelta > c.maxSize {
 			return false
 		}
+		uncompressedSizeDelta = value.size
 		ele := c.ll.PushFront(&entry{key, value})
 		c.cache[key] = ele
 	}
@@ -113,8 +125,10 @@ func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
 	}
 
 	c.currentSize += sizeDelta
+	c.uncompressedSize += uncompressedSizeDelta
 
 	gaugeCacheSizeBytes.Set(float64(c.currentSize))
+	gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
 
 	return true
 }
@@ -134,6 +148,7 @@ func (c *SizedLRU) Remove(key Key) {
 	if ele, hit := c.cache[key]; hit {
 		c.removeElement(ele)
 		gaugeCacheSizeBytes.Set(float64(c.currentSize))
+		gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
 	}
 }
 
@@ -144,6 +159,10 @@ func (c *SizedLRU) Len() int {
 
 func (c *SizedLRU) TotalSize() int64 {
 	return c.currentSize
+}
+
+func (c *SizedLRU) UncompressedSize() int64 {
+	return c.uncompressedSize
 }
 
 func (c *SizedLRU) ReservedSize() int64 {
@@ -229,6 +248,7 @@ func (c *SizedLRU) removeElement(e *list.Element) {
 	kv := e.Value.(*entry)
 	delete(c.cache, kv.key)
 	c.currentSize -= kv.value.sizeOnDisk
+	c.uncompressedSize -= kv.value.size
 	counterEvictedBytes.Add(float64(kv.value.sizeOnDisk))
 
 	if c.onEvict != nil {
