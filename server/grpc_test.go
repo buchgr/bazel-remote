@@ -757,7 +757,7 @@ func TestGrpcByteStream(t *testing.T) {
 
 	var decmpBuf bytes.Buffer
 	dr, dw := io.Pipe()
-	dec, err := zstd.NewReader(dr)
+	dec, err := zstd.NewReader(dr, zstd.WithDecoderConcurrency(1))
 
 	go func() {
 		for {
@@ -837,7 +837,7 @@ func TestGrpcByteStreamZstdWrite(t *testing.T) {
 		SizeBytes: int64(len(testBlob)),
 	}
 
-	enc, err := zstd.NewWriter(nil)
+	enc, err := zstd.NewWriter(nil, zstd.WithEncoderConcurrency(1))
 	if err != nil {
 		t.Fatal(err)
 	}
