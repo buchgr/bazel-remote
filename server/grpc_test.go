@@ -26,7 +26,10 @@ import (
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
+	"github.com/buchgr/bazel-remote/cache/disk/casblob"
 	"github.com/buchgr/bazel-remote/utils"
+
+	"github.com/klauspost/compress/zstd"
 )
 
 type badDigest struct {
@@ -582,7 +585,7 @@ func TestGrpcByteStreamDeadline(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, sz, err := diskCache.Get(cache.CAS, testBlobHash, testBlobSize)
+	_, sz, err := diskCache.Get(cache.CAS, testBlobHash, testBlobSize, 0)
 	if err != nil {
 		t.Fatalf("get error: %v\n", err)
 	}
@@ -740,6 +743,54 @@ func TestGrpcByteStream(t *testing.T) {
 		t.Fatal("Error: bytestream read failed (data doesn't match)")
 	}
 
+	// Read again, in zstd form this time.
+
+	bsrReq = bytestream.ReadRequest{
+		ResourceName: fmt.Sprintf("%s/compressed-blobs/zstd/%s/%d",
+			instance, testBlobDigest.Hash, len(testBlob)),
+	}
+
+	bsrc, err = bsClient.Read(ctx, &bsrReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var decmpBuf bytes.Buffer
+	dr, dw := io.Pipe()
+	dec, err := zstd.NewReader(dr)
+
+	go func() {
+		for {
+			bsrResp, err = bsrc.Recv()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bsrResp == nil {
+				t.Fatalf("Expected non-nil response")
+			}
+
+			dw.Write(bsrResp.Data)
+
+			if len(downloadedBlob) > len(testBlob) {
+				t.Fatalf("Downloaded too much data")
+			}
+		}
+
+		dw.Close()
+	}()
+
+	_, err = io.Copy(&decmpBuf, dec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(decmpBuf.Bytes(), testBlob) {
+		t.Fatal("Error: bytestream compressed read failed (data doesn't match)")
+	}
+
 	// Invalid Read's.
 
 	for _, tc := range badDigestTestCases {
@@ -773,6 +824,137 @@ func TestGrpcByteStream(t *testing.T) {
 		}
 		_, err = wc.CloseAndRecv()
 		checkBadDigestErr(t, err, tc)
+	}
+}
+
+func TestGrpcByteStreamZstdWrite(t *testing.T) {
+	// Must be large enough to test multiple iterations of the
+	// bytestream Read Recv loop.
+	testBlobSize := int64(maxChunkSize * 3 / 2)
+	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize)
+	testBlobDigest := pb.Digest{
+		Hash:      testBlobHash,
+		SizeBytes: int64(len(testBlob)),
+	}
+
+	enc, err := zstd.NewWriter(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compressedBlob := enc.EncodeAll(testBlob, nil)
+	enc.Close()
+
+	bswc, err := bsClient.Write(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	instance := "ignoredInstance"
+
+	cutoff := len(compressedBlob) / 2
+	blobPart := compressedBlob[:cutoff]
+
+	bswReq := bytestream.WriteRequest{
+		ResourceName: fmt.Sprintf("%s/uploads/%s/compressed-blobs/zstd/%s/%d",
+			instance, uuid.New().String(), testBlobDigest.Hash, len(testBlob)),
+		FinishWrite: false,
+		Data:        blobPart,
+	}
+
+	err = bswc.Send(&bswReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	blobPart = compressedBlob[cutoff:]
+	bswReq.FinishWrite = true
+	bswReq.Data = blobPart
+
+	err = bswc.Send(&bswReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bswResp, err := bswc.CloseAndRecv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bswResp.CommittedSize != int64(len(compressedBlob)) {
+		t.Fatalf("Error: expected to write: %d but committed: %d\n",
+			len(testBlob), bswResp.CommittedSize)
+	}
+
+	// Read back.
+
+	bsrReq := bytestream.ReadRequest{
+		ResourceName: fmt.Sprintf("%s/blobs/%s/%d",
+			instance, testBlobDigest.Hash, len(testBlob)),
+	}
+
+	bsrc, err := bsClient.Read(ctx, &bsrReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	downloadedBlob := make([]byte, 0, len(testBlob))
+
+	for {
+		bsrResp, err := bsrc.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bsrResp == nil {
+			t.Fatalf("Expected non-nil response")
+		}
+
+		downloadedBlob = append(downloadedBlob, bsrResp.Data...)
+
+		if len(downloadedBlob) > len(testBlob) {
+			t.Fatalf("Downloaded too much data")
+		}
+	}
+
+	if !bytes.Equal(downloadedBlob, testBlob) {
+		t.Fatal("Error: bytestream read failed (data doesn't match)")
+	}
+}
+
+func TestGrpcByteStreamInvalidReadLimit(t *testing.T) {
+	testBlobSize := int64(maxChunkSize)
+	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize)
+	testBlobDigest := pb.Digest{
+		Hash:      testBlobHash,
+		SizeBytes: int64(len(testBlob)),
+	}
+
+	// Check that non-zero ReadLimit for compressed-blobs returns
+	// InvalidArgument.
+	bsrReq := bytestream.ReadRequest{
+		ResourceName: fmt.Sprintf("ignoredinstance/compressed-blobs/zstd/%s/%d",
+			testBlobDigest.Hash, len(testBlob)),
+		ReadLimit: 1024,
+	}
+
+	bsrc, err := bsClient.Read(ctx, &bsrReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = bsrc.Recv()
+	if err == nil || err == io.EOF {
+		t.Fatal("Expected error due to non-zero ReadLimit for compressed-blobs read")
+	}
+
+	statusErr, ok := status.FromError(err)
+	if !ok {
+		t.Errorf("Expected a grpc status error, got something else: %v", err)
+		return
+	}
+	if statusErr.Code() != codes.InvalidArgument {
+		t.Fatal("Expected InvalidArgument response, got", err)
 	}
 }
 
@@ -1152,16 +1334,26 @@ func TestParseReadResource(t *testing.T) {
 	unusedLogPrefix := "foo"
 
 	tcs := []struct {
-		resourceName string
-		expectedHash string
-		expectedSize int64
-		expectError  bool
+		resourceName        string
+		expectedHash        string
+		expectedSize        int64
+		expectedCompression casblob.CompressionType
+		expectError         bool
 	}{
 		{
 			// No instance specified.
 			"blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
 			"0123456789012345678901234567890123456789012345678901234567890123",
 			42,
+			casblob.Identity,
+			false,
+		},
+		{
+			// No instance specified.
+			"compressed-blobs/zstd/0123456789012345678901234567890123456789012345678901234567890123/42",
+			"0123456789012345678901234567890123456789012345678901234567890123",
+			42,
+			casblob.Zstandard,
 			false,
 		},
 		{
@@ -1169,6 +1361,15 @@ func TestParseReadResource(t *testing.T) {
 			"foo/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
 			"0123456789012345678901234567890123456789012345678901234567890123",
 			42,
+			casblob.Identity,
+			false,
+		},
+		{
+			// Instance specified.
+			"foo/compressed-blobs/zstd/0123456789012345678901234567890123456789012345678901234567890123/42",
+			"0123456789012345678901234567890123456789012345678901234567890123",
+			42,
+			casblob.Zstandard,
 			false,
 		},
 		{
@@ -1176,10 +1377,19 @@ func TestParseReadResource(t *testing.T) {
 			"foo/bar/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
 			"0123456789012345678901234567890123456789012345678901234567890123",
 			42,
+			casblob.Identity,
 			false,
 		},
 		{
-			// Missing "/blobs/".
+			// Instance specified, containing '/'.
+			"foo/bar/compressed-blobs/zstd/0123456789012345678901234567890123456789012345678901234567890123/42",
+			"0123456789012345678901234567890123456789012345678901234567890123",
+			42,
+			casblob.Zstandard,
+			false,
+		},
+		{
+			// Missing "/blobs/" or "/compressed-blobs/".
 			resourceName: "foo/bar/0123456789012345678901234567890123456789012345678901234567890123/42",
 			expectError:  true,
 		},
@@ -1261,10 +1471,36 @@ func TestParseReadResource(t *testing.T) {
 			resourceName: "foo/blobs//42",
 			expectError:  true,
 		},
+
+		// Unsupported/unrecognised compression types.
+		{
+			resourceName: "pretenduuid/compressed-blobs/zstandard/0123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
+		{
+			resourceName: "pretenduuid/compressed-blobs/Zstd/0123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
+		{
+			resourceName: "pretenduuid/compressed-blobs/ZSTD/0123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
+		{
+			resourceName: "pretenduuid/compressed-blobs/identity/0123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
+		{
+			resourceName: "pretenduuid/compressed-blobs/Identity/0123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
+		{
+			resourceName: "pretenduuid/compressed-blobs/IDENTITY/0123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
 	}
 
 	for _, tc := range tcs {
-		hash, size, err := s.parseReadResource(tc.resourceName, unusedLogPrefix)
+		hash, size, cmp, err := s.parseReadResource(tc.resourceName, unusedLogPrefix)
 
 		if tc.expectError {
 			if err == nil {
@@ -1285,11 +1521,16 @@ func TestParseReadResource(t *testing.T) {
 		if size != tc.expectedSize {
 			t.Fatalf("Expected size: %d did not match actual size: %d in %q", tc.expectedSize, size, tc.resourceName)
 		}
+
+		if cmp != tc.expectedCompression {
+			t.Fatalf("Expected compressor: %d did not match actual compressor: %d in %q", tc.expectedCompression, cmp, tc.resourceName)
+		}
 	}
 }
 
 func TestParseWriteResource(t *testing.T) {
 	// Format: [{instance_name}/]uploads/{uuid}/blobs/{hash}/{size}[/{optionalmetadata}]
+	// Or: [{instance_name}/]uploads/{uuid}/compressed-blobs/{compressor}/{uncompressed_hash}/{uncompressed_size}[{/optional_metadata}]
 
 	// We ignore instance_name and metadata, and we don't verify that the
 	// uuid is valid- it just needs to exist (or be empty) and not contain '/'.
@@ -1300,21 +1541,38 @@ func TestParseWriteResource(t *testing.T) {
 	}
 
 	tcs := []struct {
-		resourceName string
-		expectedHash string
-		expectedSize int64
-		expectError  bool
+		resourceName        string
+		expectedHash        string
+		expectedSize        int64
+		expectedCompression casblob.CompressionType
+		expectError         bool
 	}{
 		{
 			"foo/uploads/pretenduuid/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
 			"0123456789012345678901234567890123456789012345678901234567890123",
 			42,
+			casblob.Identity,
+			false,
+		},
+		{
+			"foo/uploads/pretenduuid/compressed-blobs/zstd/0123456789012345678901234567890123456789012345678901234567890123/42",
+			"0123456789012345678901234567890123456789012345678901234567890123",
+			42,
+			casblob.Zstandard,
 			false,
 		},
 		{
 			"uploads/pretenduuid/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
 			"0123456789012345678901234567890123456789012345678901234567890123",
 			42,
+			casblob.Identity,
+			false,
+		},
+		{
+			"uploads/pretenduuid/compressed-blobs/zstd/0123456789012345678901234567890123456789012345678901234567890123/42",
+			"0123456789012345678901234567890123456789012345678901234567890123",
+			42,
+			casblob.Zstandard,
 			false,
 		},
 		{
@@ -1322,12 +1580,29 @@ func TestParseWriteResource(t *testing.T) {
 			"uploads/pretenduuid/blobs/0123456789012345678901234567890123456789012345678901234567890123/9223372036854775807",
 			"0123456789012345678901234567890123456789012345678901234567890123",
 			9223372036854775807,
+			casblob.Identity,
+			false,
+		},
+		{
+			// max(int64)
+			"uploads/pretenduuid/compressed-blobs/zstd/0123456789012345678901234567890123456789012345678901234567890123/9223372036854775807",
+			"0123456789012345678901234567890123456789012345678901234567890123",
+			9223372036854775807,
+			casblob.Zstandard,
 			false,
 		},
 		{
 			"foo/uploads/pretenduuid/blobs/0123456789012345678901234567890123456789012345678901234567890123/42/some/meta/data",
 			"0123456789012345678901234567890123456789012345678901234567890123",
 			42,
+			casblob.Identity,
+			false,
+		},
+		{
+			"foo/uploads/pretenduuid/compressed-blobs/zstd/0123456789012345678901234567890123456789012345678901234567890123/42/some/meta/data",
+			"0123456789012345678901234567890123456789012345678901234567890123",
+			42,
+			casblob.Zstandard,
 			false,
 		},
 
@@ -1396,10 +1671,36 @@ func TestParseWriteResource(t *testing.T) {
 			resourceName: "foo/blobs/0123456789012345678901234567890123456789012345678901234567890123/9223372036854775808",
 			expectError:  true,
 		},
+
+		// Unsupported/unrecognised compression types.
+		{
+			resourceName: "uploads/pretenduuid/compressed-blobs/zstandard/0123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
+		{
+			resourceName: "uploads/pretenduuid/compressed-blobs/Zstd/0123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
+		{
+			resourceName: "uploads/pretenduuid/compressed-blobs/ZSTD/0123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
+		{
+			resourceName: "uploads/pretenduuid/compressed-blobs/identity/0123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
+		{
+			resourceName: "uploads/pretenduuid/compressed-blobs/Identity/0123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
+		{
+			resourceName: "uploads/pretenduuid/compressed-blobs/IDENTITY/0123456789012345678901234567890123456789012345678901234567890123/42",
+			expectError:  true,
+		},
 	}
 
 	for _, tc := range tcs {
-		hash, size, err := s.parseWriteResource(tc.resourceName)
+		hash, size, cmp, err := s.parseWriteResource(tc.resourceName)
 
 		if tc.expectError {
 			if err == nil {
@@ -1419,6 +1720,10 @@ func TestParseWriteResource(t *testing.T) {
 
 		if size != tc.expectedSize {
 			t.Fatalf("Expected size: %d did not match actual size: %d in %q", tc.expectedSize, size, tc.resourceName)
+		}
+
+		if cmp != tc.expectedCompression {
+			t.Fatalf("Expected compression: %d did not match actual compression: %d in %q", tc.expectedCompression, cmp, tc.resourceName)
 		}
 	}
 }

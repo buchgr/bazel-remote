@@ -14,6 +14,9 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/cache/disk/casblob"
+
+	"github.com/klauspost/compress/zstd"
 )
 
 const (
@@ -27,11 +30,26 @@ const (
 func (s *grpcServer) Read(req *bytestream.ReadRequest,
 	resp bytestream.ByteStream_ReadServer) error {
 
+	errorPrefix := "GRPC BYTESTREAM READ"
+
+	var cmp casblob.CompressionType
+	hash, size, cmp, err := s.parseReadResource(req.ResourceName, errorPrefix)
+	if err != nil {
+		return err
+	}
+
 	if req.ReadOffset < 0 {
-		s.accessLogger.Printf("GRPC BYTESTREAM READ OFFSET OUT OF RANGE: %s %d",
+		s.accessLogger.Printf("GRPC BYTESTREAM READ OFFSET INVALID: %s %d",
 			req.ReadOffset)
-		return status.Error(codes.OutOfRange,
-			"Negative ReadOffset is out of range")
+		return status.Error(codes.InvalidArgument,
+			"Negative ReadOffset is invalid")
+	}
+
+	if cmp != casblob.Identity && req.ReadLimit != 0 {
+		s.accessLogger.Printf("GRPC BYTESTREAM READ LIMIT INVALID: %s %d",
+			req.ReadLimit)
+		return status.Error(codes.InvalidArgument,
+			"ReadLimit must be 0 for compressed-blobs")
 	}
 
 	if req.ReadLimit < 0 {
@@ -41,14 +59,8 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 			"Negative ReadLimit is out of range")
 	}
 
-	limitedSend := req.ReadLimit != 0
-
-	errorPrefix := "GRPC BYTESTREAM READ"
-
-	hash, size, err := s.parseReadResource(req.ResourceName, errorPrefix)
-	if err != nil {
-		return err
-	}
+	limitedSend := (req.ReadLimit != 0) && cmp == casblob.Identity
+	sendLimitRemaining := req.ReadLimit
 
 	if req.ReadOffset > size {
 		msg := fmt.Sprintf("ReadOffset %d larger than expected data size %d resource: %s",
@@ -57,7 +69,15 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 		return status.Error(codes.OutOfRange, msg)
 	}
 
-	rdr, foundSize, err := s.cache.Get(cache.CAS, hash, size)
+	var rdr io.ReadCloser
+	var foundSize int64
+
+	if cmp == casblob.Zstandard {
+		rdr, foundSize, err = s.cache.GetZstd(hash, size, req.ReadOffset)
+	} else {
+		rdr, foundSize, err = s.cache.Get(cache.CAS, hash, size, req.ReadOffset)
+	}
+
 	if err != nil {
 		msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED: %s %v", hash, err)
 		s.accessLogger.Printf(msg)
@@ -84,12 +104,6 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 	}
 
 	buf := make([]byte, bufSize)
-
-	if req.ReadOffset > 0 {
-		seekReaderTo(rdr, req.ReadOffset)
-	}
-
-	sendLimitRemaining := req.ReadLimit
 
 	var chunkResp bytestream.ReadResponse
 	for {
@@ -128,11 +142,13 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 	}
 }
 
-// Parse a ReadRequest.ResourceName, return the validated hash, size and an error.
-func (s *grpcServer) parseReadResource(name string, errorPrefix string) (string, int64, error) {
+// Parse a ReadRequest.ResourceName, return the validated hash, size, compression type and an error.
+func (s *grpcServer) parseReadResource(name string, errorPrefix string) (string, int64, casblob.CompressionType, error) {
 
 	// The resource name should be of the format:
 	// [{instance_name}]/blobs/{hash}/{size}
+	// Or:
+	// [{instance_name}]/compressed-blobs/{compressor}/{uncompressed_hash}/{uncompressed_size}
 
 	// Instance_name is ignored in this bytestream implementation, so don't
 	// bother returning it. It is not allowed to contain "blobs" as a distinct
@@ -140,41 +156,91 @@ func (s *grpcServer) parseReadResource(name string, errorPrefix string) (string,
 
 	fields := strings.Split(name, "/")
 	var rem []string
-	found := false
+	foundBlobs := false
+	foundCompressedBlobs := false
 	for i := range fields {
 		if fields[i] == "blobs" {
 			rem = fields[i+1:]
-			found = true
+			foundBlobs = true
+			break
+		}
+
+		if fields[i] == "compressed-blobs" {
+			rem = fields[i+1:]
+			foundCompressedBlobs = true
 			break
 		}
 	}
 
-	if !found || len(rem) != 2 {
-		msg := fmt.Sprintf("Unable to parse resource name: %s", name)
-		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
-		return "", 0, status.Error(codes.InvalidArgument, msg)
+	if foundBlobs {
+		if len(rem) != 2 {
+			msg := fmt.Sprintf("Unable to parse resource name: %s", name)
+			s.accessLogger.Printf("%s: %s", errorPrefix, msg)
+			return "", 0, casblob.Identity,
+				status.Error(codes.InvalidArgument, msg)
+		}
+
+		hash := rem[0]
+
+		size, err := strconv.ParseInt(rem[1], 10, 64)
+		if err != nil {
+			msg := fmt.Sprintf("Invalid size: %s", rem[1])
+			s.accessLogger.Printf("%s: %s", errorPrefix, msg)
+			return "", 0, casblob.Identity,
+				status.Error(codes.InvalidArgument, msg)
+		}
+		if size < 0 {
+			msg := fmt.Sprintf("Invalid size (must be non-negative): %s", rem[1])
+			s.accessLogger.Printf("%s: %s", errorPrefix, msg)
+			return "", 0, casblob.Identity,
+				status.Error(codes.InvalidArgument, msg)
+		}
+
+		err = s.validateHash(hash, size, errorPrefix)
+		if err != nil {
+			return "", 0, casblob.Identity, err
+		}
+
+		return hash, size, casblob.Identity, nil
 	}
 
-	hash := rem[0]
-
-	size, err := strconv.ParseInt(rem[1], 10, 64)
-	if err != nil {
-		msg := fmt.Sprintf("Invalid size: %s", rem[1])
+	if !foundCompressedBlobs || len(rem) != 3 {
+		msg := fmt.Sprintf("Unable to parse resource name: %s", name)
 		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
-		return "", 0, status.Error(codes.InvalidArgument, msg)
+		return "", 0, casblob.Identity,
+			status.Error(codes.InvalidArgument, msg)
+	}
+
+	if rem[0] != "zstd" {
+		msg := fmt.Sprintf("Unable to parse compressor in resource name: %s", name)
+		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
+		return "", 0, casblob.Identity,
+			status.Error(codes.InvalidArgument, msg)
+	}
+
+	hash := rem[1]
+	sizeStr := rem[2]
+
+	size, err := strconv.ParseInt(sizeStr, 10, 64)
+	if err != nil {
+		msg := fmt.Sprintf("Invalid size: %s", sizeStr)
+		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
+		return "", 0, casblob.Zstandard,
+			status.Error(codes.InvalidArgument, msg)
 	}
 	if size < 0 {
 		msg := fmt.Sprintf("Invalid size (must be non-negative): %s", rem[1])
 		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
-		return "", 0, status.Error(codes.InvalidArgument, msg)
+		return "", 0, casblob.Zstandard,
+			status.Error(codes.InvalidArgument, msg)
 	}
 
 	err = s.validateHash(hash, size, errorPrefix)
 	if err != nil {
-		return "", 0, err
+		return "", 0, casblob.Zstandard, err
 	}
 
-	return hash, size, nil
+	return hash, size, casblob.Zstandard, nil
 }
 
 // Seek to offset in Reader r, from the current position.
@@ -187,14 +253,14 @@ func seekReaderTo(r io.Reader, offset int64) {
 	}
 }
 
-// Parse a WriteRequest.ResourceName, return the validated hash, size and an error.
-func (s *grpcServer) parseWriteResource(r string) (string, int64, error) {
+// Parse a WriteRequest.ResourceName, return the validated hash, size,
+// compression type and an optional error.
+func (s *grpcServer) parseWriteResource(r string) (string, int64, casblob.CompressionType, error) {
 
 	// req.ResourceName is of the form:
 	// [{instance_name}/]uploads/{uuid}/blobs/{hash}/{size}[/{optionalmetadata}]
-
-	// We don't use the uuid so don't bother validating it.
-	// The path segment must exist but can be empty.
+	// Or, for compressed blobs:
+	// [{instance_name}/]uploads/{uuid}/compressed-blobs/{compressor}/{uncompressed_hash}/{uncompressed_size}[{/optional_metadata}]
 
 	fields := strings.Split(r, "/")
 	var rem []string
@@ -205,26 +271,59 @@ func (s *grpcServer) parseWriteResource(r string) (string, int64, error) {
 		}
 	}
 
-	if len(rem) < 4 || rem[1] != "blobs" {
-		return "", 0, status.Errorf(codes.InvalidArgument, "Unable to parse resource name: %s", r)
+	if len(rem) < 4 {
+		return "", 0, casblob.Identity,
+			status.Errorf(codes.InvalidArgument, "Unable to parse resource name: %s", r)
 	}
 
-	hash := rem[2]
-	size, err := strconv.ParseInt(rem[3], 10, 64)
+	// rem[0] should hold the uuid, which we don't use- ignore it.
+
+	if rem[1] == "blobs" {
+		hash := rem[2]
+		size, err := strconv.ParseInt(rem[3], 10, 64)
+		if err != nil {
+			return "", 0, casblob.Identity,
+				status.Errorf(codes.InvalidArgument, "Unable to parse size: %s", rem[3])
+		}
+
+		if size < 0 {
+			return "", 0, casblob.Identity,
+				status.Errorf(codes.InvalidArgument, "Invalid size (must be non-negative): %d", size)
+		}
+
+		err = s.validateHash(hash, size, "GRPC BYTESTREAM READ FAILED")
+		if err != nil {
+			return "", 0, casblob.Identity, err
+		}
+
+		return hash, size, casblob.Identity, nil
+	}
+
+	if rem[1] != "compressed-blobs" || len(rem) < 5 || rem[2] != "zstd" {
+		return "", 0, casblob.Zstandard,
+			status.Errorf(codes.InvalidArgument, "Unable to parse resource name: %s", r)
+	}
+
+	sizeStr := rem[4]
+
+	size, err := strconv.ParseInt(sizeStr, 10, 64)
 	if err != nil {
-		return "", 0, status.Errorf(codes.InvalidArgument, "Unable to parse size: %s", rem[3])
+		return "", 0, casblob.Zstandard,
+			status.Errorf(codes.InvalidArgument, "Unable to parse size: %s", sizeStr)
 	}
 
 	if size < 0 {
-		return "", 0, status.Errorf(codes.InvalidArgument, "Invalid size (must be non-negative): %s", rem[3])
+		return "", 0, casblob.Zstandard,
+			status.Errorf(codes.InvalidArgument, "Invalid size (must be non-negative): %d", size)
 	}
 
+	hash := rem[3]
 	err = s.validateHash(hash, size, "GRPC BYTESTREAM READ FAILED")
 	if err != nil {
-		return "", 0, err
+		return "", 0, casblob.Zstandard, err
 	}
 
-	return hash, size, nil
+	return hash, size, casblob.Zstandard, nil
 }
 
 var errWriteOffset error = errors.New("bytestream writes from non-zero offsets are unsupported")
@@ -237,6 +336,14 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 	putResult := make(chan error)
 	recvResult := make(chan error)
 	resourceNameChan := make(chan string, 1)
+
+	cmp := casblob.Identity
+	var dec *zstd.Decoder
+	defer func() {
+		if dec != nil {
+			dec.Close()
+		}
+	}()
 
 	go func() {
 		firstIteration := true
@@ -273,7 +380,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 				close(resourceNameChan)
 
 				var hash string
-				hash, size, err = s.parseWriteResource(resourceName)
+				hash, size, cmp, err = s.parseWriteResource(resourceName)
 				if err != nil {
 					s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", err)
 					recvResult <- err
@@ -296,8 +403,19 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 					return
 				}
 
+				var rc io.ReadCloser = pr
+				if cmp == casblob.Zstandard {
+					dec, err = zstd.NewReader(pr) // TODO: use a pool.
+					if err != nil {
+						s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", err)
+						recvResult <- err
+						return
+					}
+					rc = dec.IOReadCloser()
+				}
+
 				go func() {
-					putResult <- s.cache.Put(cache.CAS, hash, size, pr)
+					putResult <- s.cache.Put(cache.CAS, hash, size, rc)
 				}()
 
 				firstIteration = false
@@ -317,7 +435,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 			}
 			resp.CommittedSize += int64(n)
 
-			if resp.CommittedSize > size {
+			if cmp == casblob.Identity && resp.CommittedSize > size {
 				msg := fmt.Sprintf("Client sent more than %d data! %d", size, resp.CommittedSize)
 				recvResult <- status.Error(codes.OutOfRange, msg)
 				return
@@ -326,7 +444,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 			// Possibly redundant check, since we explicitly check for
 			// EOF at the start of each loop.
 			if req.FinishWrite {
-				if resp.CommittedSize != size {
+				if cmp == casblob.Identity && resp.CommittedSize != size {
 					msg := fmt.Sprintf("Unexpected amount of data read: %d expected: %d",
 						resp.CommittedSize, size)
 					recvResult <- status.Error(codes.Unknown, msg)

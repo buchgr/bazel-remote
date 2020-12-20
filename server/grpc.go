@@ -103,6 +103,7 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 			},
 			MaxBatchTotalSizeBytes:      0, // "no limit"
 			SymlinkAbsolutePathStrategy: pb.SymlinkAbsolutePathStrategy_ALLOWED,
+			SupportedCompressor:         []pb.Compressor_Value{pb.Compressor_ZSTD},
 		},
 		LowApiVersion:  &semver.SemVer{Major: int32(2)},
 		HighApiVersion: &semver.SemVer{Major: int32(2), Minor: int32(1)},
