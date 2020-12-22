@@ -17,6 +17,9 @@ import (
 	"github.com/buchgr/bazel-remote/cache/disk/casblob"
 
 	"github.com/klauspost/compress/zstd"
+
+	"github.com/buchgr/bazel-remote/utils/zstdpool"
+	syncpool "github.com/mostynb/zstdpool-syncpool"
 )
 
 const (
@@ -24,6 +27,8 @@ const (
 	// Inspired by Goma's FileBlob.FILE_CHUNK maxium size.
 	maxChunkSize = 2 * 1024 * 1024 // 2M
 )
+
+var decoderPool = zstdpool.GetDecoderPool()
 
 // ByteStreamServer interface:
 
@@ -327,6 +332,7 @@ func (s *grpcServer) parseWriteResource(r string) (string, int64, casblob.Compre
 }
 
 var errWriteOffset error = errors.New("bytestream writes from non-zero offsets are unsupported")
+var errDecoderPoolFail error = errors.New("failed to get DecoderWrapper from pool")
 
 func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 
@@ -405,7 +411,13 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 
 				var rc io.ReadCloser = pr
 				if cmp == casblob.Zstandard {
-					dec, err = zstd.NewReader(pr, singleDecoder) // TODO: use a pool.
+					dec, ok := decoderPool.Get().(*syncpool.DecoderWrapper)
+					if !ok {
+						s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", errDecoderPoolFail)
+						recvResult <- errDecoderPoolFail
+						return
+					}
+					err = dec.Reset(pr)
 					if err != nil {
 						s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", err)
 						recvResult <- err

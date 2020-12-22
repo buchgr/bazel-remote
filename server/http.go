@@ -18,9 +18,11 @@ import (
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
 	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
-	"github.com/klauspost/compress/zstd"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
+	"github.com/klauspost/compress/zstd"
+
+	syncpool "github.com/mostynb/zstdpool-syncpool"
 )
 
 var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{64})$")
@@ -347,7 +349,12 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if zstdCompressed {
-			z, err := zstd.NewReader(rdr, singleDecoder) // TODO: use a pool.
+			z, ok := decoderPool.Get().(*syncpool.DecoderWrapper)
+			if !ok {
+				err = errDecoderPoolFail
+			} else {
+				err = z.Reset(rdr)
+			}
 			if err != nil {
 				if z != nil {
 					defer z.Close()
