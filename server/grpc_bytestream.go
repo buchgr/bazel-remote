@@ -74,13 +74,17 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 		return status.Error(codes.OutOfRange, msg)
 	}
 
-	var rdr io.ReadCloser
+	var rc io.ReadCloser
 	var foundSize int64
 
 	if cmp == casblob.Zstandard {
-		rdr, foundSize, err = s.cache.GetZstd(hash, size, req.ReadOffset)
+		rc, foundSize, err = s.cache.GetZstd(hash, size, req.ReadOffset)
 	} else {
-		rdr, foundSize, err = s.cache.Get(cache.CAS, hash, size, req.ReadOffset)
+		rc, foundSize, err = s.cache.Get(cache.CAS, hash, size, req.ReadOffset)
+	}
+
+	if rc != nil {
+		defer rc.Close()
 	}
 
 	if err != nil {
@@ -88,12 +92,11 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 		s.accessLogger.Printf(msg)
 		return status.Error(codes.Unknown, msg)
 	}
-	if rdr == nil {
+	if rc == nil {
 		msg := fmt.Sprintf("GRPC BYTESTREAM READ BLOB NOT FOUND: %s", hash)
 		s.accessLogger.Printf(msg)
 		return status.Error(codes.NotFound, msg)
 	}
-	defer rdr.Close()
 
 	if foundSize != size {
 		// This should have been caught above.
@@ -112,7 +115,7 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 
 	var chunkResp bytestream.ReadResponse
 	for {
-		n, err := rdr.Read(buf)
+		n, err := rc.Read(buf)
 
 		if n > 0 {
 			if limitedSend {
