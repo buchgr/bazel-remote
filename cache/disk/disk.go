@@ -281,6 +281,7 @@ func migrateCASFile(src string, dest string, hash string) error {
 	}
 
 	origSize := fi.Size()
+	accessTime := atime.Get(fi)
 
 	destFile, err := os.Create(dest)
 	if err != nil {
@@ -291,6 +292,7 @@ func migrateCASFile(src string, dest string, hash string) error {
 	if err != nil {
 		return err
 	}
+	os.Chtimes(dest, accessTime, fi.ModTime()) // Best effort, ignore errors.
 
 	err = os.Remove(src)
 	if err != nil {
