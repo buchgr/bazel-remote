@@ -14,7 +14,7 @@ commodity hardware and AWS servers. Outgoing bandwidth can exceed 15 Gbit/s on t
 ## HTTP/1.1 REST API
 
 Cache entries are set and retrieved by key, and there are two types of keys that can be used:
-1. Content addressed storage (CAS), where the key is the lowercase SHA256 hash of the stored value.
+1. Content addressed storage (CAS), where the key is the lowercase SHA256 hash of the entry.
    The REST API for these entries is: `/cas/<key>` or with an optional but ignored instance name:
    `/<instance>/cas/<key>`.
 2. Action cache, where the key is an arbitrary 64 character lowercase hexadecimal string.
@@ -23,6 +23,14 @@ Cache entries are set and retrieved by key, and there are two types of keys that
 
 Values are stored via HTTP PUT requests, and retrieved via GET requests.
 HEAD requests can be used to confirm whether a key exists or not.
+
+If GET requests specify `zstd` in the `Accept-Encoding` header, then
+zstandard-encoded data may be returned.
+
+To upload zstandard compressed data, PUT requests must set
+`Content-Encoding: zstd` and include a custom `X-Digest-SizeBytes` header
+with the size of the uncompressed entry. The key must also refer to
+the uncompressed entry.
 
 If the `--enable_ac_key_instance_mangling` flag is specified and the instance
 name is not empty, then action cache keys are hashed along with the instance
