@@ -75,7 +75,7 @@ func TestMain(m *testing.M) {
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := int64(10 * maxChunkSize * 2)
 
-	diskCache, err = disk.New(dir, cacheSize, nil)
+	diskCache, err = disk.New(dir, cacheSize, "zstd", nil)
 	if err != nil {
 		fmt.Println("Test setup failed")
 		os.Exit(1)

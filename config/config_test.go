@@ -37,6 +37,7 @@ http_write_timeout: 10s
 		GRPCPort:                    9092,
 		Dir:                         "/opt/cache-dir",
 		MaxSize:                     100,
+		StorageMode:                 "zstd",
 		HtpasswdFile:                "/opt/.htpasswd",
 		TLSCertFile:                 "/opt/tls.cert",
 		TLSKeyFile:                  "/opt/tls.key",
@@ -73,11 +74,12 @@ gcs_proxy:
 	}
 
 	expectedConfig := &Config{
-		Host:     "localhost",
-		Port:     8080,
-		GRPCPort: 9092,
-		Dir:      "/opt/cache-dir",
-		MaxSize:  100,
+		Host:        "localhost",
+		Port:        8080,
+		GRPCPort:    9092,
+		Dir:         "/opt/cache-dir",
+		MaxSize:     100,
+		StorageMode: "zstd",
 		GoogleCloudStorage: &GoogleCloudStorageConfig{
 			Bucket:                "gcs-bucket",
 			UseDefaultCredentials: false,
@@ -108,11 +110,12 @@ http_proxy:
 	}
 
 	expectedConfig := &Config{
-		Host:     "localhost",
-		Port:     8080,
-		GRPCPort: 9092,
-		Dir:      "/opt/cache-dir",
-		MaxSize:  100,
+		Host:        "localhost",
+		Port:        8080,
+		GRPCPort:    9092,
+		Dir:         "/opt/cache-dir",
+		MaxSize:     100,
+		StorageMode: "zstd",
 		HTTPBackend: &HTTPBackendConfig{
 			BaseURL: "https://remote-cache.com:8080/cache",
 		},
@@ -177,10 +180,11 @@ s3_proxy:
 	}
 
 	expectedConfig := &Config{
-		Host:    "localhost",
-		Port:    8080,
-		Dir:     "/opt/cache-dir",
-		MaxSize: 100,
+		Host:        "localhost",
+		Port:        8080,
+		Dir:         "/opt/cache-dir",
+		MaxSize:     100,
+		StorageMode: "zstd",
 		S3CloudStorage: &S3CloudStorageConfig{
 			Endpoint:        "minio.example.com:9000",
 			Bucket:          "test-bucket",
@@ -216,6 +220,7 @@ profile_port: 7070
 		Port:                   1234,
 		Dir:                    "/opt/cache-dir",
 		MaxSize:                42,
+		StorageMode:            "zstd",
 		ProfilePort:            7070,
 		ProfileHost:            "",
 		NumUploaders:           100,
@@ -247,6 +252,7 @@ func TestValidMetricsDurationBuckets(t *testing.T) {
 port: 1234
 dir: /opt/cache-dir
 max_size: 42
+storage_mode: zstd
 endpoint_metrics_duration_buckets: [.005, .1, 5]
 `
 	config, err := newFromYaml([]byte(yaml))
@@ -259,6 +265,7 @@ endpoint_metrics_duration_buckets: [.005, .1, 5]
 		Port:                   1234,
 		Dir:                    "/opt/cache-dir",
 		MaxSize:                42,
+		StorageMode:            "zstd",
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MetricsDurationBuckets: []float64{0.005, 0.1, 5},
@@ -275,6 +282,7 @@ func TestMetricsDurationBucketsNoDupliates(t *testing.T) {
 		Port:                   8080,
 		MaxSize:                42,
 		Dir:                    "/opt/cache-dir",
+		StorageMode:            "uncompressed",
 		MetricsDurationBuckets: []float64{1, 2, 3, 3},
 	}
 	err := validateConfig(testConfig)
@@ -283,5 +291,65 @@ func TestMetricsDurationBucketsNoDupliates(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "'endpoint_metrics_duration_buckets'") {
 		t.Fatal("Expected the error message to mention the invalid 'endpoint_metrics_duration_buckets' key")
+	}
+}
+
+func TestStorageModes(t *testing.T) {
+	tests := []struct {
+		yaml     string
+		expected string
+		invalid  bool
+	}{{
+		yaml: `host: localhost
+port: 1234
+dir: /foo/bar 
+max_size: 20
+`,
+		expected: "zstd",
+	},
+		{
+			yaml: `host: localhost
+port: 1234
+dir: /foo/bar 
+max_size: 20
+storage_mode: zstd
+`,
+			expected: "zstd",
+		},
+		{
+			yaml: `host: localhost
+port: 1234
+dir: /foo/bar 
+max_size: 20
+storage_mode: uncompressed
+`,
+			expected: "uncompressed",
+		},
+		{
+			yaml: `host: localhost
+port: 1234
+dir: /foo/bar 
+max_size: 20
+storage_mode: gzip
+`,
+			invalid: true,
+		}}
+
+	for _, tc := range tests {
+		cfg, err := newFromYaml([]byte(tc.yaml))
+		if !tc.invalid && err != nil {
+			t.Error("Expected to succeed, got", err)
+		}
+
+		if tc.invalid {
+			if err == nil {
+				t.Error("Expected an error, got nil")
+			}
+			continue
+		}
+
+		if cfg.StorageMode != tc.expected {
+			t.Errorf("Expected %q, got %q", tc.expected, cfg.StorageMode)
+		}
 	}
 }

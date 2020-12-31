@@ -56,8 +56,9 @@ type lruItem struct {
 
 // Cache is a filesystem-based LRU cache, with an optional backend proxy.
 type Cache struct {
-	dir   string
-	proxy cache.Proxy
+	dir         string
+	proxy       cache.Proxy
+	storageMode casblob.CompressionType
 
 	mu  sync.Mutex
 	lru SizedLRU
@@ -74,7 +75,7 @@ const emptySha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b785
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
 // with a maximum size of `maxSizeBytes` bytes and an optional backend `proxy`.
 // Cache is safe for concurrent use.
-func New(dir string, maxSizeBytes int64, proxy cache.Proxy) (*Cache, error) {
+func New(dir string, maxSizeBytes int64, storageMode string, proxy cache.Proxy) (*Cache, error) {
 	// Create the directory structure.
 	hexLetters := []byte("0123456789abcdef")
 	for _, c1 := range hexLetters {
@@ -118,10 +119,16 @@ func New(dir string, maxSizeBytes int64, proxy cache.Proxy) (*Cache, error) {
 		}
 	}
 
+	compressionType := casblob.Zstandard
+	if storageMode == "uncompressed" {
+		compressionType = casblob.Identity
+	}
+
 	c := &Cache{
-		dir:   filepath.Clean(dir),
-		proxy: proxy,
-		lru:   NewSizedLRU(maxSizeBytes, onEvict),
+		dir:         filepath.Clean(dir),
+		storageMode: compressionType,
+		proxy:       proxy,
+		lru:         NewSizedLRU(maxSizeBytes, onEvict),
 	}
 
 	err := c.migrateDirectories()
@@ -458,7 +465,7 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 	removeTempfile = true
 
 	var sizeOnDisk int64
-	sizeOnDisk, err = writeAndCloseFile(r, kind, hash, size, tf)
+	sizeOnDisk, err = c.writeAndCloseFile(r, kind, hash, size, tf)
 	if err != nil {
 		return err
 	}
@@ -479,7 +486,7 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 	return err
 }
 
-func writeAndCloseFile(r io.Reader, kind cache.EntryKind, hash string, size int64, f *os.File) (int64, error) {
+func (c *Cache) writeAndCloseFile(r io.Reader, kind cache.EntryKind, hash string, size int64, f *os.File) (int64, error) {
 	closeFile := true
 	defer func() {
 		if closeFile {
@@ -491,7 +498,7 @@ func writeAndCloseFile(r io.Reader, kind cache.EntryKind, hash string, size int6
 	var sizeOnDisk int64
 
 	if kind == cache.CAS {
-		sizeOnDisk, err = casblob.WriteAndClose(r, f, casblob.Zstandard, hash, size)
+		sizeOnDisk, err = casblob.WriteAndClose(r, f, c.storageMode, hash, size)
 		if err != nil {
 			return -1, err
 		}

@@ -126,6 +126,7 @@ GLOBAL OPTIONS:
    --config_file value                Path to a YAML configuration file. If this flag is specified then all other flags are ignored. [$BAZEL_REMOTE_CONFIG_FILE]
    --dir value                        Directory path where to store the cache contents. This flag is required. [$BAZEL_REMOTE_DIR]
    --max_size value                   The maximum size of the remote cache in GiB. This flag is required. (default: -1) [$BAZEL_REMOTE_MAX_SIZE]
+   --storage_mode value               Which format to store CAS blobs in. Must be one of "zstd" or "uncompressed". (default: "zstd") [$BAZEL_REMOTE_STORAGE_MODE]
    --host value                       Address to listen on. Listens on all network interfaces by default. [$BAZEL_REMOTE_HOST]
    --port value                       The port the HTTP server listens on. (default: 8080) [$BAZEL_REMOTE_PORT]
    --grpc_port value                  The port the gRPC server listens on. Set to 0 to disable. (default: 9092) [$BAZEL_REMOTE_GRPC_PORT]
@@ -164,6 +165,9 @@ GLOBAL OPTIONS:
 # These two are the only required options:
 dir: path/to/cache-dir
 max_size: 100
+
+# The form to store CAS blobs in ("zstd" or "uncompressed"):
+#storage_mode: zstd
 
 host: localhost
 # The port to use for HTTP/HTTPS:
