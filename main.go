@@ -89,6 +89,12 @@ func main() {
 			EnvVars: []string{"BAZEL_REMOTE_MAX_SIZE"},
 		},
 		&cli.StringFlag{
+			Name:    "storage_mode",
+			Value:   "zstd",
+			Usage:   "Which format to store CAS blobs in. Must be one of \"zstd\" or \"uncompressed\".",
+			EnvVars: []string{"BAZEL_REMOTE_STORAGE_MODE"},
+		},
+		&cli.StringFlag{
 			Name:    "host",
 			Value:   "",
 			Usage:   "Address to listen on. Listens on all network interfaces by default.",
@@ -297,6 +303,7 @@ func main() {
 			c, err = config.New(
 				ctx.String("dir"),
 				ctx.Int("max_size"),
+				ctx.String("storage_mode"),
 				ctx.String("host"),
 				ctx.Int("port"),
 				ctx.Int("grpc_port"),
@@ -364,7 +371,7 @@ func main() {
 			proxyCache = s3proxy.New(c.S3CloudStorage, accessLogger, errorLogger, c.NumUploaders, c.MaxQueuedUploads)
 		}
 
-		diskCache, err := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, proxyCache)
+		diskCache, err := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, c.StorageMode, proxyCache)
 		if err != nil {
 			log.Fatal(err)
 		}

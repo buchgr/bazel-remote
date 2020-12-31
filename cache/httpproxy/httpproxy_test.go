@@ -110,7 +110,7 @@ func TestEverything(t *testing.T) {
 
 	proxyCache := New(url, &http.Client{}, accessLogger, errorLogger, 100, 10000)
 	diskCacheSize := int64(len(casData) + 2048)
-	diskCache, err := disk.New(cacheDir, diskCacheSize, proxyCache)
+	diskCache, err := disk.New(cacheDir, diskCacheSize, "zstd", proxyCache)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func TestEverything(t *testing.T) {
 	cacheDir2 := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir2)
 
-	diskCache, err = disk.New(cacheDir2, diskCacheSize, proxyCache)
+	diskCache, err = disk.New(cacheDir2, diskCacheSize, "zstd", proxyCache)
 	if err != nil {
 		t.Fatal(err)
 	}

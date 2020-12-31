@@ -45,6 +45,7 @@ type Config struct {
 	ProfilePort                 int                       `yaml:"profile_port"`
 	Dir                         string                    `yaml:"dir"`
 	MaxSize                     int                       `yaml:"max_size"`
+	StorageMode                 string                    `yaml:"storage_mode"`
 	HtpasswdFile                string                    `yaml:"htpasswd_file"`
 	TLSCaFile                   string                    `yaml:"tls_ca_file"`
 	TLSCertFile                 string                    `yaml:"tls_cert_file"`
@@ -69,7 +70,8 @@ var defaultDurationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
 
 // New returns a validated Config with the specified values, and an error
 // if there were any problems with the validation.
-func New(dir string, maxSize int, host string, port int, grpcPort int,
+func New(dir string, maxSize int, storageMode string,
+	host string, port int, grpcPort int,
 	profileHost string, profilePort int,
 	htpasswdFile string,
 	maxQueuedUploads int,
@@ -94,6 +96,7 @@ func New(dir string, maxSize int, host string, port int, grpcPort int,
 		ProfilePort:                 profilePort,
 		Dir:                         dir,
 		MaxSize:                     maxSize,
+		StorageMode:                 storageMode,
 		HtpasswdFile:                htpasswdFile,
 		MaxQueuedUploads:            maxQueuedUploads,
 		NumUploaders:                numUploaders,
@@ -141,6 +144,7 @@ func NewFromYamlFile(path string) (*Config, error) {
 
 func newFromYaml(data []byte) (*Config, error) {
 	c := Config{
+		StorageMode:            "zstd",
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MetricsDurationBuckets: defaultDurationBuckets,
@@ -170,6 +174,10 @@ func validateConfig(c *Config) error {
 
 	if c.MaxSize <= 0 {
 		return errors.New("The 'max_size' flag/key must be set to a value > 0")
+	}
+
+	if c.StorageMode != "zstd" && c.StorageMode != "uncompressed" {
+		return errors.New("storage_mode must be set to either \"zstd\" or \"uncompressed\"")
 	}
 
 	if c.Port == 0 {

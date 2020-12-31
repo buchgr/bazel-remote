@@ -43,7 +43,7 @@ func TestDownloadFile(t *testing.T) {
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := blobSize * 2
 
-	c, err := disk.New(cacheDir, cacheSize, nil)
+	c, err := disk.New(cacheDir, cacheSize, "zstd", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := int64(NumUploads * blobSize * 2)
 
-	c, err := disk.New(cacheDir, cacheSize, nil)
+	c, err := disk.New(cacheDir, cacheSize, "zstd", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +177,7 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := int64(len(data) * numWorkers * 2)
 
-	c, err := disk.New(cacheDir, cacheSize, nil)
+	c, err := disk.New(cacheDir, cacheSize, "zstd", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +226,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c, err := disk.New(cacheDir, 2048, nil)
+	c, err := disk.New(cacheDir, 2048, "zstd", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,7 +269,7 @@ func TestUploadEmptyActionResult(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c, err := disk.New(cacheDir, 2048, nil)
+	c, err := disk.New(cacheDir, 2048, "zstd", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +329,7 @@ func testEmptyBlobAvailable(t *testing.T, method string) {
 		t.Fatal(err)
 	}
 
-	c, err := disk.New(cacheDir, 2048, nil)
+	c, err := disk.New(cacheDir, 2048, "zstd", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,7 +357,7 @@ func TestStatusPage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c, err := disk.New(cacheDir, 2048, nil)
+	c, err := disk.New(cacheDir, 2048, "zstd", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -500,7 +500,7 @@ func TestRemoteReturnsNotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(cacheDir)
-	emptyCache, err := disk.New(cacheDir, 1024, nil)
+	emptyCache, err := disk.New(cacheDir, 1024, "zstd", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
