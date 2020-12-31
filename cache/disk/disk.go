@@ -13,6 +13,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -181,54 +182,83 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 
 	targetDir := path.Join(baseDir, kind.DirName())
 
-	for _, item := range listing {
-		oldName := item.Name()
-		oldNamePath := filepath.Join(sourceDir, oldName)
+	itemChan := make(chan os.FileInfo)
+	errChan := make(chan error)
 
-		if item.IsDir() {
-			if !v1DirRegex.MatchString(oldName) {
-				// Warn about non-v1 subdirectories.
-				log.Println("Warning: unexpected directory", oldNamePath)
+	var wg sync.WaitGroup
+	for i := 0; i < runtime.NumCPU(); i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			for item := range itemChan {
+
+				oldName := item.Name()
+				oldNamePath := filepath.Join(sourceDir, oldName)
+
+				if item.IsDir() {
+					if !v1DirRegex.MatchString(oldName) {
+						// Warn about non-v1 subdirectories.
+						log.Println("Warning: unexpected directory", oldNamePath)
+					}
+
+					destDir := filepath.Join(targetDir, oldName[:2])
+					err = migrateV1Subdir(oldNamePath, destDir, kind)
+					if err != nil {
+						log.Printf("Warning: failed to read subdir %q: %s",
+							oldNamePath, err)
+						continue
+					}
+
+					continue
+				}
+
+				if !item.Mode().IsRegular() {
+					log.Println("Warning: skipping non-regular file:", oldNamePath)
+					continue
+				}
+
+				if !hashKeyRegex.MatchString(oldName) {
+					log.Println("Warning: skipping unexpected file:", oldNamePath)
+					continue
+				}
+
+				// oldName can now be assumed to be a hash.
+				hash := oldName
+
+				src := filepath.Join(sourceDir, oldName)
+				dest := filepath.Join(targetDir, oldName[:2], oldName)
+				if kind == cache.CAS {
+					err = migrateCASFile(src, dest, hash)
+				} else {
+					// TODO: make this work across filesystems?
+					err = os.Rename(src, dest)
+				}
+				if err != nil {
+					errChan <- err
+					return
+				}
 			}
-
-			destDir := filepath.Join(targetDir, oldName[:2])
-			err = migrateV1Subdir(oldNamePath, destDir, kind)
-			if err != nil {
-				log.Printf("Warning: failed to read subdir %q: %s",
-					oldNamePath, err)
-				continue
-			}
-
-			continue
-		}
-
-		if !item.Mode().IsRegular() {
-			log.Println("Warning: skipping non-regular file:", oldNamePath)
-			continue
-		}
-
-		if !hashKeyRegex.MatchString(oldName) {
-			log.Println("Warning: skipping unexpected file:", oldNamePath)
-			continue
-		}
-
-		// oldName can now be assumed to be a hash.
-		hash := oldName
-
-		src := filepath.Join(sourceDir, oldName)
-		dest := filepath.Join(targetDir, oldName[:2], oldName)
-		if kind == cache.CAS {
-			err = migrateCASFile(src, dest, hash)
-		} else {
-			// TODO: make this work across filesystems?
-			err = os.Rename(src, dest)
-		}
-		if err != nil {
-			return err
-		}
+		}()
 	}
 
-	return nil
+	err = nil
+	numItems := len(listing)
+	i := 1
+	for _, item := range listing {
+		select {
+		case itemChan <- item:
+			log.Printf("Migrating %s item(s) %d/%d, %s\n", sourceDir, i, numItems, item.Name())
+			i++
+		case err = <-errChan:
+			log.Println("Encountered error while migrating files:", err)
+			close(itemChan)
+		}
+	}
+	close(itemChan)
+	wg.Wait()
+
+	return err
 }
 
 func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error {
