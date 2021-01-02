@@ -64,11 +64,6 @@ func main() {
 	app.HideHelpCommand = true
 
 	app.Flags = []cli.Flag{
-		&cli.BoolFlag{
-			Name:    "destructive_compression_prototype",
-			Usage:   "This flag must be specified for this compressed-blobs prototype to run. Beware that this will migrate preexisting cache files to a temporary and incompatible format.",
-			EnvVars: []string{"BAZEL_REMOTE_DESTRUCTIVE_COMPRESSION_PROTOTYPE"},
-		},
 		&cli.StringFlag{
 			Name:  "config_file",
 			Value: "",
@@ -275,11 +270,6 @@ func main() {
 	}
 
 	app.Action = func(ctx *cli.Context) error {
-		if !ctx.Bool("destructive_compression_prototype") {
-			log.Println("WARNING: this is a prototype branch of bazel-remote that will break existing cache directories. Use the --destructive_compression_prototype flag to acknowledge this and run anyway.")
-			os.Exit(1)
-		}
-
 		configFile := ctx.String("config_file")
 		var c *config.Config
 		var err error
