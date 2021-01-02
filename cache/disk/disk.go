@@ -53,6 +53,10 @@ type lruItem struct {
 
 	// Size of the blob on disk (possibly with header + compression).
 	sizeOnDisk int64
+
+	// If true, the blob is a raw CAS file (no header, uncompressed)
+	// with a ".v1" filename suffix.
+	legacy bool
 }
 
 // Cache is a filesystem-based LRU cache, with an optional backend proxy.
@@ -203,7 +207,7 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 					}
 
 					destDir := filepath.Join(targetDir, oldName[:2])
-					err = migrateV1Subdir(oldNamePath, destDir, kind)
+					err := migrateV1Subdir(oldNamePath, destDir, kind)
 					if err != nil {
 						log.Printf("Warning: failed to read subdir %q: %s",
 							oldNamePath, err)
@@ -223,17 +227,14 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 					continue
 				}
 
-				// oldName can now be assumed to be a hash.
-				hash := oldName
-
 				src := filepath.Join(sourceDir, oldName)
 				dest := filepath.Join(targetDir, oldName[:2], oldName)
 				if kind == cache.CAS {
-					err = migrateCASFile(src, dest, hash)
-				} else {
-					// TODO: make this work across filesystems?
-					err = os.Rename(src, dest)
+					dest += ".v1"
 				}
+
+				// TODO: make this work across filesystems?
+				err := os.Rename(src, dest)
 				if err != nil {
 					errChan <- err
 					return
@@ -279,9 +280,8 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 				return fmt.Errorf("Unexpected file: %s", oldPath)
 			}
 
-			destPath := path.Join(destDir, item.Name())
-
-			err = migrateCASFile(oldPath, destPath, item.Name())
+			destPath := path.Join(destDir, item.Name()) + ".v1"
+			err = os.Rename(oldPath, destPath)
 			if err != nil {
 				return fmt.Errorf("Failed to migrate CAS blob %s: %w",
 					oldPath, err)
@@ -310,6 +310,7 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 	return nil
 }
 
+/* TODO: remove this dead code?
 func migrateCASFile(src string, dest string, hash string) error {
 
 	srcFile, err := os.Open(src)
@@ -344,6 +345,7 @@ func migrateCASFile(src string, dest string, hash string) error {
 
 	return err
 }
+*/
 
 // loadExistingFiles lists all files in the cache directory, and adds them to the
 // LRU index so that they can be served. Files are sorted by access time first,
@@ -377,18 +379,27 @@ func (c *Cache) loadExistingFiles() error {
 	log.Println("Building LRU index.")
 	for _, f := range files {
 		relPath := f.name[len(c.dir)+1:]
-		var lookupKey string
+
+		legacy := strings.HasSuffix(f.name, ".v1")
+
+		fields := strings.Split(relPath, "/")
+
+		hash := fields[len(fields)-1]
+		if legacy {
+			hash = strings.TrimSuffix(hash, ".v1")
+		}
 
 		sizeOnDisk := f.info.Size()
 		size := sizeOnDisk
 
-		fields := strings.Split(relPath, "/")
-		hash := fields[len(fields)-1]
+		var lookupKey string
 
 		if strings.HasPrefix(relPath, "cas.v2/") {
-			size, err = casblob.GetLogicalSize(f.name)
-			if err != nil {
-				return err
+			if !legacy {
+				size, err = casblob.GetLogicalSize(f.name)
+				if err != nil {
+					return err
+				}
 			}
 			lookupKey = "cas/" + hash
 		} else if strings.HasPrefix(relPath, "ac/") {
@@ -402,6 +413,7 @@ func (c *Cache) loadExistingFiles() error {
 		ok := c.lru.Add(lookupKey, lruItem{
 			size:       size,
 			sizeOnDisk: sizeOnDisk,
+			legacy:     legacy,
 		})
 		if !ok {
 			err = os.Remove(filepath.Join(c.dir, relPath))
@@ -527,7 +539,7 @@ func (c *Cache) writeAndCloseFile(r io.Reader, kind cache.EntryKind, hash string
 	var err error
 	var sizeOnDisk int64
 
-	if kind == cache.CAS {
+	if kind == cache.CAS && c.storageMode != casblob.Identity {
 		sizeOnDisk, err = casblob.WriteAndClose(r, f, c.storageMode, hash, size)
 		if err != nil {
 			return -1, err
@@ -610,19 +622,33 @@ func (c *Cache) availableOrTryProxy(key string, size int64, blobPath string, kin
 		locked = false
 
 		if !isSizeMismatch(size, item.size) {
+			if item.legacy {
+				blobPath += ".v1"
+			}
+
 			var f *os.File
 			f, err = os.Open(blobPath)
 			if err != nil {
 				// Race condition, was the item purged after we released the lock?
 				log.Printf("Warning: expected %s to exist on disk, undersized cache?", blobPath)
 			} else if kind == cache.CAS {
-				if zstd {
+				if item.legacy {
+					_, err = f.Seek(offset, io.SeekStart)
+					if !zstd && err == nil {
+						rc = f
+					} else if err == nil {
+						rc, err = casblob.GetLegacyZstdReadCloser(f)
+					}
+				} else if zstd {
 					rc, err = casblob.GetZstdReadCloser(f, size, offset)
 				} else {
 					rc, err = casblob.GetUncompressedReadCloser(f, size, offset)
 				}
+
 				if err != nil {
 					log.Printf("Warning: expected item to be on disk, but something happened: %v", err)
+					f.Close()
+					rc = nil
 				} else {
 					return rc, item.size, false, nil
 				}
