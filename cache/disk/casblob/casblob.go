@@ -281,33 +281,7 @@ func GetZstdReadCloser(f *os.File, expectedSize int64, offset int64) (io.ReadClo
 			}
 		}
 
-		pr, pw := io.Pipe()
-
-		enc, ok := encoderPool.Get().(*syncpool.EncoderWrapper)
-		if !ok {
-			err = errEncoderPoolFail
-		}
-		if err != nil {
-			f.Close()
-			return nil, err
-		}
-		enc.Reset(pw)
-
-		go func() {
-			// Read from the file, write to enc.
-
-			// TODO: consider implementing something with a timeout?
-			_, err := enc.ReadFrom(f)
-			if err != nil {
-				// We can't do anything here except log an error.
-				log.Println("Error while compressing file:", err)
-			}
-
-			enc.Close()
-			f.Close()
-		}()
-
-		return pr, nil
+		return GetLegacyZstdReadCloser(f)
 	}
 
 	if h.compression != Zstandard {
@@ -356,6 +330,35 @@ func GetZstdReadCloser(f *os.File, expectedSize int64, offset int64) (io.ReadClo
 		rdr:    io.MultiReader(br, f),
 		file:   f,
 	}, nil
+}
+
+// GetLegacyZstdReadCloser returns an io.ReadCloser that provides
+// zstandard-compressed data from an uncompressed file.
+func GetLegacyZstdReadCloser(f *os.File) (io.ReadCloser, error) {
+	enc, ok := encoderPool.Get().(*syncpool.EncoderWrapper)
+	if !ok {
+		f.Close()
+		return nil, errEncoderPoolFail
+	}
+
+	pr, pw := io.Pipe()
+	enc.Reset(pw)
+
+	go func() {
+		// Read from the file, write to enc.
+
+		// TODO: consider implementing something with a timeout?
+		_, err := enc.ReadFrom(f)
+		if err != nil {
+			// We can't do anything here except log an error.
+			log.Println("Error while compressing file:", err)
+		}
+
+		encoderPool.Put(enc)
+		f.Close()
+	}()
+
+	return pr, nil
 }
 
 func (h *header) write(f *os.File) error {
