@@ -46,6 +46,8 @@ var tfc = tempfile.NewCreator()
 
 var emptyZstdBlob = []byte{40, 181, 47, 253, 32, 0, 1, 0, 0}
 
+var hashKeyRegex = regexp.MustCompile("^[a-f0-9]{64}$")
+
 // lruItem is the type of the values stored in SizedLRU to keep track of items.
 type lruItem struct {
 	// Size of the blob in uncompressed form.
@@ -178,7 +180,6 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 
 	// The v0 directory structure was lowercase sha256 hash filenames
 	// stored directly in the ac/ and cas/ directories.
-	hashKeyRegex := regexp.MustCompile("^[a-f0-9]{64}$")
 
 	// The v1 directory structure has subdirs for each two lowercase
 	// hex character pairs.
@@ -268,8 +269,6 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 	if err != nil {
 		return err
 	}
-
-	hashKeyRegex := regexp.MustCompile("^[a-f0-9]{64}$")
 
 	if kind == cache.CAS {
 		for _, item := range listing {
@@ -387,6 +386,10 @@ func (c *Cache) loadExistingFiles() error {
 		hash := fields[len(fields)-1]
 		if legacy {
 			hash = strings.TrimSuffix(hash, ".v1")
+		}
+
+		if !hashKeyRegex.MatchString(hash) {
+			return fmt.Errorf("Invalid hash: %q", hash)
 		}
 
 		sizeOnDisk := f.info.Size()
