@@ -101,6 +101,19 @@ which can be enabled with the `--experimental_remote_asset_api` flag.
 To use this with Bazel, specify
 [--experimental_remote_downloader=grpc://replace-with-your.host:port](https://docs.bazel.build/versions/master/command-line-reference.html#flag--experimental_remote_downloader).
 
+### Byte Stream compressed-blobs
+
+This version of bazel-remote supports the
+[Byte Stream compressed-blobs proposal](https://github.com/bazelbuild/remote-apis/pull/168),
+which provides a way for clients to upload and download CAS blobs compressed
+with zstandard, in order to improve network efficiency.
+
+Uploaded CAS blobs are stored in a zstandard compressed format by default,
+which can increase the effective cache size and reduce load on the server
+if clients also download blobs in zstandard compressed form. If you would
+rather store CAS blobs in uncompressed form, add `--storage_mode uncompressed`
+to your configuration.
+
 ## Usage
 
 If a YAML configuration file is specified by the `--config_file` command line
