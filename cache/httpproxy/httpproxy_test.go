@@ -293,7 +293,7 @@ func TestEverything(t *testing.T) {
 	if !found {
 		t.Fatalf("Expected to find CAS item %s", hash)
 	}
-	if size != int64(len(casData)) {
+	if size != -1 && size != int64(len(casData)) {
 		t.Fatalf("Expected to find CAS item with size %d, got %d",
 			len(casData), size)
 	}
