@@ -573,7 +573,7 @@ func (c *Cache) writeAndCloseFile(r io.Reader, kind cache.EntryKind, hash string
 }
 
 // This must be called when the lock is not held.
-func (c *Cache) commit(key string, tempfile string, finalPath string, reservedSize int64, foundSize int64, sizeOnDisk int64) (unreserve bool, removeTempfile bool, err error) {
+func (c *Cache) commit(key string, tempfile string, finalPath string, reservedSize int64, logicalSize int64, sizeOnDisk int64) (unreserve bool, removeTempfile bool, err error) {
 	unreserve = reservedSize > 0
 	removeTempfile = true
 
@@ -589,9 +589,9 @@ func (c *Cache) commit(key string, tempfile string, finalPath string, reservedSi
 	}
 	unreserve = false
 
-	if !c.lru.Add(key, lruItem{size: foundSize, sizeOnDisk: sizeOnDisk}) {
+	if !c.lru.Add(key, lruItem{size: logicalSize, sizeOnDisk: sizeOnDisk}) {
 		err = fmt.Errorf("INTERNAL ERROR: failed to add: %s, size %d (on disk: %d): %w",
-			key, foundSize, sizeOnDisk, err)
+			key, logicalSize, sizeOnDisk, err)
 		log.Println(err.Error())
 		return unreserve, removeTempfile, err
 	}
@@ -848,7 +848,7 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 		}
 	}
 
-	unreserve, removeTempfile, err = c.commit(key, tfName, blobPath, size, foundSize, sizeOnDisk)
+	unreserve, removeTempfile, err = c.commit(key, tfName, blobPath, size, logicalSize, sizeOnDisk)
 	if err != nil {
 		rc.Close()
 		rc = nil
