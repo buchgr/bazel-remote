@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"path"
 	"time"
 
 	"github.com/buchgr/bazel-remote/cache"
@@ -120,16 +121,19 @@ func New(s3Config *config.S3CloudStorageConfig, accessLogger cache.Logger,
 }
 
 func (c *s3Cache) objectKey(hash string, kind cache.EntryKind) string {
-
-	// For CAS blobs this includes "cas.v2" to distinguish compressed
-	// blobs from older uncompressed blobs.
-	baseKey := cache.FileLocation(kind, hash)
+	var baseKey string
+	if kind == cache.CAS {
+		// Use "cas.v2" to distinguish new from old format blobs.
+		baseKey = path.Join("cas.v2", hash[:2], hash)
+	} else {
+		baseKey = path.Join(kind.String(), hash[:2], hash)
+	}
 
 	if c.prefix == "" {
 		return baseKey
 	}
 
-	return fmt.Sprintf("%s/%s", c.prefix, baseKey)
+	return path.Join(c.prefix, baseKey)
 }
 
 // Helper function for logging responses

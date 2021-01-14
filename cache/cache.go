@@ -3,6 +3,7 @@ package cache
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"path"
 )
@@ -98,15 +99,12 @@ func TransformActionCacheKey(key, instance string, logger Logger) string {
 }
 
 // Key returns the proper cache key for an entry kind and hash.
-func FileLocation(kind EntryKind, hash string) string {
-	var kindWithVersion string
+func FileLocation(kind EntryKind, hash string, size int64) string {
 	if kind == CAS {
-		kindWithVersion = "cas.v2"
-	} else {
-		kindWithVersion = kind.String()
+		return fmt.Sprintf("cas.v2/%s/%s-%d", hash[:2], hash, size)
 	}
 
-	return path.Join(kindWithVersion, hash[:2], hash)
+	return path.Join(kind.String(), hash[:2], hash)
 }
 
 func LookupKey(kind EntryKind, hash string) string {
