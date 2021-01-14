@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -47,6 +48,7 @@ var tfc = tempfile.NewCreator()
 var emptyZstdBlob = []byte{40, 181, 47, 253, 32, 0, 1, 0, 0}
 
 var hashKeyRegex = regexp.MustCompile("^[a-f0-9]{64}$")
+var hashKeyWithSizeRegex = regexp.MustCompile("^([a-f0-9]{64})(?:-([1-9][0-9]*))?$")
 
 // lruItem is the type of the values stored in SizedLRU to keep track of items.
 type lruItem struct {
@@ -118,7 +120,7 @@ func New(dir string, maxSizeBytes int64, storageMode string, proxy cache.Proxy) 
 			kind = cache.RAW
 		}
 
-		f := filepath.Join(dir, cache.FileLocation(kind, hash))
+		f := filepath.Join(dir, cache.FileLocation(kind, hash, value.size))
 
 		err := os.Remove(f)
 		if err != nil {
@@ -264,7 +266,6 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 }
 
 func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error {
-
 	listing, err := ioutil.ReadDir(oldDir)
 	if err != nil {
 		return err
@@ -383,27 +384,26 @@ func (c *Cache) loadExistingFiles() error {
 
 		fields := strings.Split(relPath, "/")
 
-		hash := fields[len(fields)-1]
+		file := fields[len(fields)-1]
 		if legacy {
-			hash = strings.TrimSuffix(hash, ".v1")
+			file = strings.TrimSuffix(file, ".v1")
 		}
 
-		if !hashKeyRegex.MatchString(hash) {
-			return fmt.Errorf("Invalid hash: %q", hash)
+		sm := hashKeyWithSizeRegex.FindStringSubmatch(file)
+		if len(sm) == 0 || len(sm[1]) == 0 {
+			return fmt.Errorf("Unrecognized file: %q", file)
 		}
+		hash := sm[1]
 
 		sizeOnDisk := f.info.Size()
 		size := sizeOnDisk
+		if len(sm[2]) > 0 {
+			size, err = strconv.ParseInt(sm[2], 10, 64)
+		}
 
 		var lookupKey string
 
 		if strings.HasPrefix(relPath, "cas.v2/") {
-			if !legacy {
-				size, err = casblob.GetLogicalSize(f.name)
-				if err != nil {
-					return err
-				}
-			}
 			lookupKey = "cas/" + hash
 		} else if strings.HasPrefix(relPath, "ac/") {
 			lookupKey = "ac/" + hash
@@ -500,7 +500,7 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 	}
 
 	// Final destination, if all goes well.
-	filePath := cacheFilePath(kind, c.dir, hash)
+	filePath := path.Join(c.dir, cache.FileLocation(kind, hash, size))
 
 	// We will download to this temporary file.
 	tf, err := tfc.Create(filePath)
@@ -615,20 +615,24 @@ func (c *Cache) commit(key string, tempfile string, finalPath string, reservedSi
 // but that we can try the proxy backend.
 //
 // This function assumes that only CAS blobs are requested in zstd form.
-func (c *Cache) availableOrTryProxy(key string, size int64, blobPath string, kind cache.EntryKind, offset int64, zstd bool) (rc io.ReadCloser, foundSize int64, tryProxy bool, err error) {
+func (c *Cache) availableOrTryProxy(kind cache.EntryKind, hash string, size int64, offset int64, zstd bool) (rc io.ReadCloser, foundSize int64, tryProxy bool, err error) {
 	locked := true
 	c.mu.Lock()
 
+	key := cache.LookupKey(kind, hash)
 	item, available := c.lru.Get(key)
 	if available {
 		c.mu.Unlock() // We expect a cache hit below.
 		locked = false
 
-		if !isSizeMismatch(size, item.size) {
-			if item.legacy {
-				blobPath += ".v1"
-			}
+		var blobPath string
+		if item.legacy {
+			blobPath = path.Join(c.dir, "cas.v2", hash[:2], hash+".v1")
+		} else {
+			blobPath = path.Join(c.dir, cache.FileLocation(kind, hash, item.size))
+		}
 
+		if !isSizeMismatch(size, item.size) {
 			var f *os.File
 			f, err = os.Open(blobPath)
 			if err != nil {
@@ -769,8 +773,7 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 		}
 	}()
 
-	blobPath := cacheFilePath(kind, c.dir, hash)
-	f, foundSize, tryProxy, err := c.availableOrTryProxy(key, size, blobPath, kind, offset, zstd)
+	f, foundSize, tryProxy, err := c.availableOrTryProxy(kind, hash, size, offset, zstd)
 	if err != nil {
 		return nil, -1, err
 	}
@@ -800,6 +803,7 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 		return nil, -1, nil
 	}
 
+	blobPath := path.Join(c.dir, cache.FileLocation(kind, hash, foundSize))
 	tf, err = tfc.Create(blobPath)
 	if err != nil {
 		return nil, -1, err
@@ -927,10 +931,6 @@ func ensureDirExists(path string) {
 			log.Fatal(err)
 		}
 	}
-}
-
-func cacheFilePath(kind cache.EntryKind, cacheDir string, hash string) string {
-	return filepath.Join(cacheDir, cache.FileLocation(kind, hash))
 }
 
 // GetValidatedActionResult returns a valid ActionResult and its serialized
