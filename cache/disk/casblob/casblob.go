@@ -37,10 +37,24 @@ var errEncoderPoolFail error = errors.New("failed to get EncoderWrapper from poo
 
 const defaultChunkSize = 1024 * 1024 * 1 // 1M
 
-// CAS blobs are stored with a header followed by chunks of data in either
-// compressed or uncompressed format.
+// 4 bytes, to be written to disk in little-endian format.
+// https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#skippable-frames
+const skippableFrameMagicNumber = 0x184D2A50
+
+// Compressed CAS blobs are stored in .zst format, with a header which
+// describes the locations of independently compressed chunks.
 type header struct {
 	// The following data is stored in little-endian format on disk.
+
+	// We start with two zstd skippable frame fields:
+
+	//magicNumber uint32 // 4 bytes: skippableFrameMagicNumber
+
+	// With 1M chunks this gives a limit of ~511TB which is plenty.
+	//frameSize   uint32 // 4 bytes: the size of the rest of the header.
+
+	// Then we put our metadata:
+
 	uncompressedSize int64           // 8 bytes
 	compression      CompressionType // uint8, 1 byte
 	chunkSize        uint32          // 4 bytes
@@ -54,11 +68,15 @@ type header struct {
 	chunkOffsets []int64
 }
 
-const chunkTableOffset = 8 + 1 + 4 + 8
+const chunkTableOffset = 4 + 4 + 8 + 1 + 4 + 8
 
 // Returns the size of the header itself.
 func (h *header) size() int64 {
 	return chunkTableOffset + (int64(len(h.chunkOffsets)) * 8)
+}
+
+func (h *header) frameSize() uint32 {
+	return chunkTableOffset + (uint32(len(h.chunkOffsets)) * 8) - 4 - 4
 }
 
 // Provides an io.ReadCloser that returns uncompressed data from a cas blob.
@@ -71,6 +89,8 @@ type readCloserWrapper struct {
 	file    *os.File
 }
 
+var errWrongMagicNum = errors.New("expected magic number not found")
+
 // Read the header and leave f at the start of the data.
 func readHeader(f *os.File) (*header, error) {
 	var err error
@@ -81,6 +101,21 @@ func readHeader(f *os.File) (*header, error) {
 		return nil, err
 	}
 	foundFileSize := fileInfo.Size()
+
+	var magicNumber uint32
+	err = binary.Read(f, binary.LittleEndian, &magicNumber)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read magic number: %w", err)
+	}
+	if magicNumber != skippableFrameMagicNumber {
+		return nil, errWrongMagicNum
+	}
+
+	var frameSize uint32
+	err = binary.Read(f, binary.LittleEndian, &frameSize)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read frameSize: %w", err)
+	}
 
 	err = binary.Read(f, binary.LittleEndian, &h.uncompressedSize)
 	if err != nil {
@@ -106,6 +141,12 @@ func readHeader(f *os.File) (*header, error) {
 	if numOffsets < 2 {
 		// chunkOffsets has an extra entry to specify the compressed file size.
 		return nil, fmt.Errorf("internal error: need at least one chunk, found %d", numOffsets-1)
+	}
+
+	metadataSize := numOffsets*8 + 8 + 1 + 4 + 8
+	if int64(frameSize) != metadataSize {
+		return nil, fmt.Errorf("metadata frame size %d, but metadata size %d",
+			frameSize, metadataSize)
 	}
 
 	prevOffset := int64(-1)
@@ -363,6 +404,16 @@ func GetLegacyZstdReadCloser(f *os.File) (io.ReadCloser, error) {
 
 func (h *header) write(f *os.File) error {
 	var err error
+
+	err = binary.Write(f, binary.LittleEndian, uint32(skippableFrameMagicNumber))
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(f, binary.LittleEndian, h.frameSize())
+	if err != nil {
+		return err
+	}
 
 	err = binary.Write(f, binary.LittleEndian, h.uncompressedSize)
 	if err != nil {
