@@ -105,6 +105,17 @@ func New(dir string, maxSizeBytes int64, storageMode string, proxy cache.Proxy) 
 		}
 	}
 
+	compressionType := casblob.Zstandard
+	if storageMode == "uncompressed" {
+		compressionType = casblob.Identity
+	}
+
+	c := &Cache{
+		dir:         filepath.Clean(dir),
+		storageMode: compressionType,
+		proxy:       proxy,
+	}
+
 	// The eviction callback deletes the file from disk.
 	// This function is only called while the lock is held
 	// by the current goroutine.
@@ -120,7 +131,7 @@ func New(dir string, maxSizeBytes int64, storageMode string, proxy cache.Proxy) 
 			kind = cache.RAW
 		}
 
-		f := filepath.Join(dir, cache.FileLocation(kind, hash, value.size))
+		f := filepath.Join(dir, c.FileLocation(kind, hash, value.size))
 
 		err := os.Remove(f)
 		if err != nil {
@@ -128,17 +139,7 @@ func New(dir string, maxSizeBytes int64, storageMode string, proxy cache.Proxy) 
 		}
 	}
 
-	compressionType := casblob.Zstandard
-	if storageMode == "uncompressed" {
-		compressionType = casblob.Identity
-	}
-
-	c := &Cache{
-		dir:         filepath.Clean(dir),
-		storageMode: compressionType,
-		proxy:       proxy,
-		lru:         NewSizedLRU(maxSizeBytes, onEvict),
-	}
+	c.lru = NewSizedLRU(maxSizeBytes, onEvict)
 
 	err := c.migrateDirectories()
 	if err != nil {
@@ -150,6 +151,18 @@ func New(dir string, maxSizeBytes int64, storageMode string, proxy cache.Proxy) 
 	}
 
 	return c, nil
+}
+
+func (c *Cache) FileLocation(kind cache.EntryKind, hash string, size int64) string {
+	if kind != cache.CAS {
+		return path.Join(kind.String(), hash[:2], hash)
+	}
+
+	if c.storageMode == casblob.Identity {
+		return fmt.Sprintf("cas.v2/%s/%s.v1", hash[:2], hash)
+	}
+
+	return fmt.Sprintf("cas.v2/%s/%s-%d", hash[:2], hash, size)
 }
 
 func (c *Cache) migrateDirectories() error {
@@ -500,7 +513,7 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 	}
 
 	// Final destination, if all goes well.
-	filePath := path.Join(c.dir, cache.FileLocation(kind, hash, size))
+	filePath := path.Join(c.dir, c.FileLocation(kind, hash, size))
 
 	// We will download to this temporary file.
 	tf, err := tfc.Create(filePath)
@@ -629,7 +642,7 @@ func (c *Cache) availableOrTryProxy(kind cache.EntryKind, hash string, size int6
 		if item.legacy {
 			blobPath = path.Join(c.dir, "cas.v2", hash[:2], hash+".v1")
 		} else {
-			blobPath = path.Join(c.dir, cache.FileLocation(kind, hash, item.size))
+			blobPath = path.Join(c.dir, c.FileLocation(kind, hash, item.size))
 		}
 
 		if !isSizeMismatch(size, item.size) {
@@ -803,7 +816,7 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 		return nil, -1, nil
 	}
 
-	blobPath := path.Join(c.dir, cache.FileLocation(kind, hash, foundSize))
+	blobPath := path.Join(c.dir, c.FileLocation(kind, hash, foundSize))
 	tf, err = tfc.Create(blobPath)
 	if err != nil {
 		return nil, -1, err
