@@ -183,6 +183,30 @@ func main() {
 			EnvVars: []string{"BAZEL_REMOTE_NUM_UPLOADERS"},
 		},
 		&cli.StringFlag{
+			Name:    "http_proxy.url",
+			Value:   "",
+			Usage:   "The base URL to use for a http proxy backend.",
+			EnvVars: []string{"BAZEL_REMOTE_HTTP_PROXY_URL"},
+		},
+		&cli.StringFlag{
+			Name:    "gcs_proxy.bucket",
+			Value:   "",
+			Usage:   "The bucket to use for the Google Cloud Storage proxy backend.",
+			EnvVars: []string{"BAZEL_REMOTE_GCS_BUCKET"},
+		},
+		&cli.BoolFlag{
+			Name:    "gcs_proxy.use_default_credentials",
+			Value:   false,
+			Usage:   "Whether or not to use authentication for the Google Cloud Storage proxy backend.",
+			EnvVars: []string{"BAZEL_REMOTE_GCS_USE_DEFAULT_CREDENTIALS"},
+		},
+		&cli.StringFlag{
+			Name:    "gcs_proxy.json_credentials_file",
+			Value:   "",
+			Usage:   "Path to a JSON file that contains Google credentials for the Google Cloud Storage proxy backend.",
+			EnvVars: []string{"BAZEL_REMOTE_GCS_JSON_CREDENTIALS_FILE"},
+		},
+		&cli.StringFlag{
 			Name:    "s3.endpoint",
 			Value:   "",
 			Usage:   "The S3/minio endpoint to use when using S3 proxy backend.",
@@ -290,6 +314,23 @@ func main() {
 					KeyVersion:      ctx.Int("s3.key_version"),
 				}
 			}
+
+			var hc *config.HTTPBackendConfig
+			if ctx.String("http_proxy.url") != "" {
+				hc = &config.HTTPBackendConfig{
+					BaseURL: ctx.String("http_proxy.url"),
+				}
+			}
+
+			var gcs *config.GoogleCloudStorageConfig
+			if ctx.String("gcs_proxy.bucket") != "" {
+				gcs = &config.GoogleCloudStorageConfig{
+					Bucket:                ctx.String("gcs_proxy.bucket"),
+					UseDefaultCredentials: ctx.Bool("gcs_proxy.use_default_credentials"),
+					JSONCredentialsFile:   ctx.String("gcs_proxy.json_credentials_file"),
+				}
+			}
+
 			c, err = config.New(
 				ctx.String("dir"),
 				ctx.Int("max_size"),
@@ -306,6 +347,8 @@ func main() {
 				ctx.String("tls_cert_file"),
 				ctx.String("tls_key_file"),
 				ctx.Duration("idle_timeout"),
+				hc,
+				gcs,
 				s3,
 				ctx.Bool("disable_http_ac_validation"),
 				ctx.Bool("disable_grpc_ac_deps_check"),
