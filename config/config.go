@@ -80,6 +80,8 @@ func New(dir string, maxSize int, storageMode string,
 	tlsCertFile string,
 	tlsKeyFile string,
 	idleTimeout time.Duration,
+	hc *HTTPBackendConfig,
+	gcs *GoogleCloudStorageConfig,
 	s3 *S3CloudStorageConfig,
 	disableHTTPACValidation bool,
 	disableGRPCACDepsCheck bool,
@@ -88,6 +90,7 @@ func New(dir string, maxSize int, storageMode string,
 	experimentalRemoteAssetAPI bool,
 	httpReadTimeout time.Duration,
 	httpWriteTimeout time.Duration) (*Config, error) {
+
 	c := Config{
 		Host:                        host,
 		Port:                        port,
@@ -104,8 +107,8 @@ func New(dir string, maxSize int, storageMode string,
 		TLSCertFile:                 tlsCertFile,
 		TLSKeyFile:                  tlsKeyFile,
 		S3CloudStorage:              s3,
-		GoogleCloudStorage:          nil,
-		HTTPBackend:                 nil,
+		GoogleCloudStorage:          gcs,
+		HTTPBackend:                 hc,
 		IdleTimeout:                 idleTimeout,
 		DisableHTTPACValidation:     disableHTTPACValidation,
 		DisableGRPCACDepsCheck:      disableGRPCACDepsCheck,
@@ -178,6 +181,21 @@ func validateConfig(c *Config) error {
 
 	if c.StorageMode != "zstd" && c.StorageMode != "uncompressed" {
 		return errors.New("storage_mode must be set to either \"zstd\" or \"uncompressed\"")
+	}
+
+	proxyCount := 0
+	if c.S3CloudStorage != nil {
+		proxyCount++
+	}
+	if c.HTTPBackend != nil {
+		proxyCount++
+	}
+	if c.GoogleCloudStorage != nil {
+		proxyCount++
+	}
+
+	if proxyCount > 1 {
+		return errors.New("At most one of the S3/GCS/HTTP proxy backends is allowed")
 	}
 
 	if c.Port == 0 {
