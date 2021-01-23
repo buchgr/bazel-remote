@@ -23,7 +23,7 @@ func New(bucket string, useDefaultCredentials bool, jsonCredentialsFile string,
 
 	if useDefaultCredentials {
 		remoteClient, err = google.DefaultClient(oauth2.NoContext,
-			"https://www.googleapis.com/auth/cloud-platform")
+			"https://www.googleapis.com/auth/devstorage.read_write")
 		if err != nil {
 			return nil, err
 		}
