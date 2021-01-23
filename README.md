@@ -198,6 +198,9 @@ host: localhost
 # If set to true, enable metrics for each HTTP/gRPC endpoint.
 #enable_endpoint_metrics: false
 
+# Specify a custom list of histogram buckets for endpoint request duration metrics
+#endpoint_metrics_duration_buckets: [.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320]
+
 # At most one of the proxy backends can be selected:
 #
 # If this is 0, proxy backends won't upload blobs.
