@@ -48,6 +48,7 @@ http_write_timeout: 10s
 		HTTPWriteTimeout:            10 * time.Second,
 		NumUploaders:                100,
 		MaxQueuedUploads:            1000000,
+		MetricsDurationBuckets:      []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 	}
 
 	if !reflect.DeepEqual(config, expectedConfig) {
@@ -82,8 +83,9 @@ gcs_proxy:
 			UseDefaultCredentials: false,
 			JSONCredentialsFile:   "/opt/creds.json",
 		},
-		NumUploaders:     100,
-		MaxQueuedUploads: 1000000,
+		NumUploaders:           100,
+		MaxQueuedUploads:       1000000,
+		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -114,8 +116,9 @@ http_proxy:
 		HTTPBackend: &HTTPBackendConfig{
 			BaseURL: "https://remote-cache.com:8080/cache",
 		},
-		NumUploaders:     100,
-		MaxQueuedUploads: 1000000,
+		NumUploaders:           100,
+		MaxQueuedUploads:       1000000,
+		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -186,8 +189,9 @@ s3_proxy:
 			SecretAccessKey: "EXAMPLE_SECRET_KEY",
 			KeyVersion:      2,
 		},
-		NumUploaders:     100,
-		MaxQueuedUploads: 1000000,
+		NumUploaders:           100,
+		MaxQueuedUploads:       1000000,
+		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -208,14 +212,15 @@ profile_port: 7070
 	}
 
 	expectedConfig := &Config{
-		Host:             "localhost",
-		Port:             1234,
-		Dir:              "/opt/cache-dir",
-		MaxSize:          42,
-		ProfilePort:      7070,
-		ProfileHost:      "",
-		NumUploaders:     100,
-		MaxQueuedUploads: 1000000,
+		Host:                   "localhost",
+		Port:                   1234,
+		Dir:                    "/opt/cache-dir",
+		MaxSize:                42,
+		ProfilePort:            7070,
+		ProfileHost:            "",
+		NumUploaders:           100,
+		MaxQueuedUploads:       1000000,
+		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -234,5 +239,49 @@ profile_host: 192.168.1.1`
 
 	if !cmp.Equal(config, expectedConfig) {
 		t.Fatalf("Expected '%+v' but got '%+v'", expectedConfig, config)
+	}
+}
+
+func TestValidMetricsDurationBuckets(t *testing.T) {
+	yaml := `host: localhost
+port: 1234
+dir: /opt/cache-dir
+max_size: 42
+endpoint_metrics_duration_buckets: [.005, .1, 5]
+`
+	config, err := newFromYaml([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedConfig := &Config{
+		Host:                   "localhost",
+		Port:                   1234,
+		Dir:                    "/opt/cache-dir",
+		MaxSize:                42,
+		NumUploaders:           100,
+		MaxQueuedUploads:       1000000,
+		MetricsDurationBuckets: []float64{0.005, 0.1, 5},
+	}
+
+	if !cmp.Equal(config, expectedConfig) {
+		t.Fatalf("Expected '%+v' but got '%+v'", expectedConfig, config)
+	}
+}
+
+func TestMetricsDurationBucketsNoDupliates(t *testing.T) {
+	testConfig := &Config{
+		Host:                   "localhost",
+		Port:                   8080,
+		MaxSize:                42,
+		Dir:                    "/opt/cache-dir",
+		MetricsDurationBuckets: []float64{1, 2, 3, 3},
+	}
+	err := validateConfig(testConfig)
+	if err == nil {
+		t.Fatal("Expected an error because 'endpoint_metrics_duration_buckets' contained a duplicate")
+	}
+	if !strings.Contains(err.Error(), "'endpoint_metrics_duration_buckets'") {
+		t.Fatal("Expected the error message to mention the invalid 'endpoint_metrics_duration_buckets' key")
 	}
 }

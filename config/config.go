@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 	"time"
 
 	yaml "gopkg.in/yaml.v2"
@@ -58,10 +59,13 @@ type Config struct {
 	DisableGRPCACDepsCheck      bool                      `yaml:"disable_grpc_ac_deps_check"`
 	EnableACKeyInstanceMangling bool                      `yaml:"enable_ac_key_instance_mangling"`
 	EnableEndpointMetrics       bool                      `yaml:"enable_endpoint_metrics"`
+	MetricsDurationBuckets      []float64                 `yaml:"endpoint_metrics_duration_buckets"`
 	ExperimentalRemoteAssetAPI  bool                      `yaml:"experimental_remote_asset_api"`
 	HTTPReadTimeout             time.Duration             `yaml:"http_read_timeout"`
 	HTTPWriteTimeout            time.Duration             `yaml:"http_write_timeout"`
 }
+
+var defaultDurationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
 
 // New returns a validated Config with the specified values, and an error
 // if there were any problems with the validation.
@@ -104,6 +108,7 @@ func New(dir string, maxSize int, host string, port int, grpcPort int,
 		DisableGRPCACDepsCheck:      disableGRPCACDepsCheck,
 		EnableACKeyInstanceMangling: enableACKeyInstanceMangling,
 		EnableEndpointMetrics:       enableEndpointMetrics,
+		MetricsDurationBuckets:      defaultDurationBuckets,
 		ExperimentalRemoteAssetAPI:  experimentalRemoteAssetAPI,
 		HTTPReadTimeout:             httpReadTimeout,
 		HTTPWriteTimeout:            httpWriteTimeout,
@@ -136,13 +141,18 @@ func NewFromYamlFile(path string) (*Config, error) {
 
 func newFromYaml(data []byte) (*Config, error) {
 	c := Config{
-		NumUploaders:     100,
-		MaxQueuedUploads: 1000000,
+		NumUploaders:           100,
+		MaxQueuedUploads:       1000000,
+		MetricsDurationBuckets: defaultDurationBuckets,
 	}
 
 	err := yaml.Unmarshal(data, &c)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse YAML config: %v", err)
+	}
+
+	if c.MetricsDurationBuckets != nil {
+		sort.Float64s(c.MetricsDurationBuckets)
 	}
 
 	err = validateConfig(&c)
@@ -208,6 +218,17 @@ func validateConfig(c *Config) error {
 
 		if c.S3CloudStorage.KeyVersion < 1 || c.S3CloudStorage.KeyVersion > 2 {
 			return fmt.Errorf("s3.key_version must be either 1 or 2, found %d", c.S3CloudStorage.KeyVersion)
+		}
+	}
+
+	if c.MetricsDurationBuckets != nil {
+		duplicates := make(map[float64]bool)
+		for _, bucket := range c.MetricsDurationBuckets {
+			_, dupe := duplicates[bucket]
+			if dupe {
+				return errors.New("'endpoint_metrics_duration_buckets' must not contain duplicate buckets")
+			}
+			duplicates[bucket] = true
 		}
 	}
 
