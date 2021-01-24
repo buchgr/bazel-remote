@@ -23,7 +23,7 @@ func New(bucket string, useDefaultCredentials bool, jsonCredentialsFile string,
 
 	if useDefaultCredentials {
 		remoteClient, err = google.DefaultClient(oauth2.NoContext,
-			"https://www.googleapis.com/auth/cloud-platform")
+			"https://www.googleapis.com/auth/devstorage.read_write")
 		if err != nil {
 			return nil, err
 		}
@@ -33,7 +33,8 @@ func New(bucket string, useDefaultCredentials bool, jsonCredentialsFile string,
 			err = fmt.Errorf("Failed to read Google Credentials file '%s': %v", jsonCredentialsFile, err)
 			return nil, err
 		}
-		config, err := google.CredentialsFromJSON(oauth2.NoContext, jsonConfig)
+		config, err := google.CredentialsFromJSON(oauth2.NoContext, jsonConfig,
+			"https://www.googleapis.com/auth/devstorage.read_write")
 		if err != nil {
 			err = fmt.Errorf("The provided Google Credentials file '%s' couldn't be parsed: %v",
 				jsonCredentialsFile, err)
