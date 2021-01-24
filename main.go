@@ -46,9 +46,6 @@ const (
 // is set through linker options.
 var gitCommit string
 
-// durationBuckets is the buckets used for Prometheus histograms in seconds.
-var durationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
-
 func main() {
 
 	log.SetFlags(logFlags)
@@ -435,7 +432,7 @@ func main() {
 		if c.EnableEndpointMetrics {
 			metricsMdlw := middleware.New(middleware.Config{
 				Recorder: httpmetrics.NewRecorder(httpmetrics.Config{
-					DurationBuckets: durationBuckets,
+					DurationBuckets: c.MetricsDurationBuckets,
 				}),
 			})
 			mux.Handle("/metrics", middlewarestd.Handler("metrics", metricsMdlw, promhttp.Handler()))
@@ -464,7 +461,7 @@ func main() {
 				if c.EnableEndpointMetrics {
 					streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)
 					unaryInterceptors = append(unaryInterceptors, grpc_prometheus.UnaryServerInterceptor)
-					grpc_prometheus.EnableHandlingTimeHistogram(grpc_prometheus.WithHistogramBuckets(durationBuckets))
+					grpc_prometheus.EnableHandlingTimeHistogram(grpc_prometheus.WithHistogramBuckets(c.MetricsDurationBuckets))
 				}
 
 				if tlsConfig != nil {
