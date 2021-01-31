@@ -775,7 +775,10 @@ func TestHttpProxyBackend(t *testing.T) {
 	accessLogger := testutils.NewSilentLogger()
 	errorLogger := testutils.NewSilentLogger()
 
-	proxy := httpproxy.New(url, &http.Client{}, accessLogger, errorLogger, 100, 1000000)
+	proxy, err := httpproxy.New(url, "zstd", &http.Client{}, accessLogger, errorLogger, 100, 1000000)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)

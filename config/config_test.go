@@ -103,6 +103,7 @@ dir: /opt/cache-dir
 max_size: 100
 http_proxy:
   url: https://remote-cache.com:8080/cache
+  mode: zstd
 `
 	config, err := newFromYaml([]byte(yaml))
 	if err != nil {
