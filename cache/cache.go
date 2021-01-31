@@ -62,14 +62,20 @@ func (e *Error) Error() string {
 // Proxy is the interface that (optional) proxy backends must implement.
 // Implementations are expected to be safe for concurrent use.
 type Proxy interface {
-	// Put should make a reasonable effort to proxy this data to the backend.
-	// This is allowed to fail silently (eg when under heavy load).
-	Put(kind EntryKind, hash string, size int64, rdr io.ReadCloser)
 
-	// Get should return the cache item identified by `hash`, or an error
-	// if something went wrong. If the item was not found, the io.ReadCloser
-	// will be nil.
-	Get(kind EntryKind, hash string) (io.ReadCloser, int64, error)
+	// Put makes a reasonable effort to upload the cache item identified by
+	// `hash` with logical size `size`, whose data is readable from `rc` to
+	// the proxy backend. The data available in `rc` is in the same format
+	// as used by the disk.Cache instance.
+	//
+	// This is allowed to fail silently (for example when under heavy load).
+	Put(kind EntryKind, hash string, size int64, rc io.ReadCloser)
+
+	// Get returns an io.ReadCloser from which the cache item identified by
+	// `hash` can be read, its logical size, and an error if something went
+	// wrong. The data available from `rc` is in the same format as used by
+	// the disk.Cache instance.
+	Get(kind EntryKind, hash string) (rc io.ReadCloser, size int64, err error)
 
 	// Contains returns whether or not the cache item exists on the
 	// remote end, and the size if it exists (and -1 if the size is

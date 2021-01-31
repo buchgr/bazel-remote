@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/buchgr/bazel-remote/cache"
 
@@ -26,10 +27,11 @@ type uploadReq struct {
 
 type remoteHTTPProxyCache struct {
 	remote       *http.Client
-	baseURL      *url.URL
+	baseURL      string
 	uploadQueue  chan<- uploadReq
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
+	requestURL   func(hash string, kind cache.EntryKind) string
 }
 
 var (
@@ -43,8 +45,7 @@ var (
 	})
 )
 
-func uploadFile(remote *http.Client, baseURL *url.URL, accessLogger cache.Logger,
-	errorLogger cache.Logger, item uploadReq) {
+func (r *remoteHTTPProxyCache) uploadFile(item uploadReq) {
 
 	if item.size == 0 {
 		item.rc.Close()
@@ -52,11 +53,11 @@ func uploadFile(remote *http.Client, baseURL *url.URL, accessLogger cache.Logger
 		item.rc = http.NoBody
 	}
 
-	url := requestURL(baseURL, item.hash, item.kind)
+	url := r.requestURL(item.hash, item.kind)
 
-	rsp, err := remote.Head(url)
+	rsp, err := r.remote.Head(url)
 	if err == nil && rsp.StatusCode == http.StatusOK {
-		accessLogger.Printf("SKIP UPLOAD %s", item.hash)
+		r.accessLogger.Printf("SKIP UPLOAD %s", item.hash)
 		return
 	}
 
@@ -71,44 +72,63 @@ func uploadFile(remote *http.Client, baseURL *url.URL, accessLogger cache.Logger
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.ContentLength = item.size
 
-	rsp, err = remote.Do(req)
+	rsp, err = r.remote.Do(req)
 	if err != nil {
 		return
 	}
 	io.Copy(ioutil.Discard, rsp.Body)
 	rsp.Body.Close()
 
-	logResponse(accessLogger, "UPLOAD", rsp.StatusCode, url)
+	logResponse(r.accessLogger, "UPLOAD", rsp.StatusCode, url)
 	return
 }
 
 // New creates a cache that proxies requests to a HTTP remote cache.
-func New(baseURL *url.URL, remote *http.Client, accessLogger cache.Logger,
-	errorLogger cache.Logger, numUploaders, maxQueuedUploads int) cache.Proxy {
+// `storageMode` must be one of "uncompressed" (which expects legacy
+// CAS blobs) or "zstd" (which expects cas.v2 blobs).
+func New(baseURL *url.URL, storageMode string, remote *http.Client,
+	accessLogger cache.Logger, errorLogger cache.Logger,
+	numUploaders, maxQueuedUploads int) (cache.Proxy, error) {
 
 	proxy := &remoteHTTPProxyCache{
 		remote:       remote,
-		baseURL:      baseURL,
+		baseURL:      strings.TrimRight(baseURL.String(), "/"),
 		accessLogger: accessLogger,
 		errorLogger:  errorLogger,
+	}
+
+	if storageMode == "zstd" {
+		proxy.requestURL = func(hash string, kind cache.EntryKind) string {
+			if kind == cache.CAS {
+				return fmt.Sprintf("%s/cas.v2/%s", proxy.baseURL, hash)
+			}
+
+			return fmt.Sprintf("%s/%s/%s", proxy.baseURL, kind, hash)
+		}
+	} else if storageMode == "uncompressed" {
+		proxy.requestURL = func(hash string, kind cache.EntryKind) string {
+			return fmt.Sprintf("%s/%s/%s", proxy.baseURL, kind, hash)
+		}
+	} else {
+		return nil, fmt.Errorf("Invalid http_proxy.mode specified: %q",
+			storageMode)
 	}
 
 	if maxQueuedUploads > 0 && numUploaders > 0 {
 		uploadQueue := make(chan uploadReq, maxQueuedUploads)
 
 		for i := 0; i < numUploaders; i++ {
-			go func(remote *http.Client, baseURL *url.URL, accessLogger cache.Logger,
-				errorLogger cache.Logger) {
+			go func() {
 				for item := range uploadQueue {
-					uploadFile(remote, baseURL, accessLogger, errorLogger, item)
+					proxy.uploadFile(item)
 				}
-			}(remote, baseURL, accessLogger, errorLogger)
+			}()
 		}
 
 		proxy.uploadQueue = uploadQueue
 	}
 
-	return proxy
+	return proxy, nil
 }
 
 // Helper function for logging responses
@@ -122,13 +142,15 @@ func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64
 		return
 	}
 
-	select {
-	case r.uploadQueue <- uploadReq{
+	item := uploadReq{
 		hash: hash,
 		size: size,
 		kind: kind,
 		rc:   rc,
-	}:
+	}
+
+	select {
+	case r.uploadQueue <- item:
 	default:
 		r.errorLogger.Printf("too many uploads queued")
 		rc.Close()
@@ -136,7 +158,7 @@ func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64
 }
 
 func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
-	url := requestURL(r.baseURL, hash, kind)
+	url := r.requestURL(hash, kind)
 	rsp, err := r.remote.Get(url)
 	if err != nil {
 		cacheMisses.Inc()
@@ -188,7 +210,7 @@ func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCl
 
 func (r *remoteHTTPProxyCache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
 
-	url := requestURL(r.baseURL, hash, kind)
+	url := r.requestURL(hash, kind)
 
 	rsp, err := r.remote.Head(url)
 	if err == nil && rsp.StatusCode == http.StatusOK {
@@ -203,12 +225,4 @@ func (r *remoteHTTPProxyCache) Contains(kind cache.EntryKind, hash string) (bool
 	}
 
 	return false, -1
-}
-
-func requestURL(baseURL *url.URL, hash string, kind cache.EntryKind) string {
-	if kind == cache.CAS {
-		// We need to distinguish these from uncompressed CAS blobs.
-		return fmt.Sprintf("%s/cas.v2/%s", baseURL, hash)
-	}
-	return fmt.Sprintf("%s/%s/%s", baseURL, kind, hash)
 }

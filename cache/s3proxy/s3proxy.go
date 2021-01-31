@@ -36,6 +36,8 @@ type s3Cache struct {
 	uploadQueue  chan<- uploadReq
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
+	v2mode       bool
+	objectKey    func(hash string, kind cache.EntryKind) string
 }
 
 var (
@@ -53,7 +55,7 @@ var (
 var errNotFound = errors.New("NOT FOUND")
 
 // New returns a new instance of the S3-API based cache
-func New(s3Config *config.S3CloudStorageConfig, accessLogger cache.Logger,
+func New(s3Config *config.S3CloudStorageConfig, storageMode string, accessLogger cache.Logger,
 	errorLogger cache.Logger, numUploaders, maxQueuedUploads int) cache.Proxy {
 
 	fmt.Println("Using S3 backend.")
@@ -95,6 +97,11 @@ func New(s3Config *config.S3CloudStorageConfig, accessLogger cache.Logger,
 		}
 	}
 
+	if storageMode != "zstd" && storageMode != "uncompressed" {
+		log.Fatalf("Unsupported storage mode for the s3proxy backend: %q, must be one of \"zstd\" or \"uncompressed\"",
+			storageMode)
+	}
+
 	c := &s3Cache{
 		mcore:        minioCore,
 		prefix:       s3Config.Prefix,
@@ -102,6 +109,17 @@ func New(s3Config *config.S3CloudStorageConfig, accessLogger cache.Logger,
 		keyVersion:   s3Config.KeyVersion,
 		accessLogger: accessLogger,
 		errorLogger:  errorLogger,
+		v2mode:       storageMode == "zstd",
+	}
+
+	if c.v2mode {
+		c.objectKey = func(hash string, kind cache.EntryKind) string {
+			return objectKeyV2(c.prefix, hash, kind)
+		}
+	} else {
+		c.objectKey = func(hash string, kind cache.EntryKind) string {
+			return objectKeyV1(c.prefix, hash, kind)
+		}
 	}
 
 	if maxQueuedUploads > 0 && numUploaders > 0 {
@@ -120,7 +138,7 @@ func New(s3Config *config.S3CloudStorageConfig, accessLogger cache.Logger,
 	return c
 }
 
-func (c *s3Cache) objectKey(hash string, kind cache.EntryKind) string {
+func objectKeyV2(prefix string, hash string, kind cache.EntryKind) string {
 	var baseKey string
 	if kind == cache.CAS {
 		// Use "cas.v2" to distinguish new from old format blobs.
@@ -129,11 +147,19 @@ func (c *s3Cache) objectKey(hash string, kind cache.EntryKind) string {
 		baseKey = path.Join(kind.String(), hash[:2], hash)
 	}
 
-	if c.prefix == "" {
+	if prefix == "" {
 		return baseKey
 	}
 
-	return path.Join(c.prefix, baseKey)
+	return path.Join(prefix, baseKey)
+}
+
+func objectKeyV1(prefix string, hash string, kind cache.EntryKind) string {
+	if prefix == "" {
+		return path.Join(kind.String(), hash[:2], hash)
+	}
+
+	return path.Join(prefix, kind.String(), hash[:2], hash)
 }
 
 // Helper function for logging responses

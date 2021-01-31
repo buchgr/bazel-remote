@@ -131,7 +131,7 @@ func New(dir string, maxSizeBytes int64, storageMode string, proxy cache.Proxy) 
 			kind = cache.RAW
 		}
 
-		f := filepath.Join(dir, c.FileLocation(kind, hash, value.size))
+		f := filepath.Join(dir, c.FileLocation(kind, value.legacy, hash, value.size))
 
 		err := os.Remove(f)
 		if err != nil {
@@ -153,12 +153,12 @@ func New(dir string, maxSizeBytes int64, storageMode string, proxy cache.Proxy) 
 	return c, nil
 }
 
-func (c *Cache) FileLocation(kind cache.EntryKind, hash string, size int64) string {
+func (c *Cache) FileLocation(kind cache.EntryKind, legacy bool, hash string, size int64) string {
 	if kind != cache.CAS {
 		return path.Join(kind.String(), hash[:2], hash)
 	}
 
-	if c.storageMode == casblob.Identity {
+	if legacy || c.storageMode == casblob.Identity {
 		return fmt.Sprintf("cas.v2/%s/%s.v1", hash[:2], hash)
 	}
 
@@ -512,8 +512,10 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 		unreserve = true
 	}
 
+	legacy := kind == cache.CAS && c.storageMode == casblob.Identity
+
 	// Final destination, if all goes well.
-	filePath := path.Join(c.dir, c.FileLocation(kind, hash, size))
+	filePath := path.Join(c.dir, c.FileLocation(kind, legacy, hash, size))
 
 	// We will download to this temporary file.
 	tf, err := tfc.Create(filePath)
@@ -538,7 +540,7 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 		}
 	}
 
-	unreserve, removeTempfile, err = c.commit(key, tf.Name(), filePath, size, size, sizeOnDisk)
+	unreserve, removeTempfile, err = c.commit(key, legacy, tf.Name(), filePath, size, size, sizeOnDisk)
 
 	// Might be nil.
 	return err
@@ -586,7 +588,7 @@ func (c *Cache) writeAndCloseFile(r io.Reader, kind cache.EntryKind, hash string
 }
 
 // This must be called when the lock is not held.
-func (c *Cache) commit(key string, tempfile string, finalPath string, reservedSize int64, logicalSize int64, sizeOnDisk int64) (unreserve bool, removeTempfile bool, err error) {
+func (c *Cache) commit(key string, legacy bool, tempfile string, finalPath string, reservedSize int64, logicalSize int64, sizeOnDisk int64) (unreserve bool, removeTempfile bool, err error) {
 	unreserve = reservedSize > 0
 	removeTempfile = true
 
@@ -602,7 +604,7 @@ func (c *Cache) commit(key string, tempfile string, finalPath string, reservedSi
 	}
 	unreserve = false
 
-	if !c.lru.Add(key, lruItem{size: logicalSize, sizeOnDisk: sizeOnDisk}) {
+	if !c.lru.Add(key, lruItem{size: logicalSize, sizeOnDisk: sizeOnDisk, legacy: legacy}) {
 		err = fmt.Errorf("INTERNAL ERROR: failed to add: %s, size %d (on disk: %d): %w",
 			key, logicalSize, sizeOnDisk, err)
 		log.Println(err.Error())
@@ -638,12 +640,7 @@ func (c *Cache) availableOrTryProxy(kind cache.EntryKind, hash string, size int6
 		c.mu.Unlock() // We expect a cache hit below.
 		locked = false
 
-		var blobPath string
-		if item.legacy {
-			blobPath = path.Join(c.dir, "cas.v2", hash[:2], hash+".v1")
-		} else {
-			blobPath = path.Join(c.dir, c.FileLocation(kind, hash, item.size))
-		}
+		blobPath := path.Join(c.dir, c.FileLocation(kind, item.legacy, hash, item.size))
 
 		if !isSizeMismatch(size, item.size) {
 			var f *os.File
@@ -653,16 +650,20 @@ func (c *Cache) availableOrTryProxy(kind cache.EntryKind, hash string, size int6
 				log.Printf("Warning: expected %s to exist on disk, undersized cache?", blobPath)
 			} else if kind == cache.CAS {
 				if item.legacy {
+					// The file is uncompressed, without a casblob header.
 					_, err = f.Seek(offset, io.SeekStart)
-					if !zstd && err == nil {
-						rc = f
-					} else if err == nil {
+					if zstd && err == nil {
 						rc, err = casblob.GetLegacyZstdReadCloser(f)
+					} else if err == nil {
+						rc = f
 					}
-				} else if zstd {
-					rc, err = casblob.GetZstdReadCloser(f, size, offset)
 				} else {
-					rc, err = casblob.GetUncompressedReadCloser(f, size, offset)
+					// The file is compressed.
+					if zstd {
+						rc, err = casblob.GetZstdReadCloser(f, size, offset)
+					} else {
+						rc, err = casblob.GetUncompressedReadCloser(f, size, offset)
+					}
 				}
 
 				if err != nil {
@@ -816,7 +817,9 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 		return nil, -1, nil
 	}
 
-	blobPath := path.Join(c.dir, c.FileLocation(kind, hash, foundSize))
+	legacy := kind == cache.CAS && c.storageMode == casblob.Identity
+
+	blobPath := path.Join(c.dir, c.FileLocation(kind, legacy, hash, foundSize))
 	tf, err = tfc.Create(blobPath)
 	if err != nil {
 		return nil, -1, err
@@ -834,7 +837,7 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 
 	logicalSize := foundSize
 
-	if kind == cache.CAS {
+	if kind == cache.CAS && c.storageMode != casblob.Identity {
 		logicalSize, err = casblob.GetLogicalSize(tfName)
 		if err != nil {
 			return nil, -1, err
@@ -848,24 +851,30 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 	if err != nil {
 		return nil, -1, err
 	}
-	if kind != cache.CAS {
+
+	uncompressedOnDisk := (kind != cache.CAS) || (c.storageMode == casblob.Identity)
+	if uncompressedOnDisk {
 		if offset > 0 {
 			rcf.Seek(offset, io.SeekStart)
 		}
-		rc = rcf
-	} else if zstd {
-		rc, err = casblob.GetZstdReadCloser(rcf, size, offset)
-		if err != nil {
-			return nil, -1, err
+
+		if zstd {
+			rc, err = casblob.GetLegacyZstdReadCloser(rcf)
+		} else {
+			rc = rcf
 		}
-	} else {
-		rc, err = casblob.GetUncompressedReadCloser(rcf, size, offset)
-		if err != nil {
-			return nil, -1, err
+	} else { // Compressed CAS blob.
+		if zstd {
+			rc, err = casblob.GetZstdReadCloser(rcf, logicalSize, offset)
+		} else {
+			rc, err = casblob.GetUncompressedReadCloser(rcf, logicalSize, offset)
 		}
 	}
+	if err != nil {
+		return nil, -1, err
+	}
 
-	unreserve, removeTempfile, err = c.commit(key, tfName, blobPath, size, logicalSize, sizeOnDisk)
+	unreserve, removeTempfile, err = c.commit(key, legacy, tfName, blobPath, size, logicalSize, sizeOnDisk)
 	if err != nil {
 		rc.Close()
 		rc = nil

@@ -1,42 +1,38 @@
 package s3proxy
 
 import (
-	"log"
 	"testing"
 
 	"github.com/buchgr/bazel-remote/cache"
 )
 
 func TestObjectKey(t *testing.T) {
-	logger := &log.Logger{}
-	s := &s3Cache{
-		mcore:        nil,
-		bucket:       "test",
-		keyVersion:   1,
-		uploadQueue:  make(chan uploadReq, 1),
-		accessLogger: logger,
-		errorLogger:  logger,
-	}
-
-	// New key format tests
-	s.keyVersion = 2
-
 	testCases := []struct {
-		prefix   string
-		key      string
-		kind     cache.EntryKind
-		expected string
+		prefix     string
+		key        string
+		kind       cache.EntryKind
+		expectedV1 string
+		expectedV2 string
 	}{
-		{"", "1234", cache.CAS, "cas.v2/12/1234"},
-		{"test", "1234", cache.CAS, "test/cas.v2/12/1234"},
+		{"", "1234", cache.CAS, "cas/12/1234", "cas.v2/12/1234"},
+		{"test", "1234", cache.CAS, "test/cas/12/1234", "test/cas.v2/12/1234"},
+		{"foo/bar/grok", "1234", cache.CAS, "foo/bar/grok/cas/12/1234", "foo/bar/grok/cas.v2/12/1234"},
+		{"", "1234", cache.AC, "ac/12/1234", "ac/12/1234"},
+		{"", "1234", cache.RAW, "raw/12/1234", "raw/12/1234"},
+		{"foo/bar", "1234", cache.AC, "foo/bar/ac/12/1234", "foo/bar/ac/12/1234"},
 	}
 
 	for _, tc := range testCases {
-		s.prefix = tc.prefix
-		result := s.objectKey(tc.key, tc.kind)
-		if result != tc.expected {
-			t.Errorf("objectKey did not match. (result: '%s' expected: '%s'",
-				result, tc.expected)
+		result := objectKeyV2(tc.prefix, tc.key, tc.kind)
+		if result != tc.expectedV2 {
+			t.Errorf("objectKeyV2 did not match. (result: '%s' expected: '%s'",
+				result, tc.expectedV2)
+		}
+
+		result = objectKeyV1(tc.prefix, tc.key, tc.kind)
+		if result != tc.expectedV1 {
+			t.Errorf("objectKeyV1 did not match. (result: '%s' expected: '%s'",
+				result, tc.expectedV1)
 		}
 	}
 }
