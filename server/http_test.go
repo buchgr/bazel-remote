@@ -12,7 +12,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 
@@ -31,14 +30,6 @@ func TestDownloadFile(t *testing.T) {
 	blobSize := int64(1024)
 
 	data, hash := testutils.RandomDataAndHash(blobSize)
-	err := os.MkdirAll(filepath.Join(cacheDir, "cas"), 0755)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = ioutil.WriteFile(filepath.Join(cacheDir, "cas", hash), data, 0644)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := blobSize * 2
@@ -49,13 +40,14 @@ func TestDownloadFile(t *testing.T) {
 	}
 	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, false, "")
 
-	req, err := http.NewRequest("GET", "/cas/"+hash, bytes.NewReader([]byte{}))
-	if err != nil {
-		t.Fatal(err)
-	}
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(h.CacheHandler)
-	handler.ServeHTTP(rr, req)
+
+	pr := httptest.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(data))
+	handler.ServeHTTP(rr, pr)
+
+	gr := httptest.NewRequest("GET", "/cas/"+hash, nil)
+	handler.ServeHTTP(rr, gr)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Fatal("Handler returned wrong status code for", hash,
@@ -80,11 +72,8 @@ func TestDownloadFile(t *testing.T) {
 		)
 	}
 
-	req, err = http.NewRequest("HEAD", "/cas/"+hash, bytes.NewReader([]byte{}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	handler.ServeHTTP(rr, req)
+	hr := httptest.NewRequest("HEAD", "/cas/"+hash, nil)
+	handler.ServeHTTP(rr, hr)
 	rsp = rr.Result()
 	if contentLen := rsp.ContentLength; contentLen != blobSize {
 		t.Error("HEAD request returned wrong content length",
@@ -103,10 +92,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 	var requests [NumUploads]*http.Request
 	for i := 0; i < NumUploads; i++ {
 		data, hash := testutils.RandomDataAndHash(blobSize)
-		r, err := http.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(data))
-		if err != nil {
-			t.Fatal(err)
-		}
+		r := httptest.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(data))
 		requests[i] = r
 	}
 
@@ -190,14 +176,9 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
+			request := httptest.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(data))
+
 			rr := httptest.NewRecorder()
-
-			request, err := http.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(data))
-			if err != nil {
-				t.Error(err)
-				return
-			}
-
 			handler.ServeHTTP(rr, request)
 
 			if status := rr.Code; status != http.StatusOK {
@@ -221,10 +202,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 	data, hash := testutils.RandomDataAndHash(1024)
 	corruptedData := data[:999]
 
-	r, err := http.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(corruptedData))
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := httptest.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(corruptedData))
 
 	c, err := disk.New(cacheDir, 2048, "zstd", nil)
 	if err != nil {
@@ -264,10 +242,7 @@ func TestUploadEmptyActionResult(t *testing.T) {
 
 	data, hash := testutils.RandomDataAndHash(0)
 
-	r, err := http.NewRequest("PUT", "/ac/"+hash, bytes.NewReader(data))
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := httptest.NewRequest("PUT", "/ac/"+hash, bytes.NewReader(data))
 
 	c, err := disk.New(cacheDir, 2048, "zstd", nil)
 	if err != nil {
@@ -286,8 +261,11 @@ func TestUploadEmptyActionResult(t *testing.T) {
 			"got", status)
 	}
 
-	cacheFile := filepath.Join(cacheDir, "ac", hash[:2], hash)
-	cachedData, err := ioutil.ReadFile(cacheFile)
+	getReq := httptest.NewRequest("GET", "/ac/"+hash, nil)
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, getReq)
+
+	cachedData, err := ioutil.ReadAll(rr2.Result().Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,10 +302,7 @@ func testEmptyBlobAvailable(t *testing.T, method string) {
 	defer os.RemoveAll(cacheDir)
 
 	data, hash := testutils.RandomDataAndHash(0)
-	r, err := http.NewRequest(method, "/cas/"+hash, bytes.NewReader(data))
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := httptest.NewRequest(method, "/cas/"+hash, bytes.NewReader(data))
 
 	c, err := disk.New(cacheDir, 2048, "zstd", nil)
 	if err != nil {
@@ -352,10 +327,7 @@ func TestStatusPage(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	r, err := http.NewRequest("GET", "/status", bytes.NewReader([]byte{}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := httptest.NewRequest("GET", "/status", nil)
 
 	c, err := disk.New(cacheDir, 2048, "zstd", nil)
 	if err != nil {
