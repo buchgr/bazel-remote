@@ -34,12 +34,12 @@ func (e EntryKind) String() string {
 
 func (e EntryKind) DirName() string {
 	if e == AC {
-		return "ac"
+		return "ac.v2"
 	}
 	if e == CAS {
 		return "cas.v2"
 	}
-	return "raw"
+	return "raw.v2"
 }
 
 // Logger is designed to be satisfied by log.Logger.
