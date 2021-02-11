@@ -33,25 +33,38 @@ func (c *Creator) ranqd1() string {
 }
 
 const flags = os.O_RDWR | os.O_CREATE | os.O_EXCL
-const mode = 0666 // Before the umask is applied.
 
-// Create attempts to create a temp file for eventualFile, and returns
-// the corresponding *os.File and an error if any occurred. The temp
-// file is created in the same directory as eventualFile, with permissions
-// 0666 before the umask is applied.
-func (c *Creator) Create(eventualFile string) (*os.File, error) {
+const EndMode = 0666
+const wipMode = EndMode | os.ModeSetgid
+
+// Create attempts to create a file whose name is of the form
+// <base>-<randomstring> and with a ".v1" suffix if `legacy` is
+// true. The file will be created with the setgid bit set, which
+// indicates that it is not complete. The *os.File is returned
+// along with the random string, and an error if something went
+// wrong.
+//
+// Once the file has been successfully written by the caller, it
+// should be chmod'ed to `EndMode` to mark it as complete.
+func (c *Creator) Create(base string, legacy bool) (*os.File, string, error) {
 	var err error
 	var f *os.File
-
-	base := eventualFile + ".tmp"
+	var name string
+	var random string
 
 	for i := 0; i < 10000; i++ {
-		name := base + c.ranqd1()
-		f, err = os.OpenFile(name, flags, mode)
+		random = c.ranqd1()
+		if legacy {
+			name = base + "-" + random + ".v1"
+		} else {
+			name = base + "-" + random
+		}
+
+		f, err = os.OpenFile(name, flags, wipMode)
 		if os.IsExist(err) {
 			continue
 		}
-		return f, err
+		return f, random, err
 	}
-	return nil, err
+	return nil, "", err
 }
