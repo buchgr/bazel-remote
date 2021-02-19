@@ -205,6 +205,7 @@ func GetUncompressedReadCloser(f *os.File, expectedSize int64, offset int64) (io
 	}
 
 	if expectedSize != -1 && h.uncompressedSize != expectedSize {
+		f.Close()
 		return nil, fmt.Errorf("expected a blob of size %d, found %d",
 			expectedSize, h.uncompressedSize)
 	}
@@ -312,6 +313,7 @@ func GetZstdReadCloser(f *os.File, expectedSize int64, offset int64) (io.ReadClo
 	}
 
 	if expectedSize != -1 && h.uncompressedSize != expectedSize {
+		f.Close()
 		return nil, fmt.Errorf("expected a blob of size %d, found %d",
 			expectedSize, h.uncompressedSize)
 	}
