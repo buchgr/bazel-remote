@@ -195,8 +195,10 @@ func GetLogicalSize(filename string) (int64, error) {
 	return hdr.uncompressedSize, nil
 }
 
-// Closes f if there is an error. Otherwise the caller must Close the returned
-// io.ReadCloser.
+// Returns an io.ReadCloser that provides uncompressed data. The caller
+// must close the returned io.ReadCloser if it is non-nil. Doing so
+// will automatically close f. If there is an error f will be closed, the caller
+// does not need to do so.
 func GetUncompressedReadCloser(f *os.File, expectedSize int64, offset int64) (io.ReadCloser, error) {
 	h, err := readHeader(f)
 	if err != nil {
@@ -302,8 +304,10 @@ func GetUncompressedReadCloser(f *os.File, expectedSize int64, offset int64) (io
 	}, nil
 }
 
-// Closes f if there is an error. Otherwise the caller must Close the returned
-// io.ReadCloser.
+// Returns an io.ReadCloser that provides zstandard compressed data. The
+// caller must close the returned io.ReadCloser if it is non-nil. Doing so
+// will automatically close f. If there is an error f will be closed, the caller
+// does not need to do so.
 func GetZstdReadCloser(f *os.File, expectedSize int64, offset int64) (io.ReadCloser, error) {
 
 	h, err := readHeader(f)
