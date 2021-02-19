@@ -145,6 +145,7 @@ func readHeader(f *os.File) (*header, error) {
 
 	if numOffsets < 2 {
 		// chunkOffsets has an extra entry to specify the compressed file size.
+		// Note that we never store empty files.
 		return nil, fmt.Errorf("internal error: need at least one chunk, found %d", numOffsets-1)
 	}
 
