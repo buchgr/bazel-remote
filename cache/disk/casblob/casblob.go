@@ -101,6 +101,11 @@ func readHeader(f *os.File) (*header, error) {
 		return nil, err
 	}
 	foundFileSize := fileInfo.Size()
+	if foundFileSize <= (chunkTableOffset + 16) {
+		// The file must have a header with at least two chunkOffsets.
+		return nil, fmt.Errorf("file too small (%d) than the minimum header size (%d)",
+			foundFileSize, (chunkTableOffset + 16))
+	}
 
 	var magicNumber uint32
 	err = binary.Read(f, binary.LittleEndian, &magicNumber)
