@@ -403,8 +403,10 @@ func GetLegacyZstdReadCloser(f *os.File) (io.ReadCloser, error) {
 		// TODO: consider implementing something with a timeout?
 		_, err := enc.ReadFrom(f)
 		if err != nil {
-			// We can't do anything here except log an error.
-			log.Println("Error while compressing file:", err)
+			log.Println("Error while reading/compressing file:", err)
+
+			// Reading from pr will now receive this error:
+			pw.CloseWithError(err)
 		}
 
 		encoderPool.Put(enc)
