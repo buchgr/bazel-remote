@@ -876,7 +876,7 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 		return nil, -1, nil
 	}
 
-	r, foundSize, err := c.proxy.Get(kind, hash)
+	r, foundLogicalSize, err := c.proxy.Get(kind, hash)
 	if r != nil {
 		defer r.Close()
 	}
@@ -884,7 +884,7 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 		return nil, -1, err
 	}
 
-	if kind != cache.CAS && isSizeMismatch(size, foundSize) {
+	if isSizeMismatch(size, foundLogicalSize) {
 		return nil, -1, nil
 	}
 
@@ -906,18 +906,6 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 		return nil, -1, err
 	}
 
-	logicalSize := foundSize
-
-	if kind == cache.CAS && c.storageMode != casblob.Identity {
-		logicalSize, err = casblob.GetLogicalSize(blobFile)
-		if err != nil {
-			return nil, -1, err
-		}
-		if isSizeMismatch(size, logicalSize) {
-			return nil, -1, nil
-		}
-	}
-
 	rcf, err := os.Open(blobFile)
 	if err != nil {
 		return nil, -1, err
@@ -936,23 +924,23 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 		}
 	} else { // Compressed CAS blob.
 		if zstd {
-			rc, err = casblob.GetZstdReadCloser(rcf, logicalSize, offset)
+			rc, err = casblob.GetZstdReadCloser(rcf, foundLogicalSize, offset)
 		} else {
-			rc, err = casblob.GetUncompressedReadCloser(rcf, logicalSize, offset)
+			rc, err = casblob.GetUncompressedReadCloser(rcf, foundLogicalSize, offset)
 		}
 	}
 	if err != nil {
 		return nil, -1, err
 	}
 
-	unreserve, removeTempfile, err = c.commit(key, legacy, blobFile, size, logicalSize, sizeOnDisk, random)
+	unreserve, removeTempfile, err = c.commit(key, legacy, blobFile, size, foundLogicalSize, sizeOnDisk, random)
 	if err != nil {
 		rc.Close()
 		rc = nil
 		foundSize = -1
 	}
 
-	return rc, logicalSize, err
+	return rc, foundLogicalSize, err
 }
 
 // Contains returns true if the `hash` key exists in the cache, and
