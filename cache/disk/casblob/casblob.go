@@ -155,14 +155,14 @@ func readHeader(f *os.File) (*header, error) {
 			frameSize, metadataSize)
 	}
 
-	prevOffset := int64(-1)
 	h.chunkOffsets = make([]int64, numOffsets, numOffsets)
-	for i := 0; int64(i) < numOffsets; i++ {
-		err = binary.Read(f, binary.LittleEndian, &h.chunkOffsets[i])
-		if err != nil {
-			return nil, err
-		}
+	err = binary.Read(f, binary.LittleEndian, h.chunkOffsets)
+	if err != nil {
+		return nil, err
+	}
 
+	prevOffset := int64(-1)
+	for i := 0; int64(i) < numOffsets; i++ {
 		if h.chunkOffsets[i] <= prevOffset {
 			return nil,
 				fmt.Errorf("offset table values should increase: %d -> %d",
@@ -449,20 +449,7 @@ func (h *header) write(f *os.File) error {
 		return err
 	}
 
-	return h.writeChunkTable(f)
-}
-
-func (h *header) writeChunkTable(f *os.File) error {
-	var err error
-
-	for _, o := range h.chunkOffsets {
-		err = binary.Write(f, binary.LittleEndian, o)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return binary.Write(f, binary.LittleEndian, h.chunkOffsets)
 }
 
 func (b *readCloserWrapper) Read(p []byte) (int, error) {
@@ -597,7 +584,7 @@ func WriteAndClose(r io.Reader, f *os.File, t CompressionType, hash string, size
 		return -1, err
 	}
 
-	err = h.writeChunkTable(f)
+	err = binary.Write(f, binary.LittleEndian, h.chunkOffsets)
 	if err != nil {
 		return -1, err
 	}
