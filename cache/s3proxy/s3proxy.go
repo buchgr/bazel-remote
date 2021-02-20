@@ -9,6 +9,7 @@ import (
 	"path"
 
 	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/cache/disk/casblob"
 	"github.com/buchgr/bazel-remote/config"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -209,7 +210,7 @@ func (c *s3Cache) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadC
 
 func (c *s3Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 
-	object, info, _, err := c.mcore.GetObject(
+	rc, info, _, err := c.mcore.GetObject(
 		context.Background(),
 		c.bucket,                 // bucketName
 		c.objectKey(hash, kind),  // objectName
@@ -229,7 +230,11 @@ func (c *s3Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, 
 
 	logResponse(c.accessLogger, "DOWNLOAD", c.bucket, c.objectKey(hash, kind), nil)
 
-	return object, info.Size, nil
+	if kind == cache.CAS && c.v2mode {
+		return casblob.ExtractLogicalSize(rc)
+	}
+
+	return rc, info.Size, nil
 }
 
 func (c *s3Cache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
@@ -246,7 +251,7 @@ func (c *s3Cache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
 	exists = (err == nil)
 	if err != nil {
 		err = errNotFound
-	} else if kind != cache.CAS {
+	} else if kind != cache.CAS || !c.v2mode {
 		size = s.Size
 	}
 

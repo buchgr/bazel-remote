@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/cache/disk/casblob"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -32,6 +33,7 @@ type remoteHTTPProxyCache struct {
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
 	requestURL   func(hash string, kind cache.EntryKind) string
+	v2mode       bool
 }
 
 var (
@@ -95,6 +97,7 @@ func New(baseURL *url.URL, storageMode string, remote *http.Client,
 		baseURL:      strings.TrimRight(baseURL.String(), "/"),
 		accessLogger: accessLogger,
 		errorLogger:  errorLogger,
+		v2mode:       storageMode == "zstd",
 	}
 
 	if storageMode == "zstd" {
@@ -189,6 +192,11 @@ func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCl
 		}
 	}
 
+	if kind == cache.CAS && r.v2mode {
+		cacheHits.Inc()
+		return casblob.ExtractLogicalSize(rsp.Body)
+	}
+
 	sizeBytesStr := rsp.Header.Get("Content-Length")
 	if sizeBytesStr == "" {
 		err = errors.New("Missing Content-Length header")
@@ -205,7 +213,7 @@ func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCl
 
 	cacheHits.Inc()
 
-	return rsp.Body, sizeBytes, err
+	return rsp.Body, sizeBytes, nil
 }
 
 func (r *remoteHTTPProxyCache) Contains(kind cache.EntryKind, hash string) (bool, int64) {

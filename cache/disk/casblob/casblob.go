@@ -180,19 +180,47 @@ func readHeader(f *os.File) (*header, error) {
 	return &h, nil
 }
 
-func GetLogicalSize(filename string) (int64, error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return -1, err
-	}
-	defer f.Close()
+// Extract the logical size of a v2 cas blob from rc, and return that
+// size along with an equivalent io.ReadCloser to rc.
+func ExtractLogicalSize(rc io.ReadCloser) (io.ReadCloser, int64, error) {
 
-	hdr, err := readHeader(f)
+	// Read the first part of the header: magic number (4 bytes),
+	// frame size (4 bytes), uncompressed size (8 bytes).
+	interesting := 16
+	earlyHeader := make([]byte, interesting, interesting)
+
+	n, err := io.ReadFull(rc, earlyHeader)
 	if err != nil {
-		return -1, fmt.Errorf("Failed to read %s: %w", filename, err)
+		return nil, -1, err
+	}
+	if n != 16 {
+		return nil, -1, fmt.Errorf("Tried to read 16 header bytes, only read %d", n)
 	}
 
-	return hdr.uncompressedSize, nil
+	var uncompressedSize int64
+	br := bytes.NewReader(earlyHeader[8:])
+	err = binary.Read(br, binary.LittleEndian, &uncompressedSize)
+	if err != nil {
+		return nil, -1, err
+	}
+	if uncompressedSize <= 0 {
+		return nil, -1, fmt.Errorf("Expected blob to have positive size, found %d",
+			uncompressedSize)
+	}
+
+	return &multiReadCloser{
+		Reader: io.MultiReader(bytes.NewReader(earlyHeader), rc),
+		rc:     rc,
+	}, uncompressedSize, nil
+}
+
+type multiReadCloser struct {
+	io.Reader // This will be a MultiReader.
+	rc        io.ReadCloser
+}
+
+func (m *multiReadCloser) Close() error {
+	return m.rc.Close()
 }
 
 // Returns an io.ReadCloser that provides uncompressed data. The caller
