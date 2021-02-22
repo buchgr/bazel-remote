@@ -9,6 +9,9 @@ SRC_ROOT=$(dirname "$0")/..
 SRC_ROOT=$(realpath "$SRC_ROOT")
 cd "$SRC_ROOT"
 
+min_acceptable_hit_rate=95
+overall_result=success
+
 echo -n "Building test binary (no cache): "
 ti=$(date +%s)
 bazel build //:bazel-remote 2> /dev/null
@@ -43,11 +46,18 @@ bazel clean 2> /dev/null
 echo -n "Build with hot cache (HTTP): "
 ti=$(date +%s)
 bazel build //:bazel-remote --remote_cache=http://127.0.0.1:8082 \
+	--execution_log_json_file=http_hot.json \
 	2> http_hot
 tf=$(date +%s)
 duration=$(expr $tf - $ti)
 echo "${duration}s"
 grep process http_hot
+hits=$(grep -c '"remoteCacheHit": true,' http_hot.json) # TODO: replace these with jq one day.
+misses=$(grep -c '"remoteCacheHit": false,' http_hot.json)
+hit_rate=$(echo -e "scale=2\n$hits * 100 / ($hits + $misses)" | bc)
+result=$(echo "${hit_rate}% >= $min_acceptable_hit_rate" | bc | sed -e s/1/success/ -e s/0/failure/)
+[ "$result" = "failure" ] && overall_result=failure
+echo "hit rate: $hit_rate (hits: $hits misses: $misses) => $result"
 
 echo "Restarting test cache"
 kill -9 $test_cache_pid
@@ -73,10 +83,18 @@ bazel clean 2> /dev/null
 echo -n "Build with hot cache (gRPC): "
 ti=$(date +%s)
 bazel build //:bazel-remote --remote_cache=grpc://127.0.0.1:9092 \
+	--execution_log_json_file=grpc_hot.json \
 	2> grpc_hot
 tf=$(date +%s)
 duration=$(expr $tf - $ti)
 echo "${duration}s"
 grep process grpc_hot
+hits=$(grep -c '"remoteCacheHit": true,' grpc_hot.json) # TODO: replace these with jq one day.
+misses=$(grep -c '"remoteCacheHit": false,' grpc_hot.json)
+hit_rate=$(echo -e "scale=2\n$hits * 100 / ($hits + $misses)" | bc)
+result=$(echo "${hit_rate}% >= $min_acceptable_hit_rate" | bc | sed -e s/1/success/ -e s/0/failure/)
+[ "$result" = "failure" ] && overall_result=failure
+echo "hit rate: $hit_rate (hits: $hits misses: $misses) => $result"
 
-echo "Done"
+echo "Done ($overall_result)"
+[ "$overall_result" != "success" ] && exit 1
