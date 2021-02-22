@@ -28,7 +28,10 @@ then
 fi
 
 rm -rf miniocachedir
-killall -HUP minio && sleep 2 || true
+for p in $(pidof minio)
+do
+	kill -HUP $p && sleep 2 || true
+done
 ./minio server miniocachedir &
 minio_pid=$!
 sleep 2
