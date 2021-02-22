@@ -96,5 +96,7 @@ result=$(echo "${hit_rate}% >= $min_acceptable_hit_rate" | bc | sed -e s/1/succe
 [ "$result" = "failure" ] && overall_result=failure
 echo "hit rate: $hit_rate (hits: $hits misses: $misses) => $result"
 
+kill -9 $test_cache_pid
+
 echo "Done ($overall_result)"
 [ "$overall_result" != "success" ] && exit 1
