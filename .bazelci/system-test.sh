@@ -94,8 +94,8 @@ echo "${duration}s"
 grep process http_hot
 hits=$(grep -c '"remoteCacheHit": true,' http_hot.json || true) # TODO: replace these with jq one day.
 misses=$(grep -c '"remoteCacheHit": false,' http_hot.json || true)
-hit_rate=$(echo -e "scale=2\n$hits * 100 / ($hits + $misses)" | bc)
-result=$(echo "$hit_rate >= $min_acceptable_hit_rate" | bc | sed -e s/1/success/ -e s/0/failure/)
+hit_rate=$(awk -vhits=$hits -vmisses=$misses 'BEGIN { printf "%0.2f", hits*100/(hits+misses) }' </dev/null)
+result=$(awk -vhit_rate=$hit_rate -vmin=$min_acceptable_hit_rate 'BEGIN {if (hit_rate >= min) print "success" ; else print "failure";}' < /dev/null)
 [ "$result" = "failure" ] && overall_result=failure
 echo "hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
 summary+="\n$testsection: hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
@@ -129,8 +129,8 @@ echo "${duration}s"
 grep process http_hot
 hits=$(grep -c '"remoteCacheHit": true,' http_hot_minio.json || true) # TODO: replace these with jq one day.
 misses=$(grep -c '"remoteCacheHit": false,' http_hot_minio.json || true)
-hit_rate=$(echo -e "scale=2\n$hits * 100 / ($hits + $misses)" | bc)
-result=$(echo "$hit_rate >= $min_acceptable_hit_rate" | bc | sed -e s/1/success/ -e s/0/failure/)
+hit_rate=$(awk -vhits=$hits -vmisses=$misses 'BEGIN { printf "%0.2f", hits*100/(hits+misses) }' </dev/null)
+result=$(awk -vhit_rate=$hit_rate -vmin=$min_acceptable_hit_rate 'BEGIN {if (hit_rate >= min) print "success" ; else print "failure";}' < /dev/null)
 [ "$result" = "failure" ] && overall_result=failure
 echo "hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
 summary+="\n$testsection: hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
@@ -172,8 +172,8 @@ echo "${duration}s"
 grep process grpc_hot
 hits=$(grep -c '"remoteCacheHit": true,' grpc_hot.json || true) # TODO: replace these with jq one day.
 misses=$(grep -c '"remoteCacheHit": false,' grpc_hot.json || true)
-hit_rate=$(echo -e "scale=2\n$hits * 100 / ($hits + $misses)" | bc)
-result=$(echo "$hit_rate >= $min_acceptable_hit_rate" | bc | sed -e s/1/success/ -e s/0/failure/)
+hit_rate=$(awk -vhits=$hits -vmisses=$misses 'BEGIN { printf "%0.2f", hits*100/(hits+misses) }' </dev/null)
+result=$(awk -vhit_rate=$hit_rate -vmin=$min_acceptable_hit_rate 'BEGIN {if (hit_rate >= min) print "success" ; else print "failure";}' < /dev/null)
 [ "$result" = "failure" ] && overall_result=failure
 echo "hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
 summary+="\n$testsection: hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
@@ -185,4 +185,7 @@ echo -e "$summary\n"
 echo "Done ($overall_result)"
 echo "##########"
 
-[ "$overall_result" != "success" ] && exit 1
+if [ "$overall_result" != "success" ]
+then
+	exit 1
+fi
