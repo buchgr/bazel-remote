@@ -400,8 +400,10 @@ func migrateCASFile(src string, dest string, hash string) error {
 func (c *Cache) loadExistingFiles() error {
 	log.Printf("Loading existing files in %s.\n", c.dir)
 
-	// <hash>-<ignored size>-<random digits>[".v1"]
-	re := regexp.MustCompile("^([a-f0-9]{64})(?:-([1-9][0-9]*))?-([0-9]+)(\\.v1)?$")
+	// compressed CAS items: <hash>-<logical size>-<random digits/ascii letters>
+	// uncompressed CAS items: <hash>-<logical size>-<random digits/ascii letters>.v1
+	// AC and RAW items: <hash>-<random digits/ascii letters>
+	re := regexp.MustCompile("^([a-f0-9]{64})(?:-([1-9][0-9]*))?-([0-9a-zA-Z]+)(\\.v1)?$")
 
 	// Walk the directory tree
 	var files []nameAndInfo
