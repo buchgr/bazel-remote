@@ -19,7 +19,7 @@ func checkSizeAndNumItems(t *testing.T, lru SizedLRU, expSize int64, expNum int)
 }
 
 func TestBasics(t *testing.T) {
-	maxSize := int64(10)
+	maxSize := int64(BlockSize)
 	lru := NewSizedLRU(maxSize, nil)
 
 	// Empty cache
@@ -50,7 +50,7 @@ func TestBasics(t *testing.T) {
 		t.Fatalf("Get: got a different item back")
 	}
 
-	checkSizeAndNumItems(t, lru, 5, 1)
+	checkSizeAndNumItems(t, lru, BlockSize, 1)
 
 	// Remove the item
 	lru.Remove(aKey)
@@ -64,10 +64,10 @@ func TestEviction(t *testing.T) {
 		evictions = append(evictions, key.(int))
 	}
 
-	lru := NewSizedLRU(10, onEvict)
+	lru := NewSizedLRU(10*BlockSize, onEvict)
 
 	expectedSizesNumItems := []struct {
-		expSize     int64
+		expBlocks   int64
 		expNumItems int
 		expEvicted  []int
 	}{
@@ -79,19 +79,18 @@ func TestEviction(t *testing.T) {
 		{9, 2, []int{0, 1, 2, 3}}, // 4, 5
 		{6, 1, []int{4, 5}},       // 6
 		{7, 1, []int{6}},          // 7
-
 	}
 
 	var expectedEvictions []int
 
 	for i, thisExpected := range expectedSizesNumItems {
-		item := lruItem{size: int64(i), sizeOnDisk: int64(i)}
+		item := lruItem{size: int64(i) * BlockSize, sizeOnDisk: int64(i) * BlockSize}
 		ok := lru.Add(i, item)
 		if !ok {
 			t.Fatalf("Add: failed adding %d", i)
 		}
 
-		checkSizeAndNumItems(t, lru, thisExpected.expSize, thisExpected.expNumItems)
+		checkSizeAndNumItems(t, lru, thisExpected.expBlocks*BlockSize, thisExpected.expNumItems)
 
 		expectedEvictions = append(expectedEvictions, thisExpected.expEvicted...)
 		if !reflect.DeepEqual(expectedEvictions, evictions) {
@@ -246,7 +245,7 @@ func TestUnreserve(t *testing.T) {
 }
 
 func TestAddWithSpaceReserved(t *testing.T) {
-	lru := NewSizedLRU(2, nil)
+	lru := NewSizedLRU(roundUp4k(2), nil)
 
 	ok, err := lru.Reserve(1)
 	if err != nil {

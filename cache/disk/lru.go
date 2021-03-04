@@ -55,7 +55,7 @@ type SizedLRU struct {
 	// Map to access the items in O(1) time
 	cache map[interface{}]*list.Element
 
-	// Total cache size including reserved bytes.
+	// Total cache size including reserved bytes and estimated filesystem overhead.
 	currentSize int64
 
 	// Total size of all blobs in uncompressed form.
@@ -77,6 +77,10 @@ type entry struct {
 	value lruItem
 }
 
+// Actual disk usage will be estimated by rounding file sizes up to the
+// nearest multiple of this number.
+const BlockSize = 4096
+
 // NewSizedLRU returns a new SizedLRU cache
 func NewSizedLRU(maxSize int64, onEvict EvictCallback) SizedLRU {
 	return SizedLRU{
@@ -87,21 +91,29 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback) SizedLRU {
 	}
 }
 
-// Add adds a (key, value) to the cache, evicting items as necessary. Add returns false (
-// and does not add the item) if the item size is larger than the maximum size of the cache,
-// or it cannot be added to the cache because too much space is reserved.
+// Add adds a (key, value) to the cache, evicting items as necessary.
+// Add returns false and does not add the item if the item size is
+// larger than the maximum size of the cache, or if the item cannot
+// be added to the cache because too much space is reserved.
+//
+// Note that this function rounds file sizes up to the nearest
+// BlockSize (4096) bytes, as an estimate of actual disk usage since
+// most linux filesystems default to 4kb blocks.
 func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
-	if value.sizeOnDisk > c.maxSize {
+
+	roundedUpSizeOnDisk := roundUp4k(value.sizeOnDisk)
+
+	if roundedUpSizeOnDisk > c.maxSize {
 		return false
 	}
 
 	var sizeDelta, uncompressedSizeDelta int64
 	if ee, ok := c.cache[key]; ok {
-		sizeDelta = value.sizeOnDisk - ee.Value.(*entry).value.sizeOnDisk
+		sizeDelta = roundedUpSizeOnDisk - roundUp4k(ee.Value.(*entry).value.sizeOnDisk)
 		if c.reservedSize+sizeDelta > c.maxSize {
 			return false
 		}
-		uncompressedSizeDelta = value.size - ee.Value.(*entry).value.size
+		uncompressedSizeDelta = roundUp4k(value.size) - roundUp4k(ee.Value.(*entry).value.size)
 		c.ll.MoveToFront(ee)
 		counterOverwrittenBytes.Add(float64(ee.Value.(*entry).value.sizeOnDisk))
 
@@ -112,11 +124,11 @@ func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
 
 		ee.Value.(*entry).value = value
 	} else {
-		sizeDelta = value.sizeOnDisk
+		sizeDelta = roundedUpSizeOnDisk
 		if c.reservedSize+sizeDelta > c.maxSize {
 			return false
 		}
-		uncompressedSizeDelta = value.size
+		uncompressedSizeDelta = roundUp4k(value.size)
 		ele := c.ll.PushFront(&entry{key, value})
 		c.cache[key] = ele
 	}
@@ -253,11 +265,16 @@ func (c *SizedLRU) removeElement(e *list.Element) {
 	c.ll.Remove(e)
 	kv := e.Value.(*entry)
 	delete(c.cache, kv.key)
-	c.currentSize -= kv.value.sizeOnDisk
-	c.uncompressedSize -= kv.value.size
+	c.currentSize -= roundUp4k(kv.value.sizeOnDisk)
+	c.uncompressedSize -= roundUp4k(kv.value.size)
 	counterEvictedBytes.Add(float64(kv.value.sizeOnDisk))
 
 	if c.onEvict != nil {
 		c.onEvict(kv.key, kv.value)
 	}
+}
+
+// Round n up to the nearest multiple of BlockSize (4096).
+func roundUp4k(n int64) int64 {
+	return (n + BlockSize - 1) & -BlockSize
 }
