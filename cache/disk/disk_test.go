@@ -46,7 +46,7 @@ func TestCacheBasics(t *testing.T) {
 	itemSize := int64(256)
 
 	// Add some overhead for likely CAS blob storage expansion.
-	cacheSize := int64(itemSize * 2)
+	cacheSize := int64(itemSize*2 + BlockSize)
 
 	testCache, err := New(cacheDir, cacheSize, "zstd", nil)
 	if err != nil {
@@ -91,7 +91,7 @@ func TestCacheBasics(t *testing.T) {
 func TestCachePutWrongSize(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache, err := New(cacheDir, 100, "zstd", nil)
+	testCache, err := New(cacheDir, BlockSize, "zstd", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestCacheGetContainsWrongSize(t *testing.T) {
 
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache, err := New(cacheDir, 100, "zstd", nil)
+	testCache, err := New(cacheDir, BlockSize, "zstd", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
 
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache, err := New(cacheDir, 100, "zstd", new(proxyStub))
+	testCache, err := New(cacheDir, BlockSize, "zstd", new(proxyStub))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +296,7 @@ func TestOverwrite(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	testCache, err := New(cacheDir, 100, "zstd", nil)
+	testCache, err := New(cacheDir, BlockSize, "zstd", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,7 +391,7 @@ func TestCacheExistingFiles(t *testing.T) {
 	}
 
 	// Add some overhead for likely CAS blob storage expansion.
-	const cacheSize = 1024
+	const cacheSize = BlockSize * 5
 
 	testCache, err := New(cacheDir, cacheSize, "zstd", nil)
 	if err != nil {
@@ -448,7 +448,7 @@ func TestCacheExistingFiles(t *testing.T) {
 func TestCacheBlobTooLarge(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache, err := New(cacheDir, 100, "zstd", nil)
+	testCache, err := New(cacheDir, BlockSize, "zstd", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -474,7 +474,7 @@ func TestCacheBlobTooLarge(t *testing.T) {
 func TestCacheCorruptedCASBlob(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache, err := New(cacheDir, 1000, "zstd", nil)
+	testCache, err := New(cacheDir, BlockSize, "zstd", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -556,7 +556,7 @@ func TestMigrateFromOldDirectoryStructure(t *testing.T) {
 	}
 
 	// Add some overhead for likely CAS blob storage expansion.
-	const cacheSize = 2560 * 2
+	const cacheSize = 2560*2 + BlockSize*2
 
 	testCache, err := New(cacheDir, cacheSize, "zstd", nil)
 	if err != nil {
@@ -626,7 +626,7 @@ func TestLoadExistingEntries(t *testing.T) {
 	}
 
 	// Add some overhead for likely CAS blob storage expansion.
-	cacheSize := int64(blobSize * numBlobs * 2)
+	cacheSize := int64((blobSize + BlockSize) * numBlobs * 2)
 
 	testCache, err := New(cacheDir, cacheSize, "zstd", nil)
 	if err != nil {
@@ -664,7 +664,7 @@ func TestDistinctKeyspaces(t *testing.T) {
 	blobSize := 1024
 
 	// Add some overhead for likely CAS blob storage expansion.
-	cacheSize := int64(blobSize*3) * 2
+	cacheSize := int64((blobSize+BlockSize)*3) * 2
 
 	testCache, err := New(cacheDir, cacheSize, "zstd", nil)
 	if err != nil {

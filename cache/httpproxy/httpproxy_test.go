@@ -113,7 +113,7 @@ func TestEverything(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	diskCacheSize := int64(len(casData) + 2048)
+	diskCacheSize := int64(len(casData) + disk.BlockSize)
 	diskCache, err := disk.New(cacheDir, diskCacheSize, "zstd", proxyCache)
 	if err != nil {
 		t.Fatal(err)

@@ -32,7 +32,7 @@ func TestDownloadFile(t *testing.T) {
 	data, hash := testutils.RandomDataAndHash(blobSize)
 
 	// Add some overhead for likely CAS blob storage expansion.
-	cacheSize := blobSize * 2
+	cacheSize := blobSize*2 + disk.BlockSize
 
 	c, err := disk.New(cacheDir, cacheSize, "zstd", nil)
 	if err != nil {
@@ -244,7 +244,7 @@ func TestUploadEmptyActionResult(t *testing.T) {
 
 	r := httptest.NewRequest("PUT", "/ac/"+hash, bytes.NewReader(data))
 
-	c, err := disk.New(cacheDir, 2048, "zstd", nil)
+	c, err := disk.New(cacheDir, disk.BlockSize, "zstd", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
