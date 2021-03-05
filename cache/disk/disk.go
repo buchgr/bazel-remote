@@ -669,8 +669,8 @@ func (c *Cache) commit(key string, legacy bool, tempfile string, reservedSize in
 	}
 
 	if !c.lru.Add(key, newItem) {
-		err = fmt.Errorf("INTERNAL ERROR: failed to add: %s, size %d (on disk: %d): %w",
-			key, logicalSize, sizeOnDisk, err)
+		err = fmt.Errorf("INTERNAL ERROR: failed to add: %s, size %d (on disk: %d)",
+			key, logicalSize, sizeOnDisk)
 		log.Println(err.Error())
 		return unreserve, removeTempfile, err
 	}
