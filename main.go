@@ -518,9 +518,9 @@ func main() {
 					grpc_prometheus.EnableHandlingTimeHistogram(grpc_prometheus.WithHistogramBuckets(c.MetricsDurationBuckets))
 
 					metricsSrv = &server.MetricsServiceServer{
-						Port: strconv.Itoa(c.Port),
+						Port:         strconv.Itoa(c.Port),
 						AccessLogger: accessLogger,
-						ErrorLogger: errorLogger,
+						ErrorLogger:  errorLogger,
 					}
 				}
 
