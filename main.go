@@ -556,6 +556,7 @@ func main() {
 					validateAC,
 					c.EnableACKeyInstanceMangling,
 					enableRemoteAssetAPI,
+					c.EnableEndpointMetrics,
 					diskCache, accessLogger, errorLogger)
 				if err3 != nil {
 					log.Fatal(err3)

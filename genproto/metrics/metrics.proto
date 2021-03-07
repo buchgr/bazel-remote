@@ -1,0 +1,14 @@
+syntax="proto3";
+
+package metrics;
+
+message Empty {
+}
+
+message MetricsResponse {
+    string data = 1;
+}
+
+service MetricsService {
+    rpc GetMetrics(Empty) returns (MetricsResponse) {}
+}

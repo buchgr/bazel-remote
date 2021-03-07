@@ -15,6 +15,7 @@ import (
 	asset "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/asset/v1"
 	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
 	"github.com/buchgr/bazel-remote/genproto/build/bazel/semver"
+	metrics "github.com/buchgr/bazel-remote/genproto/metrics"
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
@@ -48,6 +49,7 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 	validateACDeps bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
+	enableMetrics bool,
 	c *disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	listener, err := net.Listen("tcp", addr)
@@ -55,19 +57,10 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 		return err
 	}
 
-	return serveGRPC(listener, opts, validateACDeps, mangleACKeys, enableRemoteAssetAPI, c, a, e)
-}
-
-func serveGRPC(l net.Listener, opts []grpc.ServerOption,
-	validateACDepsCheck bool,
-	mangleACKeys bool,
-	enableRemoteAssetAPI bool,
-	c *disk.Cache, a cache.Logger, e cache.Logger) error {
-
 	srv := grpc.NewServer(opts...)
 	s := &grpcServer{
 		cache: c, accessLogger: a, errorLogger: e,
-		depsCheck:    validateACDepsCheck,
+		depsCheck:    validateACDeps,
 		mangleACKeys: mangleACKeys,
 	}
 	pb.RegisterActionCacheServer(srv, s)
@@ -77,7 +70,13 @@ func serveGRPC(l net.Listener, opts []grpc.ServerOption,
 	if enableRemoteAssetAPI {
 		asset.RegisterFetchServer(srv, s)
 	}
-	return srv.Serve(l)
+	if enableMetrics {
+		metricsSrv := &MetricsServiceServer{
+			addr: addr,
+		}
+		metrics.RegisterMetricsServiceServer(srv, metricsSrv)
+	}
+	return srv.Serve(listener)
 }
 
 // Capabilities interface:
