@@ -510,11 +510,18 @@ func main() {
 				opts := []grpc.ServerOption{}
 				streamInterceptors := []grpc.StreamServerInterceptor{}
 				unaryInterceptors := []grpc.UnaryServerInterceptor{}
+				var metricsSrv *server.MetricsServiceServer
 
 				if c.EnableEndpointMetrics {
 					streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)
 					unaryInterceptors = append(unaryInterceptors, grpc_prometheus.UnaryServerInterceptor)
 					grpc_prometheus.EnableHandlingTimeHistogram(grpc_prometheus.WithHistogramBuckets(c.MetricsDurationBuckets))
+
+					metricsSrv = &server.MetricsServiceServer{
+						Port: strconv.Itoa(c.Port),
+						AccessLogger: accessLogger,
+						ErrorLogger: errorLogger,
+					}
 				}
 
 				if tlsConfig != nil {
@@ -556,7 +563,7 @@ func main() {
 					validateAC,
 					c.EnableACKeyInstanceMangling,
 					enableRemoteAssetAPI,
-					c.EnableEndpointMetrics,
+					metricsSrv,
 					diskCache, accessLogger, errorLogger)
 				if err3 != nil {
 					log.Fatal(err3)

@@ -49,7 +49,7 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 	validateACDeps bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
-	enableMetrics bool,
+	metricsSrv *MetricsServiceServer,
 	c *disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	listener, err := net.Listen("tcp", addr)
@@ -70,10 +70,7 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 	if enableRemoteAssetAPI {
 		asset.RegisterFetchServer(srv, s)
 	}
-	if enableMetrics {
-		metricsSrv := &MetricsServiceServer{
-			addr: addr,
-		}
+	if metricsSrv != nil {
 		metrics.RegisterMetricsServiceServer(srv, metricsSrv)
 	}
 	return srv.Serve(listener)
