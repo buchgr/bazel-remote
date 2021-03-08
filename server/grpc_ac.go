@@ -162,6 +162,7 @@ func (s *grpcServer) maybeInline(inline bool, slice *[]byte, digest **pb.Digest,
 			if err != nil {
 				return err
 			}
+			s.accessLogger.Printf("GRPC CAS PUT %s OK", (*digest).Hash)
 		}
 
 		*slice = []byte{}
@@ -244,6 +245,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 					req.ActionDigest.Hash, err)
 				return nil, status.Error(codes.Internal, err.Error())
 			}
+			s.accessLogger.Printf("GRPC CAS PUT %s OK", f.Digest.Hash)
 		}
 	}
 
@@ -266,6 +268,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 				req.ActionDigest.Hash, err)
 			return nil, status.Error(codes.Internal, err.Error())
 		}
+		s.accessLogger.Printf("GRPC CAS PUT %s OK", hash)
 	}
 
 	if len(req.ActionResult.StderrRaw) > 0 {
@@ -287,6 +290,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 				req.ActionDigest.Hash, err)
 			return nil, status.Error(codes.Internal, err.Error())
 		}
+		s.accessLogger.Printf("GRPC CAS PUT %s OK", hash)
 	}
 
 	s.accessLogger.Printf("GRPC AC PUT %s OK", req.ActionDigest.Hash)
