@@ -362,7 +362,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 		for {
 			req, err := srv.Recv()
 			if err == io.EOF {
-				if resp.CommittedSize != size {
+				if cmp == casblob.Identity && resp.CommittedSize != size {
 					msg := fmt.Sprintf("Unexpected amount of data read: %d expected: %d",
 						resp.CommittedSize, size)
 					recvResult <- status.Error(codes.Unknown, msg)
