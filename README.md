@@ -104,7 +104,7 @@ To use this with Bazel, specify
 ### Byte Stream compressed-blobs
 
 This version of bazel-remote supports the
-[Byte Stream compressed-blobs proposal](https://github.com/bazelbuild/remote-apis/pull/168),
+[Byte Stream compressed-blobs REAPI feature](https://github.com/bazelbuild/remote-apis/pull/168),
 which provides a way for clients to upload and download CAS blobs compressed
 with zstandard, in order to improve network efficiency.
 
