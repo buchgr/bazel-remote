@@ -827,6 +827,42 @@ func TestGrpcByteStream(t *testing.T) {
 	}
 }
 
+func TestGrpcByteStreamEmptyLastWrite(t *testing.T) {
+	instance := "ignoredByteStreamInstance"
+	testBlob, testBlobHash := testutils.RandomDataAndHash(7)
+	req1 := bytestream.WriteRequest{
+		ResourceName: fmt.Sprintf(
+			"%s/uploads/%s/blobs/%s/%d",
+			instance, uuid.New().String(), testBlobHash, len(testBlob)),
+		Data: testBlob,
+	}
+	req2 := bytestream.WriteRequest{
+		FinishWrite: true,
+	}
+	bswc, err := bsClient.Write(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = bswc.Send(&req1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = bswc.Send(&req2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := bswc.CloseAndRecv()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if int(resp.CommittedSize) != len(testBlob) {
+		t.Fatal("invalid size")
+	}
+}
+
 func TestGrpcByteStreamZstdWrite(t *testing.T) {
 	// Must be large enough to test multiple iterations of the
 	// bytestream Read Recv loop.
@@ -1298,7 +1334,7 @@ func TestGrpcCasTreeRequest(t *testing.T) {
 	}
 }
 
-func TestBadUpdateActionRresultRequest(t *testing.T) {
+func TestBadUpdateActionResultRequest(t *testing.T) {
 	digest := pb.Digest{
 		Hash:      "0123456789012345678901234567890123456789012345678901234567890123",
 		SizeBytes: 1,

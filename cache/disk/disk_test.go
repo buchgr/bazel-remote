@@ -99,18 +99,25 @@ func TestCachePutWrongSize(t *testing.T) {
 	content := "hello"
 	hash := hashStr(content)
 
-	err = testCache.Put(cache.AC, hash, int64(len(content)), strings.NewReader(content))
-	if err != nil {
-		t.Fatal("Expected success", err)
-	}
+	for _, kind := range []cache.EntryKind{cache.AC, cache.CAS, cache.RAW} {
+		err = testCache.Put(kind, hash, int64(len(content)), strings.NewReader(content))
+		if err != nil {
+			t.Fatal("Expected success", err)
+		}
 
-	err = testCache.Put(cache.AC, hash, int64(len(content))+1, strings.NewReader(content))
-	if err == nil {
-		t.Error("Expected error due to size being different")
-	}
-	err = testCache.Put(cache.AC, hash, int64(len(content))-1, strings.NewReader(content))
-	if err == nil {
-		t.Error("Expected error due to size being different")
+		err = testCache.Put(kind, hash, int64(len(content))+1, strings.NewReader(content))
+		if err == nil {
+			t.Error("Expected error due to size being different")
+		}
+
+		err = testCache.Put(kind, hash, int64(len(content))-1, strings.NewReader(content))
+		if err == nil {
+			t.Error("Expected error due to size being different")
+		}
+		err = testCache.Put(kind, hashStr(content[:len(content)-1]), int64(len(content))-1, strings.NewReader(content))
+		if err == nil {
+			t.Error("Expected error due to size being different")
+		}
 	}
 }
 

@@ -600,6 +600,14 @@ func WriteAndClose(r io.Reader, f *os.File, t CompressionType, hash string, size
 	}
 	h.chunkOffsets[nextChunk] = fileOffset
 
+	// Confirm that there is no data left to be read.
+	bytesAfter, err := io.ReadFull(r, uncompressedChunk)
+	if err == nil {
+		return -1, fmt.Errorf("expected %d bytes but got at least %d more", size, bytesAfter)
+	} else if err != io.EOF {
+		return -1, err
+	}
+
 	actualHash := hex.EncodeToString(hasher.Sum(nil))
 	if actualHash != hash {
 		return -1, fmt.Errorf("checksums don't match. Expected %s, found %s",
