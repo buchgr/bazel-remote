@@ -600,7 +600,7 @@ func WriteAndClose(r io.Reader, f *os.File, t CompressionType, hash string, size
 	}
 	h.chunkOffsets[nextChunk] = fileOffset
 
-	// Wait for EOF from the reader.
+	// Confirm that there is no data left to be read.
 	bytesAfter, err := io.ReadFull(r, uncompressedChunk)
 	if err == nil {
 		return -1, fmt.Errorf("expected %d bytes but got at least %d more", size, bytesAfter)
