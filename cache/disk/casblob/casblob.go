@@ -603,7 +603,7 @@ func WriteAndClose(r io.Reader, f *os.File, t CompressionType, hash string, size
 	// Wait for EOF from the reader.
 	bytesAfter, err := io.ReadFull(r, uncompressedChunk)
 	if err == nil {
-		return -1, fmt.Errorf("expected %s bytes but got at least %d more", size, bytesAfter)
+		return -1, fmt.Errorf("expected %d bytes but got at least %d more", size, bytesAfter)
 	} else if err != io.EOF {
 		return -1, err
 	}
