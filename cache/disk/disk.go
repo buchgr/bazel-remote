@@ -357,43 +357,6 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 	return nil
 }
 
-/* TODO: remove this dead code?
-func migrateCASFile(src string, dest string, hash string) error {
-
-	srcFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer srcFile.Close()
-
-	fi, err := srcFile.Stat()
-	if err != nil {
-		return err
-	}
-
-	origSize := fi.Size()
-	accessTime := atime.Get(fi)
-
-	destFile, err := os.Create(dest)
-	if err != nil {
-		return err
-	}
-	_, err = casblob.WriteAndClose(srcFile, destFile,
-		casblob.Zstandard, hash, origSize)
-	if err != nil {
-		return err
-	}
-	os.Chtimes(dest, accessTime, fi.ModTime()) // Best effort, ignore errors.
-
-	err = os.Remove(src)
-	if err != nil {
-		return fmt.Errorf("Failed to remove %s: %w", src, err)
-	}
-
-	return err
-}
-*/
-
 // loadExistingFiles lists all files in the cache directory, and adds them to the
 // LRU index so that they can be served. Files are sorted by access time first,
 // so that the eviction behavior is preserved across server restarts.
