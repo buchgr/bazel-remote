@@ -307,7 +307,12 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 	close(itemChan)
 	wg.Wait()
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Remove the empty directories.
+	return os.RemoveAll(sourceDir)
 }
 
 func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error {
