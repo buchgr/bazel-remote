@@ -55,3 +55,9 @@ tasks:
     shell_commands:
       - "echo +++ Run end-to-end system test"
       - ".bazelci/system-test.sh"
+  tls_tests:
+    platform: ubuntu2004
+    name: "TLS tests"
+    shell_commands:
+      - "echo +++ Run TLS tests"
+      - ".bazelci/tls-tests.sh"
