@@ -597,7 +597,7 @@ func TestLoadExistingEntries(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	numBlobs := int64(3)
+	numBlobs := int64(4)
 	blobSize := int64(1024)
 
 	var err error
@@ -612,12 +612,24 @@ func TestLoadExistingEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// V0 CAS entry.
 	casData, casHash := testutils.RandomDataAndHash(blobSize)
 	err = os.MkdirAll(path.Join(cacheDir, "cas"), 0755)
 	if err != nil {
 		t.Fatal(err)
 	}
 	err = ioutil.WriteFile(path.Join(cacheDir, "cas", casHash), casData, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// V1 CAS entry.
+	casV1Data, casV1Hash := testutils.RandomDataAndHash(blobSize)
+	err = os.MkdirAll(path.Join(cacheDir, "cas", casV1Hash[:2]), 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = ioutil.WriteFile(path.Join(cacheDir, "cas", casV1Hash[:2], casV1Hash), casV1Data, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -656,6 +668,11 @@ func TestLoadExistingEntries(t *testing.T) {
 	found, _ = testCache.Contains(cache.CAS, casHash, blobSize)
 	if !found {
 		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash)
+	}
+
+	found, _ = testCache.Contains(cache.CAS, casV1Hash, blobSize)
+	if !found {
+		t.Fatalf("Expected cache to contain CAS V1 entry '%s'", casV1Hash)
 	}
 
 	found, _ = testCache.Contains(cache.RAW, rawHash, blobSize)

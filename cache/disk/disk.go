@@ -330,7 +330,7 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 				return fmt.Errorf("Unexpected file: %s", oldPath)
 			}
 
-			destPath := path.Join(destDir, item.Name()) + ".v1"
+			destPath := path.Join(destDir, item.Name()) + "-556677.v1"
 			err = os.Rename(oldPath, destPath)
 			if err != nil {
 				return fmt.Errorf("Failed to migrate CAS blob %s: %w",
