@@ -61,3 +61,9 @@ tasks:
     shell_commands:
       - "echo +++ Run TLS tests"
       - ".bazelci/tls-tests.sh"
+  migration_tests:
+    platform: ubuntu2004
+    name: "migration tests"
+    shell_commands:
+      - "echo +++ Run migration tests"
+      - ".bazelci/migration-test.sh"
