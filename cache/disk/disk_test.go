@@ -597,11 +597,12 @@ func TestLoadExistingEntries(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	numBlobs := int64(4)
+	numBlobs := int64(5)
 	blobSize := int64(1024)
 
 	var err error
 
+	// V0 AC entry.
 	acData, acHash := testutils.RandomDataAndHash(blobSize)
 	err = os.MkdirAll(path.Join(cacheDir, "ac"), 0755)
 	if err != nil {
@@ -630,6 +631,17 @@ func TestLoadExistingEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = ioutil.WriteFile(path.Join(cacheDir, "cas", casV1Hash[:2], casV1Hash), casV1Data, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// V1 AC entry.
+	acV1Data, acV1Hash := testutils.RandomDataAndHash(blobSize)
+	err = os.MkdirAll(path.Join(cacheDir, "ac", acV1Hash[:2]), 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = ioutil.WriteFile(path.Join(cacheDir, "ac", acV1Hash[:2], acV1Hash), acV1Data, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
