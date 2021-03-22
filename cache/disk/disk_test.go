@@ -634,12 +634,13 @@ func TestLoadExistingEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// V1 RAW entry.
 	rawData, rawHash := testutils.RandomDataAndHash(blobSize)
-	err = os.MkdirAll(path.Join(cacheDir, "raw"), 0755)
+	err = os.MkdirAll(path.Join(cacheDir, "raw", rawHash[:2]), 0755)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = ioutil.WriteFile(path.Join(cacheDir, "raw", rawHash), rawData, 0644)
+	err = ioutil.WriteFile(path.Join(cacheDir, "raw", rawHash[:2], rawHash), rawData, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
