@@ -341,16 +341,14 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 		return os.Remove(oldDir)
 	}
 
-	var hashKeyRegexWithRandom = regexp.MustCompile("^([a-f0-9]{64})-([0-9]+)$")
-
 	for _, item := range listing {
 		oldPath := path.Join(oldDir, item.Name())
 
-		if !hashKeyRegexWithRandom.MatchString(item.Name()) {
-			return fmt.Errorf("Unexpected file: %s", oldPath)
+		if !hashKeyRegex.MatchString(item.Name()) {
+			return fmt.Errorf("Unexpected file: %s %s", oldPath, item.Name())
 		}
 
-		destPath := path.Join(destDir, item.Name())
+		destPath := path.Join(destDir, item.Name()) + "-112233"
 
 		// TODO: support cross-filesystem migration.
 		err = os.Rename(oldPath, destPath)
