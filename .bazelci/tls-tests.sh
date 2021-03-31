@@ -9,6 +9,8 @@ SRC_ROOT=$(dirname "$0")/..
 SRC_ROOT=$(realpath "$SRC_ROOT")
 cd "$SRC_ROOT"
 
+HTTP_PORT=8089
+
 tmpdir=$(mktemp -d bazel-remote-mtls-tests.XXXXXXX --tmpdir=${TMPDIR:-/tmp})
 
 generate_keys() {
@@ -63,19 +65,36 @@ generate_keys
 [ -e bazel-remote ] || ./linux-build.sh
 
 echo "Starting bazel-remote..."
-./bazel-remote --dir "$tmpdir/cache" --max_size 1 --port 8089 \
+./bazel-remote --dir "$tmpdir/cache" --max_size 1 --port "$HTTP_PORT" \
 	--tls_cert_file "$tmpdir/server.crt" \
 	--tls_key_file "$tmpdir/server.key" \
 	--tls_ca_file "$tmpdir/ca.crt" > "$tmpdir/bazel-remote.log" 2>&1 &
 server_pid=$!
 
-# Let the server start up...
-sleep 2
+# Wait a bit for the server start up...
 
-wget --inet4-only -d -O - --ca-certificate=$tmpdir/server.crt \
-	--certificate=$tmpdir/client.crt \
-	--private-key=$tmpdir/client.pem \
-	https://localhost:8089/status
+running=false
+for i in $(seq 1 10)
+do
+	sleep 1
+
+	if wget --inet4-only -d -O - --ca-certificate=$tmpdir/server.crt \
+		--certificate=$tmpdir/client.crt \
+		--private-key=$tmpdir/client.pem \
+		--timeout=2 \
+		"https://localhost:$HTTP_PORT/status"
+	then
+		running=true
+		break
+	fi
+done
+
+if [ "$running" != true ]
+then
+	echo "Error: bazel-remote took too long to start"
+	kill -9 $server_pid
+	exit 1
+fi
 
 bazel clean
 bazel build //:bazel-remote --remote_cache=grpcs://localhost:9092 \
