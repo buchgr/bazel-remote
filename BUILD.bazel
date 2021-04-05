@@ -21,6 +21,7 @@ go_library(
         "//cache/s3proxy:go_default_library",
         "//config:go_default_library",
         "//server:go_default_library",
+        "//utils/flags:go_default_library",
         "//utils/idle:go_default_library",
         "//utils/rlimit:go_default_library",
         "@com_github_abbot_go_http_auth//:go_default_library",

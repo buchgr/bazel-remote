@@ -24,6 +24,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/config"
 	"github.com/buchgr/bazel-remote/server"
+	"github.com/buchgr/bazel-remote/utils/flags"
 	"github.com/buchgr/bazel-remote/utils/idle"
 	"github.com/buchgr/bazel-remote/utils/rlimit"
 
@@ -58,10 +59,11 @@ func main() {
 		runtime.Version(), maybeGitCommitMsg)
 
 	app := cli.NewApp()
-	app.Description = "A remote build cache for Bazel."
-	app.Usage = "A remote build cache for Bazel"
-	app.HideVersion = true
-	app.HideHelpCommand = true
+
+	cli.AppHelpTemplate = flags.Template
+	cli.HelpPrinterCustom = flags.HelpPrinter
+	// Force the use of cli.HelpPrinterCustom.
+	app.ExtraInfo = func() map[string]string { return map[string]string{} }
 
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{
