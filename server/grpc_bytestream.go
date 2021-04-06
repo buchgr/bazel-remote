@@ -192,13 +192,13 @@ func (s *grpcServer) parseReadResource(name string, errorPrefix string) (string,
 
 		size, err := strconv.ParseInt(rem[1], 10, 64)
 		if err != nil {
-			msg := fmt.Sprintf("Invalid size: %s", rem[1])
+			msg := fmt.Sprintf("Invalid size: %s from %q", rem[1], name)
 			s.accessLogger.Printf("%s: %s", errorPrefix, msg)
 			return "", 0, casblob.Identity,
 				status.Error(codes.InvalidArgument, msg)
 		}
 		if size < 0 {
-			msg := fmt.Sprintf("Invalid size (must be non-negative): %s", rem[1])
+			msg := fmt.Sprintf("Invalid size (must be non-negative): %d from %q", size, name)
 			s.accessLogger.Printf("%s: %s", errorPrefix, msg)
 			return "", 0, casblob.Identity,
 				status.Error(codes.InvalidArgument, msg)
@@ -231,13 +231,13 @@ func (s *grpcServer) parseReadResource(name string, errorPrefix string) (string,
 
 	size, err := strconv.ParseInt(sizeStr, 10, 64)
 	if err != nil {
-		msg := fmt.Sprintf("Invalid size: %s", sizeStr)
+		msg := fmt.Sprintf("Invalid size: %s from %q", sizeStr, name)
 		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
 		return "", 0, casblob.Zstandard,
 			status.Error(codes.InvalidArgument, msg)
 	}
 	if size < 0 {
-		msg := fmt.Sprintf("Invalid size (must be non-negative): %s", rem[1])
+		msg := fmt.Sprintf("Invalid size (must be non-negative): %d from %q", size, name)
 		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
 		return "", 0, casblob.Zstandard,
 			status.Error(codes.InvalidArgument, msg)
@@ -291,12 +291,12 @@ func (s *grpcServer) parseWriteResource(r string) (string, int64, casblob.Compre
 		size, err := strconv.ParseInt(rem[3], 10, 64)
 		if err != nil {
 			return "", 0, casblob.Identity,
-				status.Errorf(codes.InvalidArgument, "Unable to parse size: %s", rem[3])
+				status.Errorf(codes.InvalidArgument, "Unable to parse size: %s from %q", rem[3], r)
 		}
 
 		if size < 0 {
 			return "", 0, casblob.Identity,
-				status.Errorf(codes.InvalidArgument, "Invalid size (must be non-negative): %d", size)
+				status.Errorf(codes.InvalidArgument, "Invalid size (must be non-negative): %d from %q", size, r)
 		}
 
 		err = s.validateHash(hash, size, "GRPC BYTESTREAM READ FAILED")
@@ -317,12 +317,12 @@ func (s *grpcServer) parseWriteResource(r string) (string, int64, casblob.Compre
 	size, err := strconv.ParseInt(sizeStr, 10, 64)
 	if err != nil {
 		return "", 0, casblob.Zstandard,
-			status.Errorf(codes.InvalidArgument, "Unable to parse size: %s", sizeStr)
+			status.Errorf(codes.InvalidArgument, "Unable to parse size: %s from %q", sizeStr, r)
 	}
 
 	if size < 0 {
 		return "", 0, casblob.Zstandard,
-			status.Errorf(codes.InvalidArgument, "Invalid size (must be non-negative): %d", size)
+			status.Errorf(codes.InvalidArgument, "Invalid size (must be non-negative): %d from %q", size, r)
 	}
 
 	hash := rem[3]
