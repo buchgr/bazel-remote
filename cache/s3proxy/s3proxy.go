@@ -28,7 +28,6 @@ type s3Cache struct {
 	mcore        *minio.Core
 	prefix       string
 	bucket       string
-	keyVersion   int
 	uploadQueue  chan<- uploadReq
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
@@ -102,7 +101,6 @@ func New(s3Config *config.S3CloudStorageConfig, storageMode string, accessLogger
 		mcore:        minioCore,
 		prefix:       s3Config.Prefix,
 		bucket:       s3Config.Bucket,
-		keyVersion:   s3Config.KeyVersion,
 		accessLogger: accessLogger,
 		errorLogger:  errorLogger,
 		v2mode:       storageMode == "zstd",

@@ -199,9 +199,9 @@ func GetCliFlags() []cli.Flag {
 		},
 		&cli.IntFlag{
 			Name:        "s3.key_version",
-			Usage:       "Set to 1 for the legacy flat key format, or 2 for the newer format that reduces the impact of S3 rate limits.",
-			Value:       1,
-			DefaultText: "1",
+			Usage:       "DEPRECATED. Key version 2 now is the only supported value. This flag will be removed.",
+			Value:       2,
+			DefaultText: "2",
 			EnvVars:     []string{"BAZEL_REMOTE_S3_KEY_VERSION"},
 		},
 		&cli.BoolFlag{

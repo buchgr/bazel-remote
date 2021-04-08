@@ -85,7 +85,6 @@ func main() {
 					DisableSSL:      ctx.Bool("s3.disable_ssl"),
 					IAMRoleEndpoint: ctx.String("s3.iam_role_endpoint"),
 					Region:          ctx.String("s3.region"),
-					KeyVersion:      ctx.Int("s3.key_version"),
 				}
 			}
 
