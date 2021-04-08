@@ -199,7 +199,7 @@ func GetCliFlags() []cli.Flag {
 		},
 		&cli.IntFlag{
 			Name:        "s3.key_version",
-			Usage:       "Set to 1 for the legacy flat key format, or 2 for the newer format that reduces the impact of S3 rate limits.",
+			Usage:       "DEPRECATED. Starting from version 2 of bazel-remote enabling compression will automatically enable key version 2. The flag will be removed.",
 			Value:       1,
 			DefaultText: "1",
 			EnvVars:     []string{"BAZEL_REMOTE_S3_KEY_VERSION"},

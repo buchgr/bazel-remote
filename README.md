@@ -239,10 +239,6 @@ OPTIONS:
    --s3.region value The AWS region. Required when not specifying S3/minio
       access keys. [$BAZEL_REMOTE_S3_REGION]
 
-   --s3.key_version value Set to 1 for the legacy flat key format, or 2 for
-      the newer format that reduces the impact of S3 rate limits. (default: 1)
-      [$BAZEL_REMOTE_S3_KEY_VERSION]
-
    --disable_http_ac_validation Whether to disable ActionResult validation
       for HTTP requests. (default: false, ie enable validation)
       [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
@@ -339,7 +335,6 @@ host: localhost
 #  access_key_id: EXAMPLE_ACCESS_KEY
 #  secret_access_key: EXAMPLE_SECRET_KEY
 #  disable_ssl: true
-#  key_version: 2
 #
 # Provide either access_key_id/secret_access_key, or iam_role_endpoint/region.
 # iam_role_endpoint can also be left empty, and figured out automatically.

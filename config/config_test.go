@@ -173,7 +173,6 @@ s3_proxy:
   prefix: test-prefix
   access_key_id: EXAMPLE_ACCESS_KEY
   secret_access_key: EXAMPLE_SECRET_KEY
-  key_version: 2
 `
 	config, err := newFromYaml([]byte(yaml))
 	if err != nil {
@@ -192,7 +191,6 @@ s3_proxy:
 			Prefix:          "test-prefix",
 			AccessKeyID:     "EXAMPLE_ACCESS_KEY",
 			SecretAccessKey: "EXAMPLE_SECRET_KEY",
-			KeyVersion:      2,
 		},
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
