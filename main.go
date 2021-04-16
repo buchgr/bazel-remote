@@ -2,10 +2,7 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	_ "net/http/pprof" // Register pprof handlers with DefaultServeMux.
@@ -167,43 +164,9 @@ func run(ctx *cli.Context) error {
 		log.Fatal(err)
 	}
 
-	var tlsConfig *tls.Config
-	if len(c.TLSCaFile) != 0 {
-		caCertPool := x509.NewCertPool()
-		caCert, err := ioutil.ReadFile(c.TLSCaFile)
-		if err != nil {
-			log.Fatalf("Error reading TLS CA File: %v", err)
-		}
-		added := caCertPool.AppendCertsFromPEM(caCert)
-		if !added {
-			log.Fatalf("Failed to add certificate to cert pool.")
-		}
-
-		readCert, err := tls.LoadX509KeyPair(
-			c.TLSCertFile,
-			c.TLSKeyFile,
-		)
-		if err != nil {
-			log.Fatalf("Error reading certificate/key pair: %v", err)
-		}
-
-		tlsConfig = &tls.Config{
-			Certificates: []tls.Certificate{readCert},
-			ClientCAs:    caCertPool,
-			ClientAuth:   tls.RequireAndVerifyClientCert,
-		}
-	} else if len(c.TLSCertFile) != 0 && len(c.TLSKeyFile) != 0 {
-		readCert, err := tls.LoadX509KeyPair(
-			c.TLSCertFile,
-			c.TLSKeyFile,
-		)
-		if err != nil {
-			log.Fatalf("Error reading certificate/key pair: %v", err)
-		}
-
-		tlsConfig = &tls.Config{
-			Certificates: []tls.Certificate{readCert},
-		}
+	tlsConfig, err := c.GetTLSConfig()
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	mux := http.NewServeMux()

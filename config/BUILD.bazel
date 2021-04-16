@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "config.go",
         "proxy.go",
+        "tls.go",
     ],
     importpath = "github.com/buchgr/bazel-remote/config",
     visibility = ["//visibility:public"],
