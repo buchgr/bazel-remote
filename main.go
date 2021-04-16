@@ -67,9 +67,9 @@ func main() {
 	app.Flags = flags.GetCliFlags()
 	app.Action = run
 
-	serverErr := app.Run(os.Args)
-	if serverErr != nil {
-		log.Fatal("bazel-remote terminated:", serverErr)
+	err := app.Run(os.Args)
+	if err != nil {
+		log.Fatal("bazel-remote terminated:", err)
 	}
 }
 
