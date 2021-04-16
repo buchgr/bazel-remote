@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 	_ "net/http/pprof" // Register pprof handlers with DefaultServeMux.
-	"net/url"
 	"os"
 	"runtime"
 	"strconv"
@@ -17,10 +16,6 @@ import (
 	auth "github.com/abbot/go-http-auth"
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
-	"github.com/buchgr/bazel-remote/cache/gcsproxy"
-	"github.com/buchgr/bazel-remote/cache/s3proxy"
-
-	"github.com/buchgr/bazel-remote/cache/httpproxy"
 
 	"github.com/buchgr/bazel-remote/config"
 	"github.com/buchgr/bazel-remote/server"
@@ -162,28 +157,9 @@ func run(ctx *cli.Context) error {
 	accessLogger := log.New(os.Stdout, "", logFlags)
 	errorLogger := log.New(os.Stderr, "", logFlags)
 
-	var proxyCache cache.Proxy
-	if c.GoogleCloudStorage != nil {
-		proxyCache, err = gcsproxy.New(c.GoogleCloudStorage.Bucket,
-			c.GoogleCloudStorage.UseDefaultCredentials, c.GoogleCloudStorage.JSONCredentialsFile,
-			c.StorageMode, accessLogger, errorLogger, c.NumUploaders, c.MaxQueuedUploads)
-		if err != nil {
-			log.Fatal(err)
-		}
-	} else if c.HTTPBackend != nil {
-		httpClient := &http.Client{}
-		var baseURL *url.URL
-		baseURL, err = url.Parse(c.HTTPBackend.BaseURL)
-		if err != nil {
-			log.Fatal(err)
-		}
-		proxyCache, err = httpproxy.New(baseURL, c.StorageMode,
-			httpClient, accessLogger, errorLogger, c.NumUploaders, c.MaxQueuedUploads)
-		if err != nil {
-			log.Fatal(err)
-		}
-	} else if c.S3CloudStorage != nil {
-		proxyCache = s3proxy.New(c.S3CloudStorage, c.StorageMode, accessLogger, errorLogger, c.NumUploaders, c.MaxQueuedUploads)
+	proxyCache, err := c.GetProxy(accessLogger, errorLogger)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	diskCache, err := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, c.StorageMode, proxyCache)

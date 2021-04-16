@@ -10,7 +10,6 @@ import (
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk/casblob"
-	"github.com/buchgr/bazel-remote/config"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/prometheus/client_golang/prometheus"
@@ -50,7 +49,18 @@ var (
 var errNotFound = errors.New("NOT FOUND")
 
 // New returns a new instance of the S3-API based cache
-func New(s3Config *config.S3CloudStorageConfig, storageMode string, accessLogger cache.Logger,
+func New(
+	// S3CloudStorageConfig struct fields:
+	Endpoint string,
+	Bucket string,
+	Prefix string,
+	AccessKeyID string,
+	SecretAccessKey string,
+	DisableSSL bool,
+	IAMRoleEndpoint string,
+	Region string,
+
+	storageMode string, accessLogger cache.Logger,
 	errorLogger cache.Logger, numUploaders, maxQueuedUploads int) cache.Proxy {
 
 	fmt.Println("Using S3 backend.")
@@ -58,14 +68,14 @@ func New(s3Config *config.S3CloudStorageConfig, storageMode string, accessLogger
 	var minioCore *minio.Core
 	var err error
 
-	if s3Config.AccessKeyID != "" && s3Config.SecretAccessKey != "" {
+	if AccessKeyID != "" && SecretAccessKey != "" {
 		// Initialize minio client object.
 		opts := &minio.Options{
-			Creds:  credentials.NewStaticV4(s3Config.AccessKeyID, s3Config.SecretAccessKey, ""),
-			Secure: !s3Config.DisableSSL,
-			Region: s3Config.Region,
+			Creds:  credentials.NewStaticV4(AccessKeyID, SecretAccessKey, ""),
+			Secure: !DisableSSL,
+			Region: Region,
 		}
-		minioCore, err = minio.NewCore(s3Config.Endpoint, opts)
+		minioCore, err = minio.NewCore(Endpoint, opts)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -73,14 +83,14 @@ func New(s3Config *config.S3CloudStorageConfig, storageMode string, accessLogger
 		// Initialize minio client object with IAM credentials
 		opts := &minio.Options{
 			// This config value may be empty.
-			Creds: credentials.NewIAM(s3Config.IAMRoleEndpoint),
+			Creds: credentials.NewIAM(IAMRoleEndpoint),
 
-			Region: s3Config.Region,
-			Secure: !s3Config.DisableSSL,
+			Region: Region,
+			Secure: !DisableSSL,
 		}
 
 		minioClient, err := minio.New(
-			s3Config.Endpoint,
+			Endpoint,
 			opts,
 		)
 		if err != nil {
@@ -99,8 +109,8 @@ func New(s3Config *config.S3CloudStorageConfig, storageMode string, accessLogger
 
 	c := &s3Cache{
 		mcore:        minioCore,
-		prefix:       s3Config.Prefix,
-		bucket:       s3Config.Bucket,
+		prefix:       Prefix,
+		bucket:       Bucket,
 		accessLogger: accessLogger,
 		errorLogger:  errorLogger,
 		v2mode:       storageMode == "zstd",
