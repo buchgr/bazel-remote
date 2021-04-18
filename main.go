@@ -66,71 +66,7 @@ func main() {
 }
 
 func run(ctx *cli.Context) error {
-	configFile := ctx.String("config_file")
-	var c *config.Config
-	var err error
-	if configFile != "" {
-		c, err = config.NewFromYamlFile(configFile)
-	} else {
-		var s3 *config.S3CloudStorageConfig
-		if ctx.String("s3.bucket") != "" {
-			s3 = &config.S3CloudStorageConfig{
-				Endpoint:        ctx.String("s3.endpoint"),
-				Bucket:          ctx.String("s3.bucket"),
-				Prefix:          ctx.String("s3.prefix"),
-				AccessKeyID:     ctx.String("s3.access_key_id"),
-				SecretAccessKey: ctx.String("s3.secret_access_key"),
-				DisableSSL:      ctx.Bool("s3.disable_ssl"),
-				IAMRoleEndpoint: ctx.String("s3.iam_role_endpoint"),
-				Region:          ctx.String("s3.region"),
-			}
-		}
-
-		var hc *config.HTTPBackendConfig
-		if ctx.String("http_proxy.url") != "" {
-			hc = &config.HTTPBackendConfig{
-				BaseURL: ctx.String("http_proxy.url"),
-			}
-		}
-
-		var gcs *config.GoogleCloudStorageConfig
-		if ctx.String("gcs_proxy.bucket") != "" {
-			gcs = &config.GoogleCloudStorageConfig{
-				Bucket:                ctx.String("gcs_proxy.bucket"),
-				UseDefaultCredentials: ctx.Bool("gcs_proxy.use_default_credentials"),
-				JSONCredentialsFile:   ctx.String("gcs_proxy.json_credentials_file"),
-			}
-		}
-
-		c, err = config.New(
-			ctx.String("dir"),
-			ctx.Int("max_size"),
-			ctx.String("storage_mode"),
-			ctx.String("host"),
-			ctx.Int("port"),
-			ctx.Int("grpc_port"),
-			ctx.String("profile_host"),
-			ctx.Int("profile_port"),
-			ctx.String("htpasswd_file"),
-			ctx.Int("max_queued_uploads"),
-			ctx.Int("num_uploaders"),
-			ctx.String("tls_ca_file"),
-			ctx.String("tls_cert_file"),
-			ctx.String("tls_key_file"),
-			ctx.Duration("idle_timeout"),
-			hc,
-			gcs,
-			s3,
-			ctx.Bool("disable_http_ac_validation"),
-			ctx.Bool("disable_grpc_ac_deps_check"),
-			ctx.Bool("enable_ac_key_instance_mangling"),
-			ctx.Bool("enable_endpoint_metrics"),
-			ctx.Bool("experimental_remote_asset_api"),
-			ctx.Duration("http_read_timeout"),
-			ctx.Duration("http_write_timeout"),
-		)
-	}
-
+	c, err := config.Get(ctx)
 	if err != nil {
 		fmt.Fprintf(ctx.App.Writer, "%v\n\n", err)
 		cli.ShowAppHelp(ctx)

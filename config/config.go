@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/urfave/cli/v2"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -259,4 +260,69 @@ func validateConfig(c *Config) error {
 	}
 
 	return nil
+}
+
+func Get(ctx *cli.Context) (*Config, error) {
+	configFile := ctx.String("config_file")
+	if configFile != "" {
+		return NewFromYamlFile(configFile)
+	}
+
+	var s3 *S3CloudStorageConfig
+	if ctx.String("s3.bucket") != "" {
+		s3 = &S3CloudStorageConfig{
+			Endpoint:        ctx.String("s3.endpoint"),
+			Bucket:          ctx.String("s3.bucket"),
+			Prefix:          ctx.String("s3.prefix"),
+			AccessKeyID:     ctx.String("s3.access_key_id"),
+			SecretAccessKey: ctx.String("s3.secret_access_key"),
+			DisableSSL:      ctx.Bool("s3.disable_ssl"),
+			IAMRoleEndpoint: ctx.String("s3.iam_role_endpoint"),
+			Region:          ctx.String("s3.region"),
+		}
+	}
+
+	var hc *HTTPBackendConfig
+	if ctx.String("http_proxy.url") != "" {
+		hc = &HTTPBackendConfig{
+			BaseURL: ctx.String("http_proxy.url"),
+		}
+	}
+
+	var gcs *GoogleCloudStorageConfig
+	if ctx.String("gcs_proxy.bucket") != "" {
+		gcs = &GoogleCloudStorageConfig{
+			Bucket:                ctx.String("gcs_proxy.bucket"),
+			UseDefaultCredentials: ctx.Bool("gcs_proxy.use_default_credentials"),
+			JSONCredentialsFile:   ctx.String("gcs_proxy.json_credentials_file"),
+		}
+	}
+
+	return New(
+		ctx.String("dir"),
+		ctx.Int("max_size"),
+		ctx.String("storage_mode"),
+		ctx.String("host"),
+		ctx.Int("port"),
+		ctx.Int("grpc_port"),
+		ctx.String("profile_host"),
+		ctx.Int("profile_port"),
+		ctx.String("htpasswd_file"),
+		ctx.Int("max_queued_uploads"),
+		ctx.Int("num_uploaders"),
+		ctx.String("tls_ca_file"),
+		ctx.String("tls_cert_file"),
+		ctx.String("tls_key_file"),
+		ctx.Duration("idle_timeout"),
+		hc,
+		gcs,
+		s3,
+		ctx.Bool("disable_http_ac_validation"),
+		ctx.Bool("disable_grpc_ac_deps_check"),
+		ctx.Bool("enable_ac_key_instance_mangling"),
+		ctx.Bool("enable_endpoint_metrics"),
+		ctx.Bool("experimental_remote_asset_api"),
+		ctx.Duration("http_read_timeout"),
+		ctx.Duration("http_write_timeout"),
+	)
 }
