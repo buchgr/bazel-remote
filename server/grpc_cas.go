@@ -29,7 +29,7 @@ func (s *grpcServer) FindMissingBlobs(ctx context.Context,
 
 	resp := pb.FindMissingBlobsResponse{}
 
-	errorPrefix := "GRPC CAS GET"
+	errorPrefix := "GRPC CAS HEAD"
 	for _, digest := range req.BlobDigests {
 		hash := digest.GetHash()
 		err := s.validateHash(hash, digest.SizeBytes, errorPrefix)
