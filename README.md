@@ -173,9 +173,6 @@ OPTIONS:
       Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.
       [$BAZEL_REMOTE_HTPASSWD_FILE]
 
-   --tls_enabled This flag has been deprecated. Specify tls_cert_file and
-      tls_key_file instead. (default: false) [$BAZEL_REMOTE_TLS_ENABLED]
-
    --tls_ca_file value Optional. Enables mTLS (authenticating client
       certificates), should be the certificate authority that signed the client
       certificates. [$BAZEL_REMOTE_TLS_CA_FILE]

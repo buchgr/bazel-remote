@@ -83,11 +83,6 @@ func GetCliFlags() []cli.Flag {
 			Usage:   "Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.",
 			EnvVars: []string{"BAZEL_REMOTE_HTPASSWD_FILE"},
 		},
-		&cli.BoolFlag{
-			Name:    "tls_enabled",
-			Usage:   "This flag has been deprecated. Specify tls_cert_file and tls_key_file instead.",
-			EnvVars: []string{"BAZEL_REMOTE_TLS_ENABLED"},
-		},
 		&cli.StringFlag{
 			Name:    "tls_ca_file",
 			Value:   "",
