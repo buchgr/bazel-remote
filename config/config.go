@@ -69,9 +69,9 @@ type Config struct {
 
 var defaultDurationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
 
-// New returns a validated Config with the specified values, and an error
-// if there were any problems with the validation.
-func New(dir string, maxSize int, storageMode string,
+// newFromArgs returns a validated Config with the specified values, and
+// an error if there were any problems with the validation.
+func newFromArgs(dir string, maxSize int, storageMode string,
 	host string, port int, grpcPort int,
 	profileHost string, profilePort int,
 	htpasswdFile string,
@@ -298,7 +298,7 @@ func Get(ctx *cli.Context) (*Config, error) {
 		}
 	}
 
-	return New(
+	return newFromArgs(
 		ctx.String("dir"),
 		ctx.Int("max_size"),
 		ctx.String("storage_mode"),
