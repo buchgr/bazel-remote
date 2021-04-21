@@ -128,10 +128,10 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 	return &c, nil
 }
 
-// NewFromYamlFile reads configuration settings from a YAML file then returns
+// newFromYamlFile reads configuration settings from a YAML file then returns
 // a validated Config with those settings, and an error if there were any
 // problems.
-func NewFromYamlFile(path string) (*Config, error) {
+func newFromYamlFile(path string) (*Config, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to open config file '%s': %v", path, err)
@@ -265,7 +265,7 @@ func validateConfig(c *Config) error {
 func Get(ctx *cli.Context) (*Config, error) {
 	configFile := ctx.String("config_file")
 	if configFile != "" {
-		return NewFromYamlFile(configFile)
+		return newFromYamlFile(configFile)
 	}
 
 	var s3 *S3CloudStorageConfig
