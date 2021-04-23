@@ -1,12 +1,16 @@
 package config
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"sort"
 	"time"
+
+	"github.com/buchgr/bazel-remote/cache"
 
 	"github.com/urfave/cli/v2"
 	yaml "gopkg.in/yaml.v2"
@@ -65,6 +69,10 @@ type Config struct {
 	ExperimentalRemoteAssetAPI  bool                      `yaml:"experimental_remote_asset_api"`
 	HTTPReadTimeout             time.Duration             `yaml:"http_read_timeout"`
 	HTTPWriteTimeout            time.Duration             `yaml:"http_write_timeout"`
+
+	// Fields that are created by combinations of the flags above.
+	ProxyBackend cache.Proxy
+	TLSConfig    *tls.Config
 }
 
 var defaultDurationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
@@ -262,7 +270,30 @@ func validateConfig(c *Config) error {
 	return nil
 }
 
-func Get(ctx *cli.Context) (*Config, error) {
+func Get(ctx *cli.Context, accessLogger *log.Logger, errorLogger *log.Logger) (*Config, error) {
+	// Get a Config with all the basic fields set.
+	cfg, err := get(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set the non-basic fields...
+
+	err = cfg.setProxy(accessLogger, errorLogger)
+	if err != nil {
+		return nil, err
+	}
+
+	err = cfg.setTLSConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+// Return a Config with all the basic fields set.
+func get(ctx *cli.Context) (*Config, error) {
 	configFile := ctx.String("config_file")
 	if configFile != "" {
 		return newFromYamlFile(configFile)

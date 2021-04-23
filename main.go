@@ -66,7 +66,10 @@ func main() {
 }
 
 func run(ctx *cli.Context) error {
-	c, err := config.Get(ctx)
+	accessLogger := log.New(os.Stdout, "", logFlags)
+	errorLogger := log.New(os.Stderr, "", logFlags)
+
+	c, err := config.Get(ctx, accessLogger, errorLogger)
 	if err != nil {
 		fmt.Fprintf(ctx.App.Writer, "%v\n\n", err)
 		cli.ShowAppHelp(ctx)
@@ -87,20 +90,7 @@ func run(ctx *cli.Context) error {
 
 	rlimit.Raise()
 
-	accessLogger := log.New(os.Stdout, "", logFlags)
-	errorLogger := log.New(os.Stderr, "", logFlags)
-
-	proxyCache, err := c.GetProxy(accessLogger, errorLogger)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	diskCache, err := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, c.StorageMode, proxyCache)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	tlsConfig, err := c.GetTLSConfig()
+	diskCache, err := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, c.StorageMode, c.ProxyBackend)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -110,7 +100,7 @@ func run(ctx *cli.Context) error {
 		Addr:         c.Host + ":" + strconv.Itoa(c.Port),
 		Handler:      mux,
 		ReadTimeout:  c.HTTPReadTimeout,
-		TLSConfig:    tlsConfig,
+		TLSConfig:    c.TLSConfig,
 		WriteTimeout: c.HTTPWriteTimeout,
 	}
 
@@ -171,8 +161,8 @@ func run(ctx *cli.Context) error {
 				grpc_prometheus.EnableHandlingTimeHistogram(grpc_prometheus.WithHistogramBuckets(c.MetricsDurationBuckets))
 			}
 
-			if tlsConfig != nil {
-				opts = append(opts, grpc.Creds(credentials.NewTLS(tlsConfig)))
+			if c.TLSConfig != nil {
+				opts = append(opts, grpc.Creds(credentials.NewTLS(c.TLSConfig)))
 			}
 
 			if htpasswdSecrets != nil {
