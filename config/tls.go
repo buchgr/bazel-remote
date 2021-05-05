@@ -27,10 +27,19 @@ func (c *Config) setTLSConfig() error {
 			return fmt.Errorf("Error reading certificate/key pair: %w", err)
 		}
 
+		var cat tls.ClientAuthType = tls.RequireAndVerifyClientCert
+		if c.AllowUnauthenticatedReads {
+			// This allows us to handle some requests without a valid client
+			// certificate, but then we need to explicitly check for verified
+			// certs on requests that we require auth for.
+			// See server.checkGRPCClientCert and httpCache.hasValidClientCert.
+			cat = tls.VerifyClientCertIfGiven
+		}
+
 		c.TLSConfig = &tls.Config{
 			Certificates: []tls.Certificate{readCert},
 			ClientCAs:    caCertPool,
-			ClientAuth:   tls.RequireAndVerifyClientCert,
+			ClientAuth:   cat,
 		}
 
 		return nil

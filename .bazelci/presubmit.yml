@@ -55,6 +55,12 @@ tasks:
     shell_commands:
       - "echo +++ Run TLS tests"
       - ".bazelci/tls-tests.sh"
+  basic_auth_tests:
+    platform: ubuntu2004
+    name: "basic auth tests"
+    shell_commands:
+      - "echo +++ Run basic auth tests"
+      - ".bazelci/basic-auth-tests.sh"
   migration_tests:
     platform: ubuntu2004
     name: "migration tests"

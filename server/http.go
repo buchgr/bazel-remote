@@ -38,12 +38,13 @@ type HTTPCache interface {
 }
 
 type httpCache struct {
-	cache        *disk.Cache
-	accessLogger cache.Logger
-	errorLogger  cache.Logger
-	validateAC   bool
-	mangleACKeys bool
-	gitCommit    string
+	cache                    *disk.Cache
+	accessLogger             cache.Logger
+	errorLogger              cache.Logger
+	validateAC               bool
+	mangleACKeys             bool
+	gitCommit                string
+	checkClientCertForWrites bool
 }
 
 type statusPageData struct {
@@ -61,18 +62,19 @@ type statusPageData struct {
 // accessLogger will print one line for each HTTP request to stdout.
 // errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
 // be reported.
-func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, mangleACKeys bool, commit string) HTTPCache {
+func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, mangleACKeys bool, checkClientCertForWrites bool, commit string) HTTPCache {
 
 	_, _, numItems, _ := cache.Stats()
 
 	errorLogger.Printf("Loaded %d existing disk cache items.", numItems)
 
 	hc := &httpCache{
-		cache:        cache,
-		accessLogger: accessLogger,
-		errorLogger:  errorLogger,
-		validateAC:   validateAC,
-		mangleACKeys: mangleACKeys,
+		cache:                    cache,
+		accessLogger:             accessLogger,
+		errorLogger:              errorLogger,
+		validateAC:               validateAC,
+		mangleACKeys:             mangleACKeys,
+		checkClientCertForWrites: checkClientCertForWrites,
 	}
 
 	if commit != "{STABLE_GIT_COMMIT}" {
@@ -254,6 +256,10 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		h.logResponse(http.StatusOK, r)
 
 	case http.MethodPut:
+		if h.checkClientCertForWrites && !h.hasValidClientCert(w, r) {
+			return
+		}
+
 		contentLength := r.ContentLength
 
 		// If custom header X-Digest-SizeBytes is set, use that for the
@@ -469,4 +475,32 @@ func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 
 func path(kind cache.EntryKind, hash string) string {
 	return fmt.Sprintf("/%s/%s", kind, hash)
+}
+
+// If the http.Request is authenticated with a valid client certificate
+// then do nothing and return true. Otherwise, write an error to the
+// http.ResponseWriter, log the error and return false.
+//
+// This is only used when mutual TLS authentication and unauthenticated
+// reads are enabled.
+func (h *httpCache) hasValidClientCert(w http.ResponseWriter, r *http.Request) bool {
+	if r == nil {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		h.logResponse(http.StatusBadRequest, r)
+		return false
+	}
+
+	if r.TLS == nil {
+		http.Error(w, "missing TLS connection info", http.StatusUnauthorized)
+		h.logResponse(http.StatusUnauthorized, r)
+		return false
+	}
+
+	if len(r.TLS.VerifiedChains) == 0 || len(r.TLS.VerifiedChains[0]) == 0 {
+		http.Error(w, "no valid client certificate", http.StatusUnauthorized)
+		h.logResponse(http.StatusUnauthorized, r)
+		return false
+	}
+
+	return true
 }

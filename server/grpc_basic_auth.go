@@ -21,21 +21,42 @@ var (
 		"access denied")
 )
 
+var readOnlyMethods = map[string]struct{}{
+	"/build.bazel.remote.execution.v2.ActionCache/GetActionResult":                {},
+	"/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs": {},
+	"/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs":   {},
+	"/build.bazel.remote.execution.v2.ContentAddressableStorage/GetTree":          {},
+	"/build.bazel.remote.execution.v2.Capabilities/GetCapabilities":               {},
+	"/google.bytestream.ByteStream/Read":                                          {},
+}
+
 // GrpcBasicAuth wraps an auth.SecretProvider, and provides gRPC interceptors
 // that verify that requests can be authenticated using HTTP basic auth.
 type GrpcBasicAuth struct {
-	secrets auth.SecretProvider
+	secrets                      auth.SecretProvider
+	allowUnauthenticatedReadOnly bool
 }
 
 // NewGrpcBasicAuth returns a GrpcBasicAuth that wraps the given
 // auth.SecretProvider.
-func NewGrpcBasicAuth(secrets auth.SecretProvider) *GrpcBasicAuth {
-	return &GrpcBasicAuth{secrets: secrets}
+func NewGrpcBasicAuth(secrets auth.SecretProvider, allowUnauthenticatedReadOnly bool) *GrpcBasicAuth {
+	return &GrpcBasicAuth{
+		secrets:                      secrets,
+		allowUnauthenticatedReadOnly: allowUnauthenticatedReadOnly,
+	}
 }
 
 // StreamServerInterceptor returns a streaming server interceptor that
 // verifies that each request can be authenticated using HTTP basic auth.
 func (b *GrpcBasicAuth) StreamServerInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+
+	if b.allowUnauthenticatedReadOnly {
+		_, ro := readOnlyMethods[info.FullMethod]
+		if ro {
+			return handler(srv, ss)
+		}
+	}
+
 	username, password, err := getLogin(ss.Context())
 	if err != nil {
 		return err
@@ -54,6 +75,14 @@ func (b *GrpcBasicAuth) StreamServerInterceptor(srv interface{}, ss grpc.ServerS
 // UnaryServerInterceptor returns a unary server interceptor that verifies
 // that each request can be authenticated using HTTP basic auth.
 func (b *GrpcBasicAuth) UnaryServerInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+
+	if b.allowUnauthenticatedReadOnly {
+		_, ro := readOnlyMethods[info.FullMethod]
+		if ro {
+			return handler(ctx, req)
+		}
+	}
+
 	username, password, err := getLogin(ctx)
 	if err != nil {
 		return nil, err

@@ -9,7 +9,9 @@ import (
 	"google.golang.org/genproto/googleapis/bytestream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	_ "google.golang.org/grpc/encoding/gzip" // Register gzip support.
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	asset "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/asset/v1"
@@ -34,11 +36,12 @@ var (
 )
 
 type grpcServer struct {
-	cache        *disk.Cache
-	accessLogger cache.Logger
-	errorLogger  cache.Logger
-	depsCheck    bool
-	mangleACKeys bool
+	cache                    *disk.Cache
+	accessLogger             cache.Logger
+	errorLogger              cache.Logger
+	depsCheck                bool
+	mangleACKeys             bool
+	checkClientCertForWrites bool
 }
 
 // ListenAndServeGRPC creates a new gRPC server and listens on the given
@@ -48,6 +51,7 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 	validateACDeps bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
+	checkClientCertForWrites bool,
 	c *disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	listener, err := net.Listen("tcp", addr)
@@ -55,20 +59,22 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 		return err
 	}
 
-	return serveGRPC(listener, opts, validateACDeps, mangleACKeys, enableRemoteAssetAPI, c, a, e)
+	return serveGRPC(listener, opts, validateACDeps, mangleACKeys, enableRemoteAssetAPI, checkClientCertForWrites, c, a, e)
 }
 
 func serveGRPC(l net.Listener, opts []grpc.ServerOption,
 	validateACDepsCheck bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
+	checkClientCertForWrites bool,
 	c *disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	srv := grpc.NewServer(opts...)
 	s := &grpcServer{
 		cache: c, accessLogger: a, errorLogger: e,
-		depsCheck:    validateACDepsCheck,
-		mangleACKeys: mangleACKeys,
+		depsCheck:                validateACDepsCheck,
+		mangleACKeys:             mangleACKeys,
+		checkClientCertForWrites: checkClientCertForWrites,
 	}
 	pb.RegisterActionCacheServer(srv, s)
 	pb.RegisterCapabilitiesServer(srv, s)
@@ -136,6 +142,30 @@ func (s *grpcServer) validateHash(hash string, size int64, logPrefix string) err
 		msg := "Malformed hash"
 		s.accessLogger.Printf("%s %s: %s", logPrefix, hash, msg)
 		return status.Error(codes.InvalidArgument, msg)
+	}
+
+	return nil
+}
+
+// Return a non-nil grpc error if a valid client certificate can't be
+// extracted from ctx.
+//
+// This is only used when mutual TLS authentication and unauthenticated
+// reads are enabled.
+func checkGRPCClientCert(ctx context.Context) error {
+
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return status.Error(codes.Unauthenticated, "no peer found")
+	}
+
+	tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		return status.Error(codes.Unauthenticated, "unrecognised peer transport credentials")
+	}
+
+	if len(tlsInfo.State.VerifiedChains) == 0 || len(tlsInfo.State.VerifiedChains[0]) == 0 {
+		return status.Error(codes.Unauthenticated, "could not verify peer certificate")
 	}
 
 	return nil

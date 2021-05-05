@@ -183,6 +183,11 @@ OPTIONS:
    --tls_key_file value Path to a pem encoded key file.
       [$BAZEL_REMOTE_TLS_KEY_FILE]
 
+   --allow_unauthenticated_reads If authentication is enabled
+      (--htpasswd_file or --tls_ca_file), allow unauthenticated clients read
+      access. (default: false, ie if authentication is required, read-only
+      requests must also be authenticated) [$BAZEL_REMOTE_UNAUTHENTICATED_READS]
+
    --idle_timeout value The maximum period of having received no request
       after which the server will shut itself down. (default: 0s, ie disabled)
       [$BAZEL_REMOTE_IDLE_TIMEOUT]
@@ -298,6 +303,10 @@ host: localhost
 
 # Alternatively, you can use simple authentication:
 #htpasswd_file: path/to/.htpasswd
+
+# If tls_ca_file or htpasswd_file are specified, you can choose
+# whether or not to allow unauthenticated read access:
+#allow_unauthenticated_reads: false
 
 # If specified, bazel-remote should exit after being idle
 # for this long. Time units can be one of: "s", "m", "h".

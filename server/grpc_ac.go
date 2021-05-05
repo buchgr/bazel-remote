@@ -194,6 +194,13 @@ func (s *grpcServer) maybeInline(inline bool, slice *[]byte, digest **pb.Digest,
 func (s *grpcServer) UpdateActionResult(ctx context.Context,
 	req *pb.UpdateActionResultRequest) (*pb.ActionResult, error) {
 
+	if s.checkClientCertForWrites {
+		err := checkGRPCClientCert(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	logPrefix := "GRPC AC PUT"
 	err := s.validateHash(req.ActionDigest.Hash, req.ActionDigest.SizeBytes, logPrefix)
 	if err != nil {

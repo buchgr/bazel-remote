@@ -55,6 +55,7 @@ type Config struct {
 	TLSCaFile                   string                    `yaml:"tls_ca_file"`
 	TLSCertFile                 string                    `yaml:"tls_cert_file"`
 	TLSKeyFile                  string                    `yaml:"tls_key_file"`
+	AllowUnauthenticatedReads   bool                      `yaml:"allow_unauthenticated_reads"`
 	S3CloudStorage              *S3CloudStorageConfig     `yaml:"s3_proxy,omitempty"`
 	GoogleCloudStorage          *GoogleCloudStorageConfig `yaml:"gcs_proxy,omitempty"`
 	HTTPBackend                 *HTTPBackendConfig        `yaml:"http_proxy,omitempty"`
@@ -88,6 +89,7 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 	tlsCaFile string,
 	tlsCertFile string,
 	tlsKeyFile string,
+	allowUnauthenticatedReads bool,
 	idleTimeout time.Duration,
 	hc *HTTPBackendConfig,
 	gcs *GoogleCloudStorageConfig,
@@ -115,6 +117,7 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 		TLSCaFile:                   tlsCaFile,
 		TLSCertFile:                 tlsCertFile,
 		TLSKeyFile:                  tlsKeyFile,
+		AllowUnauthenticatedReads:   allowUnauthenticatedReads,
 		S3CloudStorage:              s3,
 		GoogleCloudStorage:          gcs,
 		HTTPBackend:                 hc,
@@ -228,6 +231,10 @@ func validateConfig(c *Config) error {
 		return errors.New("When enabling mTLS (authenticating client " +
 			"certificates) the server must have it's own 'tls_key_file' " +
 			"and 'tls_cert_file' specified.")
+	}
+
+	if c.AllowUnauthenticatedReads && c.TLSCaFile == "" && c.HtpasswdFile == "" {
+		return errors.New("AllowUnauthenticatedReads setting is only available when authentication is enabled")
 	}
 
 	if c.GoogleCloudStorage != nil && c.HTTPBackend != nil && c.S3CloudStorage != nil {
@@ -344,6 +351,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.String("tls_ca_file"),
 		ctx.String("tls_cert_file"),
 		ctx.String("tls_key_file"),
+		ctx.Bool("allow_unauthenticated_reads"),
 		ctx.Duration("idle_timeout"),
 		hc,
 		gcs,

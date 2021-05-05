@@ -105,13 +105,31 @@ func run(ctx *cli.Context) error {
 	}
 
 	validateAC := !c.DisableHTTPACValidation
-	h := server.NewHTTPCache(diskCache, accessLogger, errorLogger, validateAC, c.EnableACKeyInstanceMangling, gitCommit)
+	h := server.NewHTTPCache(diskCache, accessLogger, errorLogger, validateAC,
+		c.EnableACKeyInstanceMangling, c.AllowUnauthenticatedReads, gitCommit)
 
 	var htpasswdSecrets auth.SecretProvider
+	authMode := "disabled"
 	cacheHandler := h.CacheHandler
 	if c.HtpasswdFile != "" {
+		authMode = "basic"
 		htpasswdSecrets = auth.HtpasswdFileProvider(c.HtpasswdFile)
-		cacheHandler = wrapAuthHandler(cacheHandler, htpasswdSecrets, c.Host)
+		if c.AllowUnauthenticatedReads {
+			cacheHandler = unauthenticatedReadWrapper(cacheHandler, htpasswdSecrets, c.Host)
+		} else {
+			cacheHandler = authWrapper(cacheHandler, htpasswdSecrets, c.Host)
+		}
+	} else if c.TLSCaFile != "" {
+		authMode = "mTLS"
+	}
+	log.Println("Authentication:", authMode)
+
+	if authMode != "disabled" {
+		if c.AllowUnauthenticatedReads {
+			log.Println("Access mode: authentication required for writes, unauthenticated reads allowed")
+		} else {
+			log.Println("Access mode: authentication required")
+		}
 	}
 
 	var idleTimer *idle.Timer
@@ -166,7 +184,7 @@ func run(ctx *cli.Context) error {
 			}
 
 			if htpasswdSecrets != nil {
-				gba := server.NewGrpcBasicAuth(htpasswdSecrets)
+				gba := server.NewGrpcBasicAuth(htpasswdSecrets, c.AllowUnauthenticatedReads)
 				streamInterceptors = append(streamInterceptors, gba.StreamServerInterceptor)
 				unaryInterceptors = append(unaryInterceptors, gba.UnaryServerInterceptor)
 			}
@@ -196,10 +214,13 @@ func run(ctx *cli.Context) error {
 			}
 			log.Println("experimental gRPC remote asset API:", remoteAssetStatus)
 
+			checkClientCertForWrites := c.AllowUnauthenticatedReads && c.TLSCaFile != ""
+
 			err3 := server.ListenAndServeGRPC(addr, opts,
 				validateAC,
 				c.EnableACKeyInstanceMangling,
 				enableRemoteAssetAPI,
+				checkClientCertForWrites,
 				diskCache, accessLogger, errorLogger)
 			if err3 != nil {
 				log.Fatal(err3)
@@ -256,7 +277,26 @@ func wrapIdleHandler(handler http.HandlerFunc, idleTimer *idle.Timer, accessLogg
 	})
 }
 
-func wrapAuthHandler(handler http.HandlerFunc, secrets auth.SecretProvider, host string) http.HandlerFunc {
+// A http.HandlerFunc wrapper which requires successful basic
+// authentication for all requests.
+func authWrapper(handler http.HandlerFunc, secrets auth.SecretProvider, host string) http.HandlerFunc {
 	authenticator := auth.NewBasicAuthenticator(host, secrets)
 	return auth.JustCheck(authenticator, handler)
+}
+
+// A http.HandlerFunc wrapper which requires successful basic
+// authentication for write requests, but allows unauthenticated
+// read requests.
+func unauthenticatedReadWrapper(handler http.HandlerFunc, secrets auth.SecretProvider, host string) http.HandlerFunc {
+	authenticator := auth.NewBasicAuthenticator(host, secrets)
+	authHandler := auth.JustCheck(authenticator, handler)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet || r.Method == http.MethodHead {
+			handler(w, r)
+			return
+		}
+
+		authHandler(w, r)
+	}
 }

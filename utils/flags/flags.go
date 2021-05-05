@@ -101,6 +101,13 @@ func GetCliFlags() []cli.Flag {
 			Usage:   "Path to a pem encoded key file.",
 			EnvVars: []string{"BAZEL_REMOTE_TLS_KEY_FILE"},
 		},
+		&cli.BoolFlag{
+			Name:        "allow_unauthenticated_reads",
+			Value:       false,
+			Usage:       "If authentication is enabled (--htpasswd_file or --tls_ca_file), allow unauthenticated clients read access.",
+			DefaultText: "false, ie if authentication is required, read-only requests must also be authenticated",
+			EnvVars:     []string{"BAZEL_REMOTE_UNAUTHENTICATED_READS"},
+		},
 		&cli.DurationFlag{
 			Name:        "idle_timeout",
 			Value:       0,

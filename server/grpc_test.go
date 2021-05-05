@@ -89,6 +89,7 @@ func TestMain(m *testing.M) {
 	validateAC := true
 	mangleACKeys := false
 	enableRemoteAssetAPI := true
+	allowUnauthenticatedReads := false
 
 	go func() {
 		err2 := serveGRPC(
@@ -97,6 +98,7 @@ func TestMain(m *testing.M) {
 			validateAC,
 			mangleACKeys,
 			enableRemoteAssetAPI,
+			allowUnauthenticatedReads,
 			diskCache, accessLogger, errorLogger)
 		if err2 != nil {
 			fmt.Println(err2)
