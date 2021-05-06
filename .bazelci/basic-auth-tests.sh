@@ -62,12 +62,24 @@ wget --inet4-only -d -O - \
 wget --inet4-only -d -O - http://localhost:$HTTP_PORT/status
 
 # Run without auth, expect readonly access.
-bazel run //utils/grpcreadclient -- -server-addr localhost:9092 \
+if ! bazel run //utils/grpcreadclient -- -server-addr localhost:9092 \
 	-reads-should-work
+then
+	echo "ERROR: something unexpected happened"
+	cat "$tmpdir/bazel-remote.log"
+	kill -9 $server_pid
+	exit 1
+fi
 
 # Run with auth, expect read-write access.
-bazel run //utils/grpcreadclient -- -server-addr localhost:9092 \
+if ! bazel run //utils/grpcreadclient -- -server-addr localhost:9092 \
 	-basic-auth-user "$USER" -basic-auth-pass "$PASS"
+then
+	echo "ERROR: something unexpected happened"
+	cat "$tmpdir/bazel-remote.log"
+	kill -9 $server_pid
+	exit 1
+fi
 
 # Authenticated build, populate the cache.
 bazel clean
@@ -143,11 +155,23 @@ then
 fi
 
 # Run without auth, expect no access.
-bazel run //utils/grpcreadclient -- -server-addr localhost:9092
+if ! bazel run //utils/grpcreadclient -- -server-addr localhost:9092
+then
+	echo "ERROR: something unexpected happened"
+	cat "$tmpdir/bazel-remote-authenticated.log"
+	kill -9 $server_pid
+	exit 1
+fi
 
 # Run with auth, expect full access.
-bazel run //utils/grpcreadclient -- -server-addr localhost:9092 \
+if ! bazel run //utils/grpcreadclient -- -server-addr localhost:9092 \
 	-basic-auth-user "$USER" -basic-auth-pass "$PASS"
+then
+	echo "ERROR: something unexpected happened"
+	cat "$tmpdir/bazel-remote-authenticated.log"
+	kill -9 $server_pid
+	exit 1
+fi
 
 # Clean up...
 
