@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"flag"
 	"fmt"
@@ -545,7 +546,10 @@ func checkBytestreamWrite(bsClient bytestream.ByteStreamClient, shouldWork bool)
 		return fmt.Errorf("BytestreamWrite failed to create ByteStreamClient, got: %w", err)
 	}
 
-	blob := []byte("checkBytestreamWrite.testData")
+	now := time.Now().UnixNano()
+	nowBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(nowBytes, uint64(now))
+	blob := append([]byte("checkBytestreamWrite.testData"), nowBytes...)
 	hash := sha256.Sum256(blob)
 	blobDigest := pb.Digest{
 		Hash:      hex.EncodeToString(hash[:]),
