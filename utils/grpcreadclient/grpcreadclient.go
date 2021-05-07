@@ -566,7 +566,7 @@ func checkBytestreamWrite(bsClient bytestream.ByteStreamClient, shouldWork bool)
 	}
 
 	err = bswc.Send(&req)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		return fmt.Errorf("BytestreamWrite failed to send data: %w", err)
 	}
 
