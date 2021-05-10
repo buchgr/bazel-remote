@@ -111,8 +111,13 @@ func New(dir string, maxSizeBytes int64, storageMode string, proxy cache.Proxy) 
 		compressionType = casblob.Identity
 	}
 
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return nil, err
+	}
+
 	c := &Cache{
-		dir:         filepath.Clean(dir),
+		dir:         resolved,
 		storageMode: compressionType,
 		proxy:       proxy,
 	}
@@ -140,7 +145,7 @@ func New(dir string, maxSizeBytes int64, storageMode string, proxy cache.Proxy) 
 
 	c.lru = NewSizedLRU(maxSizeBytes, onEvict)
 
-	err := c.migrateDirectories()
+	err = c.migrateDirectories()
 	if err != nil {
 		return nil, fmt.Errorf("Attempting to migrate the old directory structure failed: %w", err)
 	}
