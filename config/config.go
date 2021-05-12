@@ -74,6 +74,8 @@ type Config struct {
 	// Fields that are created by combinations of the flags above.
 	ProxyBackend cache.Proxy
 	TLSConfig    *tls.Config
+	AccessLogger *log.Logger
+	ErrorLogger  *log.Logger
 }
 
 var defaultDurationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
@@ -277,7 +279,7 @@ func validateConfig(c *Config) error {
 	return nil
 }
 
-func Get(ctx *cli.Context, accessLogger *log.Logger, errorLogger *log.Logger) (*Config, error) {
+func Get(ctx *cli.Context) (*Config, error) {
 	// Get a Config with all the basic fields set.
 	cfg, err := get(ctx)
 	if err != nil {
@@ -286,7 +288,12 @@ func Get(ctx *cli.Context, accessLogger *log.Logger, errorLogger *log.Logger) (*
 
 	// Set the non-basic fields...
 
-	err = cfg.setProxy(accessLogger, errorLogger)
+	err = cfg.setLogger()
+	if err != nil {
+		return nil, err
+	}
+
+	err = cfg.setProxy()
 	if err != nil {
 		return nil, err
 	}

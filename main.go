@@ -31,17 +31,11 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-const (
-	logFlags = log.Ldate | log.Ltime | log.LUTC
-)
-
 // gitCommit is the version stamp for the server. The value of this var
 // is set through linker options.
 var gitCommit string
 
 func main() {
-	log.SetFlags(logFlags)
-
 	maybeGitCommitMsg := ""
 	if len(gitCommit) > 0 && gitCommit != "{STABLE_GIT_COMMIT}" {
 		maybeGitCommitMsg = fmt.Sprintf(" from git commit %s", gitCommit)
@@ -66,10 +60,7 @@ func main() {
 }
 
 func run(ctx *cli.Context) error {
-	accessLogger := log.New(os.Stdout, "", logFlags)
-	errorLogger := log.New(os.Stderr, "", logFlags)
-
-	c, err := config.Get(ctx, accessLogger, errorLogger)
+	c, err := config.Get(ctx)
 	if err != nil {
 		fmt.Fprintf(ctx.App.Writer, "%v\n\n", err)
 		cli.ShowAppHelp(ctx)
@@ -105,7 +96,7 @@ func run(ctx *cli.Context) error {
 	}
 
 	validateAC := !c.DisableHTTPACValidation
-	h := server.NewHTTPCache(diskCache, accessLogger, errorLogger, validateAC,
+	h := server.NewHTTPCache(diskCache, c.AccessLogger, c.ErrorLogger, validateAC,
 		c.EnableACKeyInstanceMangling, c.AllowUnauthenticatedReads, gitCommit)
 
 	var htpasswdSecrets auth.SecretProvider
@@ -135,7 +126,7 @@ func run(ctx *cli.Context) error {
 	var idleTimer *idle.Timer
 	if c.IdleTimeout > 0 {
 		idleTimer = idle.NewTimer(c.IdleTimeout)
-		cacheHandler = wrapIdleHandler(cacheHandler, idleTimer, accessLogger, httpServer)
+		cacheHandler = wrapIdleHandler(cacheHandler, idleTimer, c.AccessLogger, httpServer)
 	}
 
 	acKeyManglingStatus := "disabled"
@@ -221,7 +212,7 @@ func run(ctx *cli.Context) error {
 				c.EnableACKeyInstanceMangling,
 				enableRemoteAssetAPI,
 				checkClientCertForWrites,
-				diskCache, accessLogger, errorLogger)
+				diskCache, c.AccessLogger, c.ErrorLogger)
 			if err3 != nil {
 				log.Fatal(err3)
 			}

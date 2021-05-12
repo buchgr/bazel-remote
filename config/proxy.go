@@ -1,7 +1,6 @@
 package config
 
 import (
-	"log"
 	"net/http"
 	"net/url"
 
@@ -10,11 +9,11 @@ import (
 	"github.com/buchgr/bazel-remote/cache/s3proxy"
 )
 
-func (c *Config) setProxy(accessLogger *log.Logger, errorLogger *log.Logger) error {
+func (c *Config) setProxy() error {
 	if c.GoogleCloudStorage != nil {
 		proxyCache, err := gcsproxy.New(c.GoogleCloudStorage.Bucket,
 			c.GoogleCloudStorage.UseDefaultCredentials, c.GoogleCloudStorage.JSONCredentialsFile,
-			c.StorageMode, accessLogger, errorLogger, c.NumUploaders, c.MaxQueuedUploads)
+			c.StorageMode, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
 		if err != nil {
 			return err
 		}
@@ -31,7 +30,7 @@ func (c *Config) setProxy(accessLogger *log.Logger, errorLogger *log.Logger) err
 			return err
 		}
 		proxyCache, err := httpproxy.New(baseURL, c.StorageMode,
-			httpClient, accessLogger, errorLogger, c.NumUploaders, c.MaxQueuedUploads)
+			httpClient, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
 		if err != nil {
 			return err
 		}
@@ -50,7 +49,7 @@ func (c *Config) setProxy(accessLogger *log.Logger, errorLogger *log.Logger) err
 			c.S3CloudStorage.DisableSSL,
 			c.S3CloudStorage.IAMRoleEndpoint,
 			c.S3CloudStorage.Region,
-			c.StorageMode, accessLogger, errorLogger, c.NumUploaders, c.MaxQueuedUploads)
+			c.StorageMode, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
 		return nil
 	}
 
