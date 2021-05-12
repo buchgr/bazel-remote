@@ -101,15 +101,17 @@ bazel clean
 bazel build //:bazel-remote --remote_cache=grpc://localhost:9092 \
 	2>&1 | tee "$tmpdir/unauthenticated_write.log"
 
-grep -A 1 "WARNING: Writing to Remote Cache:" "$tmpdir/unauthenticated_write.log" | \
-	tr '\n' '|' > "$tmpdir/unauthenticated_write.log.singleline"
-if ! grep --silent "WARNING: Writing to Remote Cache:|BulkTransferException|" "$tmpdir/unauthenticated_write.log.singleline"
-then
-	# We seem to always have one cache miss with a rebuild.
-	# So we expect a single cache write attempt, and it should fail.
-	echo "Error: expected a warning when writing to the remote cache fails"
-	exit 1
-fi
+# TODO: replace this with a less fragile test.
+# https://github.com/bazelbuild/continuous-integration/issues/1150
+#grep -A 1 "WARNING: Writing to Remote Cache:" "$tmpdir/unauthenticated_write.log" | \
+#	tr '\n' '|' > "$tmpdir/unauthenticated_write.log.singleline"
+#if ! grep --silent "WARNING: Writing to Remote Cache:|BulkTransferException|" "$tmpdir/unauthenticated_write.log.singleline"
+#then
+#	# We seem to always have one cache miss with a rebuild.
+#	# So we expect a single cache write attempt, and it should fail.
+#	echo "Error: expected a warning when writing to the remote cache fails"
+#	exit 1
+#fi
 
 # Restart the server with authentication enabled but unauthenticated reads disabled.
 kill -9 $server_pid
