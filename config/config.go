@@ -70,10 +70,13 @@ type Config struct {
 	ExperimentalRemoteAssetAPI  bool                      `yaml:"experimental_remote_asset_api"`
 	HTTPReadTimeout             time.Duration             `yaml:"http_read_timeout"`
 	HTTPWriteTimeout            time.Duration             `yaml:"http_write_timeout"`
+	AccessLogLevel              string                    `yaml:"access_log_level"`
 
 	// Fields that are created by combinations of the flags above.
 	ProxyBackend cache.Proxy
 	TLSConfig    *tls.Config
+	AccessLogger *log.Logger
+	ErrorLogger  *log.Logger
 }
 
 var defaultDurationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
@@ -100,7 +103,8 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 	enableEndpointMetrics bool,
 	experimentalRemoteAssetAPI bool,
 	httpReadTimeout time.Duration,
-	httpWriteTimeout time.Duration) (*Config, error) {
+	httpWriteTimeout time.Duration,
+	accessLogLevel string) (*Config, error) {
 
 	c := Config{
 		Host:                        host,
@@ -130,6 +134,7 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 		ExperimentalRemoteAssetAPI:  experimentalRemoteAssetAPI,
 		HTTPReadTimeout:             httpReadTimeout,
 		HTTPWriteTimeout:            httpWriteTimeout,
+		AccessLogLevel:              accessLogLevel,
 	}
 
 	err := validateConfig(&c)
@@ -163,6 +168,7 @@ func newFromYaml(data []byte) (*Config, error) {
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MetricsDurationBuckets: defaultDurationBuckets,
+		AccessLogLevel:         "all",
 	}
 
 	err := yaml.Unmarshal(data, &c)
@@ -274,10 +280,16 @@ func validateConfig(c *Config) error {
 		}
 	}
 
+	switch c.AccessLogLevel {
+	case "none", "all":
+	default:
+		return errors.New("'access_log_level' must be set to either \"none\" or \"all\"")
+	}
+
 	return nil
 }
 
-func Get(ctx *cli.Context, accessLogger *log.Logger, errorLogger *log.Logger) (*Config, error) {
+func Get(ctx *cli.Context) (*Config, error) {
 	// Get a Config with all the basic fields set.
 	cfg, err := get(ctx)
 	if err != nil {
@@ -286,7 +298,12 @@ func Get(ctx *cli.Context, accessLogger *log.Logger, errorLogger *log.Logger) (*
 
 	// Set the non-basic fields...
 
-	err = cfg.setProxy(accessLogger, errorLogger)
+	err = cfg.setLogger()
+	if err != nil {
+		return nil, err
+	}
+
+	err = cfg.setProxy()
 	if err != nil {
 		return nil, err
 	}
@@ -363,5 +380,6 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.Bool("experimental_remote_asset_api"),
 		ctx.Duration("http_read_timeout"),
 		ctx.Duration("http_write_timeout"),
+		ctx.String("access_log_level"),
 	)
 }

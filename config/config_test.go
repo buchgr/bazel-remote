@@ -24,6 +24,7 @@ enable_endpoint_metrics: true
 experimental_remote_asset_api: true
 http_read_timeout: 5s
 http_write_timeout: 10s
+access_log_level: none
 `
 
 	config, err := newFromYaml([]byte(yaml))
@@ -50,6 +51,7 @@ http_write_timeout: 10s
 		NumUploaders:                100,
 		MaxQueuedUploads:            1000000,
 		MetricsDurationBuckets:      []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
+		AccessLogLevel:              "none",
 	}
 
 	if !reflect.DeepEqual(config, expectedConfig) {
@@ -88,6 +90,7 @@ gcs_proxy:
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
+		AccessLogLevel:         "all",
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -123,6 +126,7 @@ http_proxy:
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
+		AccessLogLevel:         "all",
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -195,6 +199,7 @@ s3_proxy:
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
+		AccessLogLevel:         "all",
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -225,6 +230,7 @@ profile_port: 7070
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
+		AccessLogLevel:         "all",
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -268,6 +274,7 @@ endpoint_metrics_duration_buckets: [.005, .1, 5]
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MetricsDurationBuckets: []float64{0.005, 0.1, 5},
+		AccessLogLevel:         "all",
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
