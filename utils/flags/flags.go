@@ -236,5 +236,11 @@ func GetCliFlags() []cli.Flag {
 			DefaultText: "false, ie disable remote asset API",
 			EnvVars:     []string{"BAZEL_REMOTE_EXPERIMENTAL_REMOTE_ASSET_API"},
 		},
+		&cli.BoolFlag{
+			Name:        "disable_access_log",
+			Usage:       "Whether to disable the standard output access logger",
+			DefaultText: "false, ie enable access logging",
+			EnvVars:     []string{"BAZEL_REMOTE_DISABLE_ACCESS_LOG"},
+		},
 	}
 }
