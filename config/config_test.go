@@ -24,6 +24,7 @@ enable_endpoint_metrics: true
 experimental_remote_asset_api: true
 http_read_timeout: 5s
 http_write_timeout: 10s
+disable_access_log: true
 `
 
 	config, err := newFromYaml([]byte(yaml))
@@ -50,6 +51,7 @@ http_write_timeout: 10s
 		NumUploaders:                100,
 		MaxQueuedUploads:            1000000,
 		MetricsDurationBuckets:      []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
+		DisableAccessLog:            true,
 	}
 
 	if !reflect.DeepEqual(config, expectedConfig) {
