@@ -168,6 +168,7 @@ func newFromYaml(data []byte) (*Config, error) {
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MetricsDurationBuckets: defaultDurationBuckets,
+		AccessLogLevel:         "all",
 	}
 
 	err := yaml.Unmarshal(data, &c)
