@@ -265,9 +265,9 @@ OPTIONS:
       asset API implementation. (default: false, ie disable remote asset API)
       [$BAZEL_REMOTE_EXPERIMENTAL_REMOTE_ASSET_API]
 
-   --disable_access_log Whether to disable the standard output access logger.
-      (default: false, ie enable access logging)
-      [$BAZEL_REMOTE_DISABLE_ACCESS_LOG]
+   --access_log_level The access logger verbosity level. If supplied, must
+      be one of "none" or "all". (default: all, ie enable full access logging)
+      [$BAZEL_REMOTE_ACCESS_LOG_LEVEL]
 
    --help, -h  show help (default: false)
 ```
@@ -366,8 +366,8 @@ host: localhost
 # If true, enable experimental remote asset API support:
 #experimental_remote_asset_api: true
 
-# If true, does not print access logs to standard output:
-#disable_access_log: true
+# If supplied, controls the verbosity of the access logger ("none" or "all"):
+#access_log_level: none
 ```
 
 ## Docker

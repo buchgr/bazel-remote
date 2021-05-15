@@ -70,7 +70,7 @@ type Config struct {
 	ExperimentalRemoteAssetAPI  bool                      `yaml:"experimental_remote_asset_api"`
 	HTTPReadTimeout             time.Duration             `yaml:"http_read_timeout"`
 	HTTPWriteTimeout            time.Duration             `yaml:"http_write_timeout"`
-	DisableAccessLog            bool                      `yaml:"disable_access_log"`
+	AccessLogLevel              string                    `yaml:"access_log_level"`
 
 	// Fields that are created by combinations of the flags above.
 	ProxyBackend cache.Proxy
@@ -104,7 +104,7 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 	experimentalRemoteAssetAPI bool,
 	httpReadTimeout time.Duration,
 	httpWriteTimeout time.Duration,
-	disableAccessLog bool) (*Config, error) {
+	accessLogLevel string) (*Config, error) {
 
 	c := Config{
 		Host:                        host,
@@ -134,7 +134,7 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 		ExperimentalRemoteAssetAPI:  experimentalRemoteAssetAPI,
 		HTTPReadTimeout:             httpReadTimeout,
 		HTTPWriteTimeout:            httpWriteTimeout,
-		DisableAccessLog:            disableAccessLog,
+		AccessLogLevel:              accessLogLevel,
 	}
 
 	err := validateConfig(&c)
@@ -279,6 +279,12 @@ func validateConfig(c *Config) error {
 		}
 	}
 
+	switch c.AccessLogLevel {
+	case "none", "all":
+	default:
+		return errors.New("'access_log_level' must be set to either \"none\" or \"all\"")
+	}
+
 	return nil
 }
 
@@ -373,6 +379,6 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.Bool("experimental_remote_asset_api"),
 		ctx.Duration("http_read_timeout"),
 		ctx.Duration("http_write_timeout"),
-		ctx.Bool("disable_access_log"),
+		ctx.String("access_log_level"),
 	)
 }

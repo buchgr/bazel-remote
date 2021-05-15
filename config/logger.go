@@ -16,7 +16,7 @@ func (c *Config) setLogger() error {
 	c.AccessLogger = log.New(os.Stdout, "", logFlags)
 	c.ErrorLogger = log.New(os.Stderr, "", logFlags)
 
-	if c.DisableAccessLog {
+	if c.AccessLogLevel == "none" {
 		c.AccessLogger.SetOutput(ioutil.Discard)
 	}
 
