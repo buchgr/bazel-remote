@@ -162,10 +162,6 @@ result=$(awk -vhit_rate=$hit_rate -vmin=$min_acceptable_hit_rate 'BEGIN {if (hit
 echo "hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
 summary+="\n$testsection: hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
 
-echo "Stopping minio"
-kill -9 $minio_pid
-sleep 1
-
 echo "Restarting test cache"
 kill -9 $test_cache_pid
 sleep 1
@@ -175,6 +171,7 @@ rm -rf $test_cache_dir
 test_cache_pid=$!
 echo "Test cache pid: $test_cache_pid"
 wait_for_startup "$test_cache_pid"
+
 bazel clean 2> /dev/null
 
 echo -n "Build with cold cache (gRPC): "
@@ -206,7 +203,46 @@ result=$(awk -vhit_rate=$hit_rate -vmin=$min_acceptable_hit_rate 'BEGIN {if (hit
 echo "hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
 summary+="\n$testsection: hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
 
+echo "Restarting test cache"
 kill -9 $test_cache_pid
+sleep 1
+rm -rf $test_cache_dir
+./bazel-remote --max_size 1 --dir $test_cache_dir --port "$HTTP_PORT" \
+	--s3.endpoint 127.0.0.1:9000 \
+	--s3.bucket bazel-remote \
+	--s3.prefix files \
+	--s3.access_key_id minioadmin \
+	--s3.secret_access_key minioadmin \
+	--s3.disable_ssl \
+	> log.stdout 2> log.stderr &
+test_cache_pid=$!
+echo "Test cache pid: $test_cache_pid"
+wait_for_startup "$test_cache_pid"
+
+bazel clean 2> /dev/null
+
+testsection="cold gRPC, hot minio"
+echo -n "Build with hot cache ($testsection): "
+ti=$(date +%s)
+bazel build //:bazel-remote --remote_cache=grpc://127.0.0.1:9092 \
+	--execution_log_json_file=grpc_hot.json \
+	2> grpc_hot
+tf=$(date +%s)
+duration=$(expr $tf - $ti)
+echo "${duration}s"
+grep process grpc_hot
+hits=$(grep -c '"remoteCacheHit": true,' grpc_hot.json || true) # TODO: replace these with jq one day.
+misses=$(grep -c '"remoteCacheHit": false,' grpc_hot.json || true)
+hit_rate=$(awk -vhits=$hits -vmisses=$misses 'BEGIN { printf "%0.2f", hits*100/(hits+misses) }' </dev/null)
+result=$(awk -vhit_rate=$hit_rate -vmin=$min_acceptable_hit_rate 'BEGIN {if (hit_rate >= min) print "success" ; else print "failure";}' < /dev/null)
+[ "$result" = "failure" ] && overall_result=failure
+echo "hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
+summary+="\n$testsection: hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
+
+kill -9 $test_cache_pid
+
+echo "Stopping minio"
+kill -9 $minio_pid
 
 echo -e "\n##########"
 echo -e "$summary\n"
