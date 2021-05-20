@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"sort"
 	"time"
@@ -71,6 +72,7 @@ type Config struct {
 	HTTPReadTimeout             time.Duration             `yaml:"http_read_timeout"`
 	HTTPWriteTimeout            time.Duration             `yaml:"http_write_timeout"`
 	AccessLogLevel              string                    `yaml:"access_log_level"`
+	MaxBlobSize                 int64                     `yaml:"max_blob_size"`
 
 	// Fields that are created by combinations of the flags above.
 	ProxyBackend cache.Proxy
@@ -104,7 +106,8 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 	experimentalRemoteAssetAPI bool,
 	httpReadTimeout time.Duration,
 	httpWriteTimeout time.Duration,
-	accessLogLevel string) (*Config, error) {
+	accessLogLevel string,
+	maxBlobSize int64) (*Config, error) {
 
 	c := Config{
 		Host:                        host,
@@ -135,6 +138,7 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 		HTTPReadTimeout:             httpReadTimeout,
 		HTTPWriteTimeout:            httpWriteTimeout,
 		AccessLogLevel:              accessLogLevel,
+		MaxBlobSize:                 maxBlobSize,
 	}
 
 	err := validateConfig(&c)
@@ -167,6 +171,7 @@ func newFromYaml(data []byte) (*Config, error) {
 		StorageMode:            "zstd",
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
+		MaxBlobSize:            math.MaxInt64,
 		MetricsDurationBuckets: defaultDurationBuckets,
 		AccessLogLevel:         "all",
 	}
@@ -241,6 +246,10 @@ func validateConfig(c *Config) error {
 
 	if c.AllowUnauthenticatedReads && c.TLSCaFile == "" && c.HtpasswdFile == "" {
 		return errors.New("AllowUnauthenticatedReads setting is only available when authentication is enabled")
+	}
+
+	if c.MaxBlobSize <= 0 {
+		return errors.New("The 'max_blob_size' flag/key must be a positive integer")
 	}
 
 	if c.GoogleCloudStorage != nil && c.HTTPBackend != nil && c.S3CloudStorage != nil {
@@ -381,5 +390,6 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.Duration("http_read_timeout"),
 		ctx.Duration("http_write_timeout"),
 		ctx.String("access_log_level"),
+		ctx.Int64("max_blob_size"),
 	)
 }

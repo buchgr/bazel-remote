@@ -1,6 +1,7 @@
 package config
 
 import (
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -50,6 +51,7 @@ access_log_level: none
 		HTTPWriteTimeout:            10 * time.Second,
 		NumUploaders:                100,
 		MaxQueuedUploads:            1000000,
+		MaxBlobSize:                 math.MaxInt64,
 		MetricsDurationBuckets:      []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:              "none",
 	}
@@ -89,6 +91,7 @@ gcs_proxy:
 		},
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
+		MaxBlobSize:            math.MaxInt64,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 	}
@@ -125,6 +128,7 @@ http_proxy:
 		},
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
+		MaxBlobSize:            math.MaxInt64,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 	}
@@ -198,6 +202,7 @@ s3_proxy:
 		},
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
+		MaxBlobSize:            math.MaxInt64,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 	}
@@ -229,6 +234,7 @@ profile_port: 7070
 		ProfileHost:            "",
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
+		MaxBlobSize:            math.MaxInt64,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 	}
@@ -273,6 +279,7 @@ endpoint_metrics_duration_buckets: [.005, .1, 5]
 		StorageMode:            "zstd",
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
+		MaxBlobSize:            math.MaxInt64,
 		MetricsDurationBuckets: []float64{0.005, 0.1, 5},
 		AccessLogLevel:         "all",
 	}
@@ -282,11 +289,12 @@ endpoint_metrics_duration_buckets: [.005, .1, 5]
 	}
 }
 
-func TestMetricsDurationBucketsNoDupliates(t *testing.T) {
+func TestMetricsDurationBucketsNoDuplicates(t *testing.T) {
 	testConfig := &Config{
 		Host:                   "localhost",
 		Port:                   8080,
 		MaxSize:                42,
+		MaxBlobSize:            200,
 		Dir:                    "/opt/cache-dir",
 		StorageMode:            "uncompressed",
 		MetricsDurationBuckets: []float64{1, 2, 3, 3},
@@ -296,7 +304,7 @@ func TestMetricsDurationBucketsNoDupliates(t *testing.T) {
 		t.Fatal("Expected an error because 'endpoint_metrics_duration_buckets' contained a duplicate")
 	}
 	if !strings.Contains(err.Error(), "'endpoint_metrics_duration_buckets'") {
-		t.Fatal("Expected the error message to mention the invalid 'endpoint_metrics_duration_buckets' key")
+		t.Fatalf("Expected the error message to mention the invalid 'endpoint_metrics_duration_buckets' key. Got '%s'", err.Error())
 	}
 }
 
