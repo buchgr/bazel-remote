@@ -97,7 +97,7 @@ func run(ctx *cli.Context) error {
 
 	validateAC := !c.DisableHTTPACValidation
 	h := server.NewHTTPCache(diskCache, c.AccessLogger, c.ErrorLogger, validateAC,
-		c.EnableACKeyInstanceMangling, c.AllowUnauthenticatedReads, gitCommit)
+		c.EnableACKeyInstanceMangling, c.AllowUnauthenticatedReads, c.MaxBlobSize, gitCommit)
 
 	var htpasswdSecrets auth.SecretProvider
 	authMode := "disabled"
@@ -206,12 +206,14 @@ func run(ctx *cli.Context) error {
 			log.Println("experimental gRPC remote asset API:", remoteAssetStatus)
 
 			checkClientCertForWrites := c.AllowUnauthenticatedReads && c.TLSCaFile != ""
+			maxBlobSize := c.MaxBlobSize
 
 			err3 := server.ListenAndServeGRPC(addr, opts,
 				validateAC,
 				c.EnableACKeyInstanceMangling,
 				enableRemoteAssetAPI,
 				checkClientCertForWrites,
+				maxBlobSize,
 				diskCache, c.AccessLogger, c.ErrorLogger)
 			if err3 != nil {
 				log.Fatal(err3)

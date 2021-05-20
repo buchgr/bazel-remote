@@ -71,6 +71,7 @@ type Config struct {
 	HTTPReadTimeout             time.Duration             `yaml:"http_read_timeout"`
 	HTTPWriteTimeout            time.Duration             `yaml:"http_write_timeout"`
 	AccessLogLevel              string                    `yaml:"access_log_level"`
+	MaxBlobSize					int	                      `yaml:"max_blob_size"`
 
 	// Fields that are created by combinations of the flags above.
 	ProxyBackend cache.Proxy
@@ -104,7 +105,8 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 	experimentalRemoteAssetAPI bool,
 	httpReadTimeout time.Duration,
 	httpWriteTimeout time.Duration,
-	accessLogLevel string) (*Config, error) {
+	accessLogLevel string,
+	maxBlobSize int) (*Config, error) {
 
 	c := Config{
 		Host:                        host,
@@ -135,6 +137,7 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 		HTTPReadTimeout:             httpReadTimeout,
 		HTTPWriteTimeout:            httpWriteTimeout,
 		AccessLogLevel:              accessLogLevel,
+		MaxBlobSize:                 maxBlobSize,
 	}
 
 	err := validateConfig(&c)
@@ -381,5 +384,6 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.Duration("http_read_timeout"),
 		ctx.Duration("http_write_timeout"),
 		ctx.String("access_log_level"),
+		ctx.Int("max_blob_size"),
 	)
 }

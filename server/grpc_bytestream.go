@@ -336,6 +336,7 @@ func (s *grpcServer) parseWriteResource(r string) (string, int64, casblob.Compre
 
 var errWriteOffset error = errors.New("bytestream writes from non-zero offsets are unsupported")
 var errDecoderPoolFail error = errors.New("failed to get DecoderWrapper from pool")
+var errRequestObjectTooLarge error = errors.New("write request exceeds configured maximum object size")
 
 func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 
@@ -408,6 +409,11 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 					// Blob already exists, return without writing anything.
 					resp.CommittedSize = size
 					putResult <- io.EOF
+					return
+				}
+
+				if (s.maxBlobSize > 0 && size > int64(s.maxBlobSize) * 1024 * 1024) {
+					recvResult <- errRequestObjectTooLarge
 					return
 				}
 

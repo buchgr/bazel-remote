@@ -45,6 +45,7 @@ type httpCache struct {
 	mangleACKeys             bool
 	gitCommit                string
 	checkClientCertForWrites bool
+	maxBlobSize              int
 }
 
 type statusPageData struct {
@@ -62,7 +63,7 @@ type statusPageData struct {
 // accessLogger will print one line for each HTTP request to stdout.
 // errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
 // be reported.
-func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, mangleACKeys bool, checkClientCertForWrites bool, commit string) HTTPCache {
+func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, mangleACKeys bool, checkClientCertForWrites bool, maxBlobSize int, commit string) HTTPCache {
 
 	_, _, numItems, _ := cache.Stats()
 
@@ -75,6 +76,7 @@ func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cach
 		validateAC:               validateAC,
 		mangleACKeys:             mangleACKeys,
 		checkClientCertForWrites: checkClientCertForWrites,
+		maxBlobSize:              maxBlobSize,
 	}
 
 	if commit != "{STABLE_GIT_COMMIT}" {
@@ -288,6 +290,14 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 		if contentLength == 0 && kind == cache.CAS && hash != emptySha256 {
 			msg := fmt.Sprintf("Invalid empty blob hash: \"%s\"", hash)
+			http.Error(w, msg, http.StatusBadRequest)
+			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
+			return
+		}
+
+		if (h.maxBlobSize > 0 && contentLength > int64(h.maxBlobSize) * 1024 * 1024) {
+			msg := fmt.Sprintf("write request length %d exceeds configured maximum object size %d MB",
+				contentLength, h.maxBlobSize)
 			http.Error(w, msg, http.StatusBadRequest)
 			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
 			return

@@ -42,6 +42,7 @@ type grpcServer struct {
 	depsCheck                bool
 	mangleACKeys             bool
 	checkClientCertForWrites bool
+	maxBlobSize              int
 }
 
 // ListenAndServeGRPC creates a new gRPC server and listens on the given
@@ -52,6 +53,7 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
 	checkClientCertForWrites bool,
+	maxBlobSize int,
 	c *disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	listener, err := net.Listen("tcp", addr)
@@ -59,7 +61,7 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 		return err
 	}
 
-	return serveGRPC(listener, opts, validateACDeps, mangleACKeys, enableRemoteAssetAPI, checkClientCertForWrites, c, a, e)
+	return serveGRPC(listener, opts, validateACDeps, mangleACKeys, enableRemoteAssetAPI, checkClientCertForWrites, maxBlobSize, c, a, e)
 }
 
 func serveGRPC(l net.Listener, opts []grpc.ServerOption,
@@ -67,6 +69,7 @@ func serveGRPC(l net.Listener, opts []grpc.ServerOption,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
 	checkClientCertForWrites bool,
+	maxBlobSize int,
 	c *disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	srv := grpc.NewServer(opts...)
@@ -75,6 +78,7 @@ func serveGRPC(l net.Listener, opts []grpc.ServerOption,
 		depsCheck:                validateACDepsCheck,
 		mangleACKeys:             mangleACKeys,
 		checkClientCertForWrites: checkClientCertForWrites,
+		maxBlobSize:              maxBlobSize,
 	}
 	pb.RegisterActionCacheServer(srv, s)
 	pb.RegisterCapabilitiesServer(srv, s)

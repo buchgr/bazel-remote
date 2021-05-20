@@ -121,6 +121,13 @@ func GetCliFlags() []cli.Flag {
 			Usage:   "When using proxy backends, sets the maximum number of objects in queue for upload. If the queue is full, uploads will be skipped until the queue has space again.",
 			EnvVars: []string{"BAZEL_REMOTE_MAX_QUEUED_UPLOADS"},
 		},
+		&cli.Int64Flag{
+			Name:    "max_blob_size",
+			Value:   0,
+			Usage:   "The maximum size of an individual blob stored in the cache in MiB. Upload requests will fail for any larger blobs.",
+			DefaultText: "0, ie unlimited",
+			EnvVars: []string{"BAZEL_REMOTE_MAX_BLOB_SIZE"},
+		},
 		&cli.IntFlag{
 			Name:    "num_uploaders",
 			Value:   100,
