@@ -65,10 +65,12 @@ type lruItem struct {
 }
 
 // Cache is a filesystem-based LRU cache, with an optional backend proxy.
+// It is safe for concurrent use.
 type Cache struct {
 	dir         string
 	proxy       cache.Proxy
 	storageMode casblob.CompressionType
+	maxBlobSize int64
 
 	mu  sync.Mutex
 	lru SizedLRU
@@ -83,9 +85,9 @@ const sha256HashStrSize = sha256.Size * 2 // Two hex characters per byte.
 const emptySha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
-// with a maximum size of `maxSizeBytes` bytes and an optional backend `proxy`.
-// Cache is safe for concurrent use.
-func New(dir string, maxSizeBytes int64, storageMode string, proxy cache.Proxy) (*Cache, error) {
+// with a maximum size of `maxSizeBytes` bytes, maximum logical blob size
+// `maxBlobSize` and an optional backend `proxy`.
+func New(dir string, maxSizeBytes int64, maxBlobSize int64, storageMode string, proxy cache.Proxy) (*Cache, error) {
 	// Create the directory structure.
 	hexLetters := []byte("0123456789abcdef")
 	for _, c1 := range hexLetters {
@@ -120,6 +122,7 @@ func New(dir string, maxSizeBytes int64, storageMode string, proxy cache.Proxy) 
 		dir:         resolved,
 		storageMode: compressionType,
 		proxy:       proxy,
+		maxBlobSize: maxBlobSize,
 	}
 
 	// The eviction callback deletes the file from disk.
@@ -473,6 +476,10 @@ func (c *Cache) loadExistingFiles() error {
 func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) (rErr error) {
 	if size < 0 {
 		return fmt.Errorf("Invalid (negative) size: %d", size)
+	}
+
+	if size > c.maxBlobSize {
+		return fmt.Errorf("Blob size %d too large, max blob size is %d", size, c.maxBlobSize)
 	}
 
 	// The hash format is checked properly in the http/grpc code.

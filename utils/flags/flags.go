@@ -2,6 +2,8 @@ package flags
 
 import (
 	"github.com/urfave/cli/v2"
+	"math"
+	"strconv"
 )
 
 // GetCliFlags returns a slice of cli.Flag's that bazel-remote accepts.
@@ -120,6 +122,13 @@ func GetCliFlags() []cli.Flag {
 			Value:   1000000,
 			Usage:   "When using proxy backends, sets the maximum number of objects in queue for upload. If the queue is full, uploads will be skipped until the queue has space again.",
 			EnvVars: []string{"BAZEL_REMOTE_MAX_QUEUED_UPLOADS"},
+		},
+		&cli.Int64Flag{
+			Name:        "max_blob_size",
+			Value:       math.MaxInt64,
+			Usage:       "The maximum logical/uncompressed blob size that will be accepted from clients. Note that this limit is not applied to preexisting blobs in the cache.",
+			DefaultText: strconv.FormatInt(math.MaxInt64, 10),
+			EnvVars:     []string{"BAZEL_REMOTE_MAX_BLOB_SIZE"},
 		},
 		&cli.IntFlag{
 			Name:    "num_uploaders",
