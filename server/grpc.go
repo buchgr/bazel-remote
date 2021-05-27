@@ -42,7 +42,7 @@ type grpcServer struct {
 	depsCheck                bool
 	mangleACKeys             bool
 	checkClientCertForWrites bool
-	maxBlobSize              int
+	maxBlobSize              int64
 }
 
 // ListenAndServeGRPC creates a new gRPC server and listens on the given
@@ -53,7 +53,7 @@ func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
 	checkClientCertForWrites bool,
-	maxBlobSize int,
+	maxBlobSize int64,
 	c *disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	listener, err := net.Listen("tcp", addr)
@@ -69,7 +69,7 @@ func serveGRPC(l net.Listener, opts []grpc.ServerOption,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
 	checkClientCertForWrites bool,
-	maxBlobSize int,
+	maxBlobSize int64,
 	c *disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	srv := grpc.NewServer(opts...)

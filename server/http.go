@@ -45,7 +45,7 @@ type httpCache struct {
 	mangleACKeys             bool
 	gitCommit                string
 	checkClientCertForWrites bool
-	maxBlobSize              int
+	maxBlobSize              int64
 }
 
 type statusPageData struct {
@@ -63,7 +63,7 @@ type statusPageData struct {
 // accessLogger will print one line for each HTTP request to stdout.
 // errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
 // be reported.
-func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, mangleACKeys bool, checkClientCertForWrites bool, maxBlobSize int, commit string) HTTPCache {
+func NewHTTPCache(cache *disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, mangleACKeys bool, checkClientCertForWrites bool, maxBlobSize int64, commit string) HTTPCache {
 
 	_, _, numItems, _ := cache.Stats()
 
@@ -295,7 +295,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if (h.maxBlobSize > 0 && contentLength > int64(h.maxBlobSize) * 1024 * 1024) {
+		if contentLength > h.maxBlobSize {
 			msg := fmt.Sprintf("write request length %d exceeds configured maximum object size %d MB",
 				contentLength, h.maxBlobSize)
 			http.Error(w, msg, http.StatusBadRequest)

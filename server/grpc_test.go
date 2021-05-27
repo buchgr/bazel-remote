@@ -72,6 +72,7 @@ func TestMain(m *testing.M) {
 	}
 	defer os.RemoveAll(dir)
 
+	maxBlobSize := int64(10 * 1024 * 1024)
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := int64(10 * maxChunkSize * 2)
 
@@ -99,6 +100,7 @@ func TestMain(m *testing.M) {
 			mangleACKeys,
 			enableRemoteAssetAPI,
 			allowUnauthenticatedReads,
+			maxBlobSize,
 			diskCache, accessLogger, errorLogger)
 		if err2 != nil {
 			fmt.Println(err2)
@@ -1576,6 +1578,8 @@ func TestParseWriteResource(t *testing.T) {
 	s := &grpcServer{
 		accessLogger: testutils.NewSilentLogger(),
 		errorLogger:  testutils.NewSilentLogger(),
+		// max(int64)
+		maxBlobSize: 9223372036854775807,
 	}
 
 	tcs := []struct {
