@@ -125,7 +125,7 @@ func GetCliFlags() []cli.Flag {
 		&cli.Int64Flag{
 			Name:        "max_blob_size",
 			Value:       math.MaxInt64,
-			Usage:       "The maximum size of an individual blob stored in the cache in bytes. Upload requests will fail for any larger blobs.",
+			Usage:       "The maximum size of an individual blob upload, in bytes. CAS blob uploads with logical size exceeding this value are rejected (not taking into account storage compression). HTTP uploads are rejected with a 400 response code if the logical size of the body exceeds this value.",
 			DefaultText: "unlimited",
 			EnvVars:     []string{"BAZEL_REMOTE_MAX_BLOB_SIZE"},
 		},

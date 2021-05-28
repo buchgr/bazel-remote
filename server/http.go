@@ -296,7 +296,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if contentLength > h.maxBlobSize {
-			msg := fmt.Sprintf("write request length %d exceeds configured maximum object size %d MB",
+			msg := fmt.Sprintf("write request length %d exceeds configured maximum object size %d",
 				contentLength, h.maxBlobSize)
 			http.Error(w, msg, http.StatusBadRequest)
 			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)

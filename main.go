@@ -206,14 +206,13 @@ func run(ctx *cli.Context) error {
 			log.Println("experimental gRPC remote asset API:", remoteAssetStatus)
 
 			checkClientCertForWrites := c.AllowUnauthenticatedReads && c.TLSCaFile != ""
-			maxBlobSize := c.MaxBlobSize
 
 			err3 := server.ListenAndServeGRPC(addr, opts,
 				validateAC,
 				c.EnableACKeyInstanceMangling,
 				enableRemoteAssetAPI,
 				checkClientCertForWrites,
-				maxBlobSize,
+				c.MaxBlobSize,
 				diskCache, c.AccessLogger, c.ErrorLogger)
 			if err3 != nil {
 				log.Fatal(err3)

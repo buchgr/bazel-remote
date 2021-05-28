@@ -246,6 +246,10 @@ func validateConfig(c *Config) error {
 		return errors.New("AllowUnauthenticatedReads setting is only available when authentication is enabled")
 	}
 
+	if c.MaxBlobSize <=0 {
+		return errors.New("The 'max_blob_size' flag/key must be a positive integer")
+	}
+
 	if c.GoogleCloudStorage != nil && c.HTTPBackend != nil && c.S3CloudStorage != nil {
 		return errors.New("One can specify at most one proxying backend")
 	}
