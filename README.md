@@ -197,6 +197,12 @@ OPTIONS:
       be skipped until the queue has space again. (default: 1000000)
       [$BAZEL_REMOTE_MAX_QUEUED_UPLOADS]
 
+   --max_blob_size value The maximum size of an individual blob upload, in bytes. CAS
+      blob uploads with logical size exceeding this value are rejected (not taking into
+      account storage compression). HTTP uploads are rejected with a 400 response code if
+      the logical size of the body exceeds this value. (default: unlimited)
+      [$BAZEL_REMOTE_MAX_BLOB_SIZE]
+
    --num_uploaders value When using proxy backends, sets the number of
       Goroutines to process parallel uploads to backend. (default: 100)
       [$BAZEL_REMOTE_NUM_UPLOADERS]
@@ -336,6 +342,8 @@ host: localhost
 #num_uploaders: 100
 # The maximum number of proxy uploads to queue, before dropping uploads.
 #max_queued_uploads: 1000000
+# The largest blob size that will be accepted, for example 10MB:
+#max_blob_size: 10485760
 #
 #gcs_proxy:
 #  bucket: gcs-bucket

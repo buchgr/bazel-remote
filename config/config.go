@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"sort"
 	"time"
@@ -170,6 +171,7 @@ func newFromYaml(data []byte) (*Config, error) {
 		StorageMode:            "zstd",
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
+		MaxBlobSize:            math.MaxInt64,
 		MetricsDurationBuckets: defaultDurationBuckets,
 		AccessLogLevel:         "all",
 	}
@@ -246,7 +248,7 @@ func validateConfig(c *Config) error {
 		return errors.New("AllowUnauthenticatedReads setting is only available when authentication is enabled")
 	}
 
-	if c.MaxBlobSize <=0 {
+	if c.MaxBlobSize <= 0 {
 		return errors.New("The 'max_blob_size' flag/key must be a positive integer")
 	}
 
