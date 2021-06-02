@@ -349,8 +349,8 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 	var resp bytestream.WriteResponse
 	pr, pw := io.Pipe()
 
-	putResult := make(chan error)
-	recvResult := make(chan error)
+	putResult := make(chan error, 1)
+	recvResult := make(chan error, 1)
 	resourceNameChan := make(chan string, 1)
 
 	cmp := casblob.Identity
@@ -437,7 +437,8 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 				}
 
 				go func() {
-					putResult <- s.cache.Put(cache.CAS, hash, size, rc)
+					err := s.cache.Put(cache.CAS, hash, size, rc)
+					putResult <- err
 				}()
 
 				firstIteration = false
