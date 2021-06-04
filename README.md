@@ -270,9 +270,9 @@ OPTIONS:
       asset API implementation. (default: false, ie disable remote asset API)
       [$BAZEL_REMOTE_EXPERIMENTAL_REMOTE_ASSET_API]
 
-   --access_log_level The access logger verbosity level. If supplied, must
-      be one of "none" or "all". (default: all, ie enable full access logging)
-      [$BAZEL_REMOTE_ACCESS_LOG_LEVEL]
+   --access_log_level value The access logger verbosity level. If supplied,
+      must be one of "none" or "all". (default: all, ie enable full access
+      logging) [$BAZEL_REMOTE_ACCESS_LOG_LEVEL]
 
    --help, -h  show help (default: false)
 ```
