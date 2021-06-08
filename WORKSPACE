@@ -969,15 +969,15 @@ go_repository(
 go_repository(
     name = "com_github_klauspost_compress",
     importpath = "github.com/klauspost/compress",
-    sum = "h1:G5AfA94pHPysR56qqrkO2pxEexdDzrpFJ6yt/VqWxVU=",
-    version = "v1.12.3",
+    sum = "h1:2T7tUoQrQT+fQWdaY5rjWztFGAFwbGD04iPJg90ZiOs=",
+    version = "v1.13.0",
 )
 
 go_repository(
     name = "com_github_mostynb_go_grpc_compression",
     importpath = "github.com/mostynb/go-grpc-compression",
-    sum = "h1:LF6LCEjfnXgLExE2KC9MMxsekz0q5oJA729aUjShf+Y=",
-    version = "v1.1.10",
+    sum = "h1:l2L/zYRcIczHm3PNwjepK5/WRzjwyaFlIuaKggzLf1M=",
+    version = "v1.1.11",
 )
 
 go_repository(
@@ -1074,6 +1074,6 @@ go_repository(
 go_repository(
     name = "com_github_mostynb_zstdpool_syncpool",
     importpath = "github.com/mostynb/zstdpool-syncpool",
-    sum = "h1:meYfUODlzmtOCrFmbJsUVEIt5rbmNUsz+Bu+Vnr95ls=",
-    version = "v0.0.7",
+    sum = "h1:Ayib7Dsdg9kfu4S7yQcItPFTnt4w9mBNJ/3qeyxp8yU=",
+    version = "v0.0.8",
 )
