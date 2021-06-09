@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -176,7 +177,7 @@ func (s *grpcServer) fetchItem(uri string, expectedHash string) (bool, string, i
 	}
 
 	err = s.cache.Put(cache.CAS, expectedHash, expectedSize, rc)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		s.errorLogger.Printf("failed to Put %s: %v", expectedHash, err)
 		return false, "", int64(-1)
 	}

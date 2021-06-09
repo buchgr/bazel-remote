@@ -3,7 +3,6 @@ package disk
 import (
 	"bytes"
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -83,6 +82,20 @@ type nameAndInfo struct {
 
 const sha256HashStrSize = sha256.Size * 2 // Two hex characters per byte.
 const emptySha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+func internalErr(err error) *cache.Error {
+	return &cache.Error{
+		Code: http.StatusInternalServerError,
+		Text: err.Error(),
+	}
+}
+
+func badReqErr(format string, a ...interface{}) *cache.Error {
+	return &cache.Error{
+		Code: http.StatusBadRequest,
+		Text: fmt.Sprintf(format, a...),
+	}
+}
 
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
 // with a maximum size of `maxSizeBytes` bytes, maximum logical blob size
@@ -475,18 +488,17 @@ func (c *Cache) loadExistingFiles() error {
 // a non-nil error is returned.
 func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) (rErr error) {
 	if size < 0 {
-		return fmt.Errorf("Invalid (negative) size: %d", size)
+		return badReqErr("Invalid (negative) size: %d", size)
 	}
 
 	if size > c.maxBlobSize {
-		return fmt.Errorf("Blob size %d too large, max blob size is %d", size, c.maxBlobSize)
+		return badReqErr("Blob size %d too large, max blob size is %d", size, c.maxBlobSize)
 	}
 
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
 	if len(hash) != sha256HashStrSize {
-		return fmt.Errorf("Invalid hash size: %d, expected: %d",
-			len(hash), sha256.Size)
+		return badReqErr("Invalid hash size: %d, expected: %d", len(hash), sha256.Size)
 	}
 
 	if kind == cache.CAS && size == 0 && hash == emptySha256 {
@@ -517,7 +529,7 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 			err := c.lru.Unreserve(size)
 			if err != nil {
 				// Set named return value.
-				rErr = err
+				rErr = internalErr(err)
 				log.Printf(rErr.Error())
 			}
 			c.mu.Unlock()
@@ -529,10 +541,7 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 		ok, err := c.lru.Reserve(size)
 		if err != nil {
 			c.mu.Unlock()
-			return &cache.Error{
-				Code: http.StatusInternalServerError,
-				Text: err.Error(),
-			}
+			return internalErr(err)
 		}
 		if !ok {
 			c.mu.Unlock()
@@ -555,14 +564,14 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 	tf, random, err := tfc.Create(filePath, legacy)
 	blobFile = tf.Name()
 	if err != nil {
-		return err
+		return internalErr(err)
 	}
 	removeTempfile = true
 
 	var sizeOnDisk int64
 	sizeOnDisk, err = c.writeAndCloseFile(r, kind, hash, size, tf)
 	if err != nil {
-		return err
+		return internalErr(err)
 	}
 
 	if c.proxy != nil {
@@ -576,9 +585,11 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 	}
 
 	unreserve, removeTempfile, err = c.commit(key, legacy, blobFile, size, size, sizeOnDisk, random)
+	if err != nil {
+		return internalErr(err)
+	}
 
-	// Might be nil.
-	return err
+	return nil
 }
 
 func (c *Cache) writeAndCloseFile(r io.Reader, kind cache.EntryKind, hash string, size int64, f *os.File) (int64, error) {
@@ -760,7 +771,10 @@ func (c *Cache) availableOrTryProxy(kind cache.EntryKind, hash string, size int6
 	return nil, -1, tryProxy, err
 }
 
-var errOnlyCompressedCAS = errors.New("Only CAS blobs are available in compressed form")
+var errOnlyCompressedCAS = &cache.Error{
+	Code: http.StatusBadRequest,
+	Text: "Only CAS blobs are available in compressed form",
+}
 
 // Get returns an io.ReadCloser with the content of the cache item stored
 // under `hash` and the number of bytes that can be read from it. If the
@@ -782,8 +796,7 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
 	if len(hash) != sha256HashStrSize {
-		return nil, -1, fmt.Errorf("Invalid hash size: %d, expected: %d",
-			len(hash), sha256.Size)
+		return nil, -1, badReqErr("Invalid hash size: %d, expected: %d", len(hash), sha256.Size)
 	}
 
 	if kind == cache.CAS && size <= 0 && hash == emptySha256 {
@@ -801,10 +814,10 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 	}
 
 	if offset < 0 {
-		return nil, -1, fmt.Errorf("Invalid offset: %d", offset)
+		return nil, -1, badReqErr("Invalid offset: %d", offset)
 	}
 	if size > 0 && offset >= size {
-		return nil, -1, fmt.Errorf("Invalid offset: %d for size %d", offset, size)
+		return nil, -1, badReqErr("Invalid offset: %d for size %d", offset, size)
 	}
 
 	var err error
@@ -831,7 +844,7 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 			err := c.lru.Unreserve(size)
 			if err != nil {
 				// Set named return value.
-				rErr = err
+				rErr = internalErr(err)
 				log.Printf(rErr.Error())
 			}
 			c.mu.Unlock()
@@ -840,7 +853,7 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 
 	f, foundSize, tryProxy, err := c.availableOrTryProxy(kind, hash, size, offset, zstd)
 	if err != nil {
-		return nil, -1, err
+		return nil, -1, internalErr(err)
 	}
 	if tryProxy && size > 0 {
 		unreserve = true
@@ -860,8 +873,11 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 	if r != nil {
 		defer r.Close()
 	}
-	if err != nil || r == nil {
-		return nil, -1, err
+	if err != nil {
+		return nil, -1, internalErr(err)
+	}
+	if r == nil {
+		return nil, -1, nil
 	}
 
 	if isSizeMismatch(size, foundSize) || foundSize < 0 {
@@ -873,7 +889,7 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 	blobPathBase := path.Join(c.dir, c.FileLocationBase(kind, legacy, hash, foundSize))
 	tf, random, err := tfc.Create(blobPathBase, legacy)
 	if err != nil {
-		return nil, -1, err
+		return nil, -1, internalErr(err)
 	}
 	removeTempfile = true
 
@@ -883,12 +899,12 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 	sizeOnDisk, err = io.Copy(tf, r)
 	tf.Close()
 	if err != nil {
-		return nil, -1, err
+		return nil, -1, internalErr(err)
 	}
 
 	rcf, err := os.Open(blobFile)
 	if err != nil {
-		return nil, -1, err
+		return nil, -1, internalErr(err)
 	}
 
 	uncompressedOnDisk := (kind != cache.CAS) || (c.storageMode == casblob.Identity)
@@ -910,17 +926,16 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 		}
 	}
 	if err != nil {
-		return nil, -1, err
+		return nil, -1, internalErr(err)
 	}
 
 	unreserve, removeTempfile, err = c.commit(key, legacy, blobFile, size, foundSize, sizeOnDisk, random)
 	if err != nil {
 		rc.Close()
-		rc = nil
-		foundSize = -1
+		return nil, -1, internalErr(err)
 	}
 
-	return rc, foundSize, err
+	return rc, foundSize, nil
 }
 
 // Contains returns true if the `hash` key exists in the cache, and

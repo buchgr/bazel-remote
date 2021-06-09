@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"io/ioutil"
 
 	"github.com/golang/protobuf/proto"
@@ -83,9 +84,9 @@ func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 
 		err = s.cache.Put(cache.CAS, req.Digest.Hash,
 			int64(len(req.Data)), bytes.NewReader(req.Data))
-		if err != nil {
+		if err != nil && err != io.EOF {
 			s.errorLogger.Printf("%s %s %s", errorPrefix, req.Digest.Hash, err)
-			rr.Status.Code = int32(code.Code_UNKNOWN)
+			rr.Status.Code = int32(gRPCErrCode(err, codes.Internal))
 			continue
 		}
 

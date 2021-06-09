@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"strings"
@@ -159,7 +160,7 @@ func (s *grpcServer) maybeInline(inline bool, slice *[]byte, digest **pb.Digest,
 		if !found {
 			err := s.cache.Put(cache.CAS, (*digest).Hash, (*digest).SizeBytes,
 				bytes.NewReader(*slice))
-			if err != nil {
+			if err != nil && err != io.EOF {
 				return err
 			}
 			s.accessLogger.Printf("GRPC CAS PUT %s OK", (*digest).Hash)
@@ -224,9 +225,10 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 
 	err = s.cache.Put(cache.AC, req.ActionDigest.Hash,
 		int64(len(data)), bytes.NewReader(data))
-	if err != nil {
+	if err != nil && err != io.EOF {
 		s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
-		return nil, status.Error(codes.Internal, err.Error())
+		code := gRPCErrCode(err, codes.Internal)
+		return nil, status.Error(code, err.Error())
 	}
 
 	// Also cache any inlined blobs, separately in the CAS.
@@ -247,10 +249,10 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 
 			err = s.cache.Put(cache.CAS, f.Digest.Hash,
 				f.Digest.SizeBytes, bytes.NewReader(f.Contents))
-			if err != nil {
-				s.accessLogger.Printf("%s %s %s", logPrefix,
-					req.ActionDigest.Hash, err)
-				return nil, status.Error(codes.Internal, err.Error())
+			if err != nil && err != io.EOF {
+				s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+				code := gRPCErrCode(err, codes.Internal)
+				return nil, status.Error(code, err.Error())
 			}
 			s.accessLogger.Printf("GRPC CAS PUT %s OK", f.Digest.Hash)
 		}
@@ -270,10 +272,10 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 
 		err = s.cache.Put(cache.CAS, hash, sizeBytes,
 			bytes.NewReader(req.ActionResult.StdoutRaw))
-		if err != nil {
-			s.accessLogger.Printf("%s %s %s", logPrefix,
-				req.ActionDigest.Hash, err)
-			return nil, status.Error(codes.Internal, err.Error())
+		if err != nil && err != io.EOF {
+			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+			code := gRPCErrCode(err, codes.Internal)
+			return nil, status.Error(code, err.Error())
 		}
 		s.accessLogger.Printf("GRPC CAS PUT %s OK", hash)
 	}
@@ -292,10 +294,10 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 
 		err = s.cache.Put(cache.CAS, hash, sizeBytes,
 			bytes.NewReader(req.ActionResult.StderrRaw))
-		if err != nil {
-			s.accessLogger.Printf("%s %s %s", logPrefix,
-				req.ActionDigest.Hash, err)
-			return nil, status.Error(codes.Internal, err.Error())
+		if err != nil && err != io.EOF {
+			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+			code := gRPCErrCode(err, codes.Internal)
+			return nil, status.Error(code, err.Error())
 		}
 		s.accessLogger.Printf("GRPC CAS PUT %s OK", hash)
 	}
