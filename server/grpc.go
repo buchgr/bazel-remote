@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"regexp"
 
 	"google.golang.org/genproto/googleapis/bytestream"
@@ -169,4 +170,19 @@ func checkGRPCClientCert(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// Return a grpc code based on err, or fall back to returning
+// a default Code.
+func gRPCErrCode(err error, dflt codes.Code) codes.Code {
+	if err == nil {
+		return codes.OK
+	}
+
+	cerr, ok := err.(*cache.Error)
+	if ok && cerr.Code == http.StatusBadRequest {
+		return codes.InvalidArgument
+	}
+
+	return dflt
 }
