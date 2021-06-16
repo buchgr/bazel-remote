@@ -11,7 +11,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/klauspost/compress v1.13.0
 	github.com/klauspost/cpuid v1.3.1 // indirect
-	github.com/minio/minio-go/v7 v7.0.1
+	github.com/minio/minio-go/v7 v7.0.11
 	github.com/mostynb/go-grpc-compression v1.1.11
 	github.com/mostynb/zstdpool-syncpool v0.0.8
 	github.com/prometheus/client_golang v1.7.1
