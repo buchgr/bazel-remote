@@ -141,6 +141,14 @@ go_repository(
 )
 
 go_repository(
+    # minio has this dependency
+    name = "com_github_rs_xid",
+    importpath = "github.com/rs/xid",
+    sum = "h1:mhH9Nq+C1fY2l1XIpgxIiUOfNpRBYH1kKcr+qfKgjRc=",
+    version = "v1.2.1",
+)
+
+go_repository(
     name = "org_golang_x_crypto",
     importpath = "golang.org/x/crypto",
     sum = "h1:DZhuSZLsGlFL4CmhA8BcRA0mnthyA/nZ00AqCUo7vHg=",
@@ -584,8 +592,8 @@ go_repository(
 go_repository(
     name = "com_github_minio_minio_go_v7",
     importpath = "github.com/minio/minio-go/v7",
-    sum = "h1:sL2y4uuNUEi7AjvWjoGyDFQKFX2zA0DU2tGM9m3s5f8=",
-    version = "v7.0.1",
+    sum = "h1:7utSkCtMQPYYB1UB8FR3d0QSiOWE6F/JYXon29imYek=",
+    version = "v7.0.11",
 )
 
 go_repository(
