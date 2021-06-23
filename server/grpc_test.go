@@ -609,7 +609,7 @@ func TestGrpcByteStreamEmptySha256(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var downloadedBlob []byte
+	downloadedBlob := []byte{}
 	for {
 		bsrResp, err := bsrc.Recv()
 		if err == io.EOF {
@@ -627,6 +627,43 @@ func TestGrpcByteStreamEmptySha256(t *testing.T) {
 		if len(downloadedBlob) > 0 {
 			t.Fatalf("Downloaded too much data")
 		}
+	}
+
+	// Also test that we can get the "compressed empty blob".
+	// Clients shouldn't do this, but it should be possible.
+
+	resource = fmt.Sprintf("emptyRead/compressed-blobs/zstd/%s/0", emptySha256)
+	bsrReq = bytestream.ReadRequest{ResourceName: resource}
+
+	bsrc, err = bsClient.Read(ctx, &bsrReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	downloadedBlob = []byte{}
+	for {
+		bsrResp, err := bsrc.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bsrResp == nil {
+			t.Fatalf("Expected non-nil response")
+		}
+
+		downloadedBlob = append(downloadedBlob, bsrResp.Data...)
+
+		if len(downloadedBlob) > len(emptyZstdBlob) {
+			t.Fatalf("Downloaded too much data")
+		}
+	}
+
+	if !bytes.Equal(downloadedBlob, emptyZstdBlob) {
+		// There are many different valid empty zstd blob representations,
+		// but we picked this one.
+		t.Fatalf("Expected compressed empty blob to be available")
 	}
 }
 

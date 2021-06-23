@@ -32,6 +32,8 @@ var decoderPool = zstdpool.GetDecoderPool()
 
 // ByteStreamServer interface:
 
+var emptyZstdBlob = []byte{40, 181, 47, 253, 32, 0, 1, 0, 0}
+
 func (s *grpcServer) Read(req *bytestream.ReadRequest,
 	resp bytestream.ByteStream_ReadServer) error {
 
@@ -41,6 +43,23 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 	hash, size, cmp, err := s.parseReadResource(req.ResourceName, errorPrefix)
 	if err != nil {
 		return err
+	}
+
+	if size == 0 {
+		if cmp == casblob.Identity {
+			s.accessLogger.Printf("GRPC BYTESTREAM READ COMPLETED %s", req.ResourceName)
+			return nil
+		}
+
+		// The client asked for a zstd-compressed empty blob. Weird.
+		err := resp.Send(&bytestream.ReadResponse{Data: emptyZstdBlob})
+		if err != nil {
+			msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED TO SEND RESPONSE: %s %v", hash, err)
+			s.accessLogger.Printf(msg)
+			return status.Error(codes.Unknown, msg)
+		}
+		s.accessLogger.Printf("GRPC BYTESTREAM READ COMPLETED %s", req.ResourceName)
+		return nil
 	}
 
 	if req.ReadOffset < 0 {
