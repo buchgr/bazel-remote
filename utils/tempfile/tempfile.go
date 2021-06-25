@@ -1,6 +1,7 @@
 package tempfile
 
 import (
+	"errors"
 	"os"
 	"strconv"
 	"sync"
@@ -37,6 +38,8 @@ const flags = os.O_RDWR | os.O_CREATE | os.O_EXCL
 const EndMode = 0666
 const wipMode = EndMode | os.ModeSetgid
 
+var errNoTempfile = errors.New("Failed to create a temp file")
+
 // Create attempts to create a file whose name is of the form
 // <base>-<randomstring> and with a ".v1" suffix if `legacy` is
 // true. The file will be created with the setgid bit set, which
@@ -61,10 +64,16 @@ func (c *Creator) Create(base string, legacy bool) (*os.File, string, error) {
 		}
 
 		f, err = os.OpenFile(name, flags, wipMode)
+		if err == nil {
+			return f, random, nil
+		}
 		if os.IsExist(err) {
+			// Tempfile collision. Try again.
 			continue
 		}
-		return f, random, err
+
+		// Unexpected error.
+		return nil, "", err
 	}
-	return nil, "", err
+	return nil, "", errNoTempfile
 }
