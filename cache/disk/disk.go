@@ -562,10 +562,16 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 
 	// We will download to this temporary file.
 	tf, random, err := tfc.Create(filePath, legacy)
-	blobFile = tf.Name()
 	if err != nil {
 		return internalErr(err)
 	}
+	if tf == nil {
+		return &cache.Error{
+			Code: http.StatusInternalServerError,
+			Text: fmt.Sprintf("Failed to create tempfile for %q", filePath),
+		}
+	}
+	blobFile = tf.Name()
 	removeTempfile = true
 
 	var sizeOnDisk int64
