@@ -69,6 +69,7 @@ go_image(
 
 container_image(
     name = "bazel-remote-image",
+    architecture = "amd64",
     base = ":bazel-remote-base",
     cmd = ["--max_size=5"],
     entrypoint = [
@@ -92,6 +93,7 @@ container_image(
 
 container_image(
     name = "bazel-remote-image-arm64",
+    architecture = "arm64",
     base = ":bazel-remote-base-arm64",
     cmd = ["--max_size=1"],
     entrypoint = [
@@ -113,12 +115,31 @@ container_image(
     visibility = ["//visibility:public"],
 )
 
+# The following container_push targets push to "tmp-amd64" and "tmp-arm64"
+# tags, so they can be combined into a multiarch tag on dockerhub. This
+# isn't currently possible with rules_docker, so instead we rely on some
+# external commands to be run after the tmp-* tags are pushed. See the
+# docker/push_to_dockerhub script.
+#
+# Background:
+# https://github.com/bazelbuild/rules_docker/issues/1599
+
 container_push(
-    name = "push_to_dockerhub",
+    name = "push_to_dockerhub_amd64",
     format = "Docker",
     image = ":bazel-remote-image",
     registry = "index.docker.io",
     repository = "buchgr/bazel-remote-cache",
-    tag = "latest",
+    tag = "tmp-amd64",
+    visibility = ["//visibility:public"],
+)
+
+container_push(
+    name = "push_to_dockerhub_arm64",
+    format = "Docker",
+    image = ":bazel-remote-image-arm64",
+    registry = "index.docker.io",
+    repository = "buchgr/bazel-remote-cache",
+    tag = "tmp-arm64",
     visibility = ["//visibility:public"],
 )
