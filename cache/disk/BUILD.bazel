@@ -4,6 +4,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "disk.go",
+        "findmissing.go",
         "lru.go",
     ],
     importpath = "github.com/buchgr/bazel-remote/cache/disk",
@@ -17,6 +18,8 @@ go_library(
         "@com_github_golang_protobuf//proto:go_default_library",
         "@com_github_prometheus_client_golang//prometheus:go_default_library",
         "@com_github_prometheus_client_golang//prometheus/promauto:go_default_library",
+        "@org_golang_google_grpc//codes:go_default_library",
+        "@org_golang_google_grpc//status:go_default_library",
     ],
 )
 
@@ -24,6 +27,7 @@ go_test(
     name = "go_default_test",
     srcs = [
         "disk_test.go",
+        "findmissing_test.go",
         "lru_test.go",
     ],
     embed = [":go_default_library"],

@@ -115,7 +115,7 @@ func TestEverything(t *testing.T) {
 	}
 
 	diskCacheSize := int64(len(casData) + disk.BlockSize)
-	diskCache, err := disk.New(cacheDir, diskCacheSize, math.MaxInt64, "zstd", proxyCache)
+	diskCache, err := disk.New(cacheDir, diskCacheSize, math.MaxInt64, "zstd", proxyCache, testutils.NewSilentLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +273,7 @@ func TestEverything(t *testing.T) {
 	cacheDir2 := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir2)
 
-	diskCache, err = disk.New(cacheDir2, diskCacheSize, math.MaxInt64, "zstd", proxyCache)
+	diskCache, err = disk.New(cacheDir2, diskCacheSize, math.MaxInt64, "zstd", proxyCache, testutils.NewSilentLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
