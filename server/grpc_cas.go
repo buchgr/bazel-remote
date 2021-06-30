@@ -28,8 +28,6 @@ var (
 func (s *grpcServer) FindMissingBlobs(ctx context.Context,
 	req *pb.FindMissingBlobsRequest) (*pb.FindMissingBlobsResponse, error) {
 
-	resp := pb.FindMissingBlobsResponse{}
-
 	errorPrefix := "GRPC CAS HEAD"
 	for _, digest := range req.BlobDigests {
 		hash := digest.GetHash()
@@ -37,17 +35,14 @@ func (s *grpcServer) FindMissingBlobs(ctx context.Context,
 		if err != nil {
 			return nil, err
 		}
-
-		found, _ := s.cache.Contains(cache.CAS, hash, digest.GetSizeBytes())
-		if !found {
-			s.accessLogger.Printf("GRPC CAS HEAD %s NOT FOUND", hash)
-			resp.MissingBlobDigests = append(resp.MissingBlobDigests, digest)
-		} else {
-			s.accessLogger.Printf("GRPC CAS HEAD %s OK", hash)
-		}
 	}
 
-	return &resp, nil
+	missingBlobs, err := s.cache.FindMissingCasBlobs(ctx, req.BlobDigests)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.FindMissingBlobsResponse{MissingBlobDigests: missingBlobs}, nil
 }
 
 func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,

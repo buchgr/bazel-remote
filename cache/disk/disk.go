@@ -66,10 +66,12 @@ type lruItem struct {
 // Cache is a filesystem-based LRU cache, with an optional backend proxy.
 // It is safe for concurrent use.
 type Cache struct {
-	dir         string
-	proxy       cache.Proxy
-	storageMode casblob.CompressionType
-	maxBlobSize int64
+	dir           string
+	proxy         cache.Proxy
+	storageMode   casblob.CompressionType
+	maxBlobSize   int64
+	accessLogger  *log.Logger
+	containsQueue chan proxyCheck
 
 	mu  sync.Mutex
 	lru SizedLRU
@@ -100,7 +102,7 @@ func badReqErr(format string, a ...interface{}) *cache.Error {
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
 // with a maximum size of `maxSizeBytes` bytes, maximum logical blob size
 // `maxBlobSize` and an optional backend `proxy`.
-func New(dir string, maxSizeBytes int64, maxBlobSize int64, storageMode string, proxy cache.Proxy) (*Cache, error) {
+func New(dir string, maxSizeBytes int64, maxBlobSize int64, storageMode string, proxy cache.Proxy, accessLogger *log.Logger) (*Cache, error) {
 	// Create the directory structure.
 	hexLetters := []byte("0123456789abcdef")
 	for _, c1 := range hexLetters {
@@ -132,10 +134,15 @@ func New(dir string, maxSizeBytes int64, maxBlobSize int64, storageMode string, 
 	}
 
 	c := &Cache{
-		dir:         resolved,
-		storageMode: compressionType,
-		proxy:       proxy,
-		maxBlobSize: maxBlobSize,
+		dir:          resolved,
+		storageMode:  compressionType,
+		proxy:        proxy,
+		maxBlobSize:  maxBlobSize,
+		accessLogger: accessLogger,
+	}
+
+	if proxy != nil {
+		c.spawnContainsQueueWorkers()
 	}
 
 	// The eviction callback deletes the file from disk.
