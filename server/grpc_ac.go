@@ -57,7 +57,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 	if !s.depsCheck {
 		logPrefix = "GRPC AC GET NODEPSCHECK"
 
-		rdr, sizeBytes, err := s.cache.Get(cache.AC, req.ActionDigest.Hash, unknownActionResultSize, 0)
+		rdr, sizeBytes, err := s.cache.Get(ctx, cache.AC, req.ActionDigest.Hash, unknownActionResultSize, 0)
 		if err != nil {
 			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 			return nil, status.Error(codes.Unknown, err.Error())
@@ -86,7 +86,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 		return result, nil
 	}
 
-	result, _, err := s.cache.GetValidatedActionResult(req.ActionDigest.Hash)
+	result, _, err := s.cache.GetValidatedActionResult(ctx, req.ActionDigest.Hash)
 	if err != nil {
 		s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 		return nil, status.Error(codes.Unknown, err.Error())
@@ -102,14 +102,14 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 
 	var inlinedSoFar int64
 
-	err = s.maybeInline(req.InlineStdout,
+	err = s.maybeInline(ctx, req.InlineStdout,
 		&result.StdoutRaw, &result.StdoutDigest, &inlinedSoFar)
 	if err != nil {
 		s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
 
-	err = s.maybeInline(req.InlineStderr,
+	err = s.maybeInline(ctx, req.InlineStderr,
 		&result.StderrRaw, &result.StderrDigest, &inlinedSoFar)
 	if err != nil {
 		s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
@@ -122,7 +122,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 	}
 	for _, of := range result.GetOutputFiles() {
 		_, ok := inlinableFiles[of.Path]
-		err = s.maybeInline(ok, &of.Contents, &of.Digest, &inlinedSoFar)
+		err = s.maybeInline(ctx, ok, &of.Contents, &of.Digest, &inlinedSoFar)
 		if err != nil {
 			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 			return nil, status.Error(codes.Unknown, err.Error())
@@ -134,7 +134,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 	return result, nil
 }
 
-func (s *grpcServer) maybeInline(inline bool, slice *[]byte, digest **pb.Digest, inlinedSoFar *int64) error {
+func (s *grpcServer) maybeInline(ctx context.Context, inline bool, slice *[]byte, digest **pb.Digest, inlinedSoFar *int64) error {
 
 	if (*inlinedSoFar + int64(len(*slice))) > maxInlineSize {
 		inline = false
@@ -156,7 +156,7 @@ func (s *grpcServer) maybeInline(inline bool, slice *[]byte, digest **pb.Digest,
 			}
 		}
 
-		found, _ := s.cache.Contains(cache.CAS, (*digest).Hash, (*digest).SizeBytes)
+		found, _ := s.cache.Contains(ctx, cache.CAS, (*digest).Hash, (*digest).SizeBytes)
 		if !found {
 			err := s.cache.Put(cache.CAS, (*digest).Hash, (*digest).SizeBytes,
 				bytes.NewReader(*slice))
@@ -181,7 +181,7 @@ func (s *grpcServer) maybeInline(inline bool, slice *[]byte, digest **pb.Digest,
 
 	// Otherwise, attempt to inline.
 	if (*digest).SizeBytes > 0 {
-		data, err := s.getBlobData((*digest).Hash, (*digest).SizeBytes)
+		data, err := s.getBlobData(ctx, (*digest).Hash, (*digest).SizeBytes)
 		if err != nil {
 			return err
 		}

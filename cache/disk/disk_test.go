@@ -2,6 +2,7 @@ package disk
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -41,6 +42,9 @@ const contentsHash = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e7304336293
 const contentsLength = int64(len(contents))
 
 func TestCacheBasics(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
 
@@ -62,7 +66,7 @@ func TestCacheBasics(t *testing.T) {
 	data, hash := testutils.RandomDataAndHash(itemSize)
 
 	// Non-existing item.
-	rdr, _, err := testCache.Get(cache.CAS, hash, itemSize, 0)
+	rdr, _, err := testCache.Get(ctx, cache.CAS, hash, itemSize, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +82,7 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Get the item back.
-	rdr, sizeBytes, err := testCache.Get(cache.CAS, hash, itemSize, 0)
+	rdr, sizeBytes, err := testCache.Get(ctx, cache.CAS, hash, itemSize, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,6 +127,8 @@ func TestCachePutWrongSize(t *testing.T) {
 }
 
 func TestCacheGetContainsWrongSize(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
@@ -139,28 +145,30 @@ func TestCacheGetContainsWrongSize(t *testing.T) {
 		t.Fatal("Expected success", err)
 	}
 
-	found, _ = testCache.Contains(cache.CAS, contentsHash, contentsLength+1)
+	found, _ = testCache.Contains(ctx, cache.CAS, contentsHash, contentsLength+1)
 	if found {
 		t.Error("Expected not found, due to size being different")
 	}
 
-	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, contentsLength+1, 0)
+	rdr, _, _ = testCache.Get(ctx, cache.CAS, contentsHash, contentsLength+1, 0)
 	if rdr != nil {
 		t.Error("Expected not found, due to size being different")
 	}
 
-	found, _ = testCache.Contains(cache.CAS, contentsHash, -1)
+	found, _ = testCache.Contains(ctx, cache.CAS, contentsHash, -1)
 	if !found {
 		t.Error("Expected found, when unknown size")
 	}
 
-	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, -1, 0)
+	rdr, _, _ = testCache.Get(ctx, cache.CAS, contentsHash, -1, 0)
 	if rdr == nil {
 		t.Error("Expected found, when unknown size")
 	}
 }
 
 func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
@@ -179,12 +187,12 @@ func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
 			testCache.lru.Len())
 	}
 
-	found, _ = testCache.Contains(cache.CAS, contentsHash, contentsLength+1)
+	found, _ = testCache.Contains(ctx, cache.CAS, contentsHash, contentsLength+1)
 	if found {
 		t.Fatal("Expected not found, due to size being different")
 	}
 
-	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, contentsLength+1, 0)
+	rdr, _, _ = testCache.Get(ctx, cache.CAS, contentsHash, contentsLength+1, 0)
 	if rdr != nil {
 		t.Fatal("Expected not found, due to size being different")
 	}
@@ -194,12 +202,12 @@ func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
 			testCache.lru.Len())
 	}
 
-	found, _ = testCache.Contains(cache.CAS, contentsHash, -1)
+	found, _ = testCache.Contains(ctx, cache.CAS, contentsHash, -1)
 	if !found {
 		t.Fatal("Expected found, when unknown size")
 	}
 
-	rdr, _, _ = testCache.Get(cache.CAS, contentsHash, -1, 0)
+	rdr, _, _ = testCache.Get(ctx, cache.CAS, contentsHash, -1, 0)
 	if rdr == nil {
 		t.Fatal("Expected found, when unknown size")
 	}
@@ -218,7 +226,7 @@ func (d proxyStub) Put(kind cache.EntryKind, hash string, size int64, rc io.Read
 	// Not implemented.
 }
 
-func (d proxyStub) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
+func (d proxyStub) Get(ctx context.Context, kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 	if hash != contentsHash || kind != cache.CAS {
 		return nil, -1, nil
 	}
@@ -245,7 +253,7 @@ func (d proxyStub) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64,
 	return readme, contentsLength, nil
 }
 
-func (d proxyStub) Contains(kind cache.EntryKind, hash string) (bool, int64) {
+func (d proxyStub) Contains(ctx context.Context, kind cache.EntryKind, hash string) (bool, int64) {
 	if hash != contentsHash || kind != cache.CAS {
 		return false, -1
 	}
@@ -273,11 +281,11 @@ func expectContentEquals(rdr io.ReadCloser, sizeBytes int64, expectedContent []b
 	return nil
 }
 
-func putGetCompare(kind cache.EntryKind, hash string, content string, testCache *Cache) error {
-	return putGetCompareBytes(kind, hash, []byte(content), testCache)
+func putGetCompare(ctx context.Context, kind cache.EntryKind, hash string, content string, testCache *Cache) error {
+	return putGetCompareBytes(ctx, kind, hash, []byte(content), testCache)
 }
 
-func putGetCompareBytes(kind cache.EntryKind, hash string, data []byte, testCache *Cache) error {
+func putGetCompareBytes(ctx context.Context, kind cache.EntryKind, hash string, data []byte, testCache *Cache) error {
 
 	r := bytes.NewReader(data)
 
@@ -286,10 +294,11 @@ func putGetCompareBytes(kind cache.EntryKind, hash string, data []byte, testCach
 		return err
 	}
 
-	rdr, sizeBytes, err := testCache.Get(kind, hash, int64(len(data)), 0)
+	rdr, sizeBytes, err := testCache.Get(ctx, kind, hash, int64(len(data)), 0)
 	if err != nil {
 		return err
 	}
+
 	// Get the item back
 	return expectContentEquals(rdr, sizeBytes, data)
 }
@@ -301,6 +310,9 @@ func hashStr(content string) string {
 
 // Make sure that we can overwrite items if we upload the same key again.
 func TestOverwrite(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
 
@@ -309,35 +321,38 @@ func TestOverwrite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = putGetCompare(cache.CAS, hashStr("hello"), "hello", testCache)
+	err = putGetCompare(ctx, cache.CAS, hashStr("hello"), "hello", testCache)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = putGetCompare(cache.CAS, hashStr("hello"), "hello", testCache)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = putGetCompare(cache.AC, hashStr("world"), "world1", testCache)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = putGetCompare(cache.AC, hashStr("world"), "world2", testCache)
+	err = putGetCompare(ctx, cache.CAS, hashStr("hello"), "hello", testCache)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = putGetCompare(cache.RAW, hashStr("world"), "world3", testCache)
+	err = putGetCompare(ctx, cache.AC, hashStr("world"), "world1", testCache)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = putGetCompare(cache.RAW, hashStr("world"), "world4", testCache)
+	err = putGetCompare(ctx, cache.AC, hashStr("world"), "world2", testCache)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = putGetCompare(ctx, cache.RAW, hashStr("world"), "world3", testCache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = putGetCompare(ctx, cache.RAW, hashStr("world"), "world4", testCache)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestCacheExistingFiles(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
 
@@ -445,7 +460,7 @@ func TestCacheExistingFiles(t *testing.T) {
 		break // First item evicted as expected.
 	}
 
-	found, _ := testCache.Contains(cache.CAS, items[0].hash, contentsLength)
+	found, _ := testCache.Contains(ctx, cache.CAS, items[0].hash, contentsLength)
 	if found {
 		t.Fatalf("%s should have been evicted", items[0].file)
 	}
@@ -545,6 +560,9 @@ func createRandomCASFile(dir string, size int64) (string, error) {
 }
 
 func TestMigrateFromOldDirectoryStructure(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
@@ -577,23 +595,26 @@ func TestMigrateFromOldDirectoryStructure(t *testing.T) {
 	}
 
 	var found bool
-	found, _ = testCache.Contains(cache.AC, acHash, 512)
+	found, _ = testCache.Contains(ctx, cache.AC, acHash, 512)
 	if !found {
 		t.Fatalf("Expected cache to contain AC entry '%s'", acHash)
 	}
 
-	found, _ = testCache.Contains(cache.CAS, casHash1, 1024)
+	found, _ = testCache.Contains(ctx, cache.CAS, casHash1, 1024)
 	if !found {
 		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash1)
 	}
 
-	found, _ = testCache.Contains(cache.CAS, casHash2, 1024)
+	found, _ = testCache.Contains(ctx, cache.CAS, casHash2, 1024)
 	if !found {
 		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash2)
 	}
 }
 
 func TestLoadExistingEntries(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// Test that loading existing items works
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
@@ -674,28 +695,31 @@ func TestLoadExistingEntries(t *testing.T) {
 
 	var found bool
 
-	found, _ = testCache.Contains(cache.AC, acHash, blobSize)
+	found, _ = testCache.Contains(ctx, cache.AC, acHash, blobSize)
 	if !found {
 		t.Fatalf("Expected cache to contain AC entry '%s'", acHash)
 	}
 
-	found, _ = testCache.Contains(cache.CAS, casHash, blobSize)
+	found, _ = testCache.Contains(ctx, cache.CAS, casHash, blobSize)
 	if !found {
 		t.Fatalf("Expected cache to contain CAS entry '%s'", casHash)
 	}
 
-	found, _ = testCache.Contains(cache.CAS, casV1Hash, blobSize)
+	found, _ = testCache.Contains(ctx, cache.CAS, casV1Hash, blobSize)
 	if !found {
 		t.Fatalf("Expected cache to contain CAS V1 entry '%s'", casV1Hash)
 	}
 
-	found, _ = testCache.Contains(cache.RAW, rawHash, blobSize)
+	found, _ = testCache.Contains(ctx, cache.RAW, rawHash, blobSize)
 	if !found {
 		t.Fatalf("Expected cache to contain RAW entry '%s'", rawHash)
 	}
 }
 
 func TestDistinctKeyspaces(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
@@ -715,17 +739,17 @@ func TestDistinctKeyspaces(t *testing.T) {
 	// keyspaces, and verify that we have exactly three items in
 	// the cache.
 
-	err = putGetCompareBytes(cache.CAS, casHash, blob, testCache)
+	err = putGetCompareBytes(ctx, cache.CAS, casHash, blob, testCache)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = putGetCompareBytes(cache.AC, casHash, blob, testCache)
+	err = putGetCompareBytes(ctx, cache.AC, casHash, blob, testCache)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = putGetCompareBytes(cache.RAW, casHash, blob, testCache)
+	err = putGetCompareBytes(ctx, cache.RAW, casHash, blob, testCache)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -803,6 +827,8 @@ func newTestServer(t *testing.T) *testServer {
 }
 
 func TestHttpProxyBackend(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	backend := newTestServer(t)
 	url, err := url.Parse(backend.srv.URL)
@@ -833,7 +859,7 @@ func TestHttpProxyBackend(t *testing.T) {
 	blob, casHash := testutils.RandomDataAndHash(blobSize)
 
 	// Non-existing item
-	r, _, err := testCache.Get(cache.CAS, casHash, blobSize, 0)
+	r, _, err := testCache.Get(ctx, cache.CAS, casHash, blobSize, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -870,12 +896,12 @@ func TestHttpProxyBackend(t *testing.T) {
 	// Confirm that it does not contain the item we added to the
 	// first testCache and the proxy backend.
 
-	found, _ := testCache.Contains(cache.CAS, casHash, blobSize)
+	found, _ := testCache.Contains(ctx, cache.CAS, casHash, blobSize)
 	if found {
 		t.Fatalf("Expected the cache not to contain %s", casHash)
 	}
 
-	r, _, err = testCache.Get(cache.CAS, casHash, blobSize, 0)
+	r, _, err = testCache.Get(ctx, cache.CAS, casHash, blobSize, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -886,13 +912,13 @@ func TestHttpProxyBackend(t *testing.T) {
 	// Add the proxy backend and check that we can Get the item.
 	testCache.proxy = proxy
 
-	found, _ = testCache.Contains(cache.CAS, casHash, blobSize)
+	found, _ = testCache.Contains(ctx, cache.CAS, casHash, blobSize)
 	if !found {
 		t.Fatalf("Expected the cache to contain %s (via the proxy)",
 			casHash)
 	}
 
-	r, fetchedSize, err := testCache.Get(cache.CAS, casHash, blobSize, 0)
+	r, fetchedSize, err := testCache.Get(ctx, cache.CAS, casHash, blobSize, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -921,6 +947,9 @@ func TestHttpProxyBackend(t *testing.T) {
 // Store an ActionResult with an output directory, then confirm that
 // GetValidatedActionResult returns the original item.
 func TestGetValidatedActionResult(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
@@ -1076,7 +1105,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 	// to assume that the value should be returned unchanged by the cache
 	// layer.
 
-	rAR, rData, err := testCache.GetValidatedActionResult(arDataHashStr)
+	rAR, rData, err := testCache.GetValidatedActionResult(ctx, arDataHashStr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1091,6 +1120,9 @@ func TestGetValidatedActionResult(t *testing.T) {
 }
 
 func TestGetWithOffset(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
@@ -1109,7 +1141,7 @@ func TestGetWithOffset(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rc, foundSize, err := testCache.Get(cache.CAS, hash, int64(len(data)), 0)
+	rc, foundSize, err := testCache.Get(ctx, cache.CAS, hash, int64(len(data)), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1130,7 +1162,7 @@ func TestGetWithOffset(t *testing.T) {
 
 	// Now try some partial reads.
 	for _, offset := range []int64{42, 1023, 1024, 1025, 2048, 2303} {
-		rc, foundSize, err = testCache.Get(cache.CAS, hash, int64(len(data)), offset)
+		rc, foundSize, err = testCache.Get(ctx, cache.CAS, hash, int64(len(data)), offset)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -15,6 +15,7 @@ import (
 type proxyCheck struct {
 	wg     *sync.WaitGroup
 	digest **pb.Digest
+	ctx    context.Context
 }
 
 // Optimised implementation of FindMissingBlobs, which batches local index
@@ -53,6 +54,7 @@ func (c *Cache) FindMissingCasBlobs(ctx context.Context, blobs []*pb.Digest) ([]
 					c.containsQueue <- proxyCheck{
 						wg:     &wg,
 						digest: &chunk[i],
+						ctx:    ctx,
 					}
 				}
 			}
@@ -116,7 +118,7 @@ func (c *Cache) findMissingLocalCAS(blobs []*pb.Digest) int {
 func (c *Cache) containsWorker() {
 	var ok bool
 	for req := range c.containsQueue {
-		ok, _ = c.proxy.Contains(cache.CAS, (*req.digest).Hash)
+		ok, _ = c.proxy.Contains(req.ctx, cache.CAS, (*req.digest).Hash)
 		if ok {
 			c.accessLogger.Printf("GRPC CAS HEAD %s OK", (*req.digest).Hash)
 			// The blob exists on the proxy, remove it from the

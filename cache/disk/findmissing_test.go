@@ -1,6 +1,7 @@
 package disk
 
 import (
+	"context"
 	"io"
 	"sync"
 	"testing"
@@ -84,11 +85,12 @@ type testCWProxy struct {
 	blob string
 }
 
-func (p *testCWProxy) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {}
-func (p *testCWProxy) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
+func (p *testCWProxy) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
+}
+func (p *testCWProxy) Get(ctx context.Context, kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 	return nil, -1, nil
 }
-func (p *testCWProxy) Contains(kind cache.EntryKind, hash string) (bool, int64) {
+func (p *testCWProxy) Contains(ctx context.Context, kind cache.EntryKind, hash string) (bool, int64) {
 	if kind == cache.CAS && hash == p.blob {
 		return true, 42
 	}

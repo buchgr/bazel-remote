@@ -64,14 +64,14 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 
 			sha256Str = hex.EncodeToString(decoded)
 
-			found, size := s.cache.Contains(cache.CAS, sha256Str, -1)
+			found, size := s.cache.Contains(ctx, cache.CAS, sha256Str, -1)
 			if !found {
 				continue
 			}
 
 			if size < 0 {
 				// We don't know the size yet (bad http backend?).
-				r, actualSize, err := s.cache.Get(cache.CAS, sha256Str, -1, 0)
+				r, actualSize, err := s.cache.Get(ctx, cache.CAS, sha256Str, -1, 0)
 				if r != nil {
 					defer r.Close()
 				}
@@ -107,7 +107,7 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 	// See if we can download one of the URIs.
 
 	for _, uri := range req.GetUris() {
-		ok, actualHash, size := s.fetchItem(uri, sha256Str)
+		ok, actualHash, size := s.fetchItem(ctx, uri, sha256Str)
 		if ok {
 			return &asset.FetchBlobResponse{
 				Status: &status.Status{Code: int32(codes.OK)},
@@ -127,7 +127,7 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 	}, nil
 }
 
-func (s *grpcServer) fetchItem(uri string, expectedHash string) (bool, string, int64) {
+func (s *grpcServer) fetchItem(ctx context.Context, uri string, expectedHash string) (bool, string, int64) {
 	u, err := url.Parse(uri)
 	if err != nil {
 		s.errorLogger.Printf("unable to parse URI: %s err: %v", uri, err)

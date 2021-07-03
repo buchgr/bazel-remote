@@ -115,7 +115,7 @@ func parseRequestURL(url string, validateAC bool) (kind cache.EntryKind, hash st
 	return cache.RAW, hash, instance, nil
 }
 func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request, hash string) {
-	_, data, err := h.cache.GetValidatedActionResult(hash)
+	_, data, err := h.cache.GetValidatedActionResult(r.Context(), hash)
 	if err != nil {
 		http.Error(w, "Not found", http.StatusNotFound)
 		h.logResponse(http.StatusNotFound, r)
@@ -134,7 +134,7 @@ func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request
 }
 
 func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, hash string) {
-	_, data, err := h.cache.GetValidatedActionResult(hash)
+	_, data, err := h.cache.GetValidatedActionResult(r.Context(), hash)
 	if err != nil {
 		http.Error(w, "Not found", http.StatusNotFound)
 		h.logResponse(http.StatusNotFound, r)
@@ -220,10 +220,10 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 		zstdCompressed := false
 		if kind == cache.CAS && strings.Contains(r.Header.Get("Accept-Encoding"), "zstd") {
-			rdr, sizeBytes, err = h.cache.GetZstd(hash, -1, 0)
+			rdr, sizeBytes, err = h.cache.GetZstd(r.Context(), hash, -1, 0)
 			zstdCompressed = true
 		} else {
-			rdr, sizeBytes, err = h.cache.Get(kind, hash, -1, 0)
+			rdr, sizeBytes, err = h.cache.Get(r.Context(), kind, hash, -1, 0)
 		}
 		if err != nil {
 			if e, ok := err.(*cache.Error); ok {
@@ -397,7 +397,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Unvalidated path:
 
-		ok, size := h.cache.Contains(kind, hash, -1)
+		ok, size := h.cache.Contains(r.Context(), kind, hash, -1)
 		if !ok {
 			http.Error(w, "Not found", http.StatusNotFound)
 			h.logResponse(http.StatusNotFound, r)

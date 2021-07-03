@@ -2,6 +2,7 @@ package disk
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -794,18 +795,18 @@ var errOnlyCompressedCAS = &cache.Error{
 // item is not found, the io.ReadCloser will be nil. If some error occurred
 // when processing the request, then it is returned. Callers should provide
 // the `size` of the item to be retrieved, or -1 if unknown.
-func (c *Cache) Get(kind cache.EntryKind, hash string, size int64, offset int64) (rc io.ReadCloser, s int64, rErr error) {
-	return c.get(kind, hash, size, offset, false)
+func (c *Cache) Get(ctx context.Context, kind cache.EntryKind, hash string, size int64, offset int64) (rc io.ReadCloser, s int64, rErr error) {
+	return c.get(ctx, kind, hash, size, offset, false)
 }
 
 // GetZstd is just like Get, except the data available from rc is zstandard
 // compressed. Note that the returned `s` value still refers to the amount
 // of data once it has been decompressed.
-func (c *Cache) GetZstd(hash string, size int64, offset int64) (rc io.ReadCloser, s int64, rErr error) {
-	return c.get(cache.CAS, hash, size, offset, true)
+func (c *Cache) GetZstd(ctx context.Context, hash string, size int64, offset int64) (rc io.ReadCloser, s int64, rErr error) {
+	return c.get(ctx, cache.CAS, hash, size, offset, true)
 }
 
-func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64, zstd bool) (rc io.ReadCloser, s int64, rErr error) {
+func (c *Cache) get(ctx context.Context, kind cache.EntryKind, hash string, size int64, offset int64, zstd bool) (rc io.ReadCloser, s int64, rErr error) {
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
 	if len(hash) != sha256HashStrSize {
@@ -882,7 +883,7 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 		return nil, -1, nil
 	}
 
-	r, foundSize, err := c.proxy.Get(kind, hash)
+	r, foundSize, err := c.proxy.Get(ctx, kind, hash)
 	if r != nil {
 		defer r.Close()
 	}
@@ -958,7 +959,7 @@ func (c *Cache) get(kind cache.EntryKind, hash string, size int64, offset int64,
 // one) will be checked.
 //
 // Callers should provide the `size` of the item, or -1 if unknown.
-func (c *Cache) Contains(kind cache.EntryKind, hash string, size int64) (bool, int64) {
+func (c *Cache) Contains(ctx context.Context, kind cache.EntryKind, hash string, size int64) (bool, int64) {
 
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
@@ -985,7 +986,7 @@ func (c *Cache) Contains(kind cache.EntryKind, hash string, size int64) (bool, i
 	}
 
 	if c.proxy != nil {
-		exists, foundSize = c.proxy.Contains(kind, hash)
+		exists, foundSize = c.proxy.Contains(ctx, kind, hash)
 		if exists && !isSizeMismatch(size, foundSize) {
 			return true, foundSize
 		}
@@ -1026,9 +1027,9 @@ func ensureDirExists(path string) {
 // value from the CAS if it and all its dependencies are also available. If
 // not, nil values are returned. If something unexpected went wrong, return
 // an error.
-func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte, error) {
+func (c *Cache) GetValidatedActionResult(ctx context.Context, hash string) (*pb.ActionResult, []byte, error) {
 
-	rc, sizeBytes, err := c.Get(cache.AC, hash, -1, 0)
+	rc, sizeBytes, err := c.Get(ctx, cache.AC, hash, -1, 0)
 	if rc != nil {
 		defer rc.Close()
 	}
@@ -1053,7 +1054,7 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 
 	for _, f := range result.OutputFiles {
 		if len(f.Contents) == 0 {
-			found, _ := c.Contains(cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
+			found, _ := c.Contains(ctx, cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
 			if !found {
 				return nil, nil, nil // aka "not found"
 			}
@@ -1061,7 +1062,7 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 	}
 
 	for _, d := range result.OutputDirectories {
-		r, size, err := c.Get(cache.CAS, d.TreeDigest.Hash, d.TreeDigest.SizeBytes, 0)
+		r, size, err := c.Get(ctx, cache.CAS, d.TreeDigest.Hash, d.TreeDigest.SizeBytes, 0)
 		if r == nil {
 			return nil, nil, err // aka "not found", or an err if non-nil
 		}
@@ -1092,7 +1093,7 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 			if f.Digest == nil {
 				continue
 			}
-			found, _ := c.Contains(cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
+			found, _ := c.Contains(ctx, cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
 			if !found {
 				return nil, nil, nil // aka "not found"
 			}
@@ -1103,7 +1104,7 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 				if f.Digest == nil {
 					continue
 				}
-				found, _ := c.Contains(cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
+				found, _ := c.Contains(ctx, cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
 				if !found {
 					return nil, nil, nil // aka "not found"
 				}
@@ -1112,14 +1113,14 @@ func (c *Cache) GetValidatedActionResult(hash string) (*pb.ActionResult, []byte,
 	}
 
 	if result.StdoutDigest != nil {
-		found, _ := c.Contains(cache.CAS, result.StdoutDigest.Hash, result.StdoutDigest.SizeBytes)
+		found, _ := c.Contains(ctx, cache.CAS, result.StdoutDigest.Hash, result.StdoutDigest.SizeBytes)
 		if !found {
 			return nil, nil, nil // aka "not found"
 		}
 	}
 
 	if result.StderrDigest != nil {
-		found, _ := c.Contains(cache.CAS, result.StderrDigest.Hash, result.StderrDigest.SizeBytes)
+		found, _ := c.Contains(ctx, cache.CAS, result.StderrDigest.Hash, result.StderrDigest.SizeBytes)
 		if !found {
 			return nil, nil, nil // aka "not found"
 		}

@@ -197,7 +197,7 @@ func (c *s3Cache) uploadFile(item uploadReq) {
 	item.rc.Close()
 }
 
-func (c *s3Cache) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
+func (c *s3Cache) Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
 	if c.uploadQueue == nil {
 		rc.Close()
 		return
@@ -216,7 +216,7 @@ func (c *s3Cache) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadC
 	}
 }
 
-func (c *s3Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
+func (c *s3Cache) Get(ctx context.Context, kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 
 	rc, info, _, err := c.mcore.GetObject(
 		context.Background(),
@@ -245,7 +245,7 @@ func (c *s3Cache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, 
 	return rc, info.Size, nil
 }
 
-func (c *s3Cache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
+func (c *s3Cache) Contains(ctx context.Context, kind cache.EntryKind, hash string) (bool, int64) {
 	size := int64(-1)
 	exists := false
 
