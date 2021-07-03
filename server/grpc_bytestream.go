@@ -97,9 +97,9 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 	var foundSize int64
 
 	if cmp == casblob.Zstandard {
-		rc, foundSize, err = s.cache.GetZstd(hash, size, req.ReadOffset)
+		rc, foundSize, err = s.cache.GetZstd(resp.Context(), hash, size, req.ReadOffset)
 	} else {
-		rc, foundSize, err = s.cache.Get(cache.CAS, hash, size, req.ReadOffset)
+		rc, foundSize, err = s.cache.Get(resp.Context(), cache.CAS, hash, size, req.ReadOffset)
 	}
 
 	if rc != nil {
@@ -423,7 +423,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 					return
 				}
 
-				exists, _ := s.cache.Contains(cache.CAS, hash, size)
+				exists, _ := s.cache.Contains(srv.Context(), cache.CAS, hash, size)
 				if exists {
 					// Blob already exists, return without writing anything.
 					resp.CommittedSize = size

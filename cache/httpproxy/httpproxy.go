@@ -3,6 +3,7 @@
 package httpproxy
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -139,7 +140,7 @@ func logResponse(logger cache.Logger, method string, code int, url string) {
 	logger.Printf("HTTP %s %d %s", method, code, url)
 }
 
-func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
+func (r *remoteHTTPProxyCache) Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
 	if r.uploadQueue == nil {
 		rc.Close()
 		return
@@ -160,7 +161,7 @@ func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64
 	}
 }
 
-func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
+func (r *remoteHTTPProxyCache) Get(ctx context.Context, kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 	url := r.requestURL(hash, kind)
 	rsp, err := r.remote.Get(url)
 	if err != nil {
@@ -216,7 +217,7 @@ func (r *remoteHTTPProxyCache) Get(kind cache.EntryKind, hash string) (io.ReadCl
 	return rsp.Body, sizeBytes, nil
 }
 
-func (r *remoteHTTPProxyCache) Contains(kind cache.EntryKind, hash string) (bool, int64) {
+func (r *remoteHTTPProxyCache) Contains(ctx context.Context, kind cache.EntryKind, hash string) (bool, int64) {
 
 	url := r.requestURL(hash, kind)
 

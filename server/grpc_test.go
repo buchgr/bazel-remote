@@ -510,6 +510,9 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 }
 
 func TestGrpcByteStreamDeadline(t *testing.T) {
+	testCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	testBlobSize := int64(16)
 	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize)
 	testBlobDigest := pb.Digest{
@@ -588,7 +591,7 @@ func TestGrpcByteStreamDeadline(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, sz, err := diskCache.Get(cache.CAS, testBlobHash, testBlobSize, 0)
+	_, sz, err := diskCache.Get(testCtx, cache.CAS, testBlobHash, testBlobSize, 0)
 	if err != nil {
 		t.Fatalf("get error: %v\n", err)
 	}

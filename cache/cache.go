@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
@@ -63,10 +64,10 @@ func (e *Error) Error() string {
 // Implementations are expected to be safe for concurrent use.
 type Proxy interface {
 
-	// Put makes a reasonable effort to upload the cache item identified by
-	// `hash` with logical size `size`, whose data is readable from `rc` to
-	// the proxy backend. The data available in `rc` is in the same format
-	// as used by the disk.Cache instance.
+	// Put makes a reasonable effort to asynchronously upload the cache
+	// item identified by `hash` with logical size `size`, whose data is
+	// readable from `rc` to the proxy backend. The data available in
+	// `rc` is in the same format as used by the disk.Cache instance.
 	//
 	// This is allowed to fail silently (for example when under heavy load).
 	Put(kind EntryKind, hash string, size int64, rc io.ReadCloser)
@@ -75,12 +76,12 @@ type Proxy interface {
 	// `hash` can be read, its logical size, and an error if something went
 	// wrong. The data available from `rc` is in the same format as used by
 	// the disk.Cache instance.
-	Get(kind EntryKind, hash string) (rc io.ReadCloser, size int64, err error)
+	Get(ctx context.Context, kind EntryKind, hash string) (rc io.ReadCloser, size int64, err error)
 
 	// Contains returns whether or not the cache item exists on the
 	// remote end, and the size if it exists (and -1 if the size is
 	// unknown).
-	Contains(kind EntryKind, hash string) (bool, int64)
+	Contains(ctx context.Context, kind EntryKind, hash string) (bool, int64)
 }
 
 // TransformActionCacheKey takes an ActionCache key and an instance name
