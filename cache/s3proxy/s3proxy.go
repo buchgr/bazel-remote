@@ -197,7 +197,7 @@ func (c *s3Cache) uploadFile(item uploadReq) {
 	item.rc.Close()
 }
 
-func (c *s3Cache) Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
+func (c *s3Cache) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
 	if c.uploadQueue == nil {
 		rc.Close()
 		return
@@ -219,7 +219,7 @@ func (c *s3Cache) Put(ctx context.Context, kind cache.EntryKind, hash string, si
 func (c *s3Cache) Get(ctx context.Context, kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 
 	rc, info, _, err := c.mcore.GetObject(
-		context.Background(),
+		ctx,
 		c.bucket,                 // bucketName
 		c.objectKey(hash, kind),  // objectName
 		minio.GetObjectOptions{}, // opts
@@ -250,7 +250,7 @@ func (c *s3Cache) Contains(ctx context.Context, kind cache.EntryKind, hash strin
 	exists := false
 
 	s, err := c.mcore.StatObject(
-		context.Background(),
+		ctx,
 		c.bucket,                  // bucketName
 		c.objectKey(hash, kind),   // objectName
 		minio.StatObjectOptions{}, // opts
