@@ -58,14 +58,24 @@ func (r *remoteHTTPProxyCache) uploadFile(item uploadReq) {
 
 	url := r.requestURL(item.hash, item.kind)
 
-	rsp, err := r.remote.Head(url)
-	if err == nil && rsp.StatusCode == http.StatusOK {
-		r.accessLogger.Printf("SKIP UPLOAD %s", item.hash)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodHead, url, nil)
+	if err != nil {
+		r.errorLogger.Printf("INTERNAL ERROR, FAILED TO SETUP HTTP PROXY UPLOAD %s: %s", url, err)
+		item.rc.Close()
 		return
 	}
 
-	req, err := http.NewRequest(http.MethodPut, url, item.rc)
+	rsp, err := r.remote.Do(req)
+	if err == nil && rsp.StatusCode == http.StatusOK {
+		r.accessLogger.Printf("SKIP UPLOAD %s", item.hash)
+		item.rc.Close()
+		return
+	}
+
+	req, err = http.NewRequestWithContext(context.Background(), http.MethodPut, url, item.rc)
 	if err != nil {
+		r.errorLogger.Printf("INTERNAL ERROR, FAILED TO SETUP HTTP PROXY UPLOAD %s: %s", url, err)
+
 		// item.rc will be closed if we call req.Do(), but not if we
 		// return earlier.
 		item.rc.Close()
@@ -140,7 +150,7 @@ func logResponse(logger cache.Logger, method string, code int, url string) {
 	logger.Printf("HTTP %s %d %s", method, code, url)
 }
 
-func (r *remoteHTTPProxyCache) Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
+func (r *remoteHTTPProxyCache) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
 	if r.uploadQueue == nil {
 		rc.Close()
 		return
@@ -163,7 +173,14 @@ func (r *remoteHTTPProxyCache) Put(ctx context.Context, kind cache.EntryKind, ha
 
 func (r *remoteHTTPProxyCache) Get(ctx context.Context, kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 	url := r.requestURL(hash, kind)
-	rsp, err := r.remote.Get(url)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		cacheMisses.Inc()
+		return nil, -1, err
+	}
+
+	rsp, err := r.remote.Do(req)
 	if err != nil {
 		cacheMisses.Inc()
 		return nil, -1, err
@@ -221,7 +238,12 @@ func (r *remoteHTTPProxyCache) Contains(ctx context.Context, kind cache.EntryKin
 
 	url := r.requestURL(hash, kind)
 
-	rsp, err := r.remote.Head(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return false, -1
+	}
+
+	rsp, err := r.remote.Do(req)
 	if err == nil && rsp.StatusCode == http.StatusOK {
 		if kind != cache.CAS {
 			return true, rsp.ContentLength
