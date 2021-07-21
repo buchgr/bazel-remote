@@ -96,7 +96,7 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 
 	resp := pb.ServerCapabilities{
 		CacheCapabilities: &pb.CacheCapabilities{
-			DigestFunction: []pb.DigestFunction_Value{pb.DigestFunction_SHA256},
+			DigestFunctions: []pb.DigestFunction_Value{pb.DigestFunction_SHA256},
 			ActionCacheUpdateCapabilities: &pb.ActionCacheUpdateCapabilities{
 				UpdateEnabled: true,
 			},
@@ -110,7 +110,7 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 			},
 			MaxBatchTotalSizeBytes:      0, // "no limit"
 			SymlinkAbsolutePathStrategy: pb.SymlinkAbsolutePathStrategy_ALLOWED,
-			SupportedCompressor:         []pb.Compressor_Value{pb.Compressor_ZSTD},
+			SupportedCompressors:        []pb.Compressor_Value{pb.Compressor_ZSTD},
 		},
 		LowApiVersion:  &semver.SemVer{Major: int32(2)},
 		HighApiVersion: &semver.SemVer{Major: int32(2), Minor: int32(1)},
