@@ -75,7 +75,7 @@ func TestFilterNonNIl(t *testing.T) {
 
 			_, exists := tc.expected[ptr]
 			if !exists {
-				t.Errorf("Expected to find %q in output", *ptr)
+				t.Errorf("Expected to find %q in output", ptr)
 			}
 		}
 	}

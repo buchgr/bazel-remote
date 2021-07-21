@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -34,7 +35,7 @@ import (
 )
 
 type badDigest struct {
-	digest pb.Digest
+	digest *pb.Digest
 	reason string
 }
 
@@ -51,13 +52,13 @@ var (
 	diskCache   *disk.Cache
 
 	badDigestTestCases = []badDigest{
-		{digest: pb.Digest{Hash: ""}, reason: "empty hash"},
-		{digest: pb.Digest{Hash: "a"}, reason: "too short"},
-		{digest: pb.Digest{Hash: "ab"}, reason: "too short"},
-		{digest: pb.Digest{Hash: "abc"}, reason: "too short"},
-		{digest: pb.Digest{Hash: "D87BB646700EF8FDD10F6C982A4401EBEFBEA4EF35D4D1516B01FDC25CCE56D4"}, reason: "uppercase hash"},
-		{digest: pb.Digest{Hash: "D87BB646700EF8FDD10F6C982A4401EBEFBEA4EF35D4D1516B01FDC25CCE56D41"}, reason: "too long"},
-		{digest: pb.Digest{Hash: "xyzbb646700ef8fdd10f6c982a4401ebefbea4ef35d4d1516b01fdc25cce56d4"}, reason: "non-hex characters"},
+		{digest: &pb.Digest{Hash: ""}, reason: "empty hash"},
+		{digest: &pb.Digest{Hash: "a"}, reason: "too short"},
+		{digest: &pb.Digest{Hash: "ab"}, reason: "too short"},
+		{digest: &pb.Digest{Hash: "abc"}, reason: "too short"},
+		{digest: &pb.Digest{Hash: "D87BB646700EF8FDD10F6C982A4401EBEFBEA4EF35D4D1516B01FDC25CCE56D4"}, reason: "uppercase hash"},
+		{digest: &pb.Digest{Hash: "D87BB646700EF8FDD10F6C982A4401EBEFBEA4EF35D4D1516B01FDC25CCE56D41"}, reason: "too long"},
+		{digest: &pb.Digest{Hash: "xyzbb646700ef8fdd10f6c982a4401ebefbea4ef35d4d1516b01fdc25cce56d4"}, reason: "non-hex characters"},
 	}
 )
 
@@ -181,7 +182,7 @@ func TestGrpcAc(t *testing.T) {
 	// Invalid GetActionResultRequest's.
 
 	for _, tc := range badDigestTestCases {
-		r := pb.GetActionResultRequest{ActionDigest: &tc.digest}
+		r := pb.GetActionResultRequest{ActionDigest: tc.digest}
 		_, err = acClient.GetActionResult(ctx, &r)
 		checkBadDigestErr(t, err, tc)
 	}
@@ -215,7 +216,7 @@ func TestGrpcAc(t *testing.T) {
 	// Invalid UpdateActionResultRequest's.
 
 	for _, tc := range badDigestTestCases {
-		r := pb.UpdateActionResultRequest{ActionDigest: &tc.digest}
+		r := pb.UpdateActionResultRequest{ActionDigest: tc.digest}
 		_, err = acClient.UpdateActionResult(ctx, &r)
 		checkBadDigestErr(t, err, tc)
 	}
@@ -801,24 +802,30 @@ func TestGrpcByteStream(t *testing.T) {
 	var decmpBuf bytes.Buffer
 	dr, dw := io.Pipe()
 	dec, err := zstd.NewReader(dr, zstd.WithDecoderConcurrency(1))
+	errs := make(chan error, 1)
 
 	go func() {
+		defer close(errs)
+
 		for {
 			bsrResp, err = bsrc.Recv()
 			if err == io.EOF {
 				break
 			}
 			if err != nil {
-				t.Fatal(err)
+				errs <- err
+				return
 			}
 			if bsrResp == nil {
-				t.Fatalf("Expected non-nil response")
+				errs <- errors.New("Expected non-nil response")
+				return
 			}
 
 			dw.Write(bsrResp.Data)
 
 			if len(downloadedBlob) > len(testBlob) {
-				t.Fatalf("Downloaded too much data")
+				errs <- errors.New("Downloaded too much data")
+				return
 			}
 		}
 
@@ -867,6 +874,11 @@ func TestGrpcByteStream(t *testing.T) {
 		}
 		_, err = wc.CloseAndRecv()
 		checkBadDigestErr(t, err, tc)
+	}
+
+	err = <-errs
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
