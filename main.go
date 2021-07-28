@@ -143,6 +143,7 @@ func run(ctx *cli.Context) error {
 		})
 		mux.Handle("/metrics", middlewarestd.Handler("metrics", metricsMdlw, promhttp.Handler()))
 		mux.Handle("/status", middlewarestd.Handler("status", metricsMdlw, http.HandlerFunc(h.StatusPageHandler)))
+		mux.Handle("/api/v1/", middlewarestd.Handler("/api/v1/", metricsMdlw, promhttp.Handler()))
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			middlewarestd.Handler(r.Method, metricsMdlw, http.HandlerFunc(cacheHandler)).ServeHTTP(w, r)
 		})
