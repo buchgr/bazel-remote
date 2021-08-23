@@ -459,16 +459,16 @@ type fakeResponseWriter struct {
 	response   string
 }
 
-func (r fakeResponseWriter) Header() http.Header {
+func (r *fakeResponseWriter) Header() http.Header {
 	return http.Header{}
 }
 
-func (r fakeResponseWriter) Write(data []byte) (int, error) {
+func (r *fakeResponseWriter) Write(data []byte) (int, error) {
 	r.response = string(data)
 	return 0, nil
 }
 
-func (r fakeResponseWriter) WriteHeader(statusCode int) {
+func (r *fakeResponseWriter) WriteHeader(statusCode int) {
 	*r.statusCode = statusCode
 }
 
@@ -498,7 +498,7 @@ func TestRemoteReturnsNotFound(t *testing.T) {
 		Body:       body,
 	}
 	statusCode := 0
-	respWriter := fakeResponseWriter{
+	respWriter := &fakeResponseWriter{
 		statusCode: &statusCode,
 	}
 	h.CacheHandler(respWriter, req)
