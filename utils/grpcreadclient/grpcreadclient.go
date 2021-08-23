@@ -9,7 +9,6 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"flag"
@@ -106,21 +105,6 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-}
-
-type basicAuthCreds struct {
-	user string
-	pass string
-}
-
-func (b *basicAuthCreds) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
-	return map[string]string{
-		"authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte(b.user+":"+b.pass)),
-	}, nil
-}
-
-func (b *basicAuthCreds) RequireTransportSecurity() bool {
-	return true
 }
 
 func dial(serverAddr string, caCertFile string, clientCertFile string, clientKeyFile string, basicAuthUser string, basicAuthPass string) (*grpc.ClientConn, error, context.Context, context.CancelFunc) {
