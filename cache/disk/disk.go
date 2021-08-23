@@ -541,7 +541,7 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 			if err != nil {
 				// Set named return value.
 				rErr = internalErr(err)
-				log.Printf(rErr.Error())
+				log.Println(rErr.Error())
 			}
 			c.mu.Unlock()
 		}
