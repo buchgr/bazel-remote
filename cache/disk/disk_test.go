@@ -539,26 +539,6 @@ func createRandomV1CASFile(dir string, size int64) (string, error) {
 	return hash, nil
 }
 
-func createRandomCASFile(dir string, size int64) (string, error) {
-	data, hash := testutils.RandomDataAndHash(size)
-	os.MkdirAll(dir, os.ModePerm)
-	filePath := dir + "/" + hash
-
-	f, err := os.Create(filePath)
-	if err != nil {
-		return "", nil
-	}
-
-	r := bytes.NewReader(data)
-
-	_, err = casblob.WriteAndClose(r, f, casblob.Zstandard, hash, int64(len(data)))
-	if err != nil {
-		return "", nil
-	}
-
-	return hash, nil
-}
-
 func TestMigrateFromOldDirectoryStructure(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
