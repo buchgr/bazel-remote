@@ -529,7 +529,10 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 			os.Remove(blobFile)
 		} else if blobFile != "" {
 			// Mark the file as "complete".
-			os.Chmod(blobFile, tempfile.EndMode)
+			err := os.Chmod(blobFile, tempfile.EndMode)
+			if err != nil {
+				log.Println("Failed to mark", blobFile, "as complete:", err)
+			}
 		}
 
 		if unreserve {
@@ -850,7 +853,10 @@ func (c *Cache) get(ctx context.Context, kind cache.EntryKind, hash string, size
 			os.Remove(blobFile)
 		} else if blobFile != "" {
 			// Mark the file as "complete".
-			os.Chmod(blobFile, tempfile.EndMode)
+			err := os.Chmod(blobFile, tempfile.EndMode)
+			if err != nil {
+				log.Println("Failed to mark", blobFile, "as complete:", err)
+			}
 		}
 
 		if unreserve {
