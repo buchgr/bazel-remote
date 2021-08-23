@@ -754,8 +754,8 @@ func (c *Cache) availableOrTryProxy(kind cache.EntryKind, hash string, size int6
 					log.Printf("Warning: expected %s to on disk to have size %d, found %d",
 						blobPath, size, foundSize)
 				} else {
-					f.Seek(offset, io.SeekStart)
-					return f, foundSize, false, nil
+					_, err = f.Seek(offset, io.SeekStart)
+					return f, foundSize, false, err
 				}
 			}
 		}
@@ -924,7 +924,10 @@ func (c *Cache) get(ctx context.Context, kind cache.EntryKind, hash string, size
 	uncompressedOnDisk := (kind != cache.CAS) || (c.storageMode == casblob.Identity)
 	if uncompressedOnDisk {
 		if offset > 0 {
-			rcf.Seek(offset, io.SeekStart)
+			_, err = rcf.Seek(offset, io.SeekStart)
+			if err != nil {
+				return nil, -1, internalErr(err)
+			}
 		}
 
 		if zstd {
