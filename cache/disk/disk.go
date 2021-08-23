@@ -510,7 +510,7 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 	}
 
 	if kind == cache.CAS && size == 0 && hash == emptySha256 {
-		io.Copy(ioutil.Discard, r)
+		_, _ = io.Copy(ioutil.Discard, r)
 		return nil
 	}
 
