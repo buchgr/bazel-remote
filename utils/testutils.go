@@ -23,7 +23,16 @@ func TempDir(t *testing.T) string {
 // returns that blob along with its sha256 hash.
 func RandomDataAndHash(size int64) ([]byte, string) {
 	data := make([]byte, size)
-	rand.Read(data)
+
+	for i := 0; i < 3; i++ {
+		// This is not expected to fail, but hopefully it convinces
+		// linters that we checked for errors.
+		_, err := rand.Read(data)
+		if err == nil {
+			break
+		}
+	}
+
 	hash := sha256.Sum256(data)
 	hashStr := hex.EncodeToString(hash[:])
 	return data, hashStr
