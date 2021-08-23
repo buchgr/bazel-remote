@@ -464,7 +464,7 @@ func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", " ")
-	enc.Encode(statusPageData{
+	err := enc.Encode(statusPageData{
 		MaxSize:          h.cache.MaxSize(),
 		CurrSize:         totalSize,
 		UncompressedSize: uncompressedSize,
@@ -474,6 +474,9 @@ func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 		GitCommit:        h.gitCommit,
 		NumGoroutines:    goroutines,
 	})
+	if err != nil {
+		h.errorLogger.Printf("Failed to encode status json: %s", err.Error())
+	}
 }
 
 func path(kind cache.EntryKind, hash string) string {
