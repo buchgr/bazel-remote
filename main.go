@@ -274,7 +274,7 @@ func wrapIdleHandler(handler http.HandlerFunc, idleTimer *idle.Timer, accessLogg
 // A http.HandlerFunc wrapper which requires successful basic
 // authentication for all requests.
 func authWrapper(handler http.HandlerFunc, secrets auth.SecretProvider, host string) http.HandlerFunc {
-	authenticator := auth.NewBasicAuthenticator(host, secrets)
+	authenticator := &auth.BasicAuth{Realm: host, Secrets: secrets}
 	return auth.JustCheck(authenticator, handler)
 }
 
@@ -282,7 +282,7 @@ func authWrapper(handler http.HandlerFunc, secrets auth.SecretProvider, host str
 // authentication for write requests, but allows unauthenticated
 // read requests.
 func unauthenticatedReadWrapper(handler http.HandlerFunc, secrets auth.SecretProvider, host string) http.HandlerFunc {
-	authenticator := auth.NewBasicAuthenticator(host, secrets)
+	authenticator := &auth.BasicAuth{Realm: host, Secrets: secrets}
 	authHandler := auth.JustCheck(authenticator, handler)
 
 	return func(w http.ResponseWriter, r *http.Request) {
