@@ -520,7 +520,10 @@ func TestCacheCorruptedCASBlob(t *testing.T) {
 // return its hash.
 func createRandomFile(dir string, size int64) (string, error) {
 	data, hash := testutils.RandomDataAndHash(size)
-	os.MkdirAll(dir, os.ModePerm)
+	err := os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		return "", err
+	}
 	filepath := dir + "/" + hash
 
 	return hash, ioutil.WriteFile(filepath, data, os.ModePerm)
@@ -528,10 +531,13 @@ func createRandomFile(dir string, size int64) (string, error) {
 
 func createRandomV1CASFile(dir string, size int64) (string, error) {
 	data, hash := testutils.RandomDataAndHash(size)
-	os.MkdirAll(dir, os.ModePerm)
+	err := os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		return "", err
+	}
 	filePath := dir + "/" + hash
 
-	err := ioutil.WriteFile(filePath, data, os.ModePerm)
+	err = ioutil.WriteFile(filePath, data, os.ModePerm)
 	if err != nil {
 		return "", err
 	}
