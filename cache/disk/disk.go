@@ -398,7 +398,7 @@ func (c *Cache) loadExistingFiles() error {
 	// compressed CAS items: <hash>-<logical size>-<random digits/ascii letters>
 	// uncompressed CAS items: <hash>-<logical size>-<random digits/ascii letters>.v1
 	// AC and RAW items: <hash>-<random digits/ascii letters>
-	re := regexp.MustCompile("^([a-f0-9]{64})(?:-([1-9][0-9]*))?-([0-9a-zA-Z]+)(\\.v1)?$")
+	re := regexp.MustCompile(`^([a-f0-9]{64})(?:-([1-9][0-9]*))?-([0-9a-zA-Z]+)(\.v1)?$`)
 
 	// Walk the directory tree
 	var files []nameAndInfo
