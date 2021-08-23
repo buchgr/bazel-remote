@@ -37,7 +37,7 @@ func (s *testServer) handler(w http.ResponseWriter, r *http.Request) {
 	fields := strings.Split(r.URL.Path, "/")
 
 	kind := fields[1]
-	kindMap := s.ac
+	var kindMap map[string][]byte
 	if kind == "ac" {
 		kindMap = s.ac
 	} else if kind == "cas.v2" {
