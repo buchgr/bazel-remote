@@ -86,7 +86,7 @@ func (s *testGetServer) handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodGet {
-		w.Write(s.blob)
+		_, _ = w.Write(s.blob)
 	}
 }
 

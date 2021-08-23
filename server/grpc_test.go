@@ -821,7 +821,11 @@ func TestGrpcByteStream(t *testing.T) {
 				return
 			}
 
-			dw.Write(bsrResp.Data)
+			_, err = dw.Write(bsrResp.Data)
+			if err != nil {
+				errs <- err
+				return
+			}
 
 			if len(downloadedBlob) > len(testBlob) {
 				errs <- errors.New("Downloaded too much data")
