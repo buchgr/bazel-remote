@@ -31,10 +31,6 @@ var (
 	})
 )
 
-type sizedItem interface {
-	Size() int64
-}
-
 // Key is the type used for identifying cache items. For non-test code,
 // this is a string of the form "<keyspace>/<hash>". Some test code uses
 // ints for simplicity.
