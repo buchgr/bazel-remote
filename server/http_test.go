@@ -65,7 +65,10 @@ func TestDownloadFile(t *testing.T) {
 	}
 
 	hasher := sha256.New()
-	io.Copy(hasher, rsp.Body)
+	_, err = io.Copy(hasher, rsp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if actualHash := hex.EncodeToString(hasher.Sum(nil)); actualHash != hash {
 		t.Error("Received the wrong content.",
 			"expected hash", hash,

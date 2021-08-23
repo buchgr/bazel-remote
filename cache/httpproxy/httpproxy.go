@@ -87,9 +87,14 @@ func (r *remoteHTTPProxyCache) uploadFile(item uploadReq) {
 
 	rsp, err = r.remote.Do(req)
 	if err != nil {
+		r.errorLogger.Printf("HTTP %s UPLOAD: %s", url, err.Error())
 		return
 	}
-	io.Copy(ioutil.Discard, rsp.Body)
+	_, err = io.Copy(ioutil.Discard, rsp.Body)
+	if err != nil {
+		r.errorLogger.Printf("HTTP %s UPLOAD: %s", url, err.Error())
+		return
+	}
 	rsp.Body.Close()
 
 	logResponse(r.accessLogger, "UPLOAD", rsp.StatusCode, url)
