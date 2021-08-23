@@ -3,6 +3,7 @@
 package gcsproxy
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -22,7 +23,7 @@ func New(bucket string, useDefaultCredentials bool, jsonCredentialsFile string, 
 	var err error
 
 	if useDefaultCredentials {
-		remoteClient, err = google.DefaultClient(oauth2.NoContext,
+		remoteClient, err = google.DefaultClient(context.Background(),
 			"https://www.googleapis.com/auth/devstorage.read_write")
 		if err != nil {
 			return nil, err
@@ -33,14 +34,14 @@ func New(bucket string, useDefaultCredentials bool, jsonCredentialsFile string, 
 			err = fmt.Errorf("Failed to read Google Credentials file '%s': %v", jsonCredentialsFile, err)
 			return nil, err
 		}
-		config, err := google.CredentialsFromJSON(oauth2.NoContext, jsonConfig,
+		config, err := google.CredentialsFromJSON(context.Background(), jsonConfig,
 			"https://www.googleapis.com/auth/devstorage.read_write")
 		if err != nil {
 			err = fmt.Errorf("The provided Google Credentials file '%s' couldn't be parsed: %v",
 				jsonCredentialsFile, err)
 			return nil, err
 		}
-		remoteClient = oauth2.NewClient(oauth2.NoContext, config.TokenSource)
+		remoteClient = oauth2.NewClient(context.Background(), config.TokenSource)
 	} else {
 		return nil, fmt.Errorf("For Google authentication one needs to specify one of default "+
 			"credentials or a json credentials file %v", useDefaultCredentials)
