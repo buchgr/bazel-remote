@@ -249,7 +249,12 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Length", strconv.FormatInt(sizeBytes, 10))
 		}
 
-		io.Copy(w, rdr)
+		_, err := io.Copy(w, rdr)
+		if err != nil {
+			http.Error(w, "Unexpected copy error", http.StatusInternalServerError)
+			h.logResponse(http.StatusInternalServerError, r)
+			return
+		}
 
 		h.logResponse(http.StatusOK, r)
 
