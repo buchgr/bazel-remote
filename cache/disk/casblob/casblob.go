@@ -441,7 +441,7 @@ func GetLegacyZstdReadCloser(f *os.File) (io.ReadCloser, error) {
 			log.Println("Error while reading/compressing file:", err)
 
 			// Reading from pr will now receive this error:
-			pw.CloseWithError(err)
+			_ = pw.CloseWithError(err)
 		}
 
 		encoderPool.Put(enc)
