@@ -207,7 +207,10 @@ func (s *grpcServer) GetTree(in *pb.GetTreeRequest,
 		return err
 	}
 
-	stream.Send(&resp)
+	err = stream.Send(&resp)
+	if err != nil {
+		return err
+	}
 	// TODO: if resp is too large, split it up and call Send multiple times,
 	// with resp.NextPageToken set for all but the last Send call?
 
