@@ -59,14 +59,17 @@ func (s *testServer) handler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Not found", http.StatusNotFound)
 			return
 		}
-		w.Write(data)
+		_, _ = w.Write(data)
+		return
 
 	case http.MethodPut:
 		data, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "failed to read body", http.StatusInternalServerError)
+			return
 		}
 		kindMap[hash] = data
+		return
 
 	case http.MethodHead:
 		data, ok := kindMap[hash]
@@ -75,6 +78,7 @@ func (s *testServer) handler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Length", strconv.FormatInt(int64(len(data)), 10))
+		return
 	}
 }
 
