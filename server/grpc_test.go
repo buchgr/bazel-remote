@@ -62,7 +62,7 @@ var (
 	}
 )
 
-func bufDialer(string, time.Duration) (net.Conn, error) {
+func bufDialer(context.Context, string) (net.Conn, error) {
 	return listener.Dial()
 }
 
@@ -109,7 +109,7 @@ func TestMain(m *testing.M) {
 	}()
 
 	conn, err := grpc.Dial("bufnet",
-		grpc.WithInsecure(), grpc.WithDialer(bufDialer))
+		grpc.WithInsecure(), grpc.WithContextDialer(bufDialer))
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
