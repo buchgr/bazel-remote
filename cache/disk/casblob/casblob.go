@@ -267,7 +267,11 @@ func GetUncompressedReadCloser(f *os.File, expectedSize int64, offset int64) (io
 	remainder := offset % int64(h.chunkSize)
 
 	if chunkNum > 0 {
-		f.Seek(h.chunkOffsets[chunkNum], io.SeekStart)
+		_, err = f.Seek(h.chunkOffsets[chunkNum], io.SeekStart)
+		if err != nil {
+			f.Close()
+			return nil, err
+		}
 	}
 	if remainder == 0 {
 		z, ok := decoderPool.Get().(*syncpool.DecoderWrapper)
@@ -376,7 +380,10 @@ func GetZstdReadCloser(f *os.File, expectedSize int64, offset int64) (io.ReadClo
 	remainder := offset % int64(h.chunkSize)
 
 	if chunkNum > 0 {
-		f.Seek(h.chunkOffsets[chunkNum], io.SeekStart)
+		_, err = f.Seek(h.chunkOffsets[chunkNum], io.SeekStart)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if remainder == 0 {
