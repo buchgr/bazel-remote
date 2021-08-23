@@ -63,8 +63,8 @@ func run(ctx *cli.Context) error {
 	c, err := config.Get(ctx)
 	if err != nil {
 		fmt.Fprintf(ctx.App.Writer, "%v\n\n", err)
-		cli.ShowAppHelp(ctx)
-		return cli.Exit("", 1)
+		err = cli.ShowAppHelp(ctx)
+		return cli.Exit(err.Error(), 1)
 	}
 
 	if ctx.NArg() > 0 {
@@ -75,8 +75,8 @@ func run(ctx *cli.Context) error {
 		}
 		fmt.Fprintf(ctx.App.Writer, "\n")
 
-		cli.ShowAppHelp(ctx)
-		return cli.Exit("", 1)
+		err = cli.ShowAppHelp(ctx)
+		return cli.Exit(err.Error(), 1)
 	}
 
 	rlimit.Raise()
