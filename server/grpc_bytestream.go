@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"strconv"
 	"strings"
 
@@ -269,16 +268,6 @@ func (s *grpcServer) parseReadResource(name string, errorPrefix string) (string,
 	}
 
 	return hash, size, casblob.Zstandard, nil
-}
-
-// Seek to offset in Reader r, from the current position.
-func seekReaderTo(r io.Reader, offset int64) {
-	switch s := r.(type) {
-	case io.Seeker:
-		s.Seek(offset, io.SeekCurrent)
-	default:
-		io.CopyN(ioutil.Discard, r, offset)
-	}
 }
 
 // Parse a WriteRequest.ResourceName, return the validated hash, size,
