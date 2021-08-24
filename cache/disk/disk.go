@@ -451,6 +451,9 @@ func (c *Cache) loadExistingFiles() error {
 		size := sizeOnDisk
 		if len(sm[2]) > 0 {
 			size, err = strconv.ParseInt(sm[2], 10, 64)
+			if err != nil {
+				return fmt.Errorf("Failed to parse int from %q: %w", sm[2], err)
+			}
 		}
 
 		random := sm[3]
