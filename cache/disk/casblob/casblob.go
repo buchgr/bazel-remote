@@ -155,7 +155,7 @@ func readHeader(f *os.File) (*header, error) {
 			frameSize, metadataSize)
 	}
 
-	h.chunkOffsets = make([]int64, numOffsets, numOffsets)
+	h.chunkOffsets = make([]int64, numOffsets)
 	err = binary.Read(f, binary.LittleEndian, h.chunkOffsets)
 	if err != nil {
 		return nil, err
@@ -187,7 +187,7 @@ func ExtractLogicalSize(rc io.ReadCloser) (io.ReadCloser, int64, error) {
 	// Read the first part of the header: magic number (4 bytes),
 	// frame size (4 bytes), uncompressed size (8 bytes).
 	interesting := 16
-	earlyHeader := make([]byte, interesting, interesting)
+	earlyHeader := make([]byte, interesting)
 
 	n, err := io.ReadFull(rc, earlyHeader)
 	if err != nil {
@@ -534,7 +534,7 @@ func WriteAndClose(r io.Reader, f *os.File, t CompressionType, hash string, size
 		uncompressedSize: size,
 		compression:      t,
 		chunkSize:        chunkSize,
-		chunkOffsets:     make([]int64, numOffsets, numOffsets),
+		chunkOffsets:     make([]int64, numOffsets),
 	}
 
 	h.chunkOffsets[0] = chunkTableOffset
@@ -575,7 +575,7 @@ func WriteAndClose(r io.Reader, f *os.File, t CompressionType, hash string, size
 	nextChunk := 0 // Index in h.chunkOffsets.
 	remainingRawData := size
 
-	uncompressedChunk := make([]byte, chunkSize, chunkSize)
+	uncompressedChunk := make([]byte, chunkSize)
 
 	hasher := sha256.New()
 
