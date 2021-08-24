@@ -269,7 +269,7 @@ func expectContentEquals(rdr io.ReadCloser, sizeBytes int64, expectedContent []b
 	if err != nil {
 		return err
 	}
-	if bytes.Compare(data, expectedContent) != 0 {
+	if !bytes.Equal(data, expectedContent) {
 		return fmt.Errorf("expected response '%s', but received '%s'",
 			expectedContent, data)
 	}
@@ -929,7 +929,7 @@ func TestHttpProxyBackend(t *testing.T) {
 			blobSize, len(retrievedData))
 	}
 
-	if bytes.Compare(retrievedData, blob) != 0 {
+	if !bytes.Equal(retrievedData, blob) {
 		t.Fatalf("Expected '%v' but received '%v", retrievedData, blob)
 	}
 }
