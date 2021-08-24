@@ -751,6 +751,10 @@ func (c *Cache) availableOrTryProxy(kind cache.EntryKind, hash string, size int6
 			} else {
 				var fileInfo os.FileInfo
 				fileInfo, err = f.Stat()
+				if err != nil {
+					f.Close()
+					return nil, -1, true, err
+				}
 				foundSize := fileInfo.Size()
 				if isSizeMismatch(size, foundSize) {
 					// Race condition, was the item replaced after we released the lock?
