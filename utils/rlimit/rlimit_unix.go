@@ -30,6 +30,4 @@ func Raise() {
 		log.Println("Failed to set rlimit:", err)
 		return
 	}
-
-	return
 }

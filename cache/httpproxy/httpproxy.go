@@ -98,7 +98,6 @@ func (r *remoteHTTPProxyCache) uploadFile(item uploadReq) {
 	rsp.Body.Close()
 
 	logResponse(r.accessLogger, "UPLOAD", rsp.StatusCode, url)
-	return
 }
 
 // New creates a cache that proxies requests to a HTTP remote cache.
