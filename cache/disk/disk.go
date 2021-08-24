@@ -869,7 +869,7 @@ func (c *Cache) get(ctx context.Context, kind cache.EntryKind, hash string, size
 			if err != nil {
 				// Set named return value.
 				rErr = internalErr(err)
-				log.Printf(rErr.Error())
+				log.Println(rErr.Error())
 			}
 			c.mu.Unlock()
 		}
