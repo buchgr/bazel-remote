@@ -169,7 +169,7 @@ func TestGrpcAc(t *testing.T) {
 		InlineOutputFiles: []string{},
 	}
 
-	gacrResp, err := acClient.GetActionResult(ctx, &getReq)
+	_, err = acClient.GetActionResult(ctx, &getReq)
 	if err == nil {
 		t.Fatal("Expected NotFound")
 	}
@@ -262,7 +262,7 @@ func TestGrpcAc(t *testing.T) {
 
 	// GetActionResultRequest again, expect cache hit.
 
-	gacrResp, err = acClient.GetActionResult(ctx, &getReq)
+	gacrResp, err := acClient.GetActionResult(ctx, &getReq)
 	if err != nil {
 		t.Fatal(err)
 	}
