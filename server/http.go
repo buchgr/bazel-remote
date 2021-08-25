@@ -18,9 +18,9 @@ import (
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
 	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
 	"github.com/klauspost/compress/zstd"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	syncpool "github.com/mostynb/zstdpool-syncpool"
 )
@@ -154,8 +154,12 @@ func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, has
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		marshaler := jsonpb.Marshaler{}
-		err = marshaler.Marshal(w, ar)
+		md, err := protojson.Marshal(ar)
+		if err != nil {
+			h.logResponse(http.StatusInternalServerError, r)
+			return
+		}
+		_, err = w.Write(md)
 		if err != nil {
 			h.logResponse(http.StatusInternalServerError, r)
 			return
@@ -421,7 +425,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 func addWorkerMetadataHTTP(addr string, ct string, orig []byte) (data []byte, code int, err error) {
 	ar := &pb.ActionResult{}
 	if ct == "application/json" {
-		err = jsonpb.Unmarshal(bytes.NewReader(orig), ar)
+		err = protojson.Unmarshal(orig, ar)
 	} else {
 		err = proto.Unmarshal(orig, ar)
 	}

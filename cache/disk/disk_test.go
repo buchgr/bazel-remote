@@ -25,7 +25,7 @@ import (
 	testutils "github.com/buchgr/bazel-remote/utils"
 
 	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 func tempDir(t *testing.T) string {
