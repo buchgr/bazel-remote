@@ -154,8 +154,8 @@ OPTIONS:
 		t.Fatal(err)
 	}
 
-	if string(output.Bytes()) != expected {
+	if output.String() != expected {
 		t.Fatalf("Expected:\n%s\n\nGot:\n%s\n", expected,
-			string(output.Bytes()))
+			output.String())
 	}
 }
