@@ -21,7 +21,7 @@ import (
 	"github.com/buchgr/bazel-remote/utils"
 
 	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestDownloadFile(t *testing.T) {
