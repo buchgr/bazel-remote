@@ -2,11 +2,14 @@
 
 # bazel-remote cache
 
-bazel-remote is a HTTP/1.1 and gRPC server that is intended to be used as a remote build cache for
-[Bazel](https://bazel.build). The cache contents are stored in a directory on disk. One can specify a maximum cache
-size and bazel-remote will automatically enforce this limit and clean the cache by deleting files based on their
-last access time. The cache supports HTTP basic authentication with usernames and passwords being specified by a
-`.htpasswd` file, and also mutual TLS authentication.
+bazel-remote is a HTTP/1.1 and gRPC server that is intended to be used as a
+remote build cache for [REAPI](https://github.com/bazelbuild/remote-apis)
+clients like [Bazel](https://bazel.build) or as a component of a remote
+execution service.
+
+The cache contents are stored in a directory on disk with a maximum cache size,
+and bazel-remote will automatically enforce this limit as needed, by deleting
+the least recently used files. S3 and GCS proxy backends are also supported.
 
 **Project status**: bazel-remote has been serving TBs of cache artifacts per day since April 2018, both on
 commodity hardware and AWS servers. Outgoing bandwidth can exceed 15 Gbit/s on the right AWS instance type.
@@ -433,6 +436,9 @@ $ bazel build :bazel-remote
 ```
 
 ### Authentication
+
+bazel-remote defaults to allow unauthenticated access, but basic `.htpasswd`
+style authentication and mutual TLS authentication are also supported.
 
 In order to pass a `.htpasswd` and/or server key file(s) to the cache
 inside a docker container, you first need to mount the file in the
