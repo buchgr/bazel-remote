@@ -1,6 +1,6 @@
 ![Build status](https://badge.buildkite.com/c11240e6e9519111f2380dfcf5fcb49e69fd5b2326c11a3059.svg?branch=master)
 
-# A remote build cache for [Bazel](https://bazel.build)
+# bazel-remote cache
 
 bazel-remote is a HTTP/1.1 and gRPC server that is intended to be used as a remote build cache for
 [Bazel](https://bazel.build). The cache contents are stored in a directory on disk. One can specify a maximum cache
