@@ -40,6 +40,13 @@ http_archive(
 
 load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_proto_toolchains")
 
+go_repository(
+    name = "org_golang_x_term",
+    importpath = "golang.org/x/term",
+    sum = "h1:/ZHdbVpdR/jk3g30/d4yUL0JU9kksj8+F/bnQUVLGDM=",
+    version = "v0.0.0-20201117132131-f5c789dd3221",
+)
+
 rules_proto_dependencies()
 
 rules_proto_toolchains()
@@ -151,8 +158,8 @@ go_repository(
 go_repository(
     name = "org_golang_x_crypto",
     importpath = "golang.org/x/crypto",
-    sum = "h1:DZhuSZLsGlFL4CmhA8BcRA0mnthyA/nZ00AqCUo7vHg=",
-    version = "v0.0.0-20200709230013-948cd5f35899",
+    sum = "h1:aZp0e2vLN4MToVqnjNEYEtrEA8RH8U8FN1CU7JgqsPU=",
+    version = "v0.0.0-20201216223049-8b5274cf687f",
 )
 
 go_repository(
@@ -585,15 +592,15 @@ go_repository(
 go_repository(
     name = "com_github_konsorten_go_windows_terminal_sequences",
     importpath = "github.com/konsorten/go-windows-terminal-sequences",
-    sum = "h1:CE8S1cTafDpPvMhIxNJKvHsGVBgn1xWYf1NbHQhywc8=",
-    version = "v1.0.3",
+    sum = "h1:mweAR1A6xJ3oS2pRaGiHgQ4OO8tzTaLawm8vnODuwDk=",
+    version = "v1.0.1",
 )
 
 go_repository(
     name = "com_github_minio_minio_go_v7",
     importpath = "github.com/minio/minio-go/v7",
-    sum = "h1:7utSkCtMQPYYB1UB8FR3d0QSiOWE6F/JYXon29imYek=",
-    version = "v7.0.11",
+    sum = "h1:rYCca0+8ciW4wFY/vsO5CEMBVL0iabA2D0iq9gOWDjM=",
+    version = "v7.0.13",
 )
 
 go_repository(
@@ -606,8 +613,8 @@ go_repository(
 go_repository(
     name = "com_github_sirupsen_logrus",
     importpath = "github.com/sirupsen/logrus",
-    sum = "h1:UBcNElsrwanuuMsnGSlYmtmgbb23qDR5dG+6X6Oo89I=",
-    version = "v1.6.0",
+    sum = "h1:dJKuHgqk1NNQlqoA6BTlM1Wf9DOH3NBjQyu0h9+AZZE=",
+    version = "v1.8.1",
 )
 
 go_repository(
