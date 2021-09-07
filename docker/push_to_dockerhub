@@ -3,17 +3,37 @@
 script_dir=$(dirname "${BASH_SOURCE[0]}")
 cd "${script_dir}/.."
 
+tag=latest
+if [ $# = 1 ]
+then
+	case "$1" in
+		v*)
+			if [ "$(git rev-list -1 $1)" = "$(git rev-list -1 HEAD)" ]
+			then
+				tag="$1"
+			else
+				echo "Error: can only push \"latest\" or tagged commits"
+				exit 1
+			fi
+			;;
+		*)
+			echo "Error: can only push \"latest\" or tagged commits"
+			exit 1
+			;;
+	esac
+fi
+
 # push test-amd64 and test-arm64 images.
 bazel run //:push_to_dockerhub_amd64
 bazel run //:push_to_dockerhub_arm64
 
 # Create the multiarch manifest.
-docker manifest rm buchgr/bazel-remote-cache:latest
-docker manifest create buchgr/bazel-remote-cache:latest \
+docker manifest rm buchgr/bazel-remote-cache:$tag
+docker manifest create buchgr/bazel-remote-cache:$tag \
     --amend buchgr/bazel-remote-cache:tmp-amd64 \
     --amend buchgr/bazel-remote-cache:tmp-arm64
 
 # Push the multiarch manifest
-docker manifest push buchgr/bazel-remote-cache:latest
+docker manifest push buchgr/bazel-remote-cache:$tag
 
 echo "Go ahead and delete the tmp-amd64 and tmp-arm64 images from the web ui"
