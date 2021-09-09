@@ -20,6 +20,8 @@ tmpdir=$(mktemp -d bazel-remote-basic-auth-tests.XXXXXXX --tmpdir=${TMPDIR:-/tmp
 
 [ -e bazel-remote ] || ./linux-build.sh
 
+emptyblob=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+
 # Generated with "htpasswd -b -c htpasswd $USER $PASS"
 echo 'topsecretusername:$apr1$Ke2kcK4W$EyueqiHyoqhwXcpiEGNyJ1' \
 	> "$tmpdir/htpasswd"
@@ -56,10 +58,10 @@ fi
 # Authenticated read.
 wget --inet4-only -d -O - \
 	--http-user "$USER" --http-password "$PASS" \
-	http://localhost:$HTTP_PORT/status
+	http://localhost:$HTTP_PORT/cas/$emptyblob
 
 # Unauthenticated read.
-wget --inet4-only -d -O - http://localhost:$HTTP_PORT/status
+wget --inet4-only -d -O - http://localhost:$HTTP_PORT/cas/$emptyblob
 
 # Run without auth, expect readonly access.
 if ! bazel run //utils/grpcreadclient -- -server-addr localhost:9092 \
