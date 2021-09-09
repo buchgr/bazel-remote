@@ -63,6 +63,23 @@ wget --inet4-only -d -O - \
 # Unauthenticated read.
 wget --inet4-only -d -O - http://localhost:$HTTP_PORT/cas/$emptyblob
 
+expectedfailureblob=$(echo -n "expectedfailure" | sha256sum | cut -d' ' -f1)
+expectedsuccessblob=$(echo -n "expectedsuccess" | sha256sum | cut -d' ' -f1)
+
+# Unauthenticated write.
+if curl -v --fail -X PUT http://localhost:$HTTP_PORT/cas/$expectedfailureblob -d "expectedfailure"
+then
+	echo "ERROR: expected unauthenticated http write to fail here"
+	exit 1
+fi
+
+# Authenticated write.
+if ! curl -v --fail -X PUT http://$USER:$PASS@localhost:$HTTP_PORT/cas/$expectedsuccessblob -d "expectedsuccess"
+then
+	echo "ERROR: expected authenticated http write to succeed here"
+	exit 1
+fi
+
 # Run without auth, expect readonly access.
 if ! bazel run //utils/grpcreadclient -- -server-addr localhost:9092 \
 	-reads-should-work
