@@ -96,8 +96,9 @@ func run(ctx *cli.Context) error {
 	}
 
 	validateAC := !c.DisableHTTPACValidation
+	checkClientCertForWrites := c.TLSCaFile != "" && c.AllowUnauthenticatedReads
 	h := server.NewHTTPCache(diskCache, c.AccessLogger, c.ErrorLogger, validateAC,
-		c.EnableACKeyInstanceMangling, c.AllowUnauthenticatedReads, gitCommit)
+		c.EnableACKeyInstanceMangling, checkClientCertForWrites, gitCommit)
 
 	var htpasswdSecrets auth.SecretProvider
 	authMode := "disabled"
