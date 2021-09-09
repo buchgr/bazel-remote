@@ -264,6 +264,8 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPut:
 		if h.checkClientCertForWrites && !h.hasValidClientCert(w, r) {
+			http.Error(w, "Authentication required for write access", http.StatusUnauthorized)
+			h.logResponse(http.StatusUnauthorized, r)
 			return
 		}
 
