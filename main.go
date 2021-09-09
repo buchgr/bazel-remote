@@ -283,7 +283,6 @@ func authWrapper(handler http.HandlerFunc, secrets auth.SecretProvider, host str
 // read requests.
 func unauthenticatedReadWrapper(handler http.HandlerFunc, secrets auth.SecretProvider, host string) http.HandlerFunc {
 	authenticator := &auth.BasicAuth{Realm: host, Secrets: secrets}
-	authHandler := auth.JustCheck(authenticator, handler)
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet || r.Method == http.MethodHead {
@@ -291,6 +290,12 @@ func unauthenticatedReadWrapper(handler http.HandlerFunc, secrets auth.SecretPro
 			return
 		}
 
-		authHandler(w, r)
+		if authenticator.CheckAuth(r) != "" {
+			handler(w, r)
+			return
+		}
+
+		http.Error(w, "Authorization required", http.StatusUnauthorized)
+		// TODO: pass in a logger so we can log this event?
 	}
 }
