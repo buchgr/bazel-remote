@@ -6,6 +6,7 @@ go_library(
         "disk.go",
         "findmissing.go",
         "lru.go",
+        "options.go",
     ],
     importpath = "github.com/buchgr/bazel-remote/cache/disk",
     visibility = ["//visibility:public"],

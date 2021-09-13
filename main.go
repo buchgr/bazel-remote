@@ -81,7 +81,14 @@ func run(ctx *cli.Context) error {
 
 	rlimit.Raise()
 
-	diskCache, err := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, c.MaxBlobSize, c.StorageMode, c.ProxyBackend, c.AccessLogger)
+	opts := []disk.Option{
+		disk.WithStorageMode(c.StorageMode),
+		disk.WithMaxBlobSize(c.MaxBlobSize),
+		disk.WithProxyBackend(c.ProxyBackend),
+		disk.WithAccessLogger(c.AccessLogger),
+	}
+
+	diskCache, err := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, opts...)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -35,7 +34,7 @@ func TestDownloadFile(t *testing.T) {
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := blobSize*2 + disk.BlockSize
 
-	c, err := disk.New(cacheDir, cacheSize, math.MaxInt64, "zstd", nil, testutils.NewSilentLogger())
+	c, err := disk.New(cacheDir, cacheSize, disk.WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +102,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := int64(NumUploads * blobSize * 2)
 
-	c, err := disk.New(cacheDir, cacheSize, math.MaxInt64, "zstd", nil, testutils.NewSilentLogger())
+	c, err := disk.New(cacheDir, cacheSize, disk.WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +166,7 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := int64(len(data) * numWorkers * 2)
 
-	c, err := disk.New(cacheDir, cacheSize, math.MaxInt64, "zstd", nil, testutils.NewSilentLogger())
+	c, err := disk.New(cacheDir, cacheSize, disk.WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +207,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 
 	r := httptest.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(corruptedData))
 
-	c, err := disk.New(cacheDir, 2048, math.MaxInt64, "zstd", nil, testutils.NewSilentLogger())
+	c, err := disk.New(cacheDir, 2048, disk.WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +247,7 @@ func TestUploadEmptyActionResult(t *testing.T) {
 
 	r := httptest.NewRequest("PUT", "/ac/"+hash, bytes.NewReader(data))
 
-	c, err := disk.New(cacheDir, disk.BlockSize, math.MaxInt64, "zstd", nil, testutils.NewSilentLogger())
+	c, err := disk.New(cacheDir, disk.BlockSize, disk.WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,7 +308,7 @@ func testEmptyBlobAvailable(t *testing.T, method string) {
 	data, hash := testutils.RandomDataAndHash(0)
 	r := httptest.NewRequest(method, "/cas/"+hash, bytes.NewReader(data))
 
-	c, err := disk.New(cacheDir, 2048, math.MaxInt64, "zstd", nil, testutils.NewSilentLogger())
+	c, err := disk.New(cacheDir, 2048, disk.WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +334,7 @@ func TestStatusPage(t *testing.T) {
 
 	r := httptest.NewRequest("GET", "/status", nil)
 
-	c, err := disk.New(cacheDir, 2048, math.MaxInt64, "zstd", nil, testutils.NewSilentLogger())
+	c, err := disk.New(cacheDir, 2048, disk.WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -478,7 +477,7 @@ func TestRemoteReturnsNotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(cacheDir)
-	emptyCache, err := disk.New(cacheDir, 1024, math.MaxInt64, "zstd", nil, testutils.NewSilentLogger())
+	emptyCache, err := disk.New(cacheDir, 1024, disk.WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}

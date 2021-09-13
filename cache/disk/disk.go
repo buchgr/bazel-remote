@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path"
@@ -101,9 +102,35 @@ func badReqErr(format string, a ...interface{}) *cache.Error {
 }
 
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
-// with a maximum size of `maxSizeBytes` bytes, maximum logical blob size
-// `maxBlobSize` and an optional backend `proxy`.
-func New(dir string, maxSizeBytes int64, maxBlobSize int64, storageMode string, proxy cache.Proxy, accessLogger *log.Logger) (*Cache, error) {
+// with a maximum size of `maxSizeBytes` bytes and `opts` Options set.
+func New(dir string, maxSizeBytes int64, opts ...Option) (*Cache, error) {
+
+	err := os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+
+	dir, err = filepath.EvalSymlinks(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	c := &Cache{
+		dir: dir,
+
+		// Not using config here, to avoid test import cycles.
+		storageMode: casblob.Zstandard,
+		maxBlobSize: math.MaxInt64,
+	}
+
+	// Apply options.
+	for _, o := range opts {
+		err = o(c)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Create the directory structure.
 	hexLetters := []byte("0123456789abcdef")
 	for _, c1 := range hexLetters {
@@ -122,28 +149,6 @@ func New(dir string, maxSizeBytes int64, maxBlobSize int64, storageMode string, 
 				return nil, err
 			}
 		}
-	}
-
-	compressionType := casblob.Zstandard
-	if storageMode == "uncompressed" {
-		compressionType = casblob.Identity
-	}
-
-	resolved, err := filepath.EvalSymlinks(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	c := &Cache{
-		dir:          resolved,
-		storageMode:  compressionType,
-		proxy:        proxy,
-		maxBlobSize:  maxBlobSize,
-		accessLogger: accessLogger,
-	}
-
-	if proxy != nil {
-		c.spawnContainsQueueWorkers()
 	}
 
 	// The eviction callback deletes the file from disk.
