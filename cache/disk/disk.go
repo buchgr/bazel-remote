@@ -223,8 +223,15 @@ func (c *Cache) loadExistingFiles() error {
 
 // Put stores a stream of `size` bytes from `r` into the cache.
 // If `hash` is not the empty string, and the contents don't match it,
-// a non-nil error is returned.
+// a non-nil error is returned. All data will be read from `r` before
+// this function returns.
 func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) (rErr error) {
+	defer func() {
+		if r != nil {
+			_, _ = io.Copy(ioutil.Discard, r)
+		}
+	}()
+
 	if size < 0 {
 		return fmt.Errorf("Invalid (negative) size: %d", size)
 	}
@@ -237,7 +244,6 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 	}
 
 	if kind == cache.CAS && size == 0 && hash == emptySha256 {
-		io.Copy(ioutil.Discard, r)
 		return nil
 	}
 
@@ -303,6 +309,8 @@ func (c *Cache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) 
 	if err != nil {
 		return err
 	}
+
+	r = nil // We read all the data from r.
 
 	if c.proxy != nil {
 		rc, err := os.Open(tf.Name())
