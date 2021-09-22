@@ -27,7 +27,7 @@ import (
 
 var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{64})$")
 
-var decoder, _ = zstd.NewReader(nil) // TODO: raise WithDecoderConcurrency ?
+var decoder, _ = zstd.NewReader(nil, zstd.WithDecoderLowmem(true)) // TODO: raise WithDecoderConcurrency ?
 
 // HTTPCache ...
 type HTTPCache interface {
