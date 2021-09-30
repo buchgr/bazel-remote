@@ -30,6 +30,8 @@ import (
 
 	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
 	"google.golang.org/protobuf/proto"
+
+	"golang.org/x/sync/semaphore"
 )
 
 var (
@@ -74,6 +76,9 @@ type Cache struct {
 	maxBlobSize   int64
 	accessLogger  *log.Logger
 	containsQueue chan proxyCheck
+
+	// Limit the number of simultaneous file removals.
+	fileRemovalSem *semaphore.Weighted
 
 	mu  sync.Mutex
 	lru SizedLRU
@@ -121,6 +126,13 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (*Cache, error) {
 		// Not using config here, to avoid test import cycles.
 		storageMode: casblob.Zstandard,
 		maxBlobSize: math.MaxInt64,
+
+		// Go defaults to a limit of 10,000 operating system threads.
+		// We probably don't need half of those for file removals at
+		// any given point in time, unless the disk/fs can't keep up.
+		// I suppose it's better to slow down processing than to crash
+		// when hitting the 10k limit or to run out of disk space.
+		fileRemovalSem: semaphore.NewWeighted(5000),
 	}
 
 	// Apply options.
@@ -169,7 +181,7 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (*Cache, error) {
 		f := filepath.Join(dir, c.FileLocation(kind, value.legacy, hash, value.size, value.random))
 
 		// Run in a goroutine so we can release the lock sooner.
-		go removeFile(f)
+		go c.removeFile(f)
 	}
 
 	c.lru = NewSizedLRU(maxSizeBytes, onEvict)
@@ -186,7 +198,13 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (*Cache, error) {
 	return c, nil
 }
 
-func removeFile(f string) {
+func (c *Cache) removeFile(f string) {
+	if err := c.fileRemovalSem.Acquire(context.Background(), 1); err != nil {
+		log.Printf("ERROR: failed to aquire semaphore: %v, unable to remove %s", err, f)
+		return
+	}
+	defer c.fileRemovalSem.Release(1)
+
 	err := os.Remove(f)
 	if err != nil {
 		log.Printf("ERROR: failed to remove evicted cache file: %s", f)
