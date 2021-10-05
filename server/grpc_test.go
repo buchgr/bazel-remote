@@ -1821,3 +1821,91 @@ func TestParseWriteResource(t *testing.T) {
 		}
 	}
 }
+
+func TestCompressedBatchReadsAndWrites(t *testing.T) {
+	blob := []byte("payload data")
+
+	enc, err := zstd.NewWriter(nil, zstd.WithEncoderConcurrency(1))
+	if enc != nil {
+		defer enc.Close()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	compressedBlob := enc.EncodeAll(blob, nil)
+
+	blobHash := sha256.Sum256(blob)
+
+	digest := pb.Digest{
+		Hash:      hex.EncodeToString(blobHash[:]),
+		SizeBytes: int64(len(blob)),
+	}
+
+	// Upload compressed data.
+	upReq := pb.BatchUpdateBlobsRequest{
+		Requests: []*pb.BatchUpdateBlobsRequest_Request{
+			{
+				Digest:     &digest,
+				Data:       compressedBlob,
+				Compressor: pb.Compressor_ZSTD,
+			},
+		},
+	}
+
+	_, err = casClient.BatchUpdateBlobs(ctx, &upReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Download potentially compressed data.
+	downReq := pb.BatchReadBlobsRequest{
+		AcceptableCompressors: []pb.Compressor_Value{pb.Compressor_ZSTD},
+		Digests:               []*pb.Digest{&digest},
+	}
+
+	resp, err := casClient.BatchReadBlobs(ctx, &downReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(resp.Responses) != len(upReq.Requests) {
+		t.Fatalf("Expected %d responses, got %d", len(upReq.Requests), len(resp.Responses))
+	}
+
+	if resp.Responses[0].Digest.Hash != digest.Hash || resp.Responses[0].Digest.SizeBytes != digest.SizeBytes {
+		t.Fatalf("Mismatching digest in response. expected %s/%d found %s/%d",
+			digest.Hash, digest.SizeBytes, resp.Responses[0].Digest.Hash, resp.Responses[0].Digest.SizeBytes)
+	}
+
+	if resp.Responses[0].Compressor != pb.Compressor_ZSTD && resp.Responses[0].Compressor != pb.Compressor_IDENTITY {
+		t.Fatal("Response has invalid compressor", resp.Responses[0].Compressor,
+			"should be either ZTSD or IDENTITY")
+	}
+
+	if resp.Responses[0].Compressor == pb.Compressor_IDENTITY {
+		if !bytes.Equal(resp.Responses[0].Data, blob) {
+			t.Fatal("Response data did not match")
+		}
+
+		return
+	}
+
+	// ZSTD case.
+
+	dec, err := zstd.NewReader(bytes.NewReader(resp.Responses[0].Data), zstd.WithDecoderConcurrency(1))
+	if dec != nil {
+		defer dec.Close()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	recoveredData, err := dec.DecodeAll(resp.Responses[0].Data, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(recoveredData, blob) {
+		t.Fatal("Response data did not match")
+	}
+}

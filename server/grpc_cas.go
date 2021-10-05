@@ -77,6 +77,21 @@ func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 		}
 		resp.Responses = append(resp.Responses, &rr)
 
+		if req.Compressor != pb.Compressor_IDENTITY && req.Compressor != pb.Compressor_ZSTD {
+			s.errorLogger.Printf("%s %s UNSUPPORTED COMPRESSOR: %s", errorPrefix, req.Digest.Hash, req.Compressor)
+			rr.Status.Code = int32(gRPCErrCode(err, codes.InvalidArgument))
+			continue
+		}
+
+		if req.Compressor == pb.Compressor_ZSTD {
+			req.Data, err = decoder.DecodeAll(req.Data, nil)
+			if err != nil {
+				s.errorLogger.Printf("%s %s %s", errorPrefix, req.Digest.Hash, err)
+				rr.Status.Code = int32(gRPCErrCode(err, codes.Internal))
+				continue
+			}
+		}
+
 		err = s.cache.Put(cache.CAS, req.Digest.Hash,
 			int64(len(req.Data)), bytes.NewReader(req.Data))
 		if err != nil && err != io.EOF {
@@ -127,10 +142,43 @@ func (s *grpcServer) getBlobData(ctx context.Context, hash string, size int64) (
 	return data, rdr.Close()
 }
 
-func (s *grpcServer) getBlobResponse(ctx context.Context, digest *pb.Digest) *pb.BatchReadBlobsResponse_Response {
+func (s *grpcServer) getBlobResponse(ctx context.Context, digest *pb.Digest, allowZstd bool) *pb.BatchReadBlobsResponse_Response {
 	r := pb.BatchReadBlobsResponse_Response{Digest: digest}
 
-	data, err := s.getBlobData(ctx, digest.Hash, digest.SizeBytes)
+	var data []byte
+	var err error
+
+	if allowZstd {
+		rc, foundSize, err := s.cache.GetZstd(ctx, digest.Hash, digest.SizeBytes, 0)
+		if rc != nil {
+			defer rc.Close()
+		}
+		if rc == nil || foundSize != digest.SizeBytes {
+			s.accessLogger.Printf("GRPC CAS GET %s NOT FOUND", digest.Hash)
+			r.Status = &status.Status{Code: int32(code.Code_NOT_FOUND)}
+			return &r
+		}
+
+		if err != nil {
+			s.errorLogger.Printf("GRPC CAS GET %s INTERNAL ERROR: %v", digest.Hash, err)
+			r.Status = &status.Status{Code: int32(code.Code_INTERNAL)}
+			return &r
+		}
+
+		data, err := ioutil.ReadAll(rc)
+		if err != nil {
+			s.errorLogger.Printf("GRPC CAS GET %s INTERNAL ERROR: %v", digest.Hash, err)
+			r.Status = &status.Status{Code: int32(code.Code_INTERNAL)}
+			return &r
+		}
+
+		r.Data = data
+		r.Compressor = pb.Compressor_ZSTD
+
+		return &r
+	}
+
+	data, err = s.getBlobData(ctx, digest.Hash, digest.SizeBytes)
 	if err == errBlobNotFound {
 		s.accessLogger.Printf("GRPC CAS GET %s NOT FOUND", digest.Hash)
 		r.Status = &status.Status{Code: int32(code.Code_NOT_FOUND)}
@@ -145,6 +193,7 @@ func (s *grpcServer) getBlobResponse(ctx context.Context, digest *pb.Digest) *pb
 	}
 
 	r.Data = data
+	r.Compressor = pb.Compressor_IDENTITY
 
 	s.accessLogger.Printf("GRPC CAS GET %s OK", digest.Hash)
 	r.Status = &status.Status{Code: int32(codes.OK)}
@@ -159,6 +208,14 @@ func (s *grpcServer) BatchReadBlobs(ctx context.Context,
 			0, len(in.Digests)),
 	}
 
+	allowZstd := false
+	for _, c := range in.AcceptableCompressors {
+		if c == pb.Compressor_ZSTD {
+			allowZstd = true
+			break
+		}
+	}
+
 	errorPrefix := "GRPC CAS GET"
 	for _, digest := range in.Digests {
 		// TODO: consider fanning-out goroutines here.
@@ -166,7 +223,7 @@ func (s *grpcServer) BatchReadBlobs(ctx context.Context,
 		if err != nil {
 			return nil, err
 		}
-		resp.Responses = append(resp.Responses, s.getBlobResponse(ctx, digest))
+		resp.Responses = append(resp.Responses, s.getBlobResponse(ctx, digest, allowZstd))
 	}
 
 	return &resp, nil
