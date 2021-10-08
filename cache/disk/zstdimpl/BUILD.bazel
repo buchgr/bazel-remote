@@ -1,0 +1,26 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "gozstd.go",
+        "zstdimpl.go",
+    ] + select({
+        "@io_bazel_rules_go//go/toolchain:cgo_on": [
+            "cgozstd.go",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/buchgr/bazel-remote/cache/disk/zstdimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//utils/zstdpool:go_default_library",
+        "@com_github_klauspost_compress//zstd:go_default_library",
+        "@com_github_mostynb_zstdpool_syncpool//:go_default_library",
+    ] + select({
+        "@io_bazel_rules_go//go/toolchain:cgo_on": [
+            "@com_github_valyala_gozstd//:go_default_library",
+        ],
+        "//conditions:default": [],
+    }),
+)

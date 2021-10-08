@@ -35,6 +35,12 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_STORAGE_MODE"},
 		},
 		&cli.StringFlag{
+			Name:    "zstd_implementation",
+			Value:   "go",
+			Usage:   "ZSTD implementation to use - either \"go\" or \"cgo\n (cgo may not be compiled in).",
+			EnvVars: []string{"BAZEL_REMOTE_ZSTD_IMPLEMENTATION"},
+		},
+		&cli.StringFlag{
 			Name:    "host",
 			Value:   "",
 			Usage:   "Address to listen on. Listens on all network interfaces by default.",

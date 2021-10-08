@@ -2,6 +2,7 @@ package disk
 
 import (
 	"fmt"
+	"github.com/buchgr/bazel-remote/cache/disk/zstdimpl"
 	"log"
 
 	"github.com/buchgr/bazel-remote/cache"
@@ -21,6 +22,13 @@ func WithStorageMode(mode string) Option {
 		} else {
 			return fmt.Errorf("Unsupported storage mode: " + mode)
 		}
+	}
+}
+
+func WithZstdImplementation(impl string) Option {
+	return func(c *Cache) error {
+		c.zstd = zstdimpl.Get(impl)
+		return nil
 	}
 }
 

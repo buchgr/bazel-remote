@@ -63,7 +63,7 @@ func run(ctx *cli.Context) error {
 	c, err := config.Get(ctx)
 	if err != nil {
 		fmt.Fprintf(ctx.App.Writer, "%v\n\n", err)
-		err = cli.ShowAppHelp(ctx)
+		_ = cli.ShowAppHelp(ctx)
 		return cli.Exit(err.Error(), 1)
 	}
 
@@ -83,6 +83,7 @@ func run(ctx *cli.Context) error {
 
 	opts := []disk.Option{
 		disk.WithStorageMode(c.StorageMode),
+		disk.WithZstdImplementation(c.ZstdImplementation),
 		disk.WithMaxBlobSize(c.MaxBlobSize),
 		disk.WithProxyBackend(c.ProxyBackend),
 		disk.WithAccessLogger(c.AccessLogger),

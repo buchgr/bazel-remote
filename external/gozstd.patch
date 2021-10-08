@@ -1,0 +1,142 @@
+From 88b6abf2c7151f9fd8e4bd401fbdf1acb32b4dcb Mon Sep 17 00:00:00 2001
+From: Grzegorz Lukasik <glukasik@nuro.ai>
+Date: Mon, 11 Oct 2021 15:05:52 -0700
+Subject: [PATCH] Added BUILD file that works for bazel.
+
+https://github.com/bazelbuild/bazel-gazelle currently (v0.24.0)
+does not create working go_repository for https://github.com/valyala/gozstd
+
+gazelle creates a go_library, that adds a number of linkopts from
+parsing go files for different platforms, ending with entry like:
+
+  go_library(
+    name = "gozstd",
+    ...
+    clinkopts = select({
+        "@io_bazel_rules_go//go/platform:android_amd64": [
+            "./libzstd_linux_amd64.a",
+        ],
+        "@io_bazel_rules_go//go/platform:android_arm": [
+            "./libzstd_linux_arm.a",
+        ],
+    ...
+
+But the .a files are not included as input files, because of that bazel
+fails during linking with:
+
+  gcc: error: ./libzstd_linux_amd64.a: No such file or directory
+
+This patch commits statically fixed BUILD.bazel file with using
+cc_library that the gozstd library depends on, which causes proper
+linking flags and addition of .a files to the input files.
+---
+ BUILD.bazel | 97 +++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 97 insertions(+)
+ create mode 100644 BUILD.bazel
+
+diff --git a/BUILD.bazel b/BUILD.bazel
+new file mode 100644
+index 0000000..ce0ff97
+--- /dev/null
++++ b/BUILD.bazel
+@@ -0,0 +1,97 @@
++load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
++
++cc_library(
++    name = "gozstd-c-archive",
++    srcs = select({
++        "@io_bazel_rules_go//go/platform:android_amd64": [
++            "libzstd_linux_amd64.a",
++        ],
++        "@io_bazel_rules_go//go/platform:android_arm": [
++            "libzstd_linux_arm.a",
++        ],
++        "@io_bazel_rules_go//go/platform:android_arm64": [
++            "libzstd_linux_arm64.a",
++        ],
++        "@io_bazel_rules_go//go/platform:darwin_amd64": [
++            "libzstd_darwin_amd64.a",
++        ],
++        "@io_bazel_rules_go//go/platform:darwin_arm64": [
++            "libzstd_darwin_arm64.a",
++        ],
++        "@io_bazel_rules_go//go/platform:freebsd_amd64": [
++            "libzstd_freebsd_amd64.a",
++        ],
++        "@io_bazel_rules_go//go/platform:ios_amd64": [
++            "libzstd_darwin_amd64.a",
++        ],
++        "@io_bazel_rules_go//go/platform:ios_arm64": [
++            "libzstd_darwin_arm64.a",
++        ],
++        "@io_bazel_rules_go//go/platform:linux_amd64": [
++            "libzstd_linux_amd64.a",
++        ],
++        "@io_bazel_rules_go//go/platform:linux_arm": [
++            "libzstd_linux_arm.a",
++        ],
++        "@io_bazel_rules_go//go/platform:linux_arm64": [
++            "libzstd_linux_arm64.a",
++        ],
++        "@io_bazel_rules_go//go/platform:windows_amd64": [
++            "libzstd_windows_amd64.a",
++        ]},
++        no_match_error = "Platform not supported by cgo zstd implementation"),
++
++)
++
++go_library(
++    name = "gozstd",
++    srcs = [
++        "dict.go",
++        "doc.go",
++        "gozstd.go",
++        "libzstd_darwin_amd64.go",
++        "libzstd_darwin_arm64.go",
++        "libzstd_freebsd_amd64.go",
++        "libzstd_linux_amd64.go",
++        "libzstd_linux_arm.go",
++        "libzstd_linux_arm64.go",
++        "libzstd_windows_amd64.go",
++        "reader.go",
++        "stream.go",
++        "writer.go",
++        "zdict.h",
++        "zstd.h",
++        "zstd_errors.h",
++    ],
++    cgo = True,
++    cdeps = [":gozstd-c-archive"],
++    copts = ["-O3"],
++    importpath = "github.com/valyala/gozstd",
++    visibility = ["//visibility:public"],
++)
++
++alias(
++    name = "go_default_library",
++    actual = ":gozstd",
++    visibility = ["//visibility:public"],
++)
++
++go_test(
++    name = "gozstd_test",
++    srcs = [
++        "dict_example_test.go",
++        "dict_test.go",
++        "gozstd_example_test.go",
++        "gozstd_test.go",
++        "gozstd_timing_test.go",
++        "reader_example_test.go",
++        "reader_test.go",
++        "reader_timing_test.go",
++        "stream_test.go",
++        "stream_timing_test.go",
++        "writer_example_test.go",
++        "writer_test.go",
++        "writer_timing_test.go",
++    ],
++    embed = [":gozstd"],
++)
+-- 
+2.33.0
+

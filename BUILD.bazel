@@ -67,6 +67,17 @@ go_image(
     x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
 )
 
+go_image(
+    name = "bazel-remote-base-amd64-cgo",
+    embed = [":go_default_library"],
+    goarch = "amd64",
+    goos = "linux",
+    pure = "off",
+    static = "on",
+    visibility = ["//visibility:private"],
+    x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
+)
+
 container_image(
     name = "bazel-remote-image",
     architecture = "amd64",
@@ -115,11 +126,34 @@ container_image(
     visibility = ["//visibility:public"],
 )
 
-# The following container_push targets push to "tmp-amd64" and "tmp-arm64"
-# tags, so they can be combined into a multiarch tag on dockerhub. This
-# isn't currently possible with rules_docker, so instead we rely on some
-# external commands to be run after the tmp-* tags are pushed. See the
-# docker/push_to_dockerhub script.
+container_image(
+    name = "bazel-remote-image-amd64-cgo",
+    architecture = "amd64",
+    base = ":bazel-remote-base-amd64-cgo",
+    cmd = ["--max_size=5"],
+    entrypoint = [
+        "/app/bazel-remote-base-amd64-cgo.binary",
+        "--port=8080",
+        "--dir=/data",
+
+        # Listen on all addresses, not just 127.0.0.1, so this can
+        # be reached from outside the container (with a -p mapping).
+        "--profile_host=",
+        # Specify a port to enable the profiling http server.
+        "--profile_port=6060",
+    ],
+    ports = ["8080"],
+    tars = [
+        "//docker:data_dir_tar",
+    ],
+    user = str(BAZEL_REMOTE_USER_ID),
+    visibility = ["//visibility:public"],
+)
+
+# The following container_push targets push to "tmp-*" tags, so they can be
+# combined into a multiarch tag on dockerhub. This isn't currently possible
+# with rules_docker, so instead we rely on some external commands to be run
+# after the tmp-* tags are pushed. See the docker/push_to_dockerhub script.
 #
 # Background:
 # https://github.com/bazelbuild/rules_docker/issues/1599
@@ -141,5 +175,15 @@ container_push(
     registry = "index.docker.io",
     repository = "buchgr/bazel-remote-cache",
     tag = "tmp-arm64",
+    visibility = ["//visibility:public"],
+)
+
+container_push(
+    name = "push_to_dockerhub_amd64_cgo",
+    format = "Docker",
+    image = ":bazel-remote-image-amd64-cgo",
+    registry = "index.docker.io",
+    repository = "buchgr/bazel-remote-cache",
+    tag = "tmp-amd64-cgo",
     visibility = ["//visibility:public"],
 )

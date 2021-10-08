@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"github.com/buchgr/bazel-remote/cache/disk/zstdimpl"
 	"io"
 	"io/ioutil"
 	"log"
@@ -71,6 +72,7 @@ type Cache struct {
 	dir           string
 	proxy         cache.Proxy
 	storageMode   casblob.CompressionType
+	zstd          zstdimpl.ZstdImpl
 	maxBlobSize   int64
 	accessLogger  *log.Logger
 	containsQueue chan proxyCheck
@@ -120,6 +122,7 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (*Cache, error) {
 
 		// Not using config here, to avoid test import cycles.
 		storageMode: casblob.Zstandard,
+		zstd:        zstdimpl.Get("go"),
 		maxBlobSize: math.MaxInt64,
 	}
 
@@ -637,7 +640,7 @@ func (c *Cache) writeAndCloseFile(r io.Reader, kind cache.EntryKind, hash string
 	var sizeOnDisk int64
 
 	if kind == cache.CAS && c.storageMode != casblob.Identity {
-		sizeOnDisk, err = casblob.WriteAndClose(r, f, c.storageMode, hash, size)
+		sizeOnDisk, err = casblob.WriteAndClose(c.zstd, r, f, c.storageMode, hash, size)
 		if err != nil {
 			return -1, err
 		}
@@ -744,16 +747,16 @@ func (c *Cache) availableOrTryProxy(kind cache.EntryKind, hash string, size int6
 					// The file is uncompressed, without a casblob header.
 					_, err = f.Seek(offset, io.SeekStart)
 					if zstd && err == nil {
-						rc, err = casblob.GetLegacyZstdReadCloser(f)
+						rc, err = casblob.GetLegacyZstdReadCloser(c.zstd, f)
 					} else if err == nil {
 						rc = f
 					}
 				} else {
 					// The file is compressed.
 					if zstd {
-						rc, err = casblob.GetZstdReadCloser(f, size, offset)
+						rc, err = casblob.GetZstdReadCloser(c.zstd, f, size, offset)
 					} else {
-						rc, err = casblob.GetUncompressedReadCloser(f, size, offset)
+						rc, err = casblob.GetUncompressedReadCloser(c.zstd, f, size, offset)
 					}
 				}
 
@@ -957,15 +960,15 @@ func (c *Cache) get(ctx context.Context, kind cache.EntryKind, hash string, size
 		}
 
 		if zstd {
-			rc, err = casblob.GetLegacyZstdReadCloser(rcf)
+			rc, err = casblob.GetLegacyZstdReadCloser(c.zstd, rcf)
 		} else {
 			rc = rcf
 		}
 	} else { // Compressed CAS blob.
 		if zstd {
-			rc, err = casblob.GetZstdReadCloser(rcf, foundSize, offset)
+			rc, err = casblob.GetZstdReadCloser(c.zstd, rcf, foundSize, offset)
 		} else {
-			rc, err = casblob.GetUncompressedReadCloser(rcf, foundSize, offset)
+			rc, err = casblob.GetUncompressedReadCloser(c.zstd, rcf, foundSize, offset)
 		}
 	}
 	if err != nil {

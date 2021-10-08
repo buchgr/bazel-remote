@@ -1092,3 +1092,13 @@ go_repository(
     sum = "h1:Ayib7Dsdg9kfu4S7yQcItPFTnt4w9mBNJ/3qeyxp8yU=",
     version = "v0.0.8",
 )
+
+go_repository(
+    name = "com_github_valyala_gozstd",
+    build_file_generation = "off",  # keep
+    importpath = "github.com/valyala/gozstd",
+    patch_args = ["-p1"],  # keep
+    patches = ["gozstd.patch"],  # keep
+    sum = "h1:M9qgbElBZsHlh8a4jjHO4lY42xLJeb+KWVBwFBAapRo=",
+    version = "v1.13.0",
+)

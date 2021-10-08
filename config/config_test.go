@@ -40,6 +40,7 @@ access_log_level: none
 		Dir:                         "/opt/cache-dir",
 		MaxSize:                     100,
 		StorageMode:                 "zstd",
+		ZstdImplementation:          "go",
 		HtpasswdFile:                "/opt/.htpasswd",
 		TLSCertFile:                 "/opt/tls.cert",
 		TLSKeyFile:                  "/opt/tls.key",
@@ -78,12 +79,13 @@ gcs_proxy:
 	}
 
 	expectedConfig := &Config{
-		Host:        "localhost",
-		Port:        8080,
-		GRPCPort:    9092,
-		Dir:         "/opt/cache-dir",
-		MaxSize:     100,
-		StorageMode: "zstd",
+		Host:               "localhost",
+		Port:               8080,
+		GRPCPort:           9092,
+		Dir:                "/opt/cache-dir",
+		MaxSize:            100,
+		StorageMode:        "zstd",
+		ZstdImplementation: "go",
 		GoogleCloudStorage: &GoogleCloudStorageConfig{
 			Bucket:                "gcs-bucket",
 			UseDefaultCredentials: false,
@@ -117,12 +119,13 @@ http_proxy:
 	}
 
 	expectedConfig := &Config{
-		Host:        "localhost",
-		Port:        8080,
-		GRPCPort:    9092,
-		Dir:         "/opt/cache-dir",
-		MaxSize:     100,
-		StorageMode: "zstd",
+		Host:               "localhost",
+		Port:               8080,
+		GRPCPort:           9092,
+		Dir:                "/opt/cache-dir",
+		MaxSize:            100,
+		StorageMode:        "zstd",
+		ZstdImplementation: "go",
 		HTTPBackend: &HTTPBackendConfig{
 			BaseURL: "https://remote-cache.com:8080/cache",
 		},
@@ -188,11 +191,12 @@ s3_proxy:
 	}
 
 	expectedConfig := &Config{
-		Host:        "localhost",
-		Port:        8080,
-		Dir:         "/opt/cache-dir",
-		MaxSize:     100,
-		StorageMode: "zstd",
+		Host:               "localhost",
+		Port:               8080,
+		Dir:                "/opt/cache-dir",
+		MaxSize:            100,
+		StorageMode:        "zstd",
+		ZstdImplementation: "go",
 		S3CloudStorage: &S3CloudStorageConfig{
 			Endpoint:        "minio.example.com:9000",
 			Bucket:          "test-bucket",
@@ -230,6 +234,7 @@ profile_port: 7070
 		Dir:                    "/opt/cache-dir",
 		MaxSize:                42,
 		StorageMode:            "zstd",
+		ZstdImplementation:     "go",
 		ProfilePort:            7070,
 		ProfileHost:            "",
 		NumUploaders:           100,
@@ -277,6 +282,7 @@ endpoint_metrics_duration_buckets: [.005, .1, 5]
 		Dir:                    "/opt/cache-dir",
 		MaxSize:                42,
 		StorageMode:            "zstd",
+		ZstdImplementation:     "go",
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
@@ -297,6 +303,7 @@ func TestMetricsDurationBucketsNoDuplicates(t *testing.T) {
 		MaxBlobSize:            200,
 		Dir:                    "/opt/cache-dir",
 		StorageMode:            "uncompressed",
+		ZstdImplementation:     "go",
 		MetricsDurationBuckets: []float64{1, 2, 3, 3},
 	}
 	err := validateConfig(testConfig)
