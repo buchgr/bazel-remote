@@ -1093,6 +1093,8 @@ go_repository(
     version = "v0.0.8",
 )
 
+# Need to patch gozstd to properly handle static C++ library,
+# see https://github.com/bazelbuild/bazel-gazelle/issues/1120
 go_repository(
     name = "com_github_valyala_gozstd",
     build_file_generation = "off",  # keep
