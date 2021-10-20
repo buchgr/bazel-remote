@@ -81,17 +81,25 @@ func run(ctx *cli.Context) error {
 
 	rlimit.Raise()
 
+	validateAC := !c.DisableHTTPACValidation
+
 	opts := []disk.Option{
 		disk.WithStorageMode(c.StorageMode),
 		disk.WithMaxBlobSize(c.MaxBlobSize),
-		disk.WithProxyBackend(c.ProxyBackend),
 		disk.WithAccessLogger(c.AccessLogger),
+	}
+	if c.ProxyBackend != nil {
+		opts = append(opts, disk.WithProxyBackend(c.ProxyBackend))
+	}
+	if c.EnableEndpointMetrics {
+		opts = append(opts, disk.WithEndpointMetrics())
 	}
 
 	diskCache, err := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, opts...)
 	if err != nil {
 		log.Fatal(err)
 	}
+	diskCache.RegisterMetrics()
 
 	mux := http.NewServeMux()
 	httpServer := &http.Server{
@@ -102,7 +110,6 @@ func run(ctx *cli.Context) error {
 		WriteTimeout: c.HTTPWriteTimeout,
 	}
 
-	validateAC := !c.DisableHTTPACValidation
 	checkClientCertForWrites := c.TLSCaFile != "" && c.AllowUnauthenticatedReads
 	h := server.NewHTTPCache(diskCache, c.AccessLogger, c.ErrorLogger, validateAC,
 		c.EnableACKeyInstanceMangling, checkClientCertForWrites, gitCommit)

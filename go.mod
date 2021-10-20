@@ -14,6 +14,7 @@ require (
 	github.com/mostynb/go-grpc-compression v1.1.11
 	github.com/mostynb/zstdpool-syncpool v0.0.8
 	github.com/prometheus/client_golang v1.7.1
+	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/slok/go-http-metrics v0.8.0
 	github.com/urfave/cli/v2 v2.2.0
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
@@ -38,7 +39,6 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
-	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.10.0 // indirect
 	github.com/prometheus/procfs v0.1.3 // indirect
 	github.com/rs/xid v1.2.1 // indirect

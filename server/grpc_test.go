@@ -48,7 +48,7 @@ var (
 	bsClient    bytestream.ByteStreamClient
 	assetClient asset.FetchClient
 	ctx         = context.Background()
-	diskCache   *disk.Cache
+	diskCache   disk.Cache
 
 	badDigestTestCases = []badDigest{
 		{digest: &pb.Digest{Hash: ""}, reason: "empty hash"},

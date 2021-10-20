@@ -102,7 +102,7 @@ func TestContainsWorker(t *testing.T) {
 
 	tp := testCWProxy{blob: "9205adc12a2c8b65e7cd77918ff8e6e20f39bdd0b7fc4b984abfd690c79d80c1"}
 
-	c := Cache{
+	c := diskCache{
 		accessLogger:  testutils.NewSilentLogger(),
 		proxy:         &tp,
 		containsQueue: make(chan proxyCheck, 2),

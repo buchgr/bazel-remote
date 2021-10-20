@@ -23,7 +23,7 @@ type proxyCheck struct {
 // Returns a slice with the blobs that are missing from the cache.
 //
 // Note that this modifies the input slice and returns a subset of it.
-func (c *Cache) FindMissingCasBlobs(ctx context.Context, blobs []*pb.Digest) ([]*pb.Digest, error) {
+func (c *diskCache) FindMissingCasBlobs(ctx context.Context, blobs []*pb.Digest) ([]*pb.Digest, error) {
 	const batchSize = 20
 
 	var wg sync.WaitGroup
@@ -86,7 +86,7 @@ func filterNonNil(blobs []*pb.Digest) []*pb.Digest {
 
 // Set blobs that exist in the disk cache to nil, and return the number
 // of missing blobs.
-func (c *Cache) findMissingLocalCAS(blobs []*pb.Digest) int {
+func (c *diskCache) findMissingLocalCAS(blobs []*pb.Digest) int {
 	var exists bool
 	var key string
 	missing := 0
@@ -115,7 +115,7 @@ func (c *Cache) findMissingLocalCAS(blobs []*pb.Digest) int {
 	return missing
 }
 
-func (c *Cache) containsWorker() {
+func (c *diskCache) containsWorker() {
 	var ok bool
 	for req := range c.containsQueue {
 		ok, _ = c.proxy.Contains(req.ctx, cache.CAS, (*req.digest).Hash)
@@ -131,7 +131,7 @@ func (c *Cache) containsWorker() {
 	}
 }
 
-func (c *Cache) spawnContainsQueueWorkers() {
+func (c *diskCache) spawnContainsQueueWorkers() {
 	// TODO: make these configurable?
 	const queueSize = 2048
 	const numWorkers = 512

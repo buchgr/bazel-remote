@@ -25,6 +25,9 @@ import (
 
 	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 func tempDir(t *testing.T) string {
@@ -52,10 +55,11 @@ func TestCacheBasics(t *testing.T) {
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := int64(itemSize*2 + BlockSize)
 
-	testCache, err := New(cacheDir, cacheSize, WithAccessLogger(testutils.NewSilentLogger()))
+	testCacheI, err := New(cacheDir, cacheSize, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
+	testCache := testCacheI.(*diskCache)
 
 	if testCache.lru.Len() != 0 {
 		t.Fatalf("Expected to start with an empty disk cache, found %d items",
@@ -171,10 +175,11 @@ func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
 
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache, err := New(cacheDir, BlockSize, WithProxyBackend(new(proxyStub)), WithAccessLogger(testutils.NewSilentLogger()))
+	testCacheI, err := New(cacheDir, BlockSize, WithProxyBackend(new(proxyStub)), WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
+	testCache := testCacheI.(*diskCache)
 
 	var found bool
 	var rdr io.ReadCloser
@@ -280,11 +285,11 @@ func expectContentEquals(rdr io.ReadCloser, sizeBytes int64, expectedContent []b
 	return nil
 }
 
-func putGetCompare(ctx context.Context, kind cache.EntryKind, hash string, content string, testCache *Cache) error {
+func putGetCompare(ctx context.Context, kind cache.EntryKind, hash string, content string, testCache *diskCache) error {
 	return putGetCompareBytes(ctx, kind, hash, []byte(content), testCache)
 }
 
-func putGetCompareBytes(ctx context.Context, kind cache.EntryKind, hash string, data []byte, testCache *Cache) error {
+func putGetCompareBytes(ctx context.Context, kind cache.EntryKind, hash string, data []byte, testCache *diskCache) error {
 
 	r := bytes.NewReader(data)
 
@@ -315,10 +320,11 @@ func TestOverwrite(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	testCache, err := New(cacheDir, BlockSize, WithAccessLogger(testutils.NewSilentLogger()))
+	testCacheI, err := New(cacheDir, BlockSize, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
+	testCache := testCacheI.(*diskCache)
 
 	err = putGetCompare(ctx, cache.CAS, hashStr("hello"), "hello", testCache)
 	if err != nil {
@@ -415,10 +421,11 @@ func TestCacheExistingFiles(t *testing.T) {
 	// Add some overhead for likely CAS blob storage expansion.
 	const cacheSize = BlockSize * 5
 
-	testCache, err := New(cacheDir, cacheSize, WithAccessLogger(testutils.NewSilentLogger()))
+	testCacheI, err := New(cacheDir, cacheSize, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
+	testCache := testCacheI.(*diskCache)
 
 	evicted := []Key{}
 	origOnEvict := testCache.lru.onEvict
@@ -470,10 +477,11 @@ func TestCacheExistingFiles(t *testing.T) {
 func TestCacheBlobTooLarge(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache, err := New(cacheDir, BlockSize, WithAccessLogger(testutils.NewSilentLogger()))
+	testCacheI, err := New(cacheDir, BlockSize, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
+	testCache := testCacheI.(*diskCache)
 
 	for k := range []cache.EntryKind{cache.AC, cache.RAW} {
 		kind := cache.EntryKind(k)
@@ -496,10 +504,11 @@ func TestCacheBlobTooLarge(t *testing.T) {
 func TestCacheCorruptedCASBlob(t *testing.T) {
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache, err := New(cacheDir, BlockSize, WithAccessLogger(testutils.NewSilentLogger()))
+	testCacheI, err := New(cacheDir, BlockSize, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
+	testCache := testCacheI.(*diskCache)
 
 	err = testCache.Put(cache.CAS, hashStr("foo"), int64(len(contents)),
 		strings.NewReader(contents))
@@ -569,10 +578,11 @@ func TestMigrateFromOldDirectoryStructure(t *testing.T) {
 	// Add some overhead for likely CAS blob storage expansion.
 	const cacheSize = 2560*2 + BlockSize*2
 
-	testCache, err := New(cacheDir, cacheSize, WithAccessLogger(testutils.NewSilentLogger()))
+	testCacheI, err := New(cacheDir, cacheSize, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
+	testCache := testCacheI.(*diskCache)
 
 	_, _, numItems, _ := testCache.Stats()
 	if numItems != 3 {
@@ -667,10 +677,11 @@ func TestLoadExistingEntries(t *testing.T) {
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := int64((blobSize + BlockSize) * numBlobs * 2)
 
-	testCache, err := New(cacheDir, cacheSize, WithAccessLogger(testutils.NewSilentLogger()))
+	testCacheI, err := New(cacheDir, cacheSize, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
+	testCache := testCacheI.(*diskCache)
 
 	_, _, numItems, _ := testCache.Stats()
 	if int64(numItems) != numBlobs {
@@ -713,10 +724,11 @@ func TestDistinctKeyspaces(t *testing.T) {
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := int64((blobSize+BlockSize)*3) * 2
 
-	testCache, err := New(cacheDir, cacheSize, WithAccessLogger(testutils.NewSilentLogger()))
+	testCacheI, err := New(cacheDir, cacheSize, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
+	testCache := testCacheI.(*diskCache)
 
 	blob, casHash := testutils.RandomDataAndHash(1024)
 
@@ -839,10 +851,11 @@ func TestHttpProxyBackend(t *testing.T) {
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := int64(1024*10) * 2
 
-	testCache, err := New(cacheDir, cacheSize, WithProxyBackend(proxy), WithAccessLogger(testutils.NewSilentLogger()))
+	testCacheI, err := New(cacheDir, cacheSize, WithProxyBackend(proxy), WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
+	testCache := testCacheI.(*diskCache)
 
 	blobSize := int64(1024)
 	blob, casHash := testutils.RandomDataAndHash(blobSize)
@@ -877,10 +890,12 @@ func TestHttpProxyBackend(t *testing.T) {
 	// Create a new (empty) testCache, without a proxy backend.
 	cacheDir = testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCache, err = New(cacheDir, cacheSize, WithAccessLogger(testutils.NewSilentLogger()))
+
+	testCacheI, err = New(cacheDir, cacheSize, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
+	testCache = testCacheI.(*diskCache)
 
 	// Confirm that it does not contain the item we added to the
 	// first testCache and the proxy backend.
@@ -942,10 +957,11 @@ func TestGetValidatedActionResult(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	testCache, err := New(cacheDir, 1024*32, WithAccessLogger(testutils.NewSilentLogger()))
+	testCacheI, err := New(cacheDir, 1024*32, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
+	testCache := testCacheI.(*diskCache)
 
 	// Create a directory tree like so:
 	// /bar/foo.txt
@@ -1117,10 +1133,11 @@ func TestGetWithOffset(t *testing.T) {
 
 	const blobSize = 2048 + 256
 
-	testCache, err := New(cacheDir, blobSize*2, WithAccessLogger(testutils.NewSilentLogger()))
+	testCacheI, err := New(cacheDir, blobSize*2, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
+	testCache := testCacheI.(*diskCache)
 
 	data, hash := testutils.RandomDataAndHash(blobSize)
 
@@ -1169,5 +1186,198 @@ func TestGetWithOffset(t *testing.T) {
 			t.Fatalf("Expected data (%d bytes), differs from actual data (%d bytes) for offset %d",
 				len(data[offset:]), len(foundData), offset)
 		}
+	}
+}
+
+func count(counter *prometheus.CounterVec, kind string, status string) float64 {
+	gets := testutil.ToFloat64(counter.With(prometheus.Labels{"method": getMethod, "kind": kind, "status": status}))
+	contains := testutil.ToFloat64(counter.With(prometheus.Labels{"method": containsMethod, "kind": kind, "status": status}))
+	return gets + contains
+}
+
+func TestMetricsUnvalidatedAC(t *testing.T) {
+	cacheDir := tempDir(t)
+	defer os.RemoveAll(cacheDir)
+
+	cacheSize := int64(100000)
+
+	testCacheI, err := New(cacheDir, cacheSize,
+		WithAccessLogger(testutils.NewSilentLogger()),
+		WithEndpointMetrics())
+	if err != nil {
+		t.Fatal(err)
+	}
+	testCache := testCacheI.(*metricsDecorator)
+
+	// Add an AC entry with a missing cas blob.
+	randomBlob, hash := testutils.RandomDataAndHash(100)
+	ar := pb.ActionResult{
+		StdoutDigest: &pb.Digest{
+			Hash:      hash,
+			SizeBytes: int64(len(randomBlob)),
+		},
+	}
+	arData, err := proto.Marshal(&ar)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fakeActionHash := "8f279f9d8bc605b4d733d0ba9386de2376004ab628fee6b000144fdc7b30a6a1"
+
+	err = testCache.Put(cache.AC, fakeActionHash, int64(len(arData)), bytes.NewReader(arData))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	contains, size := testCache.Contains(context.Background(), cache.AC, fakeActionHash, -1)
+	if !contains {
+		t.Fatalf("Expected hash %q to exist in the cache", fakeActionHash)
+	}
+	if size != int64(len(arData)) {
+		t.Fatalf("Expected cached blob to be of size %d, found %d", len(arData), size)
+	}
+
+	acHits := count(testCache.counter, acKind, hitStatus)
+	if acHits != 1 {
+		t.Fatalf("Expected acHit counter to be 1, found %f", acHits)
+	}
+
+	acMiss := count(testCache.counter, acKind, missStatus)
+	if acMiss != 0 {
+		t.Fatalf("Expected acMiss counter to be 0, found %f", acMiss)
+	}
+
+	casHits := count(testCache.counter, casKind, hitStatus)
+	if casHits != 0 {
+		t.Fatalf("Expected casHit counter to be 0, found %f", casHits)
+	}
+
+	casMisses := count(testCache.counter, casKind, missStatus)
+	if casMisses != 0 {
+		t.Fatalf("Expected casMiss counter to be 0, found %f", casMisses)
+	}
+
+	rawHits := count(testCache.counter, rawKind, hitStatus)
+	if rawHits != 0 {
+		t.Fatalf("Expected rawHit counter to be 0, found %f", rawHits)
+	}
+
+	rawMisses := count(testCache.counter, rawKind, missStatus)
+	if rawMisses != 0 {
+		t.Fatalf("Expected rawMiss counter to be 0, found %f", rawMisses)
+	}
+
+	rc, _, err := testCache.Get(context.Background(), cache.AC, fakeActionHash, -1, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc == nil {
+		t.Fatalf("Expected %q to be found in the action cache", fakeActionHash)
+	}
+
+	acHits = count(testCache.counter, acKind, hitStatus)
+	if acHits != 2 {
+		t.Fatalf("Expected acHit counter to be 2, found %f", acHits)
+	}
+
+	acMiss = count(testCache.counter, acKind, missStatus)
+	if acMiss != 0 {
+		t.Fatalf("Expected acMiss counter to be 0, found %f", acMiss)
+	}
+
+	casHits = count(testCache.counter, casKind, hitStatus)
+	if casHits != 0 {
+		t.Fatalf("Expected casHit counter to be 0, found %f", casHits)
+	}
+
+	casMisses = count(testCache.counter, casKind, missStatus)
+	if casMisses != 0 {
+		t.Fatalf("Expected casMiss counter to be 0, found %f", casMisses)
+	}
+
+	rawHits = count(testCache.counter, rawKind, hitStatus)
+	if rawHits != 0 {
+		t.Fatalf("Expected rawHit counter to be 0, found %f", rawHits)
+	}
+
+	rawMisses = count(testCache.counter, rawKind, missStatus)
+	if rawMisses != 0 {
+		t.Fatalf("Expected rawMiss counter to be 0, found %f", rawMisses)
+	}
+}
+
+func TestMetricsValidatedAC(t *testing.T) {
+	cacheDir := tempDir(t)
+	defer os.RemoveAll(cacheDir)
+
+	cacheSize := int64(100000)
+
+	testCacheI, err := New(cacheDir, cacheSize,
+		WithAccessLogger(testutils.NewSilentLogger()),
+		WithEndpointMetrics())
+	if err != nil {
+		t.Fatal(err)
+	}
+	testCache := testCacheI.(*metricsDecorator)
+
+	// Add an AC entry with a missing cas blob.
+	randomBlob, hash := testutils.RandomDataAndHash(100)
+	ar := pb.ActionResult{
+		StdoutDigest: &pb.Digest{
+			Hash:      hash,
+			SizeBytes: int64(len(randomBlob)),
+		},
+	}
+	arData, err := proto.Marshal(&ar)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fakeActionHash := "8f279f9d8bc605b4d733d0ba9386de2376004ab628fee6b000144fdc7b30a6a1"
+
+	err = testCache.Put(cache.AC, fakeActionHash, int64(len(arData)), bytes.NewReader(arData))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Neither Get nor Contains are supposed to be called on AC blobs in this mode.
+	// GetValidatedActionResult is used instead in this case.
+	// TODO: should those methods return errors for AC requests in that mode?
+
+	gotAr, _, err := testCache.GetValidatedActionResult(context.Background(), fakeActionHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotAr != nil {
+		t.Fatal("Expected a cache miss, since the referenced CAS blob is missing")
+	}
+
+	acHits := count(testCache.counter, acKind, hitStatus)
+	if acHits != 0 {
+		t.Fatalf("Expected acHit counter to be 0, found %f", acHits)
+	}
+
+	acMisses := count(testCache.counter, acKind, missStatus)
+	if acMisses != 1 {
+		t.Fatalf("Expected acMiss counter to be 1, found %f", acMisses)
+	}
+
+	casHits := count(testCache.counter, casKind, hitStatus)
+	if casHits != 0 {
+		t.Fatalf("Expected casHit counter to be 0, found %f", casHits)
+	}
+
+	casMisses := count(testCache.counter, casKind, missStatus)
+	if casMisses != 0 {
+		// The referenced stdout blob is missing, but we're only supposed to count the AC lookup.
+		t.Fatalf("Expected casMiss counter to be 1, found %f", casMisses)
+	}
+
+	rawHits := count(testCache.counter, rawKind, hitStatus)
+	if rawHits != 0 {
+		t.Fatalf("Expected rawHit counter to be 0, found %f", rawHits)
+	}
+
+	rawMisses := count(testCache.counter, rawKind, missStatus)
+	if rawMisses != 0 {
+		t.Fatalf("Expected rawMiss counter to be 0, found %f", rawMisses)
 	}
 }
