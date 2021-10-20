@@ -5,7 +5,8 @@ package zstdimpl
 import (
 	"github.com/valyala/gozstd"
 	"io"
-	"io/ioutil"
+	"runtime"
+	"sync"
 )
 
 const compressionLevel = 1
@@ -17,11 +18,15 @@ func init() {
 }
 
 func (cgoZstd) GetDecoder(in io.ReadCloser) (io.ReadCloser, error) {
-	return ioutil.NopCloser(gozstd.NewReader(in)), nil
+	r := readerPool.Get().(*readerWrapper)
+	r.Reset(in, nil)
+	return &putReaderToPoolOnClose{r}, nil
 }
 
 func (cgoZstd) GetEncoder(out io.WriteCloser) (zstdEncoder, error) {
-	return gozstd.NewWriterLevel(out, compressionLevel), nil
+	w := writerPool.Get().(*writerWrapper)
+	w.Reset(out, nil, compressionLevel)
+	return &putWriterToPoolOnClose{w}, nil
 }
 
 func (cgoZstd) DecodeAll(in []byte) ([]byte, error) {
@@ -30,4 +35,61 @@ func (cgoZstd) DecodeAll(in []byte) ([]byte, error) {
 
 func (cgoZstd) EncodeAll(in []byte) []byte {
 	return gozstd.CompressLevel(nil, in, compressionLevel)
+}
+
+// -- Reader pool
+var readerPool = &sync.Pool{
+	New: newReader,
+}
+
+type readerWrapper struct {
+	*gozstd.Reader
+}
+
+func newReader() interface{} {
+	r := &readerWrapper{gozstd.NewReader(nil)}
+	runtime.SetFinalizer(r, releaseReader)
+	return r
+}
+
+func releaseReader(r *readerWrapper) {
+	r.Release()
+}
+
+type putReaderToPoolOnClose struct {
+	*readerWrapper
+}
+
+func (r *putReaderToPoolOnClose) Close() error {
+	readerPool.Put(r.readerWrapper)
+	return nil
+}
+
+// -- Writer pool
+var writerPool = &sync.Pool{
+	New: newWriter,
+}
+
+type writerWrapper struct {
+	*gozstd.Writer
+}
+
+func newWriter() interface{} {
+	w := &writerWrapper{gozstd.NewWriterLevel(nil, compressionLevel)}
+	runtime.SetFinalizer(w, releaseWriter)
+	return w
+}
+
+func releaseWriter(w *writerWrapper) {
+	w.Release()
+}
+
+type putWriterToPoolOnClose struct {
+	*writerWrapper
+}
+
+func (w putWriterToPoolOnClose) Close() error {
+	err := w.Close()
+	writerPool.Put(w.writerWrapper)
+	return err
 }
