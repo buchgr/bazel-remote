@@ -16,7 +16,7 @@ require (
 	github.com/prometheus/client_golang v1.7.1
 	github.com/slok/go-http-metrics v0.8.0
 	github.com/urfave/cli/v2 v2.2.0
-	github.com/valyala/gozstd v1.13.0
+	github.com/valyala/gozstd v1.14.1
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 	golang.org/x/sys v0.0.0-20200720211630-cb9d2d5c5666 // indirect
