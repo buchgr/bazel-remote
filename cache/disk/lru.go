@@ -6,29 +6,6 @@ import (
 	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-)
-
-var (
-	gaugeCacheSizeBytes = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "bazel_remote_disk_cache_size_bytes",
-		Help: "The current number of bytes in the disk backend",
-	})
-
-	gaugeCacheLogicalBytes = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "bazel_remote_disk_cache_logical_bytes",
-		Help: "The current number of bytes in the disk backend if they were uncompressed",
-	})
-
-	counterEvictedBytes = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "bazel_remote_disk_cache_evicted_bytes_total",
-		Help: "The total number of bytes evicted from disk backend, due to full cache",
-	})
-
-	counterOverwrittenBytes = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "bazel_remote_disk_cache_overwritten_bytes_total",
-		Help: "The total number of bytes removed from disk backend, due to put of already existing key",
-	})
 )
 
 // Key is the type used for identifying cache items. For non-test code,
@@ -66,6 +43,11 @@ type SizedLRU struct {
 	maxSize int64
 
 	onEvict EvictCallback
+
+	gaugeCacheSizeBytes     prometheus.Gauge
+	gaugeCacheLogicalBytes  prometheus.Gauge
+	counterEvictedBytes     prometheus.Counter
+	counterOverwrittenBytes prometheus.Counter
 }
 
 type entry struct {
@@ -84,7 +66,31 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback) SizedLRU {
 		ll:      list.New(),
 		cache:   make(map[interface{}]*list.Element),
 		onEvict: onEvict,
+
+		gaugeCacheSizeBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "bazel_remote_disk_cache_size_bytes",
+			Help: "The current number of bytes in the disk backend",
+		}),
+		gaugeCacheLogicalBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "bazel_remote_disk_cache_logical_bytes",
+			Help: "The current number of bytes in the disk backend if they were uncompressed",
+		}),
+		counterEvictedBytes: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "bazel_remote_disk_cache_evicted_bytes_total",
+			Help: "The total number of bytes evicted from disk backend, due to full cache",
+		}),
+		counterOverwrittenBytes: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "bazel_remote_disk_cache_overwritten_bytes_total",
+			Help: "The total number of bytes removed from disk backend, due to put of already existing key",
+		}),
 	}
+}
+
+func (c *SizedLRU) RegisterMetrics() {
+	prometheus.MustRegister(c.gaugeCacheSizeBytes)
+	prometheus.MustRegister(c.gaugeCacheLogicalBytes)
+	prometheus.MustRegister(c.counterEvictedBytes)
+	prometheus.MustRegister(c.counterOverwrittenBytes)
 }
 
 // Add adds a (key, value) to the cache, evicting items as necessary.
@@ -111,7 +117,7 @@ func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
 		}
 		uncompressedSizeDelta = roundUp4k(value.size) - roundUp4k(ee.Value.(*entry).value.size)
 		c.ll.MoveToFront(ee)
-		counterOverwrittenBytes.Add(float64(ee.Value.(*entry).value.sizeOnDisk))
+		c.counterOverwrittenBytes.Add(float64(ee.Value.(*entry).value.sizeOnDisk))
 
 		prevValue := ee.Value.(*entry).value
 		if c.onEvict != nil {
@@ -141,8 +147,8 @@ func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
 	c.currentSize += sizeDelta
 	c.uncompressedSize += uncompressedSizeDelta
 
-	gaugeCacheSizeBytes.Set(float64(c.currentSize))
-	gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
+	c.gaugeCacheSizeBytes.Set(float64(c.currentSize))
+	c.gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
 
 	return true
 }
@@ -161,8 +167,8 @@ func (c *SizedLRU) Get(key Key) (value lruItem, ok bool) {
 func (c *SizedLRU) Remove(key Key) {
 	if ele, hit := c.cache[key]; hit {
 		c.removeElement(ele)
-		gaugeCacheSizeBytes.Set(float64(c.currentSize))
-		gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
+		c.gaugeCacheSizeBytes.Set(float64(c.currentSize))
+		c.gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
 	}
 }
 
@@ -263,7 +269,7 @@ func (c *SizedLRU) removeElement(e *list.Element) {
 	delete(c.cache, kv.key)
 	c.currentSize -= roundUp4k(kv.value.sizeOnDisk)
 	c.uncompressedSize -= roundUp4k(kv.value.size)
-	counterEvictedBytes.Add(float64(kv.value.sizeOnDisk))
+	c.counterEvictedBytes.Add(float64(kv.value.sizeOnDisk))
 
 	if c.onEvict != nil {
 		c.onEvict(kv.key, kv.value)
