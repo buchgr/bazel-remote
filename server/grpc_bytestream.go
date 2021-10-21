@@ -584,10 +584,6 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 }
 
 func (s *grpcServer) QueryWriteStatus(context.Context, *bytestream.QueryWriteStatusRequest) (*bytestream.QueryWriteStatusResponse, error) {
-	// This should be equivalent to returning an UNIMPLEMENTED error.
-	resp := bytestream.QueryWriteStatusResponse{
-		CommittedSize: 0,
-		Complete:      false,
-	}
-	return &resp, nil
+	return nil, status.Error(codes.Unimplemented,
+		"QueryWriteStatus is not implemented")
 }
