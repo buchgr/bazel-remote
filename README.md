@@ -238,6 +238,19 @@ OPTIONS:
    --s3.secret_access_key value The S3/minio secret access key to use when
       using S3 proxy backend. [$BAZEL_REMOTE_S3_SECRET_ACCESS_KEY]
 
+   --s3.use_aws_credentials_file Use aws credentials file. See s3.aws_profile
+      and s3.aws_shared_credentials_file. (default: false)
+      [$BAZEL_REMOTE_S3_USE_AWS_CREDENTIALS_FILE]
+
+   --s3.aws_shared_credentials_file value Path to the AWS credentials file.
+      If not specified, the minio client will default to '~/.aws/credentials'.
+      [$BAZEL_REMOTE_S3_AWS_SHARED_CREDENTIALS_FILE,
+      $AWS_SHARED_CREDENTIALS_FILE]
+
+   --s3.aws_profile value The aws credentials profile to use from within
+      s3.aws_shared_credentials_file. (default: "default")
+      [$BAZEL_REMOTE_S3_AWS_PROFILE, $AWS_PROFILE]
+
    --s3.disable_ssl Whether to disable TLS/SSL when using the S3 proxy
       backend. (default: false, ie enable TLS/SSL)
       [$BAZEL_REMOTE_S3_DISABLE_SSL]
@@ -360,10 +373,16 @@ host: localhost
 #  secret_access_key: EXAMPLE_SECRET_KEY
 #  disable_ssl: true
 #
-# Provide either access_key_id/secret_access_key, or iam_role_endpoint/region.
-# iam_role_endpoint can also be left empty, and figured out automatically.
+# Provide either access_key_id/secret_access_key, use_aws_credentials_file,
+# or iam_role_endpoint/region. iam_role_endpoint can also be left empty,
+# and figured out automatically.
 #  iam_role_endpoint: http://169.254.169.254
 #  region: us-east-1
+# 
+# Exmample using aws credentials file
+#  use_aws_credentials_file: true
+#  aws_shared_credentials_file: path/to/aws/credentials
+#  aws_profile: my-profile
 #
 #http_proxy:
 #  url: https://remote-cache.com:8080/cache
