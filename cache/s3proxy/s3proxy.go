@@ -67,31 +67,24 @@ func New(
 
 	var minioCore *minio.Core
 	var err error
+	var creds *credentials.Credentials
 
 	if AccessKeyID != "" && SecretAccessKey != "" {
-		// Initialize minio client object.
-		opts := &minio.Options{
-			Creds:  credentials.NewStaticV4(AccessKeyID, SecretAccessKey, ""),
-			Secure: !DisableSSL,
-			Region: Region,
-		}
-		minioCore, err = minio.NewCore(Endpoint, opts)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		creds = credentials.NewStaticV4(AccessKeyID, SecretAccessKey, "")
 	} else {
-		// Initialize minio client object with IAM credentials
-		opts := &minio.Options{
-			// This config value may be empty.
-			Creds: credentials.NewIAM(IAMRoleEndpoint),
+		creds = credentials.NewIAM(IAMRoleEndpoint)
+	}
 
-			Region: Region,
-			Secure: !DisableSSL,
-		}
-		minioCore, err = minio.NewCore(Endpoint, opts)
-		if err != nil {
-			log.Fatalln(err)
-		}
+	// Initialize minio client with credentials
+	opts := &minio.Options{
+		Creds: creds,
+
+		Region: Region,
+		Secure: !DisableSSL,
+	}
+	minioCore, err = minio.NewCore(Endpoint, opts)
+	if err != nil {
+		log.Fatalln(err)
 	}
 
 	if storageMode != "zstd" && storageMode != "uncompressed" {
