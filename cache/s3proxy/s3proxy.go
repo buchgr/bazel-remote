@@ -48,16 +48,26 @@ var (
 // Used in place of minio's verbose "NoSuchKey" error.
 var errNotFound = errors.New("NOT FOUND")
 
+func GetCredentials(
+	AccessKeyID string,
+	SecretAccessKey string,
+	IAMRoleEndpoint string,
+) *credentials.Credentials {
+	if AccessKeyID != "" && SecretAccessKey != "" {
+		return credentials.NewStaticV4(AccessKeyID, SecretAccessKey, "")
+	}
+	// Fall back to getting credentials from IAM
+	return credentials.NewIAM(IAMRoleEndpoint)
+}
+
 // New returns a new instance of the S3-API based cache
 func New(
 	// S3CloudStorageConfig struct fields:
 	Endpoint string,
 	Bucket string,
 	Prefix string,
-	AccessKeyID string,
-	SecretAccessKey string,
+	Credentials *credentials.Credentials,
 	DisableSSL bool,
-	IAMRoleEndpoint string,
 	Region string,
 
 	storageMode string, accessLogger cache.Logger,
@@ -67,17 +77,14 @@ func New(
 
 	var minioCore *minio.Core
 	var err error
-	var creds *credentials.Credentials
 
-	if AccessKeyID != "" && SecretAccessKey != "" {
-		creds = credentials.NewStaticV4(AccessKeyID, SecretAccessKey, "")
-	} else {
-		creds = credentials.NewIAM(IAMRoleEndpoint)
+	if Credentials == nil {
+		log.Fatalf("Failed to determine s3proxy credentials")
 	}
 
 	// Initialize minio client with credentials
 	opts := &minio.Options{
-		Creds: creds,
+		Creds: Credentials,
 
 		Region: Region,
 		Secure: !DisableSSL,
