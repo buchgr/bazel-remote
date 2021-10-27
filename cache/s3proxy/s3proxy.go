@@ -52,11 +52,19 @@ func GetCredentials(
 	AccessKeyID string,
 	SecretAccessKey string,
 	IAMRoleEndpoint string,
+	UseAWSCredentialsFile bool,
+	AWSSharedCredentialsFile string,
+	AWSProfile string,
 ) *credentials.Credentials {
-	if AccessKeyID != "" && SecretAccessKey != "" {
+	if UseAWSCredentialsFile {
+		log.Println("S3 Credentials: using AWS credentials file.")
+		return credentials.NewFileAWSCredentials(AWSSharedCredentialsFile, AWSProfile)
+	} else if AccessKeyID != "" && SecretAccessKey != "" {
+		log.Println("S3 Credentials: using access/secret access key.")
 		return credentials.NewStaticV4(AccessKeyID, SecretAccessKey, "")
 	}
 	// Fall back to getting credentials from IAM
+	log.Println("S3 Credentials: using IAM for credentials.")
 	return credentials.NewIAM(IAMRoleEndpoint)
 }
 

@@ -19,15 +19,18 @@ import (
 
 // S3CloudStorageConfig stores the configuration of an S3 API proxy backend.
 type S3CloudStorageConfig struct {
-	Endpoint        string `yaml:"endpoint"`
-	Bucket          string `yaml:"bucket"`
-	Prefix          string `yaml:"prefix"`
-	AccessKeyID     string `yaml:"access_key_id"`
-	SecretAccessKey string `yaml:"secret_access_key"`
-	DisableSSL      bool   `yaml:"disable_ssl"`
-	IAMRoleEndpoint string `yaml:"iam_role_endpoint"`
-	Region          string `yaml:"region"`
-	KeyVersion      *int   `yaml:"key_version"`
+	Endpoint                 string `yaml:"endpoint"`
+	Bucket                   string `yaml:"bucket"`
+	Prefix                   string `yaml:"prefix"`
+	AccessKeyID              string `yaml:"access_key_id"`
+	SecretAccessKey          string `yaml:"secret_access_key"`
+	DisableSSL               bool   `yaml:"disable_ssl"`
+	IAMRoleEndpoint          string `yaml:"iam_role_endpoint"`
+	Region                   string `yaml:"region"`
+	KeyVersion               *int   `yaml:"key_version"`
+	UseAWSCredentialsFile    bool   `yaml:"use_aws_credentials_file"`
+	AWSProfile               string `yaml:"aws_profile"`
+	AWSSharedCredentialsFile string `yaml:"aws_shared_credentials_file"`
 }
 
 // GoogleCloudStorageConfig stores the configuration of a GCS proxy backend.
@@ -335,14 +338,17 @@ func get(ctx *cli.Context) (*Config, error) {
 	var s3 *S3CloudStorageConfig
 	if ctx.String("s3.bucket") != "" {
 		s3 = &S3CloudStorageConfig{
-			Endpoint:        ctx.String("s3.endpoint"),
-			Bucket:          ctx.String("s3.bucket"),
-			Prefix:          ctx.String("s3.prefix"),
-			AccessKeyID:     ctx.String("s3.access_key_id"),
-			SecretAccessKey: ctx.String("s3.secret_access_key"),
-			DisableSSL:      ctx.Bool("s3.disable_ssl"),
-			IAMRoleEndpoint: ctx.String("s3.iam_role_endpoint"),
-			Region:          ctx.String("s3.region"),
+			Endpoint:                 ctx.String("s3.endpoint"),
+			Bucket:                   ctx.String("s3.bucket"),
+			Prefix:                   ctx.String("s3.prefix"),
+			AccessKeyID:              ctx.String("s3.access_key_id"),
+			SecretAccessKey:          ctx.String("s3.secret_access_key"),
+			DisableSSL:               ctx.Bool("s3.disable_ssl"),
+			IAMRoleEndpoint:          ctx.String("s3.iam_role_endpoint"),
+			Region:                   ctx.String("s3.region"),
+			UseAWSCredentialsFile:    ctx.Bool("s3.use_aws_credentials_file"),
+			AWSProfile:               ctx.String("s3.aws_profile"),
+			AWSSharedCredentialsFile: ctx.String("s3.aws_shared_credentials_file"),
 		}
 	}
 

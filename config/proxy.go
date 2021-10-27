@@ -40,14 +40,20 @@ func (c *Config) setProxy() error {
 	}
 
 	if c.S3CloudStorage != nil {
+		creds := s3proxy.GetCredentials(
+			c.S3CloudStorage.AccessKeyID,
+			c.S3CloudStorage.SecretAccessKey,
+			c.S3CloudStorage.IAMRoleEndpoint,
+			c.S3CloudStorage.UseAWSCredentialsFile,
+			c.S3CloudStorage.AWSSharedCredentialsFile,
+			c.S3CloudStorage.AWSProfile,
+		)
 		c.ProxyBackend = s3proxy.New(
 			c.S3CloudStorage.Endpoint,
 			c.S3CloudStorage.Bucket,
 			c.S3CloudStorage.Prefix,
-			c.S3CloudStorage.AccessKeyID,
-			c.S3CloudStorage.SecretAccessKey,
+			creds,
 			c.S3CloudStorage.DisableSSL,
-			c.S3CloudStorage.IAMRoleEndpoint,
 			c.S3CloudStorage.Region,
 			c.StorageMode, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
 		return nil

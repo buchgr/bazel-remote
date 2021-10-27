@@ -191,6 +191,24 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_S3_SECRET_ACCESS_KEY"},
 		},
 		&cli.BoolFlag{
+			Name:    "s3.use_aws_credentials_file",
+			Value:   false,
+			Usage:   "Use aws credentials file. See s3.aws_profile and s3.aws_shared_credentials_file.",
+			EnvVars: []string{"BAZEL_REMOTE_S3_USE_AWS_CREDENTIALS_FILE"},
+		},
+		&cli.StringFlag{
+			Name:    "s3.aws_shared_credentials_file",
+			Value:   "",
+			Usage:   "Path to the AWS credentials file. If not specified, the minio client will default to '~/.aws/credentials'.",
+			EnvVars: []string{"BAZEL_REMOTE_S3_AWS_SHARED_CREDENTIALS_FILE", "AWS_SHARED_CREDENTIALS_FILE"},
+		},
+		&cli.StringFlag{
+			Name:    "s3.aws_profile",
+			Value:   "default",
+			Usage:   "The aws credentials profile to use from within s3.aws_shared_credentials_file.",
+			EnvVars: []string{"BAZEL_REMOTE_S3_AWS_PROFILE", "AWS_PROFILE"},
+		},
+		&cli.BoolFlag{
 			Name:        "s3.disable_ssl",
 			Usage:       "Whether to disable TLS/SSL when using the S3 proxy backend.",
 			DefaultText: "false, ie enable TLS/SSL",
