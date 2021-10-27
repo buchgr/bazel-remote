@@ -88,17 +88,9 @@ func New(
 			Region: Region,
 			Secure: !DisableSSL,
 		}
-
-		minioClient, err := minio.New(
-			Endpoint,
-			opts,
-		)
+		minioCore, err = minio.NewCore(Endpoint, opts)
 		if err != nil {
 			log.Fatalln(err)
-		}
-
-		minioCore = &minio.Core{
-			Client: minioClient,
 		}
 	}
 
