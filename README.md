@@ -232,24 +232,28 @@ OPTIONS:
    --s3.prefix value The S3/minio object prefix to use when using S3 proxy
       backend. [$BAZEL_REMOTE_S3_PREFIX]
 
+   --s3.auth_method value The S3/minio authentication method. This argument
+      is required when an s3 proxy backend is used. Allowed values: iam_role,
+      access_key, aws_credentials_file. [$BAZEL_REMOTE_S3_AUTH_METHOD]
+
    --s3.access_key_id value The S3/minio access key to use when using S3
-      proxy backend. [$BAZEL_REMOTE_S3_ACCESS_KEY_ID]
+      proxy backend. Applies to s3 auth method(s): access_key.
+      [$BAZEL_REMOTE_S3_ACCESS_KEY_ID]
 
    --s3.secret_access_key value The S3/minio secret access key to use when
-      using S3 proxy backend. [$BAZEL_REMOTE_S3_SECRET_ACCESS_KEY]
-
-   --s3.use_aws_credentials_file Use aws credentials file. See s3.aws_profile
-      and s3.aws_shared_credentials_file. (default: false)
-      [$BAZEL_REMOTE_S3_USE_AWS_CREDENTIALS_FILE]
+      using S3 proxy backend. Applies to s3 auth method(s): access_key.
+      [$BAZEL_REMOTE_S3_SECRET_ACCESS_KEY]
 
    --s3.aws_shared_credentials_file value Path to the AWS credentials file.
       If not specified, the minio client will default to '~/.aws/credentials'.
+      Applies to s3 auth method(s): aws_credentials_file.
       [$BAZEL_REMOTE_S3_AWS_SHARED_CREDENTIALS_FILE,
       $AWS_SHARED_CREDENTIALS_FILE]
 
    --s3.aws_profile value The aws credentials profile to use from within
-      s3.aws_shared_credentials_file. (default: "default")
-      [$BAZEL_REMOTE_S3_AWS_PROFILE, $AWS_PROFILE]
+      s3.aws_shared_credentials_file. Applies to s3 auth method(s):
+      aws_credentials_file. (default: "default") [$BAZEL_REMOTE_S3_AWS_PROFILE,
+      $AWS_PROFILE]
 
    --s3.disable_ssl Whether to disable TLS/SSL when using the S3 proxy
       backend. (default: false, ie enable TLS/SSL)
@@ -257,7 +261,8 @@ OPTIONS:
 
    --s3.iam_role_endpoint value Endpoint for using IAM security credentials.
       By default it will look for credentials in the standard locations for the
-      AWS platform. [$BAZEL_REMOTE_S3_IAM_ROLE_ENDPOINT]
+      AWS platform. Applies to s3 auth method(s): iam_role.
+      [$BAZEL_REMOTE_S3_IAM_ROLE_ENDPOINT]
 
    --s3.region value The AWS region. Required when not specifying S3/minio
       access keys. [$BAZEL_REMOTE_S3_REGION]

@@ -179,6 +179,7 @@ s3_proxy:
   endpoint: minio.example.com:9000
   bucket: test-bucket
   prefix: test-prefix
+  auth_method: access_key
   access_key_id: EXAMPLE_ACCESS_KEY
   secret_access_key: EXAMPLE_SECRET_KEY
 `
@@ -197,6 +198,7 @@ s3_proxy:
 			Endpoint:        "minio.example.com:9000",
 			Bucket:          "test-bucket",
 			Prefix:          "test-prefix",
+			AuthMethod:      "access_key",
 			AccessKeyID:     "EXAMPLE_ACCESS_KEY",
 			SecretAccessKey: "EXAMPLE_SECRET_KEY",
 		},
