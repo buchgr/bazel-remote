@@ -48,26 +48,6 @@ var (
 // Used in place of minio's verbose "NoSuchKey" error.
 var errNotFound = errors.New("NOT FOUND")
 
-func GetCredentials(
-	AccessKeyID string,
-	SecretAccessKey string,
-	IAMRoleEndpoint string,
-	UseAWSCredentialsFile bool,
-	AWSSharedCredentialsFile string,
-	AWSProfile string,
-) *credentials.Credentials {
-	if UseAWSCredentialsFile {
-		log.Println("S3 Credentials: using AWS credentials file.")
-		return credentials.NewFileAWSCredentials(AWSSharedCredentialsFile, AWSProfile)
-	} else if AccessKeyID != "" && SecretAccessKey != "" {
-		log.Println("S3 Credentials: using access/secret access key.")
-		return credentials.NewStaticV4(AccessKeyID, SecretAccessKey, "")
-	}
-	// Fall back to getting credentials from IAM
-	log.Println("S3 Credentials: using IAM for credentials.")
-	return credentials.NewIAM(IAMRoleEndpoint)
-}
-
 // New returns a new instance of the S3-API based cache
 func New(
 	// S3CloudStorageConfig struct fields:

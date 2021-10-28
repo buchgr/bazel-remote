@@ -1,10 +1,18 @@
 package flags
 
 import (
-	"github.com/urfave/cli/v2"
+	"fmt"
 	"math"
 	"strconv"
+	"strings"
+
+	"github.com/buchgr/bazel-remote/cache/s3proxy"
+	"github.com/urfave/cli/v2"
 )
+
+func s3AuthMsg(authMethods ...string) string {
+	return fmt.Sprintf("Applies to s3 auth method(s): %s.", strings.Join(authMethods, ", "))
+}
 
 // GetCliFlags returns a slice of cli.Flag's that bazel-remote accepts.
 func GetCliFlags() []cli.Flag {
@@ -179,33 +187,33 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_S3_PREFIX"},
 		},
 		&cli.StringFlag{
+			Name:    "s3.auth_method",
+			Value:   "",
+			Usage:   fmt.Sprintf("The S3/minio authentication method. This argument is required when an s3 proxy backend is used. Allowed values: %s.", strings.Join(s3proxy.GetAuthMethods(), ", ")),
+			EnvVars: []string{"BAZEL_REMOTE_S3_AUTH_METHOD"},
+		},
+		&cli.StringFlag{
 			Name:    "s3.access_key_id",
 			Value:   "",
-			Usage:   "The S3/minio access key to use when using S3 proxy backend.",
+			Usage:   "The S3/minio access key to use when using S3 proxy backend. " + s3AuthMsg(s3proxy.AuthMethodAccessKey),
 			EnvVars: []string{"BAZEL_REMOTE_S3_ACCESS_KEY_ID"},
 		},
 		&cli.StringFlag{
 			Name:    "s3.secret_access_key",
 			Value:   "",
-			Usage:   "The S3/minio secret access key to use when using S3 proxy backend.",
+			Usage:   "The S3/minio secret access key to use when using S3 proxy backend. " + s3AuthMsg(s3proxy.AuthMethodAccessKey),
 			EnvVars: []string{"BAZEL_REMOTE_S3_SECRET_ACCESS_KEY"},
-		},
-		&cli.BoolFlag{
-			Name:    "s3.use_aws_credentials_file",
-			Value:   false,
-			Usage:   "Use aws credentials file. See s3.aws_profile and s3.aws_shared_credentials_file.",
-			EnvVars: []string{"BAZEL_REMOTE_S3_USE_AWS_CREDENTIALS_FILE"},
 		},
 		&cli.StringFlag{
 			Name:    "s3.aws_shared_credentials_file",
 			Value:   "",
-			Usage:   "Path to the AWS credentials file. If not specified, the minio client will default to '~/.aws/credentials'.",
+			Usage:   "Path to the AWS credentials file. If not specified, the minio client will default to '~/.aws/credentials'. " + s3AuthMsg(s3proxy.AuthMethodAWSCredentialsFile),
 			EnvVars: []string{"BAZEL_REMOTE_S3_AWS_SHARED_CREDENTIALS_FILE", "AWS_SHARED_CREDENTIALS_FILE"},
 		},
 		&cli.StringFlag{
 			Name:    "s3.aws_profile",
 			Value:   "default",
-			Usage:   "The aws credentials profile to use from within s3.aws_shared_credentials_file.",
+			Usage:   "The aws credentials profile to use from within s3.aws_shared_credentials_file. " + s3AuthMsg(s3proxy.AuthMethodAWSCredentialsFile),
 			EnvVars: []string{"BAZEL_REMOTE_S3_AWS_PROFILE", "AWS_PROFILE"},
 		},
 		&cli.BoolFlag{
@@ -217,7 +225,7 @@ func GetCliFlags() []cli.Flag {
 		&cli.StringFlag{
 			Name:    "s3.iam_role_endpoint",
 			Value:   "",
-			Usage:   "Endpoint for using IAM security credentials. By default it will look for credentials in the standard locations for the AWS platform.",
+			Usage:   "Endpoint for using IAM security credentials. By default it will look for credentials in the standard locations for the AWS platform. " + s3AuthMsg(s3proxy.AuthMethodIAMRole),
 			EnvVars: []string{"BAZEL_REMOTE_S3_IAM_ROLE_ENDPOINT"},
 		},
 		&cli.StringFlag{
