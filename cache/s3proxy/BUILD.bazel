@@ -2,7 +2,10 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "go_default_library",
-    srcs = ["s3proxy.go", "auth_methods.go"],
+    srcs = [
+        "auth_methods.go",
+        "s3proxy.go",
+    ],
     importpath = "github.com/buchgr/bazel-remote/cache/s3proxy",
     visibility = ["//visibility:public"],
     deps = [
