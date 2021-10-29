@@ -26,6 +26,7 @@ production use.
     	--s3.endpoint 127.0.0.1:9000 \
     	--s3.bucket bazel-remote \
     	--s3.prefix files \
+    	--s3.auth_method access_key \
     	--s3.access_key_id minioadmin \
     	--s3.secret_access_key minioadmin \
     	--s3.disable_ssl
