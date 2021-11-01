@@ -385,7 +385,7 @@ host: localhost
 #  region: us-east-1
 # 
 # Exmample using aws credentials file
-#  use_aws_credentials_file: true
+#  auth_method: credentials-file
 #  aws_shared_credentials_file: path/to/aws/credentials
 #  aws_profile: my-profile
 #
