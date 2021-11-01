@@ -374,18 +374,22 @@ host: localhost
 #  endpoint: minio.example.com:9000
 #  bucket: test-bucket
 #  prefix: test-prefix
-#  access_key_id: EXAMPLE_ACCESS_KEY
-#  secret_access_key: EXAMPLE_SECRET_KEY
 #  disable_ssl: true
 #
-# Provide either access_key_id/secret_access_key, use_aws_credentials_file,
-# or iam_role_endpoint/region. iam_role_endpoint can also be left empty,
-# and figured out automatically.
+# Provide exactly one auth_method (access_key, iam_role, or credentials_file) and accompanying configuration.
+#
+# Access key authenticaiton:
+#  auth_method: access_key
+#  access_key_id: EXAMPLE_ACCESS_KEY
+#  secret_access_key: EXAMPLE_SECRET_KEY
+#
+# IAM Role authentication.
+#  auth_method: iam_role
 #  iam_role_endpoint: http://169.254.169.254
 #  region: us-east-1
 # 
-# Exmample using aws credentials file
-#  auth_method: credentials-file
+# AWS credentials file.
+#  auth_method: credentials_file
 #  aws_shared_credentials_file: path/to/aws/credentials
 #  aws_profile: my-profile
 #
