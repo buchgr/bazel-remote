@@ -39,7 +39,7 @@ func (s3c S3CloudStorageConfig) GetCredentials() (*credentials.Credentials, erro
 		return credentials.NewStaticV4(s3c.AccessKeyID, s3c.SecretAccessKey, ""), nil
 	} else if s3c.AuthMethod == s3proxy.AuthMethodIAMRole {
 		// Fall back to getting credentials from IAM
-		log.Println("S3 Credentials: using IAM for credentials.")
+		log.Println("S3 Credentials: using IAM.")
 		return credentials.NewIAM(s3c.IAMRoleEndpoint), nil
 	}
 
