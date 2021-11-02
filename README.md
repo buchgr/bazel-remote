@@ -503,6 +503,20 @@ $ docker run -v /path/to/cache/dir:/data \
 	--max_size=5
 ```
 
+### Using bazel-remote with AWS Credential file authentication for S3 inside a docker container
+
+The following demonstrates how to configure a docker instance of bazel-remote to use an AWS S3
+backend, authenticating using the `supercool` profile from your `$HOME/.aws/credentials` file.
+
+```bash
+$ docker run -u 1000:1000 -v /path/to/cache/dir:/data -v $HOME/.aws:/aws-config \
+   -p 9090:8080 -p 9092:9092 buchgr/bazel-remote-cache \
+   --s3.auth_method=aws_credentials_file --s3.aws_profile=supercool \
+   --s3.aws_shared_credentials_file=/aws-config/credentials \
+   --s3.bucket=my-bucket --s3.endpoint=s3.us-east-1.amazonaws.com \
+   --max_size=5
+```
+
 ### Profiling
 
 To enable pprof profiling, specify a port with `--profile_port`.
