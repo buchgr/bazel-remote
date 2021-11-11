@@ -8,17 +8,15 @@ on:
 jobs:
   linux:
     name: create linux binary
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - name: checkout code
         uses: actions/checkout@v2
       - name: build
         run: |
           set -eu
-          wget https://github.com/bazelbuild/bazelisk/releases/download/v1.7.5/bazelisk-linux-amd64
-          chmod +x bazelisk-linux-amd64
-          ./bazelisk-linux-amd64 build //:bazel-remote
-          ./bazelisk-linux-amd64 run --run_under "cp -f " //:bazel-remote $(pwd)/bazel-remote
+          bazelisk build //:bazel-remote
+          bazelisk run --run_under "cp -f " //:bazel-remote $(pwd)/bazel-remote
       - name: get release URL
         id: get_release
         uses: bruceadams/get-release@v1.2.2
@@ -28,7 +26,7 @@ jobs:
         id: release_version
         run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\/v/}
       - name: upload
-        id: upload-release-asset 
+        id: upload-release-asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -47,10 +45,8 @@ jobs:
       - name: build
         run: |
           set -eu
-          wget https://github.com/bazelbuild/bazelisk/releases/download/v1.7.5/bazelisk-darwin-amd64
-          chmod +x bazelisk-darwin-amd64
-          ./bazelisk-darwin-amd64 build //:bazel-remote
-          ./bazelisk-darwin-amd64 run --run_under "cp -f " //:bazel-remote $(pwd)/bazel-remote
+          bazelisk build //:bazel-remote
+          bazelisk run --run_under "cp -f " //:bazel-remote $(pwd)/bazel-remote
       - name: get release URL
         id: get_release
         uses: bruceadams/get-release@v1.2.2
@@ -60,7 +56,7 @@ jobs:
         id: release_version
         run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\/v/}
       - name: upload
-        id: upload-release-asset 
+        id: upload-release-asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
