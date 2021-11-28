@@ -153,8 +153,14 @@ OPTIONS:
    --port value The port the HTTP server listens on. (default: 8080)
       [$BAZEL_REMOTE_PORT]
 
+   --socket value Unix domain socket path to listen on. Takes precedence over
+      host and port. [$BAZEL_REMOTE_SOCKET]
+
    --grpc_port value The port the gRPC server listens on. Set to 0 to
       disable. (default: 9092) [$BAZEL_REMOTE_GRPC_PORT]
+
+   --grpc_socket value Unix domain socket path the gRPC server listens on.
+      Takes precedence over gRPC port. [$BAZEL_REMOTE_GRPC_SOCKET]
 
    --profile_host value A host address to listen on for profiling, if enabled
       by a valid --profile_port setting. (default: "127.0.0.1")
@@ -313,6 +319,9 @@ host: localhost
 #port: 8080
 # The port to use for gRPC:
 #grpc_port: 9092
+# Optionally use Unix domain sockets for HTTP/HTTPS and/or gRPC:
+#socket: /var/run/bazel-remote/http.sock
+#grpc_socket: /var/run/bazel-remote/grpc.sock
 
 # If profile_port is specified, then serve /debug/pprof/* URLs here:
 #profile_host: 127.0.0.1
@@ -387,7 +396,7 @@ host: localhost
 #  auth_method: iam_role
 #  iam_role_endpoint: http://169.254.169.254
 #  region: us-east-1
-# 
+#
 # AWS credentials file.
 #  auth_method: credentials_file
 #  aws_shared_credentials_file: path/to/aws/credentials

@@ -54,11 +54,23 @@ func GetCliFlags() []cli.Flag {
 			Usage:   "The port the HTTP server listens on.",
 			EnvVars: []string{"BAZEL_REMOTE_PORT"},
 		},
+		&cli.StringFlag{
+			Name:    "socket",
+			Value:   "",
+			Usage:   "Unix domain socket path to listen on. Takes precedence over host and port.",
+			EnvVars: []string{"BAZEL_REMOTE_SOCKET"},
+		},
 		&cli.IntFlag{
 			Name:    "grpc_port",
 			Value:   9092,
 			Usage:   "The port the gRPC server listens on. Set to 0 to disable.",
 			EnvVars: []string{"BAZEL_REMOTE_GRPC_PORT"},
+		},
+		&cli.StringFlag{
+			Name:    "grpc_socket",
+			Value:   "",
+			Usage:   "Unix domain socket path the gRPC server listens on. Takes precedence over gRPC port.",
+			EnvVars: []string{"BAZEL_REMOTE_GRPC_SOCKET"},
 		},
 		&cli.StringFlag{
 			Name:    "profile_host",
