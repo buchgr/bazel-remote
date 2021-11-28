@@ -48,14 +48,15 @@ type grpcServer struct {
 // ListenAndServeGRPC creates a new gRPC server and listens on the given
 // address. This function either returns an error quickly, or triggers a
 // blocking call to https://godoc.org/google.golang.org/grpc#Server.Serve
-func ListenAndServeGRPC(addr string, opts []grpc.ServerOption,
+func ListenAndServeGRPC(
+	network string, addr string, opts []grpc.ServerOption,
 	validateACDeps bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
 	checkClientCertForWrites bool,
 	c disk.Cache, a cache.Logger, e cache.Logger) error {
 
-	listener, err := net.Listen("tcp", addr)
+	listener, err := net.Listen(network, addr)
 	if err != nil {
 		return err
 	}

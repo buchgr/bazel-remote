@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	_ "net/http/pprof" // Register pprof handlers with DefaultServeMux.
 	"os"
@@ -103,7 +104,6 @@ func run(ctx *cli.Context) error {
 
 	mux := http.NewServeMux()
 	httpServer := &http.Server{
-		Addr:         c.Host + ":" + strconv.Itoa(c.Port),
 		Handler:      mux,
 		ReadTimeout:  c.HTTPReadTimeout,
 		TLSConfig:    c.TLSConfig,
@@ -166,14 +166,16 @@ func run(ctx *cli.Context) error {
 		mux.HandleFunc("/", cacheHandler)
 	}
 
-	if c.GRPCPort > 0 {
-
+	if c.GRPCPort > 0 || c.GRPCSocket != "" {
 		if c.GRPCPort == c.Port {
 			log.Fatalf("Error: gRPC and HTTP ports (%d) conflict", c.Port)
 		}
 
 		go func() {
-			addr := c.Host + ":" + strconv.Itoa(c.GRPCPort)
+			addr := net.JoinHostPort(c.Host, strconv.Itoa(c.GRPCPort))
+			if c.GRPCSocket != "" {
+				addr = c.GRPCSocket
+			}
 
 			opts := []grpc.ServerOption{}
 			streamInterceptors := []grpc.StreamServerInterceptor{}
@@ -222,7 +224,13 @@ func run(ctx *cli.Context) error {
 
 			checkClientCertForWrites := c.AllowUnauthenticatedReads && c.TLSCaFile != ""
 
-			err3 := server.ListenAndServeGRPC(addr, opts,
+			network := "tcp"
+			if c.GRPCSocket != "" {
+				network = "unix"
+			}
+
+			err3 := server.ListenAndServeGRPC(
+				network, addr, opts,
 				validateAC,
 				c.EnableACKeyInstanceMangling,
 				enableRemoteAssetAPI,
@@ -250,10 +258,20 @@ func run(ctx *cli.Context) error {
 		validateStatus = "enabled"
 	}
 
+	var ln net.Listener
+	if c.Socket != "" {
+		ln, err = net.Listen("unix", c.Socket)
+	} else {
+		ln, err = net.Listen("tcp", net.JoinHostPort(c.Host, strconv.Itoa(c.Port)))
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
 		log.Printf("Starting HTTPS server on address %s", httpServer.Addr)
 		log.Println("HTTP AC validation:", validateStatus)
-		return httpServer.ListenAndServeTLS(c.TLSCertFile, c.TLSKeyFile)
+		return httpServer.ServeTLS(ln, c.TLSCertFile, c.TLSKeyFile)
 	}
 
 	if idleTimer != nil {
@@ -263,7 +281,7 @@ func run(ctx *cli.Context) error {
 
 	log.Printf("Starting HTTP server on address %s", httpServer.Addr)
 	log.Println("HTTP AC validation:", validateStatus)
-	return httpServer.ListenAndServe()
+	return httpServer.Serve(ln)
 }
 
 func wrapIdleHandler(handler http.HandlerFunc, idleTimer *idle.Timer, accessLogger cache.Logger, httpServer *http.Server) http.HandlerFunc {
