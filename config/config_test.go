@@ -369,3 +369,33 @@ storage_mode: gzip
 		}
 	}
 }
+
+func TestValidSocketOverride(t *testing.T) {
+	yaml := `socket: /tmp/http.sock
+grpc_socket: /tmp/grpc.sock
+dir: /opt/cache-dir
+max_size: 42
+storage_mode: zstd
+`
+	config, err := newFromYaml([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedConfig := &Config{
+		Socket:                 "/tmp/http.sock",
+		GRPCSocket:             "/tmp/grpc.sock",
+		Dir:                    "/opt/cache-dir",
+		MaxSize:                42,
+		StorageMode:            "zstd",
+		NumUploaders:           100,
+		MaxQueuedUploads:       1000000,
+		MaxBlobSize:            math.MaxInt64,
+		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
+		AccessLogLevel:         "all",
+	}
+
+	if !cmp.Equal(config, expectedConfig) {
+		t.Fatalf("Expected '%+v' but got '%+v'", expectedConfig, config)
+	}
+}

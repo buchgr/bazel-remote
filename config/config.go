@@ -34,7 +34,9 @@ type HTTPBackendConfig struct {
 type Config struct {
 	Host                        string                    `yaml:"host"`
 	Port                        int                       `yaml:"port"`
+	Socket                      string                    `yaml:"socket"`
 	GRPCPort                    int                       `yaml:"grpc_port"`
+	GRPCSocket                  string                    `yaml:"grpc_socket"`
 	ProfileHost                 string                    `yaml:"profile_host"`
 	ProfilePort                 int                       `yaml:"profile_port"`
 	Dir                         string                    `yaml:"dir"`
@@ -74,7 +76,7 @@ var defaultDurationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
 // newFromArgs returns a validated Config with the specified values, and
 // an error if there were any problems with the validation.
 func newFromArgs(dir string, maxSize int, storageMode string,
-	host string, port int, grpcPort int,
+	host string, port int, socket string, grpcPort int, grpcSocket string,
 	profileHost string, profilePort int,
 	htpasswdFile string,
 	maxQueuedUploads int,
@@ -100,7 +102,9 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 	c := Config{
 		Host:                        host,
 		Port:                        port,
+		Socket:                      socket,
 		GRPCPort:                    grpcPort,
+		GRPCSocket:                  grpcSocket,
 		ProfileHost:                 profileHost,
 		ProfilePort:                 profilePort,
 		Dir:                         dir,
@@ -209,8 +213,8 @@ func validateConfig(c *Config) error {
 		return errors.New("At most one of the S3/GCS/HTTP proxy backends is allowed")
 	}
 
-	if c.Port == 0 {
-		return errors.New("A valid 'port' flag/key must be specified")
+	if c.Port == 0 && c.Socket == "" {
+		return errors.New("Either the 'socket' or 'port' flag/key must be specified")
 	}
 
 	if c.GRPCPort < 0 {
@@ -359,7 +363,9 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.String("storage_mode"),
 		ctx.String("host"),
 		ctx.Int("port"),
+		ctx.String("socket"),
 		ctx.Int("grpc_port"),
+		ctx.String("grpc_socket"),
 		ctx.String("profile_host"),
 		ctx.Int("profile_port"),
 		ctx.String("htpasswd_file"),
