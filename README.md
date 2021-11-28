@@ -147,14 +147,24 @@ OPTIONS:
    --storage_mode value Which format to store CAS blobs in. Must be one of
       "zstd" or "uncompressed". (default: "zstd") [$BAZEL_REMOTE_STORAGE_MODE]
 
-   --host value Address to listen on. Listens on all network interfaces by
-      default. [$BAZEL_REMOTE_HOST]
+   --host value DEPRECATED. Use --http_address to specify the HTTP server
+      listener. [$BAZEL_REMOTE_HOST]
 
-   --port value The port the HTTP server listens on. (default: 8080)
-      [$BAZEL_REMOTE_PORT]
+   --port value DEPRECATED. Use --http_address to specify the HTTP server
+      listener. (default: 8080) [$BAZEL_REMOTE_PORT]
 
-   --grpc_port value The port the gRPC server listens on. Set to 0 to
-      disable. (default: 9092) [$BAZEL_REMOTE_GRPC_PORT]
+   --http_address value Address specification for the HTTP server listener,
+      formatted either as [host]:port for TCP or unix://path.sock for Unix
+      domain sockets. [$BAZEL_REMOTE_HTTP_ADDRESS]
+
+   --grpc_port value DEPRECATED. Use --grpc_address to specify the gRPC
+      server listener. Set to 0 to disable. (default: 9092)
+      [$BAZEL_REMOTE_GRPC_PORT]
+
+   --grpc_address value Address specification for the gRPC server listener,
+      formatted either as [host]:port for TCP or unix://path.sock for Unix
+      domain sockets. Set to 'none' to disable.
+      [$BAZEL_REMOTE_GRPC_ADDRESS]
 
    --profile_host value A host address to listen on for profiling, if enabled
       by a valid --profile_port setting. (default: "127.0.0.1")
@@ -308,11 +318,14 @@ max_size: 100
 # The form to store CAS blobs in ("zstd" or "uncompressed"):
 #storage_mode: zstd
 
-host: localhost
-# The port to use for HTTP/HTTPS:
-#port: 8080
-# The port to use for gRPC:
-#grpc_port: 9092
+# The server listener address for HTTP/HTTPS. For TCP listeners,
+# use [host]:port, where host is optional (default 0.0.0.0) and can
+# be either a hostname or IP address. For Unix domain socket listeners,
+# use unix:///path/to/socket.sock, where /path/to/socket.sock can be
+# either an absolute or relative path to a socket path.
+http_address: localhost:8080
+# The server listener address for gRPC:
+#grpc_address: localhost:9092
 
 # If profile_port is specified, then serve /debug/pprof/* URLs here:
 #profile_host: 127.0.0.1
@@ -387,7 +400,7 @@ host: localhost
 #  auth_method: iam_role
 #  iam_role_endpoint: http://169.254.169.254
 #  region: us-east-1
-# 
+#
 # AWS credentials file.
 #  auth_method: credentials_file
 #  aws_shared_credentials_file: path/to/aws/credentials

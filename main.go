@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	_ "net/http/pprof" // Register pprof handlers with DefaultServeMux.
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 
 	auth "github.com/abbot/go-http-auth"
+
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
 
@@ -103,7 +106,6 @@ func run(ctx *cli.Context) error {
 
 	mux := http.NewServeMux()
 	httpServer := &http.Server{
-		Addr:         c.Host + ":" + strconv.Itoa(c.Port),
 		Handler:      mux,
 		ReadTimeout:  c.HTTPReadTimeout,
 		TLSConfig:    c.TLSConfig,
@@ -121,9 +123,9 @@ func run(ctx *cli.Context) error {
 		authMode = "basic"
 		htpasswdSecrets = auth.HtpasswdFileProvider(c.HtpasswdFile)
 		if c.AllowUnauthenticatedReads {
-			cacheHandler = unauthenticatedReadWrapper(cacheHandler, htpasswdSecrets, c.Host)
+			cacheHandler = unauthenticatedReadWrapper(cacheHandler, htpasswdSecrets, c.HTTPAddress)
 		} else {
-			cacheHandler = authWrapper(cacheHandler, htpasswdSecrets, c.Host)
+			cacheHandler = authWrapper(cacheHandler, htpasswdSecrets, c.HTTPAddress)
 		}
 	} else if c.TLSCaFile != "" {
 		authMode = "mTLS"
@@ -166,15 +168,8 @@ func run(ctx *cli.Context) error {
 		mux.HandleFunc("/", cacheHandler)
 	}
 
-	if c.GRPCPort > 0 {
-
-		if c.GRPCPort == c.Port {
-			log.Fatalf("Error: gRPC and HTTP ports (%d) conflict", c.Port)
-		}
-
+	if c.GRPCAddress != "none" {
 		go func() {
-			addr := c.Host + ":" + strconv.Itoa(c.GRPCPort)
-
 			opts := []grpc.ServerOption{}
 			streamInterceptors := []grpc.StreamServerInterceptor{}
 			unaryInterceptors := []grpc.UnaryServerInterceptor{}
@@ -204,8 +199,6 @@ func run(ctx *cli.Context) error {
 			opts = append(opts, grpc.ChainStreamInterceptor(streamInterceptors...))
 			opts = append(opts, grpc.ChainUnaryInterceptor(unaryInterceptors...))
 
-			log.Printf("Starting gRPC server on address %s", addr)
-
 			validateAC := !c.DisableGRPCACDepsCheck
 			validateStatus := "disabled"
 			if validateAC {
@@ -222,7 +215,17 @@ func run(ctx *cli.Context) error {
 
 			checkClientCertForWrites := c.AllowUnauthenticatedReads && c.TLSCaFile != ""
 
-			err3 := server.ListenAndServeGRPC(addr, opts,
+			network := "tcp"
+			addr := c.GRPCAddress
+			if strings.HasPrefix(c.GRPCAddress, "unix://") {
+				network = "unix"
+				addr = c.GRPCAddress[len("unix://"):]
+			}
+
+			log.Printf("Starting gRPC server on address %s", addr)
+
+			err3 := server.ListenAndServeGRPC(
+				network, addr, opts,
 				validateAC,
 				c.EnableACKeyInstanceMangling,
 				enableRemoteAssetAPI,
@@ -250,10 +253,20 @@ func run(ctx *cli.Context) error {
 		validateStatus = "enabled"
 	}
 
+	var ln net.Listener
+	if strings.HasPrefix(c.HTTPAddress, "unix://") {
+		ln, err = net.Listen("unix", c.HTTPAddress[len("unix://"):])
+	} else {
+		ln, err = net.Listen("tcp", c.HTTPAddress)
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
 		log.Printf("Starting HTTPS server on address %s", httpServer.Addr)
 		log.Println("HTTP AC validation:", validateStatus)
-		return httpServer.ListenAndServeTLS(c.TLSCertFile, c.TLSKeyFile)
+		return httpServer.ServeTLS(ln, c.TLSCertFile, c.TLSKeyFile)
 	}
 
 	if idleTimer != nil {
@@ -261,9 +274,9 @@ func run(ctx *cli.Context) error {
 		idleTimer.Start()
 	}
 
-	log.Printf("Starting HTTP server on address %s", httpServer.Addr)
+	log.Printf("Starting HTTP server on address %s", c.HTTPAddress)
 	log.Println("HTTP AC validation:", validateStatus)
-	return httpServer.ListenAndServe()
+	return httpServer.Serve(ln)
 }
 
 func wrapIdleHandler(handler http.HandlerFunc, idleTimer *idle.Timer, accessLogger cache.Logger, httpServer *http.Server) http.HandlerFunc {
@@ -288,16 +301,16 @@ func wrapIdleHandler(handler http.HandlerFunc, idleTimer *idle.Timer, accessLogg
 
 // A http.HandlerFunc wrapper which requires successful basic
 // authentication for all requests.
-func authWrapper(handler http.HandlerFunc, secrets auth.SecretProvider, host string) http.HandlerFunc {
-	authenticator := &auth.BasicAuth{Realm: host, Secrets: secrets}
+func authWrapper(handler http.HandlerFunc, secrets auth.SecretProvider, addr string) http.HandlerFunc {
+	authenticator := &auth.BasicAuth{Realm: addr, Secrets: secrets}
 	return auth.JustCheck(authenticator, handler)
 }
 
 // A http.HandlerFunc wrapper which requires successful basic
 // authentication for write requests, but allows unauthenticated
 // read requests.
-func unauthenticatedReadWrapper(handler http.HandlerFunc, secrets auth.SecretProvider, host string) http.HandlerFunc {
-	authenticator := &auth.BasicAuth{Realm: host, Secrets: secrets}
+func unauthenticatedReadWrapper(handler http.HandlerFunc, secrets auth.SecretProvider, addr string) http.HandlerFunc {
+	authenticator := &auth.BasicAuth{Realm: addr, Secrets: secrets}
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet || r.Method == http.MethodHead {
