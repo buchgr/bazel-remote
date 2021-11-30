@@ -34,6 +34,8 @@ access_log_level: none
 	}
 
 	expectedConfig := &Config{
+		HTTPAddress:                 "localhost:8080",
+		GRPCAddress:                 "localhost:9092",
 		Host:                        "localhost",
 		Port:                        8080,
 		GRPCPort:                    9092,
@@ -78,6 +80,8 @@ gcs_proxy:
 	}
 
 	expectedConfig := &Config{
+		HTTPAddress: "localhost:8080",
+		GRPCAddress: "localhost:9092",
 		Host:        "localhost",
 		Port:        8080,
 		GRPCPort:    9092,
@@ -117,6 +121,8 @@ http_proxy:
 	}
 
 	expectedConfig := &Config{
+		HTTPAddress: "localhost:8080",
+		GRPCAddress: "localhost:9092",
 		Host:        "localhost",
 		Port:        8080,
 		GRPCPort:    9092,
@@ -140,10 +146,9 @@ http_proxy:
 
 func TestDirRequired(t *testing.T) {
 	testConfig := &Config{
-		Host:     "localhost",
-		Port:     8080,
-		GRPCPort: 9092,
-		MaxSize:  100,
+		HTTPAddress: "localhost:8080",
+		GRPCAddress: "localhost:9092",
+		MaxSize:     100,
 	}
 	err := validateConfig(testConfig)
 	if err == nil {
@@ -156,10 +161,9 @@ func TestDirRequired(t *testing.T) {
 
 func TestMaxSizeRequired(t *testing.T) {
 	testConfig := &Config{
-		Host:     "localhost",
-		Port:     8080,
-		GRPCPort: 9092,
-		Dir:      "/opt/cache-dir",
+		HTTPAddress: "localhost:8080",
+		GRPCAddress: "localhost:9092",
+		Dir:         "/opt/cache-dir",
 	}
 	err := validateConfig(testConfig)
 	if err == nil {
@@ -189,6 +193,7 @@ s3_proxy:
 	}
 
 	expectedConfig := &Config{
+		HTTPAddress: "localhost:8080",
 		Host:        "localhost",
 		Port:        8080,
 		Dir:         "/opt/cache-dir",
@@ -227,6 +232,7 @@ profile_port: 7070
 	}
 
 	expectedConfig := &Config{
+		HTTPAddress:            "localhost:1234",
 		Host:                   "localhost",
 		Port:                   1234,
 		Dir:                    "/opt/cache-dir",
@@ -274,6 +280,7 @@ endpoint_metrics_duration_buckets: [.005, .1, 5]
 	}
 
 	expectedConfig := &Config{
+		HTTPAddress:            "localhost:1234",
 		Host:                   "localhost",
 		Port:                   1234,
 		Dir:                    "/opt/cache-dir",
@@ -293,8 +300,7 @@ endpoint_metrics_duration_buckets: [.005, .1, 5]
 
 func TestMetricsDurationBucketsNoDuplicates(t *testing.T) {
 	testConfig := &Config{
-		Host:                   "localhost",
-		Port:                   8080,
+		HTTPAddress:            "localhost:8080",
 		MaxSize:                42,
 		MaxBlobSize:            200,
 		Dir:                    "/opt/cache-dir",
@@ -370,9 +376,26 @@ storage_mode: gzip
 	}
 }
 
-func TestValidSocketOverride(t *testing.T) {
-	yaml := `socket: /tmp/http.sock
-grpc_socket: /tmp/grpc.sock
+func TestHttpGrpcServerPortConflict(t *testing.T) {
+	testConfig := &Config{
+		HTTPAddress: ":5000",
+		GRPCAddress: ":5000",
+		Dir:         "/opt/cache-dir",
+		MaxSize:     100,
+		StorageMode: "zstd",
+	}
+	err := validateConfig(testConfig)
+	if err == nil {
+		t.Fatal("Expected an error because 'http_address' and 'grpc_address' have conflicting TCP ports")
+	}
+	if !strings.Contains(err.Error(), "5000") {
+		t.Fatal("Expected the error message to mention the conflicting port '5000'")
+	}
+}
+
+func TestValidListenerAddress(t *testing.T) {
+	yaml := `http_address: localhost:1234
+grpc_address: localhost:5678
 dir: /opt/cache-dir
 max_size: 42
 storage_mode: zstd
@@ -383,8 +406,38 @@ storage_mode: zstd
 	}
 
 	expectedConfig := &Config{
-		Socket:                 "/tmp/http.sock",
-		GRPCSocket:             "/tmp/grpc.sock",
+		HTTPAddress:            "localhost:1234",
+		GRPCAddress:            "localhost:5678",
+		Dir:                    "/opt/cache-dir",
+		MaxSize:                42,
+		StorageMode:            "zstd",
+		NumUploaders:           100,
+		MaxQueuedUploads:       1000000,
+		MaxBlobSize:            math.MaxInt64,
+		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
+		AccessLogLevel:         "all",
+	}
+
+	if !cmp.Equal(config, expectedConfig) {
+		t.Fatalf("Expected '%+v' but got '%+v'", expectedConfig, config)
+	}
+}
+
+func TestValidSocketOverride(t *testing.T) {
+	yaml := `http_address: unix:///tmp/http.sock
+grpc_address: unix:///tmp/grpc.sock
+dir: /opt/cache-dir
+max_size: 42
+storage_mode: zstd
+`
+	config, err := newFromYaml([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedConfig := &Config{
+		HTTPAddress:            "unix:///tmp/http.sock",
+		GRPCAddress:            "unix:///tmp/grpc.sock",
 		Dir:                    "/opt/cache-dir",
 		MaxSize:                42,
 		StorageMode:            "zstd",

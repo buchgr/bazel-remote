@@ -7,8 +7,11 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
+	"net"
 	"os"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/buchgr/bazel-remote/cache"
@@ -32,11 +35,8 @@ type HTTPBackendConfig struct {
 
 // Config holds the top-level configuration for bazel-remote.
 type Config struct {
-	Host                        string                    `yaml:"host"`
-	Port                        int                       `yaml:"port"`
-	Socket                      string                    `yaml:"socket"`
-	GRPCPort                    int                       `yaml:"grpc_port"`
-	GRPCSocket                  string                    `yaml:"grpc_socket"`
+	HTTPAddress                 string                    `yaml:"http_address"`
+	GRPCAddress                 string                    `yaml:"grpc_address"`
 	ProfileHost                 string                    `yaml:"profile_host"`
 	ProfilePort                 int                       `yaml:"profile_port"`
 	Dir                         string                    `yaml:"dir"`
@@ -69,6 +69,11 @@ type Config struct {
 	TLSConfig    *tls.Config
 	AccessLogger *log.Logger
 	ErrorLogger  *log.Logger
+
+	// Deprecated fields. Retained for backwards compatibility.
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	GRPCPort int    `yaml:"grpc_port"`
 }
 
 var defaultDurationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
@@ -76,7 +81,7 @@ var defaultDurationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
 // newFromArgs returns a validated Config with the specified values, and
 // an error if there were any problems with the validation.
 func newFromArgs(dir string, maxSize int, storageMode string,
-	host string, port int, socket string, grpcPort int, grpcSocket string,
+	httpAddress string, grpcAddress string,
 	profileHost string, profilePort int,
 	htpasswdFile string,
 	maxQueuedUploads int,
@@ -100,11 +105,8 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 	maxBlobSize int64) (*Config, error) {
 
 	c := Config{
-		Host:                        host,
-		Port:                        port,
-		Socket:                      socket,
-		GRPCPort:                    grpcPort,
-		GRPCSocket:                  grpcSocket,
+		HTTPAddress:                 httpAddress,
+		GRPCAddress:                 grpcAddress,
 		ProfileHost:                 profileHost,
 		ProfilePort:                 profilePort,
 		Dir:                         dir,
@@ -173,6 +175,14 @@ func newFromYaml(data []byte) (*Config, error) {
 		return nil, fmt.Errorf("Failed to parse YAML config: %v", err)
 	}
 
+	if c.HTTPAddress == "" {
+		c.HTTPAddress = net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
+	}
+
+	if c.GRPCAddress == "" && c.GRPCPort > 0 {
+		c.GRPCAddress = net.JoinHostPort(c.Host, strconv.Itoa(c.GRPCPort))
+	}
+
 	if c.MetricsDurationBuckets != nil {
 		sort.Float64s(c.MetricsDurationBuckets)
 	}
@@ -213,15 +223,23 @@ func validateConfig(c *Config) error {
 		return errors.New("At most one of the S3/GCS/HTTP proxy backends is allowed")
 	}
 
-	if c.Port == 0 && c.Socket == "" {
-		return errors.New("Either the 'socket' or 'port' flag/key must be specified")
+	_, httpPort, err := net.SplitHostPort(c.HTTPAddress)
+	if err != nil && !strings.HasPrefix(c.HTTPAddress, "unix://") {
+		return errors.New("'http_address' must either be formatted as [host]:port or unix://socket.path")
 	}
 
-	if c.GRPCPort < 0 {
-		return errors.New("The 'grpc_port' flag/key must be 0 (disabled) or a positive integer")
+	if c.GRPCAddress != "" && c.GRPCAddress != "none" {
+		_, grpcPort, err := net.SplitHostPort(c.GRPCAddress)
+		if err != nil && !strings.HasPrefix(c.GRPCAddress, "unix://") {
+			return errors.New("'grpc_address' must either be formatted as [host]:port or unix://socket.path")
+		}
+
+		if httpPort != "" && grpcPort != "" && httpPort == grpcPort {
+			return fmt.Errorf("HTTP and gRPC server TCP ports conflict: %s", httpPort)
+		}
 	}
 
-	if c.GRPCPort == 0 && c.ExperimentalRemoteAssetAPI {
+	if c.GRPCAddress == "none" && c.ExperimentalRemoteAssetAPI {
 		return errors.New("Remote Asset API support depends on gRPC being enabled")
 	}
 
@@ -324,6 +342,16 @@ func get(ctx *cli.Context) (*Config, error) {
 		return newFromYamlFile(configFile)
 	}
 
+	httpAddress := ctx.String("http_address")
+	if httpAddress == "" {
+		httpAddress = net.JoinHostPort(ctx.String("host"), strconv.Itoa(ctx.Int("port")))
+	}
+
+	grpcAddress := ctx.String("grpc_address")
+	if grpcAddress == "" && ctx.Int("grpc_port") > 0 {
+		grpcAddress = net.JoinHostPort(ctx.String("host"), strconv.Itoa(ctx.Int("grpc_port")))
+	}
+
 	var s3 *S3CloudStorageConfig
 	if ctx.String("s3.bucket") != "" {
 		s3 = &S3CloudStorageConfig{
@@ -361,11 +389,8 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.String("dir"),
 		ctx.Int("max_size"),
 		ctx.String("storage_mode"),
-		ctx.String("host"),
-		ctx.Int("port"),
-		ctx.String("socket"),
-		ctx.Int("grpc_port"),
-		ctx.String("grpc_socket"),
+		httpAddress,
+		grpcAddress,
 		ctx.String("profile_host"),
 		ctx.Int("profile_port"),
 		ctx.String("htpasswd_file"),

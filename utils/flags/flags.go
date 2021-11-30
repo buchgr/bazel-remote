@@ -45,32 +45,31 @@ func GetCliFlags() []cli.Flag {
 		&cli.StringFlag{
 			Name:    "host",
 			Value:   "",
-			Usage:   "Address to listen on. Listens on all network interfaces by default.",
+			Usage:   "DEPRECATED. Use --http_address to specify the HTTP server listener.",
 			EnvVars: []string{"BAZEL_REMOTE_HOST"},
 		},
 		&cli.IntFlag{
 			Name:    "port",
 			Value:   8080,
-			Usage:   "The port the HTTP server listens on.",
+			Usage:   "DEPRECATED. Use --http_address to specify the HTTP server listener.",
 			EnvVars: []string{"BAZEL_REMOTE_PORT"},
 		},
 		&cli.StringFlag{
-			Name:    "socket",
-			Value:   "",
-			Usage:   "Unix domain socket path to listen on. Takes precedence over host and port.",
-			EnvVars: []string{"BAZEL_REMOTE_SOCKET"},
+			Name:    "http_address",
+			Usage:   "Address specification for the HTTP server listener, formatted either as [host]:port for TCP or unix://path.sock for Unix domain sockets.",
+			EnvVars: []string{"BAZEL_REMOTE_HTTP_ADDRESS"},
 		},
 		&cli.IntFlag{
 			Name:    "grpc_port",
 			Value:   9092,
-			Usage:   "The port the gRPC server listens on. Set to 0 to disable.",
+			Usage:   "DEPRECATED. Use --grpc_address to specify the gRPC server listener.",
 			EnvVars: []string{"BAZEL_REMOTE_GRPC_PORT"},
 		},
 		&cli.StringFlag{
-			Name:    "grpc_socket",
-			Value:   "",
-			Usage:   "Unix domain socket path the gRPC server listens on. Takes precedence over gRPC port.",
-			EnvVars: []string{"BAZEL_REMOTE_GRPC_SOCKET"},
+			Name: "grpc_address",
+			Usage: "Address specification for the gRPC server listener, formatted either as [host]:port for TCP or unix://path.sock for Unix domain sockets. " +
+				"Set to 'none' to disable.",
+			EnvVars: []string{"BAZEL_REMOTE_GRPC_ADDRESS"},
 		},
 		&cli.StringFlag{
 			Name:    "profile_host",
