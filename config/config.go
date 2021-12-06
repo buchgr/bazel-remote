@@ -225,19 +225,33 @@ func validateConfig(c *Config) error {
 		return errors.New("At most one of the S3/GCS/HTTP proxy backends is allowed")
 	}
 
-	_, httpPort, err := net.SplitHostPort(c.HTTPAddress)
-	if err != nil && !strings.HasPrefix(c.HTTPAddress, "unix://") {
-		return errors.New("'http_address' must either be formatted as [host]:port or unix://socket.path")
+	var httpPort string
+	if strings.HasPrefix(c.HTTPAddress, "unix://") {
+		if c.HTTPAddress[len("unix://"):] == "" {
+			return errors.New("'http_address' Unix socket specification is missing a socket path")
+		}
+	} else {
+		var err error
+		_, httpPort, err = net.SplitHostPort(c.HTTPAddress)
+		if err != nil {
+			return errors.New("'http_address' must either be formatted as [host]:port or unix://socket.path")
+		}
 	}
 
 	if c.GRPCAddress != "" && c.GRPCAddress != disabledGRPCListener {
-		_, grpcPort, err := net.SplitHostPort(c.GRPCAddress)
-		if err != nil && !strings.HasPrefix(c.GRPCAddress, "unix://") {
-			return errors.New("'grpc_address' must either be formatted as [host]:port or unix://socket.path")
-		}
+		if strings.HasPrefix(c.GRPCAddress, "unix://") {
+			if c.GRPCAddress[len("unix://"):] == "" {
+				return errors.New("'grpc_address' Unix socket specification is missing a socket path")
+			}
+		} else {
+			_, grpcPort, err := net.SplitHostPort(c.GRPCAddress)
+			if err != nil {
+				return errors.New("'grpc_address' must either be formatted as [host]:port or unix://socket.path")
+			}
 
-		if httpPort != "" && grpcPort != "" && httpPort == grpcPort {
-			return fmt.Errorf("HTTP and gRPC server TCP ports conflict: %s", httpPort)
+			if httpPort != "" && grpcPort != "" && httpPort == grpcPort {
+				return fmt.Errorf("HTTP and gRPC server TCP ports conflict: %s", httpPort)
+			}
 		}
 	}
 

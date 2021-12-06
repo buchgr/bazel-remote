@@ -452,3 +452,19 @@ storage_mode: zstd
 		t.Fatalf("Expected '%+v' but got '%+v'", expectedConfig, config)
 	}
 }
+
+func TestSocketPathMissing(t *testing.T) {
+	testConfig := &Config{
+		HTTPAddress: "unix://",
+		Dir:         "/opt/cache-dir",
+		MaxSize:     100,
+		StorageMode: "zstd",
+	}
+	err := validateConfig(testConfig)
+	if err == nil {
+		t.Fatal("Expected an error because 'http_address' specifies an invalid Unix socket")
+	}
+	if !strings.Contains(err.Error(), "'http_address'") {
+		t.Fatal("Expected the error message to mention the missing 'http_address' key/flag")
+	}
+}
