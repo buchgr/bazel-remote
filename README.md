@@ -318,8 +318,11 @@ max_size: 100
 # The form to store CAS blobs in ("zstd" or "uncompressed"):
 #storage_mode: zstd
 
-# The server listener address for HTTP/HTTPS. The expected format is
-# [host]:port for TCP or unix:///path/to/socket.sock Unix sockets.
+# The server listener address for HTTP/HTTPS. For TCP listeners,
+# use [host]:port, where host is optional (default 0.0.0.0) and can
+# be either a hostname or IP address. For Unix domain socket listeners,
+# use unix:///path/to/socket.sock, where /path/to/socket.sock can be
+# either an absolute or relative path to a socket path.
 http_address: localhost:8080
 # The server listener address for gRPC:
 #grpc_address: localhost:9092
