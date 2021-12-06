@@ -158,7 +158,8 @@ OPTIONS:
       domain sockets. [$BAZEL_REMOTE_HTTP_ADDRESS]
 
    --grpc_port value DEPRECATED. Use --grpc_address to specify the gRPC
-      server listener. (default: 9092) [$BAZEL_REMOTE_GRPC_PORT]
+      server listener. Set to 0 to disable. (default: 9092)
+      [$BAZEL_REMOTE_GRPC_PORT]
 
    --grpc_address value Address specification for the gRPC server listener,
       formatted either as [host]:port for TCP or unix://path.sock for Unix

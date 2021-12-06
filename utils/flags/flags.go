@@ -62,7 +62,7 @@ func GetCliFlags() []cli.Flag {
 		&cli.IntFlag{
 			Name:    "grpc_port",
 			Value:   9092,
-			Usage:   "DEPRECATED. Use --grpc_address to specify the gRPC server listener.",
+			Usage:   "DEPRECATED. Use --grpc_address to specify the gRPC server listener. Set to 0 to disable.",
 			EnvVars: []string{"BAZEL_REMOTE_GRPC_PORT"},
 		},
 		&cli.StringFlag{
