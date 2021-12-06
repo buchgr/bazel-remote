@@ -76,6 +76,8 @@ type Config struct {
 	GRPCPort int    `yaml:"grpc_port"`
 }
 
+const disabledGRPCListener = "none"
+
 var defaultDurationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
 
 // newFromArgs returns a validated Config with the specified values, and
@@ -228,7 +230,7 @@ func validateConfig(c *Config) error {
 		return errors.New("'http_address' must either be formatted as [host]:port or unix://socket.path")
 	}
 
-	if c.GRPCAddress != "" && c.GRPCAddress != "none" {
+	if c.GRPCAddress != "" && c.GRPCAddress != disabledGRPCListener {
 		_, grpcPort, err := net.SplitHostPort(c.GRPCAddress)
 		if err != nil && !strings.HasPrefix(c.GRPCAddress, "unix://") {
 			return errors.New("'grpc_address' must either be formatted as [host]:port or unix://socket.path")
@@ -239,7 +241,7 @@ func validateConfig(c *Config) error {
 		}
 	}
 
-	if c.GRPCAddress == "none" && c.ExperimentalRemoteAssetAPI {
+	if c.GRPCAddress == disabledGRPCListener && c.ExperimentalRemoteAssetAPI {
 		return errors.New("Remote Asset API support depends on gRPC being enabled")
 	}
 
