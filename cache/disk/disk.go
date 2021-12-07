@@ -1106,6 +1106,16 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 	}
 
 	for _, f := range result.OutputFiles {
+		if f == nil {
+			return nil, nil, fmt.Errorf("nil output file")
+		}
+		if f.Path == "" {
+			return nil, nil, fmt.Errorf("empty path %q", f.Path)
+		}
+		if f.Digest == nil {
+			return nil, nil, fmt.Errorf("nil digest for path %q", f.Path)
+		}
+
 		if len(f.Contents) == 0 {
 			found, _ := c.Contains(ctx, cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
 			if !found {
@@ -1115,6 +1125,13 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 	}
 
 	for _, d := range result.OutputDirectories {
+		if d == nil {
+			return nil, nil, fmt.Errorf("nil output directory")
+		}
+		if d.TreeDigest == nil {
+			return nil, nil, fmt.Errorf("nil tree digest for path %q", d.Path)
+		}
+
 		r, size, err := c.Get(ctx, cache.CAS, d.TreeDigest.Hash, d.TreeDigest.SizeBytes, 0)
 		if r == nil {
 			return nil, nil, err // aka "not found", or an err if non-nil
