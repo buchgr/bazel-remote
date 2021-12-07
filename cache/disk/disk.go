@@ -1110,10 +1110,13 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 			return nil, nil, fmt.Errorf("nil output file")
 		}
 		if f.Path == "" {
-			return nil, nil, fmt.Errorf("empty path %q", f.Path)
+			return nil, nil, fmt.Errorf("empty path: %q", f.Path)
+		}
+		if strings.HasPrefix(f.Path, "/") {
+			return nil, nil, fmt.Errorf("absolute path in output file: %q", f.Path)
 		}
 		if f.Digest == nil {
-			return nil, nil, fmt.Errorf("nil digest for path %q", f.Path)
+			return nil, nil, fmt.Errorf("nil digest for path: %q", f.Path)
 		}
 
 		if len(f.Contents) == 0 {
@@ -1128,8 +1131,11 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 		if d == nil {
 			return nil, nil, fmt.Errorf("nil output directory")
 		}
+		if strings.HasPrefix(d.Path, "/") {
+			return nil, nil, fmt.Errorf("absolute path in output directory: %q", d.Path)
+		}
 		if d.TreeDigest == nil {
-			return nil, nil, fmt.Errorf("nil tree digest for path %q", d.Path)
+			return nil, nil, fmt.Errorf("nil tree digest for path: %q", d.Path)
 		}
 
 		r, size, err := c.Get(ctx, cache.CAS, d.TreeDigest.Hash, d.TreeDigest.SizeBytes, 0)
