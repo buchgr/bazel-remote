@@ -147,30 +147,36 @@ OPTIONS:
    --storage_mode value Which format to store CAS blobs in. Must be one of
       "zstd" or "uncompressed". (default: "zstd") [$BAZEL_REMOTE_STORAGE_MODE]
 
+   --http_address value Address specification for the HTTP server listener,
+      formatted either as [host]:port for TCP or unix://path.sock for Unix
+      domain sockets. [$BAZEL_REMOTE_HTTP_ADDRESS]
+
    --host value DEPRECATED. Use --http_address to specify the HTTP server
       listener. [$BAZEL_REMOTE_HOST]
 
    --port value DEPRECATED. Use --http_address to specify the HTTP server
       listener. (default: 8080) [$BAZEL_REMOTE_PORT]
 
-   --http_address value Address specification for the HTTP server listener,
+   --grpc_address value Address specification for the gRPC server listener,
       formatted either as [host]:port for TCP or unix://path.sock for Unix
-      domain sockets. [$BAZEL_REMOTE_HTTP_ADDRESS]
+      domain sockets. Set to 'none' to disable. [$BAZEL_REMOTE_GRPC_ADDRESS]
 
    --grpc_port value DEPRECATED. Use --grpc_address to specify the gRPC
       server listener. Set to 0 to disable. (default: 9092)
       [$BAZEL_REMOTE_GRPC_PORT]
 
-   --grpc_address value Address specification for the gRPC server listener,
-      formatted either as [host]:port for TCP or unix://path.sock for Unix
-      domain sockets. Set to 'none' to disable.
-      [$BAZEL_REMOTE_GRPC_ADDRESS]
+   --profile_address value Address specification for a http server to listen
+      on for profiling, formatted either as [host]:port for TCP or
+      unix://path.sock for Unix domain sockets. Off by default, but can also be
+      set to 'none' to disable explicitly. (default: "", ie profiling disabled)
+      [$BAZEL_REMOTE_PROFILE_ADDRESS]
 
-   --profile_host value A host address to listen on for profiling, if enabled
-      by a valid --profile_port setting. (default: "127.0.0.1")
-      [$BAZEL_REMOTE_PROFILE_HOST]
+   --profile_host value DEPRECATED. Use --profile_address instead. A host
+      address to listen on for profiling, if enabled by a valid --profile_port
+      setting. (default: "127.0.0.1") [$BAZEL_REMOTE_PROFILE_HOST]
 
-   --profile_port value If a positive integer, serve /debug/pprof/* URLs from
+   --profile_port value DEPRECATED. Use --profile_address instead. If a
+      positive integer, serve /debug/pprof/* URLs from
       http://profile_host:profile_port. (default: 0, ie profiling disabled)
       [$BAZEL_REMOTE_PROFILE_PORT]
 
