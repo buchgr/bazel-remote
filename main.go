@@ -9,7 +9,6 @@ import (
 	_ "net/http/pprof" // Register pprof handlers with DefaultServeMux.
 	"os"
 	"runtime"
-	"strconv"
 	"strings"
 
 	auth "github.com/abbot/go-http-auth"
@@ -237,14 +236,12 @@ func run(ctx *cli.Context) error {
 		}()
 	}
 
-	if c.ProfilePort > 0 {
+	if c.ProfileAddress != "" {
 		go func() {
 			// Allow access to /debug/pprof/ URLs.
-			profileAddr := c.ProfileHost + ":" +
-				strconv.Itoa(c.ProfilePort)
 			log.Printf("Starting HTTP server for profiling on address %s",
-				profileAddr)
-			log.Fatal(http.ListenAndServe(profileAddr, nil))
+				c.ProfileAddress)
+			log.Fatal(`Failed to listen on address: "`, c.ProfileAddress, `": `, http.ListenAndServe(c.ProfileAddress, nil))
 		}()
 	}
 
@@ -260,7 +257,7 @@ func run(ctx *cli.Context) error {
 		ln, err = net.Listen("tcp", c.HTTPAddress)
 	}
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(`Failed to listen on address: "`, c.HTTPAddress, `": `, err)
 	}
 
 	if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {

@@ -324,12 +324,15 @@ max_size: 100
 # use unix:///path/to/socket.sock, where /path/to/socket.sock can be
 # either an absolute or relative path to a socket path.
 http_address: localhost:8080
-# The server listener address for gRPC:
+
+# The server listener address for gRPC (unix sockets are also supported
+# as described above):
 #grpc_address: localhost:9092
 
-# If profile_port is specified, then serve /debug/pprof/* URLs here:
-#profile_host: 127.0.0.1
-#profile_port: 7070
+# If profile_address (or the deprecated profile_port and/or profile_host)
+# is specified, then serve /debug/pprof/* URLs here (unix sockets are also
+# supported as described above):
+#profile_address: 127.0.0.1:7070
 
 # HTTP read/write timeouts. Note that these do not apply to the proxy
 # backends or the profiling endpoint. Reasonable values might be twice

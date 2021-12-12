@@ -72,15 +72,24 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_GRPC_ADDRESS"},
 		},
 		&cli.StringFlag{
-			Name:    "profile_host",
-			Value:   "127.0.0.1",
-			Usage:   "A host address to listen on for profiling, if enabled by a valid --profile_port setting.",
+			Name: "profile_address",
+			Usage: "Address specification for a http server to listen on for profiling, formatted either as [host]:port " +
+				"for TCP or unix://path.sock for Unix domain sockets. Set to 'none' to disable.",
+			DefaultText: "\"\", ie profiling disabled",
+			EnvVars:     []string{"BAZEL_REMOTE_PROFILE_ADDRESS"},
+		},
+		&cli.StringFlag{
+			Name:  "profile_host",
+			Value: "127.0.0.1",
+			Usage: "DEPRECATED. Use --profile_address instead. A host address to listen on for profiling, if enabled by " +
+				"a valid --profile_port setting.",
 			EnvVars: []string{"BAZEL_REMOTE_PROFILE_HOST"},
 		},
 		&cli.IntFlag{
-			Name:        "profile_port",
-			Value:       0,
-			Usage:       "If a positive integer, serve /debug/pprof/* URLs from http://profile_host:profile_port.",
+			Name:  "profile_port",
+			Value: 0,
+			Usage: "DEPRECATED. Use --profile_address instead. If a positive integer, serve /debug/pprof/* URLs " +
+				"from http://profile_host:profile_port.",
 			DefaultText: "0, ie profiling disabled",
 			EnvVars:     []string{"BAZEL_REMOTE_PROFILE_PORT"},
 		},

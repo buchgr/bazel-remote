@@ -224,7 +224,7 @@ func TestValidProfiling(t *testing.T) {
 port: 1234
 dir: /opt/cache-dir
 max_size: 42
-profile_port: 7070
+profile_address: :7070
 `
 	config, err := newFromYaml([]byte(yaml))
 	if err != nil {
@@ -238,8 +238,7 @@ profile_port: 7070
 		Dir:                    "/opt/cache-dir",
 		MaxSize:                42,
 		StorageMode:            "zstd",
-		ProfilePort:            7070,
-		ProfileHost:            "",
+		ProfileAddress:         ":7070",
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
@@ -252,9 +251,9 @@ profile_port: 7070
 	}
 
 	yaml += `
-profile_host: 192.168.1.1`
+profile_address: 192.168.1.1:7070`
 
-	expectedConfig.ProfileHost = "192.168.1.1"
+	expectedConfig.ProfileAddress = "192.168.1.1:7070"
 
 	config, err = newFromYaml([]byte(yaml))
 	if err != nil {
