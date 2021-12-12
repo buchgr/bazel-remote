@@ -43,6 +43,11 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_STORAGE_MODE"},
 		},
 		&cli.StringFlag{
+			Name:    "http_address",
+			Usage:   "Address specification for the HTTP server listener, formatted either as [host]:port for TCP or unix://path.sock for Unix domain sockets.",
+			EnvVars: []string{"BAZEL_REMOTE_HTTP_ADDRESS"},
+		},
+		&cli.StringFlag{
 			Name:    "host",
 			Value:   "",
 			Usage:   "DEPRECATED. Use --http_address to specify the HTTP server listener.",
@@ -55,9 +60,10 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_PORT"},
 		},
 		&cli.StringFlag{
-			Name:    "http_address",
-			Usage:   "Address specification for the HTTP server listener, formatted either as [host]:port for TCP or unix://path.sock for Unix domain sockets.",
-			EnvVars: []string{"BAZEL_REMOTE_HTTP_ADDRESS"},
+			Name: "grpc_address",
+			Usage: "Address specification for the gRPC server listener, formatted either as [host]:port for TCP or unix://path.sock for Unix domain sockets. " +
+				"Set to 'none' to disable.",
+			EnvVars: []string{"BAZEL_REMOTE_GRPC_ADDRESS"},
 		},
 		&cli.IntFlag{
 			Name:    "grpc_port",
@@ -66,15 +72,9 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_GRPC_PORT"},
 		},
 		&cli.StringFlag{
-			Name: "grpc_address",
-			Usage: "Address specification for the gRPC server listener, formatted either as [host]:port for TCP or unix://path.sock for Unix domain sockets. " +
-				"Set to 'none' to disable.",
-			EnvVars: []string{"BAZEL_REMOTE_GRPC_ADDRESS"},
-		},
-		&cli.StringFlag{
 			Name: "profile_address",
-			Usage: "Address specification for a http server to listen on for profiling, formatted either as [host]:port " +
-				"for TCP or unix://path.sock for Unix domain sockets. Set to 'none' to disable.",
+			Usage: "Address specification for a http server to listen on for profiling, formatted either as [host]:port for TCP or " +
+				"unix://path.sock for Unix domain sockets. Off by default, but can also be set to 'none' to disable explicitly.",
 			DefaultText: "\"\", ie profiling disabled",
 			EnvVars:     []string{"BAZEL_REMOTE_PROFILE_ADDRESS"},
 		},
