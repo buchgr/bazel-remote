@@ -37,8 +37,7 @@ type HTTPBackendConfig struct {
 type Config struct {
 	HTTPAddress                 string                    `yaml:"http_address"`
 	GRPCAddress                 string                    `yaml:"grpc_address"`
-	ProfileHost                 string                    `yaml:"profile_host"`
-	ProfilePort                 int                       `yaml:"profile_port"`
+	ProfileAddress              string                    `yaml:"profile_address"`
 	Dir                         string                    `yaml:"dir"`
 	MaxSize                     int                       `yaml:"max_size"`
 	StorageMode                 string                    `yaml:"storage_mode"`
@@ -71,9 +70,11 @@ type Config struct {
 	ErrorLogger  *log.Logger
 
 	// Deprecated fields. Retained for backwards compatibility.
-	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
-	GRPCPort int    `yaml:"grpc_port"`
+	Host        string `yaml:"host"`
+	Port        int    `yaml:"port"`
+	GRPCPort    int    `yaml:"grpc_port"`
+	ProfileHost string `yaml:"profile_host"`
+	ProfilePort int    `yaml:"profile_port"`
 }
 
 const disabledGRPCListener = "none"
@@ -84,7 +85,7 @@ var defaultDurationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
 // an error if there were any problems with the validation.
 func newFromArgs(dir string, maxSize int, storageMode string,
 	httpAddress string, grpcAddress string,
-	profileHost string, profilePort int,
+	profileAddress string,
 	htpasswdFile string,
 	maxQueuedUploads int,
 	numUploaders int,
@@ -109,8 +110,7 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 	c := Config{
 		HTTPAddress:                 httpAddress,
 		GRPCAddress:                 grpcAddress,
-		ProfileHost:                 profileHost,
-		ProfilePort:                 profilePort,
+		ProfileAddress:              profileAddress,
 		Dir:                         dir,
 		MaxSize:                     maxSize,
 		StorageMode:                 storageMode,
@@ -185,6 +185,10 @@ func newFromYaml(data []byte) (*Config, error) {
 		c.GRPCAddress = net.JoinHostPort(c.Host, strconv.Itoa(c.GRPCPort))
 	}
 
+	if c.ProfileAddress == "" && c.ProfilePort > 0 {
+		c.ProfileAddress = net.JoinHostPort(c.ProfileHost, strconv.Itoa(c.ProfilePort))
+	}
+
 	if c.MetricsDurationBuckets != nil {
 		sort.Float64s(c.MetricsDurationBuckets)
 	}
@@ -251,6 +255,14 @@ func validateConfig(c *Config) error {
 
 			if httpPort != "" && grpcPort != "" && httpPort == grpcPort {
 				return fmt.Errorf("HTTP and gRPC server TCP ports conflict: %s", httpPort)
+			}
+		}
+	}
+
+	if c.ProfileAddress != "" && c.ProfileAddress != disabledGRPCListener {
+		if strings.HasPrefix(c.ProfileAddress, "unix://") {
+			if c.ProfileAddress[len("unix://"):] == "" {
+				return errors.New("'profile_address' Unix socket specification is missing a socket path")
 			}
 		}
 	}
@@ -368,6 +380,13 @@ func get(ctx *cli.Context) (*Config, error) {
 		grpcAddress = net.JoinHostPort(ctx.String("host"), strconv.Itoa(ctx.Int("grpc_port")))
 	}
 
+	profileAddress := ctx.String("profile_address")
+	if profileAddress == "" && ctx.Int("profile_port") > 0 {
+		profileAddress = net.JoinHostPort(ctx.String("profile_host"), strconv.Itoa(ctx.Int("profile_port")))
+	} else if profileAddress == "none" {
+		profileAddress = ""
+	}
+
 	var s3 *S3CloudStorageConfig
 	if ctx.String("s3.bucket") != "" {
 		s3 = &S3CloudStorageConfig{
@@ -407,8 +426,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.String("storage_mode"),
 		httpAddress,
 		grpcAddress,
-		ctx.String("profile_host"),
-		ctx.Int("profile_port"),
+		profileAddress,
 		ctx.String("htpasswd_file"),
 		ctx.Int("max_queued_uploads"),
 		ctx.Int("num_uploaders"),
