@@ -50,7 +50,7 @@ count_v1=$(wc -l < "$tmpdir/v1.files")
 
 # Start the v2 bazel-remote.
 ./bazel-remote --dir "$tmpdir/cache" --max_size 1 \
-	--port 8089 > "$tmpdir/v2.log" 2>&1 &
+	--http_address 0.0.0.0:8089 > "$tmpdir/v2.log" 2>&1 &
 server_pid=$!
 
 # Let the server start up...
