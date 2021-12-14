@@ -80,7 +80,7 @@ generate_keys
 [ -e bazel-remote ] || ./linux-build.sh
 
 echo "Starting bazel-remote, allowing unauthenticated reads..."
-./bazel-remote --dir "$tmpdir/cache" --max_size 1 --port "$HTTP_PORT" \
+./bazel-remote --dir "$tmpdir/cache" --max_size 1 --http_address "0.0.0.0:$HTTP_PORT" \
 	--tls_cert_file "$tmpdir/server.crt" \
 	--tls_key_file "$tmpdir/server.key" \
 	--tls_ca_file "$tmpdir/ca.crt" \
@@ -173,7 +173,7 @@ bazel build //:bazel-remote --remote_cache=grpcs://localhost:9092 \
 
 # Restart the server with authentication enabled but unauthenticated reads disabled.
 kill -9 $server_pid
-./bazel-remote --dir "$tmpdir/cache" --max_size 1 --port "$HTTP_PORT" \
+./bazel-remote --dir "$tmpdir/cache" --max_size 1 --http_address "0.0.0.0:$HTTP_PORT" \
 	--tls_cert_file "$tmpdir/server.crt" \
 	--tls_key_file "$tmpdir/server.key" \
 	--tls_ca_file "$tmpdir/ca.crt" > "$tmpdir/bazel-remote-authenticated.log" 2>&1 &

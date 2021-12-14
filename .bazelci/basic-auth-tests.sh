@@ -27,7 +27,7 @@ echo 'topsecretusername:$apr1$Ke2kcK4W$EyueqiHyoqhwXcpiEGNyJ1' \
 	> "$tmpdir/htpasswd"
 
 echo "Starting bazel-remote, allowing unauthenticated reads..."
-./bazel-remote --dir "$tmpdir/cache" --max_size 1 --port "$HTTP_PORT" \
+./bazel-remote --dir "$tmpdir/cache" --max_size 1 --http_address "0.0.0.0:$HTTP_PORT" \
 	--htpasswd_file "$tmpdir/htpasswd" \
 	--allow_unauthenticated_reads > "$tmpdir/bazel-remote.log" 2>&1 &
 server_pid=$!
@@ -134,7 +134,7 @@ bazel build //:bazel-remote --remote_cache=grpc://localhost:9092 \
 
 # Restart the server with authentication enabled but unauthenticated reads disabled.
 kill -9 $server_pid
-./bazel-remote --dir "$tmpdir/cache" --max_size 1 --port "$HTTP_PORT" \
+./bazel-remote --dir "$tmpdir/cache" --max_size 1 --http_address "0.0.0.0:$HTTP_PORT" \
 	--htpasswd_file "$tmpdir/htpasswd" > "$tmpdir/bazel-remote-authenticated.log" 2>&1 &
 server_pid=$!
 

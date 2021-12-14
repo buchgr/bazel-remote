@@ -74,7 +74,7 @@ bazel run --run_under "cp -f " //:bazel-remote $(pwd)/
 echo "Starting test cache"
 test_cache_dir=./bazel-remote-tmp-cache
 rm -rf $test_cache_dir
-./bazel-remote --max_size 1 --dir "$test_cache_dir" --port "$HTTP_PORT" \
+./bazel-remote --max_size 1 --dir "$test_cache_dir" --http_address "0.0.0.0:$HTTP_PORT" \
 	--s3.endpoint 127.0.0.1:9000 \
 	--s3.bucket bazel-remote \
 	--s3.prefix files \
@@ -103,7 +103,7 @@ bazel clean 2> /dev/null
 echo "Restarting test cache"
 kill -9 $test_cache_pid
 sleep 1
-./bazel-remote --max_size 1 --dir $test_cache_dir --port "$HTTP_PORT" \
+./bazel-remote --max_size 1 --dir $test_cache_dir --http_address "0.0.0.0:$HTTP_PORT" \
 	> log.stdout 2> log.stderr &
 test_cache_pid=$!
 echo "Test cache pid: $test_cache_pid"
@@ -131,7 +131,7 @@ echo "Restarting test cache"
 kill -9 $test_cache_pid
 sleep 1
 rm -rf $test_cache_dir
-./bazel-remote --max_size 1 --dir $test_cache_dir --port "$HTTP_PORT" \
+./bazel-remote --max_size 1 --dir $test_cache_dir --http_address "0.0.0.0:$HTTP_PORT" \
 	--s3.endpoint 127.0.0.1:9000 \
 	--s3.bucket bazel-remote \
 	--s3.prefix files \
@@ -168,7 +168,7 @@ echo "Restarting test cache"
 kill -9 $test_cache_pid
 sleep 1
 rm -rf $test_cache_dir
-./bazel-remote --max_size 1 --dir $test_cache_dir --port "$HTTP_PORT" \
+./bazel-remote --max_size 1 --dir $test_cache_dir --http_address "0.0.0.0:$HTTP_PORT" \
 	> log.stdout 2> log.stderr &
 test_cache_pid=$!
 echo "Test cache pid: $test_cache_pid"
@@ -209,7 +209,7 @@ echo "Restarting test cache"
 kill -9 $test_cache_pid
 sleep 1
 rm -rf $test_cache_dir
-./bazel-remote --max_size 1 --dir $test_cache_dir --port "$HTTP_PORT" \
+./bazel-remote --max_size 1 --dir $test_cache_dir --http_address "0.0.0.0:$HTTP_PORT" \
 	--s3.endpoint 127.0.0.1:9000 \
 	--s3.bucket bazel-remote \
 	--s3.prefix files \
