@@ -36,9 +36,6 @@ access_log_level: none
 	expectedConfig := &Config{
 		HTTPAddress:                 "localhost:8080",
 		GRPCAddress:                 "localhost:9092",
-		Host:                        "localhost",
-		Port:                        8080,
-		GRPCPort:                    9092,
 		Dir:                         "/opt/cache-dir",
 		MaxSize:                     100,
 		StorageMode:                 "zstd",
@@ -82,9 +79,6 @@ gcs_proxy:
 	expectedConfig := &Config{
 		HTTPAddress: "localhost:8080",
 		GRPCAddress: "localhost:9092",
-		Host:        "localhost",
-		Port:        8080,
-		GRPCPort:    9092,
 		Dir:         "/opt/cache-dir",
 		MaxSize:     100,
 		StorageMode: "zstd",
@@ -123,9 +117,6 @@ http_proxy:
 	expectedConfig := &Config{
 		HTTPAddress: "localhost:8080",
 		GRPCAddress: "localhost:9092",
-		Host:        "localhost",
-		Port:        8080,
-		GRPCPort:    9092,
 		Dir:         "/opt/cache-dir",
 		MaxSize:     100,
 		StorageMode: "zstd",
@@ -194,8 +185,6 @@ s3_proxy:
 
 	expectedConfig := &Config{
 		HTTPAddress: "localhost:8080",
-		Host:        "localhost",
-		Port:        8080,
 		Dir:         "/opt/cache-dir",
 		MaxSize:     100,
 		StorageMode: "zstd",
@@ -233,8 +222,6 @@ profile_address: :7070
 
 	expectedConfig := &Config{
 		HTTPAddress:            "localhost:1234",
-		Host:                   "localhost",
-		Port:                   1234,
 		Dir:                    "/opt/cache-dir",
 		MaxSize:                42,
 		StorageMode:            "zstd",
@@ -280,8 +267,6 @@ endpoint_metrics_duration_buckets: [.005, .1, 5]
 
 	expectedConfig := &Config{
 		HTTPAddress:            "localhost:1234",
-		Host:                   "localhost",
-		Port:                   1234,
 		Dir:                    "/opt/cache-dir",
 		MaxSize:                42,
 		StorageMode:            "zstd",
