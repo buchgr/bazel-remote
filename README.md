@@ -541,11 +541,12 @@ $ docker run -u 1000:1000 -v /path/to/cache/dir:/data -v $HOME/.aws:/aws-config 
 
 ### Profiling
 
-To enable pprof profiling, specify a port with `--profile_port`.
+To enable pprof profiling, specify an address to listen to with
+`--profile_address`.
 
-If running inside docker, you will also need to set `--profile_host` to a
-value other than `127.0.0.1` (`--profile_host=` with an empty value should
-work) and add a `-p` mapping to the docker run commandline for the port.
+If running inside docker, you will need to use a profile_address value
+with a host other than `127.0.0.1` and add a `-p` mapping to the docker
+run commandline for the port.
 
 See [Profiling Go programs with pprof](https://jvns.ca/blog/2017/09/24/profiling-go-with-pprof/)
 for more details.
