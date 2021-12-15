@@ -68,8 +68,15 @@ type Config struct {
 	TLSConfig    *tls.Config
 	AccessLogger *log.Logger
 	ErrorLogger  *log.Logger
+}
 
-	// Deprecated fields. Retained for backwards compatibility.
+type YamlConfig struct {
+	Config `yaml:",inline"`
+
+	// Deprecated fields, retained for backwards compatibility when
+	// parsing config files.
+
+	// If set, these will be used to populate *Address fields.
 	Host        string `yaml:"host"`
 	Port        int    `yaml:"port"`
 	GRPCPort    int    `yaml:"grpc_port"`
@@ -163,30 +170,33 @@ func newFromYamlFile(path string) (*Config, error) {
 }
 
 func newFromYaml(data []byte) (*Config, error) {
-	c := Config{
-		StorageMode:            "zstd",
-		NumUploaders:           100,
-		MaxQueuedUploads:       1000000,
-		MaxBlobSize:            math.MaxInt64,
-		MetricsDurationBuckets: defaultDurationBuckets,
-		AccessLogLevel:         "all",
+	yc := YamlConfig{
+		Config: Config{
+			StorageMode:            "zstd",
+			NumUploaders:           100,
+			MaxQueuedUploads:       1000000,
+			MaxBlobSize:            math.MaxInt64,
+			MetricsDurationBuckets: defaultDurationBuckets,
+			AccessLogLevel:         "all",
+		},
 	}
 
-	err := yaml.Unmarshal(data, &c)
+	err := yaml.Unmarshal(data, &yc)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse YAML config: %v", err)
 	}
+	c := yc.Config
 
 	if c.HTTPAddress == "" {
-		c.HTTPAddress = net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
+		c.HTTPAddress = net.JoinHostPort(yc.Host, strconv.Itoa(yc.Port))
 	}
 
-	if c.GRPCAddress == "" && c.GRPCPort > 0 {
-		c.GRPCAddress = net.JoinHostPort(c.Host, strconv.Itoa(c.GRPCPort))
+	if c.GRPCAddress == "" && yc.GRPCPort > 0 {
+		c.GRPCAddress = net.JoinHostPort(yc.Host, strconv.Itoa(yc.GRPCPort))
 	}
 
-	if c.ProfileAddress == "" && c.ProfilePort > 0 {
-		c.ProfileAddress = net.JoinHostPort(c.ProfileHost, strconv.Itoa(c.ProfilePort))
+	if c.ProfileAddress == "" && yc.ProfilePort > 0 {
+		c.ProfileAddress = net.JoinHostPort(yc.ProfileHost, strconv.Itoa(yc.ProfilePort))
 	}
 
 	if c.MetricsDurationBuckets != nil {
