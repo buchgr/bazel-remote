@@ -185,3 +185,23 @@ container_push(
     tag = "tmp-arm64",
     visibility = ["//visibility:public"],
 )
+
+container_push(
+    name = "push_to_quayio_amd64",
+    format = "Docker",
+    image = ":bazel-remote-image",
+    registry = "quay.io",
+    repository = "bazel-remote/bazel-remote",
+    tag = "tmp-amd64",
+    visibility = ["//visibility:public"],
+)
+
+container_push(
+    name = "push_to_quayio_arm64",
+    format = "Docker",
+    image = ":bazel-remote-image-arm64",
+    registry = "quay.io",
+    repository = "bazel-remote/bazel-remote",
+    tag = "tmp-arm64",
+    visibility = ["//visibility:public"],
+)

@@ -435,14 +435,23 @@ http_address: localhost:8080
 ### Prebuilt Image
 
 We publish docker images to [DockerHub](https://hub.docker.com/r/buchgr/bazel-remote-cache/)
+and [quay.io](https://quay.io/repository/bazel-remote/bazel-remote)
 that you can use with `docker run`. The following commands will start bazel-remote with uid
 and gid `1000` on port `9090` for HTTP and `9092` for gRPC, with the default maximum cache
 size of `5 GiB`.
 
 ```bash
+# Dockerhub example:
 $ docker pull buchgr/bazel-remote-cache
 $ docker run -u 1000:1000 -v /path/to/cache/dir:/data \
 	-p 9090:8080 -p 9092:9092 buchgr/bazel-remote-cache
+```
+
+```bash
+# quay.io example:
+$ docker pull quay.io/bazel-remote/bazel-remote
+$ docker run -u 1000:1000 -v /path/to/cache/dir:/data \
+	-p 9090:8080 -p 9092:9092 quay.io/bazel-remote/bazel-remote
 ```
 
 Note that you will need to change `/path/to/cache/dir` to a valid directory that is readable

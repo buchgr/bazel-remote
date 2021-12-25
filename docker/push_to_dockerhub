@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 script_dir=$(dirname "${BASH_SOURCE[0]}")
 cd "${script_dir}/.."
@@ -36,4 +37,14 @@ docker manifest create buchgr/bazel-remote-cache:$tag \
 # Push the multiarch manifest
 docker manifest push buchgr/bazel-remote-cache:$tag
 
-echo "Go ahead and delete the tmp-amd64 and tmp-arm64 images from the web ui"
+# Repeat for quay.io:
+
+bazel run //:push_to_quayio_amd64
+bazel run //:push_to_quayio_arm64
+docker manifest rm quay.io/bazel-remote/bazel-remote:$tag
+docker manifest create quay.io/bazel-remote/bazel-remote:$tag \
+	--amend quay.io/bazel-remote/bazel-remote:tmp-amd64 \
+	--amend quay.io/bazel-remote/bazel-remote:tmp-arm64
+docker manifest push quay.io/bazel-remote/bazel-remote:$tag
+
+echo "Go ahead and delete the tmp-amd64 and tmp-arm64 images from the web ui(s)"
