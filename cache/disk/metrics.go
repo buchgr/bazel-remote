@@ -36,25 +36,31 @@ func (m *metricsDecorator) RegisterMetrics() {
 
 func (m *metricsDecorator) Get(ctx context.Context, kind cache.EntryKind, hash string, size int64, offset int64) (io.ReadCloser, int64, error) {
 	rc, size, err := m.diskCache.Get(ctx, kind, hash, size, offset)
+	if err != nil {
+		return rc, size, err
+	}
 
 	lbls := prometheus.Labels{"method": getMethod, "kind": kind.String()}
 	if rc != nil {
 		lbls["status"] = hitStatus
-	} else if err == nil {
+	} else {
 		lbls["status"] = missStatus
 	}
 	m.counter.With(lbls).Inc()
 
-	return rc, size, err
+	return rc, size, nil
 }
 
 func (m *metricsDecorator) GetValidatedActionResult(ctx context.Context, hash string) (*pb.ActionResult, []byte, error) {
 	ar, data, err := m.diskCache.GetValidatedActionResult(ctx, hash)
+	if err != nil {
+		return ar, data, err
+	}
 
 	lbls := prometheus.Labels{"method": getMethod, "kind": acKind}
 	if ar != nil {
 		lbls["status"] = hitStatus
-	} else if err == nil {
+	} else {
 		lbls["status"] = missStatus
 	}
 	m.counter.With(lbls).Inc()
@@ -64,6 +70,9 @@ func (m *metricsDecorator) GetValidatedActionResult(ctx context.Context, hash st
 
 func (m *metricsDecorator) GetZstd(ctx context.Context, hash string, size int64, offset int64) (io.ReadCloser, int64, error) {
 	rc, size, err := m.diskCache.GetZstd(ctx, hash, size, offset)
+	if err != nil {
+		return rc, size, err
+	}
 
 	lbls := prometheus.Labels{
 		"method": getMethod,
@@ -71,12 +80,12 @@ func (m *metricsDecorator) GetZstd(ctx context.Context, hash string, size int64,
 	}
 	if rc != nil {
 		lbls["status"] = hitStatus
-	} else if err == nil {
+	} else {
 		lbls["status"] = missStatus
 	}
 	m.counter.With(lbls).Inc()
 
-	return rc, size, err
+	return rc, size, nil
 }
 
 func (m *metricsDecorator) Contains(ctx context.Context, kind cache.EntryKind, hash string, size int64) (bool, int64) {
@@ -96,6 +105,10 @@ func (m *metricsDecorator) Contains(ctx context.Context, kind cache.EntryKind, h
 func (m *metricsDecorator) FindMissingCasBlobs(ctx context.Context, blobs []*pb.Digest) ([]*pb.Digest, error) {
 	numLooking := len(blobs)
 	digests, err := m.diskCache.FindMissingCasBlobs(ctx, blobs)
+	if err != nil {
+		return digests, err
+	}
+
 	numFound := len(digests)
 
 	numMissing := numLooking - numFound
@@ -117,5 +130,5 @@ func (m *metricsDecorator) FindMissingCasBlobs(ctx context.Context, blobs []*pb.
 	hits.Add(float64(numFound))
 	misses.Add(float64(numMissing))
 
-	return digests, err
+	return digests, nil
 }
