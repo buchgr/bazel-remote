@@ -201,9 +201,9 @@ go_repository(
 
 http_archive(
     name = "io_bazel_rules_docker",
-    sha256 = "feb53c560be2f97b7d02b23a1738a3154ba89fe630f09a7a838dcad38731b0b8",
-    strip_prefix = "rules_docker-faaa10a72fa9abde070e2a20d6046e9f9b849e9a",
-    urls = ["https://github.com/bazelbuild/rules_docker/archive/faaa10a72fa9abde070e2a20d6046e9f9b849e9a.tar.gz"],
+    sha256 = "59536e6ae64359b716ba9c46c39183403b01eabfbd57578e84398b4829ca499a",
+    strip_prefix = "rules_docker-0.22.0",
+    urls = ["https://github.com/bazelbuild/rules_docker/releases/download/v0.22.0/rules_docker-v0.22.0.tar.gz"],
 )
 
 load(
@@ -216,10 +216,6 @@ container_repositories()
 load("@io_bazel_rules_docker//repositories:deps.bzl", container_deps = "deps")
 
 container_deps()
-
-load("@io_bazel_rules_docker//repositories:pip_repositories.bzl", "pip_deps")
-
-pip_deps()
 
 load(
     "@io_bazel_rules_docker//go:image.bzl",
