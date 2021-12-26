@@ -31,7 +31,7 @@ jobs:
         id: release_version
         run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\/v/}
       - name: upload linux amd64
-        id: upload-release-asset
+        id: upload-release-asset-linux-amd64
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -40,8 +40,8 @@ jobs:
           asset_path: bazel-remote-linux-amd64
           asset_name: bazel-remote-${{ steps.release_version.outputs.VERSION }}-linux-x86_64
           asset_content_type: application/octet-stream
-      - name: upload arm64
-        id: upload-release-asset
+      - name: upload linux arm64
+        id: upload-release-asset-linux-arm64
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -75,8 +75,8 @@ jobs:
       - name: get release version
         id: release_version
         run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\/v/}
-      - name: upload amd64
-        id: upload-release-asset
+      - name: upload darwin amd64
+        id: upload-release-asset-darwin-amd64
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -85,8 +85,8 @@ jobs:
           asset_path: bazel-remote-darwin-amd64
           asset_name: bazel-remote-${{ steps.release_version.outputs.VERSION }}-darwin-x86_64
           asset_content_type: application/octet-stream
-      - name: upload arm64
-        id: upload-release-asset
+      - name: upload darwin arm64
+        id: upload-release-asset-darwin-arm64
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
