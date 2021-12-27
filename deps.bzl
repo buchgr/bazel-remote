@@ -1,6 +1,13 @@
+"""
+Code generated from go.sum by //:gazelle-update-repos
+"""
+
 load("@bazel_gazelle//:deps.bzl", "go_repository")
 
 def go_dependencies():
+    """
+    Managed by gazelle. Add "# keep" comment to modified lines.
+    """
     go_repository(
         name = "co_honnef_go_tools",
         importpath = "honnef.co/go/tools",
