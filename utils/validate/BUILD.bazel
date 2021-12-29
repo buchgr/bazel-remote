@@ -1,9 +1,16 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "go_default_library",
     srcs = ["action_result.go"],
     importpath = "github.com/buchgr/bazel-remote/utils/validate",
     visibility = ["//visibility:public"],
+    deps = ["//genproto/build/bazel/remote/execution/v2:go_default_library"],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = ["action_result_test.go"],
+    embed = [":go_default_library"],
     deps = ["//genproto/build/bazel/remote/execution/v2:go_default_library"],
 )
