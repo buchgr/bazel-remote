@@ -25,6 +25,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
 
@@ -117,7 +118,8 @@ func dial(serverAddr string, caCertFile string, clientCertFile string, clientKey
 	}
 
 	if caCertFile == "" {
-		dialOpts = append(dialOpts, grpc.WithInsecure())
+		creds := insecure.NewCredentials()
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(creds))
 	} else {
 		fmt.Println("reading", caCertFile)
 

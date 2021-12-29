@@ -22,6 +22,7 @@ import (
 	"google.golang.org/genproto/googleapis/bytestream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
@@ -108,7 +109,8 @@ func TestMain(m *testing.M) {
 	}()
 
 	conn, err := grpc.Dial("bufnet",
-		grpc.WithInsecure(), grpc.WithContextDialer(bufDialer))
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(bufDialer))
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
