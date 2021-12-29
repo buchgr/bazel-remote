@@ -11,13 +11,15 @@ import (
 	"net"
 	"strings"
 
+	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/utils/validate"
+
 	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-
-	"github.com/buchgr/bazel-remote/cache"
 )
 
 var (
@@ -80,6 +82,13 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 		if err != nil {
 			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 			return nil, status.Error(codes.Unknown, err.Error())
+		}
+
+		// This doesn't check deps, but does check for invalid fields.
+		err = validate.ActionResult(result)
+		if err != nil {
+			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+			return nil, status.Error(codes.Internal, err.Error())
 		}
 
 		s.accessLogger.Printf("%s %s OK", logPrefix, req.ActionDigest.Hash)
@@ -204,6 +213,12 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 
 	logPrefix := "GRPC AC PUT"
 	err := s.validateHash(req.ActionDigest.Hash, req.ActionDigest.SizeBytes, logPrefix)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate the ActionResult's immediate fields, but don't check for dependent blobs.
+	err = validate.ActionResult(req.ActionResult)
 	if err != nil {
 		return nil, err
 	}

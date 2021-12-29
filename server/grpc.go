@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"regexp"
 
 	"google.golang.org/genproto/googleapis/bytestream"
 	"google.golang.org/grpc"
@@ -21,6 +20,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
+	"github.com/buchgr/bazel-remote/utils/validate"
 
 	_ "github.com/mostynb/go-grpc-compression/snappy" // Register snappy
 	_ "github.com/mostynb/go-grpc-compression/zstd"   // and zstd support.
@@ -29,11 +29,6 @@ import (
 const (
 	hashKeyLength = 64
 	emptySha256   = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-)
-
-var (
-	// Cache keys must be lower case asciified SHA256 sums.
-	hashKeyRegex = regexp.MustCompile("^[a-f0-9]{64}$")
 )
 
 type grpcServer struct {
@@ -141,7 +136,7 @@ func (s *grpcServer) validateHash(hash string, size int64, logPrefix string) err
 		return status.Error(codes.InvalidArgument, msg)
 	}
 
-	if !hashKeyRegex.MatchString(hash) {
+	if !validate.HashKeyRegex.MatchString(hash) {
 		msg := "Malformed hash"
 		s.accessLogger.Printf("%s %s: %s", logPrefix, hash, msg)
 		return status.Error(codes.InvalidArgument, msg)

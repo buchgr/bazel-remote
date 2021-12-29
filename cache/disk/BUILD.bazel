@@ -16,6 +16,7 @@ go_library(
         "//cache/disk/casblob:go_default_library",
         "//genproto/build/bazel/remote/execution/v2:go_default_library",
         "//utils/tempfile:go_default_library",
+        "//utils/validate:go_default_library",
         "@com_github_djherbis_atime//:go_default_library",
         "@com_github_prometheus_client_golang//prometheus:go_default_library",
         "@org_golang_google_grpc//codes:go_default_library",

@@ -17,7 +17,10 @@ import (
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
+	"github.com/buchgr/bazel-remote/utils/validate"
+
 	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
+
 	"github.com/klauspost/compress/zstd"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -349,16 +352,30 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Ensure that the serialized ActionResult has non-zero length.
-			data, code, err := addWorkerMetadataHTTP(r.RemoteAddr, r.Header.Get("Content-Type"), data)
+			ar, code, err := addWorkerMetadataHTTP(r.RemoteAddr, r.Header.Get("Content-Type"), data)
 			if err != nil {
 				http.Error(w, err.Error(), code)
 				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), err.Error())
 				return
 			}
-			contentLength = int64(len(data))
 
-			// Note: we do not currently verify that the blobs exist
-			// in the CAS.
+			// Note: we do not currently verify that the blobs exist in the CAS.
+			err = validate.ActionResult(ar)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), err.Error())
+				return
+			}
+
+			data, err = proto.Marshal(ar)
+			if err != nil {
+				msg := "Failed to marshal ActionResult"
+				http.Error(w, msg, http.StatusInternalServerError)
+				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
+				return
+			}
+
+			contentLength = int64(len(data))
 
 			rdr = bytes.NewReader(data)
 		}
@@ -424,7 +441,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func addWorkerMetadataHTTP(addr string, ct string, orig []byte) (data []byte, code int, err error) {
+func addWorkerMetadataHTTP(addr string, ct string, orig []byte) (actionResult *pb.ActionResult, code int, err error) {
 	ar := &pb.ActionResult{}
 	if ct == "application/json" {
 		err = protojson.Unmarshal(orig, ar)
@@ -432,13 +449,13 @@ func addWorkerMetadataHTTP(addr string, ct string, orig []byte) (data []byte, co
 		err = proto.Unmarshal(orig, ar)
 	}
 	if err != nil {
-		return orig, http.StatusBadRequest, err
+		return nil, http.StatusBadRequest, err
 	}
 
 	if ar.ExecutionMetadata == nil {
 		ar.ExecutionMetadata = &pb.ExecutedActionMetadata{}
 	} else if ar.ExecutionMetadata.Worker != "" {
-		return orig, http.StatusOK, nil
+		return ar, http.StatusOK, nil
 	}
 
 	worker := addr
@@ -451,12 +468,7 @@ func addWorkerMetadataHTTP(addr string, ct string, orig []byte) (data []byte, co
 
 	ar.ExecutionMetadata.Worker = worker
 
-	data, err = proto.Marshal(ar)
-	if err != nil {
-		return orig, http.StatusInternalServerError, err
-	}
-
-	return data, http.StatusOK, nil
+	return ar, http.StatusOK, nil
 }
 
 // Produce a debugging page with some stats about the cache.

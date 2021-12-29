@@ -23,6 +23,7 @@ import (
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk/casblob"
 	"github.com/buchgr/bazel-remote/utils/tempfile"
+	"github.com/buchgr/bazel-remote/utils/validate"
 
 	"github.com/djherbis/atime"
 
@@ -35,8 +36,6 @@ import (
 var tfc = tempfile.NewCreator()
 
 var emptyZstdBlob = []byte{40, 181, 47, 253, 32, 0, 1, 0, 0}
-
-var hashKeyRegex = regexp.MustCompile("^[a-f0-9]{64}$")
 
 type Cache interface {
 	Get(ctx context.Context, kind cache.EntryKind, hash string, size int64, offset int64) (io.ReadCloser, int64, error)
@@ -332,7 +331,7 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 					continue
 				}
 
-				if !hashKeyRegex.MatchString(oldName) {
+				if !validate.HashKeyRegex.MatchString(oldName) {
 					log.Println("Warning: skipping unexpected file:", oldNamePath)
 					continue
 				}
@@ -391,7 +390,7 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 
 			oldPath := path.Join(oldDir, item.Name())
 
-			if !hashKeyRegex.MatchString(item.Name()) {
+			if !validate.HashKeyRegex.MatchString(item.Name()) {
 				return fmt.Errorf("Unexpected file: %s", oldPath)
 			}
 
@@ -409,7 +408,7 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 	for _, item := range listing {
 		oldPath := path.Join(oldDir, item.Name())
 
-		if !hashKeyRegex.MatchString(item.Name()) {
+		if !validate.HashKeyRegex.MatchString(item.Name()) {
 			return fmt.Errorf("Unexpected file: %s %s", oldPath, item.Name())
 		}
 
@@ -1105,20 +1104,14 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 		return nil, nil, err
 	}
 
-	for _, f := range result.OutputFiles {
-		if f == nil {
-			return nil, nil, fmt.Errorf("nil output file")
-		}
-		if f.Path == "" {
-			return nil, nil, fmt.Errorf("empty path: %q", f.Path)
-		}
-		if strings.HasPrefix(f.Path, "/") {
-			return nil, nil, fmt.Errorf("absolute path in output file: %q", f.Path)
-		}
-		if f.Digest == nil {
-			return nil, nil, fmt.Errorf("nil digest for path: %q", f.Path)
-		}
+	// Validate the ActionResult's immediate fields, but don't check for dependent blobs.
+	err = validate.ActionResult(result)
+	if err != nil {
+		return nil, nil, err // Should we return "not found" instead of an error?
+	}
 
+	for _, f := range result.OutputFiles {
+		// f was validated in validate.ActionResult but blobs were not checked for existence
 		if len(f.Contents) == 0 {
 			found, _ := c.Contains(ctx, cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
 			if !found {
@@ -1128,16 +1121,7 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 	}
 
 	for _, d := range result.OutputDirectories {
-		if d == nil {
-			return nil, nil, fmt.Errorf("nil output directory")
-		}
-		if strings.HasPrefix(d.Path, "/") {
-			return nil, nil, fmt.Errorf("absolute path in output directory: %q", d.Path)
-		}
-		if d.TreeDigest == nil {
-			return nil, nil, fmt.Errorf("nil tree digest for path: %q", d.Path)
-		}
-
+		// d was validated in validate.ActionResult but blobs were not checked for existence
 		r, size, err := c.Get(ctx, cache.CAS, d.TreeDigest.Hash, d.TreeDigest.SizeBytes, 0)
 		if r == nil {
 			return nil, nil, err // aka "not found", or an err if non-nil

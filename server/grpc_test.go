@@ -1398,22 +1398,368 @@ func TestBadUpdateActionResultRequest(t *testing.T) {
 		SizeBytes: 1,
 	}
 
-	upACReq := pb.UpdateActionResultRequest{
-		ActionDigest: &digest,
-		ActionResult: &pb.ActionResult{
-			OutputFiles: []*pb.OutputFile{
-				{
-					Path:     "foo/bar",
-					Contents: []byte{0, 1, 2, 3, 4},
-					// Note: nil digest.
+	// Each of these ActionResults should have exactly one invalid field,
+	// and none of them should be accepted by UpdateActioResult.
+	tcs := []struct {
+		description  string // What makes the ActionResult invalid.
+		actionResult *pb.ActionResult
+	}{
+		{
+			description: "nil *OutputFile",
+			actionResult: &pb.ActionResult{
+				OutputFiles: []*pb.OutputFile{nil},
+			},
+		},
+		{
+			description: "nil OutputFile digest",
+			actionResult: &pb.ActionResult{
+				OutputFiles: []*pb.OutputFile{
+					{
+						Path:     "foo/bar",
+						Contents: []byte{0, 1, 2, 3, 4},
+						// Note: nil digest.
+					},
+				},
+			},
+		},
+		{
+			description: "empty OutputFile path",
+			actionResult: &pb.ActionResult{
+				OutputFiles: []*pb.OutputFile{
+					{
+						// Note: empty path
+						Contents: []byte{0, 1, 2, 3, 4},
+						Digest: &pb.Digest{
+							Hash:      "08bb5e5d6eaac1049ede0893d30ed022b1a4d9b5b48db414871f51c9cb35283d",
+							SizeBytes: 5,
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "absolute OutputFile path",
+			actionResult: &pb.ActionResult{
+				OutputFiles: []*pb.OutputFile{
+					{
+						Path:     "/foo/bar", // Note: absolute path.
+						Contents: []byte{0, 1, 2, 3, 4},
+						Digest: &pb.Digest{
+							Hash:      "08bb5e5d6eaac1049ede0893d30ed022b1a4d9b5b48db414871f51c9cb35283d",
+							SizeBytes: 5,
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "OutputFile negative digest",
+			actionResult: &pb.ActionResult{
+				OutputFiles: []*pb.OutputFile{
+					{
+						Path:     "foo/bar",
+						Contents: []byte{0, 1, 2, 3, 4},
+						Digest: &pb.Digest{
+							Hash:      "08bb5e5d6eaac1049ede0893d30ed022b1a4d9b5b48db414871f51c9cb35283d",
+							SizeBytes: -5, // Note: negative.
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "OutputFile long digest",
+			actionResult: &pb.ActionResult{
+				OutputFiles: []*pb.OutputFile{
+					{
+						Path:     "foo/bar",
+						Contents: []byte{0, 1, 2, 3, 4},
+						Digest: &pb.Digest{
+							Hash:      "08bb5e5d6eaac1049ede0893d30ed022b1a4d9b5b48db414871f51c9cb35283ddddddddd", // Note: too long.
+							SizeBytes: 5,
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "OutputFile short digest",
+			actionResult: &pb.ActionResult{
+				OutputFiles: []*pb.OutputFile{
+					{
+						Path:     "foo/bar",
+						Contents: []byte{0, 1, 2, 3, 4},
+						Digest: &pb.Digest{
+							Hash:      "08bb5e5d6eaac1049ede0893d30ed022b1a4d9b5b48db414871f51c9cb35283", // Note: too short.
+							SizeBytes: 5,
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "OutputFile uppercase digest",
+			actionResult: &pb.ActionResult{
+				OutputFiles: []*pb.OutputFile{
+					{
+						Path:     "foo/bar",
+						Contents: []byte{0, 1, 2, 3, 4},
+						Digest: &pb.Digest{
+							Hash:      "08BB5E5D6EAAC1049EDE0893D30ED022B1A4D9B5B48DB414871F51C9CB35283D", // Note: uppercase chars.
+							SizeBytes: 5,
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "OutputFile non-hex digest",
+			actionResult: &pb.ActionResult{
+				OutputFiles: []*pb.OutputFile{
+					{
+						Path:     "foo/bar",
+						Contents: []byte{0, 1, 2, 3, 4},
+						Digest: &pb.Digest{
+							Hash:      "08bb5e5d6eaac1049ede0893d30ed022b1a4d9b5b48db414871f51c9cb35283g", // Note: non-hex chars.
+							SizeBytes: 5,
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "nil *OutputDirectory",
+			actionResult: &pb.ActionResult{
+				OutputDirectories: []*pb.OutputDirectory{nil},
+			},
+		},
+		{
+			description: "absolute OutputDirectory path",
+			actionResult: &pb.ActionResult{
+				OutputDirectories: []*pb.OutputDirectory{
+					{
+						Path: "/foo/bar", // Note: absolute path.
+						TreeDigest: &pb.Digest{
+							Hash:      "08bb5e5d6eaac1049ede0893d30ed022b1a4d9b5b48db414871f51c9cb35283d",
+							SizeBytes: 5,
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "nil OutputDirectory TreeDigest",
+			actionResult: &pb.ActionResult{
+				OutputDirectories: []*pb.OutputDirectory{
+					{
+						Path: "foo/bar",
+						// Note: nil TreeDigest.
+					},
+				},
+			},
+		},
+		{
+			description: "OutputDirectory negative tree digest",
+			actionResult: &pb.ActionResult{
+				OutputDirectories: []*pb.OutputDirectory{
+					{
+						Path: "foo/bar",
+						TreeDigest: &pb.Digest{
+							Hash:      "08bb5e5d6eaac1049ede0893d30ed022b1a4d9b5b48db414871f51c9cb35283d",
+							SizeBytes: -5, // Note: negative.
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "OutputDirectory long tree digest",
+			actionResult: &pb.ActionResult{
+				OutputDirectories: []*pb.OutputDirectory{
+					{
+						Path: "foo/bar",
+						TreeDigest: &pb.Digest{
+							Hash:      "08bb5e5d6eaac1049ede0893d30ed022b1a4d9b5b48db414871f51c9cb35283dd", // Note: too long.
+							SizeBytes: 5,
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "OutputDirectory short tree digest",
+			actionResult: &pb.ActionResult{
+				OutputDirectories: []*pb.OutputDirectory{
+					{
+						Path: "foo/bar",
+						TreeDigest: &pb.Digest{
+							Hash:      "08bb5e5d6eaac1049ede0893d30ed022b1a4d9b5b48db414871f51c9cb35283", // Note: too short.
+							SizeBytes: 5,
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "OutputDirectory uppercase tree digest",
+			actionResult: &pb.ActionResult{
+				OutputDirectories: []*pb.OutputDirectory{
+					{
+						Path: "foo/bar",
+						TreeDigest: &pb.Digest{
+							Hash:      "08BB5E5D6EAAC1049EDE0893D30ED022B1A4D9B5B48DB414871F51C9CB35283D", // Note: uppercase chars.
+							SizeBytes: 5,
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "OutputDirectory non-hex digest",
+			actionResult: &pb.ActionResult{
+				OutputDirectories: []*pb.OutputDirectory{
+					{
+						Path: "foo/bar",
+						TreeDigest: &pb.Digest{
+							Hash:      "08bb5e5d6eaac1049ede0893d30ed022b1a4d9b5b48db414871f51c9cb35283g", // Note: non-hex chars.
+							SizeBytes: 5,
+						},
+					},
+				},
+			},
+		},
+
+		{
+			description: "nil pointer in OutputFileSymlinks",
+			actionResult: &pb.ActionResult{
+				OutputFileSymlinks: []*pb.OutputSymlink{nil},
+			},
+		},
+		{
+			description: "absolute path in OutputFileSymlinks",
+			actionResult: &pb.ActionResult{
+				OutputFileSymlinks: []*pb.OutputSymlink{
+					{
+						Path:   "/foo/bar", // Note: absolute path.
+						Target: "grok",
+					},
+				},
+			},
+		},
+		{
+			description: "empty path in OutputFileSymlinks",
+			actionResult: &pb.ActionResult{
+				OutputFileSymlinks: []*pb.OutputSymlink{
+					{
+						// Note: empty path.
+						Target: "grok",
+					},
+				},
+			},
+		},
+		{
+			description: "empty target in OutputFileSymlinks",
+			actionResult: &pb.ActionResult{
+				OutputFileSymlinks: []*pb.OutputSymlink{
+					{
+						Path: "foo/bar",
+						// Note: empty target.
+					},
+				},
+			},
+		},
+
+		{
+			description: "nil pointer in OutputSymlinks",
+			actionResult: &pb.ActionResult{
+				OutputSymlinks: []*pb.OutputSymlink{nil},
+			},
+		},
+		{
+			description: "absolute path in OutputSymlinks",
+			actionResult: &pb.ActionResult{
+				OutputSymlinks: []*pb.OutputSymlink{
+					{
+						Path:   "/foo/bar", // Note: absolute path.
+						Target: "grok",
+					},
+				},
+			},
+		},
+		{
+			description: "empty path in OutputSymlinks",
+			actionResult: &pb.ActionResult{
+				OutputSymlinks: []*pb.OutputSymlink{
+					{
+						// Note: empty path.
+						Target: "grok",
+					},
+				},
+			},
+		},
+		{
+			description: "empty target in OutputSymlinks",
+			actionResult: &pb.ActionResult{
+				OutputSymlinks: []*pb.OutputSymlink{
+					{
+						Path: "foo/bar",
+						// Note: empty target.
+					},
+				},
+			},
+		},
+
+		{
+			description: "nil pointer in OutputDirectorySymlinks",
+			actionResult: &pb.ActionResult{
+				OutputDirectorySymlinks: []*pb.OutputSymlink{nil},
+			},
+		},
+		{
+			description: "absolute path in OutputDirectorySymlinks",
+			actionResult: &pb.ActionResult{
+				OutputDirectorySymlinks: []*pb.OutputSymlink{
+					{
+						Path:   "/foo/bar", // Note: absolute path.
+						Target: "grok",
+					},
+				},
+			},
+		},
+		{
+			description: "empty path in OutputDirectorySymlinks",
+			actionResult: &pb.ActionResult{
+				OutputDirectorySymlinks: []*pb.OutputSymlink{
+					{
+						// Note: empty path.
+						Target: "grok",
+					},
+				},
+			},
+		},
+		{
+			description: "empty target in OutputDirectorySymlinks",
+			actionResult: &pb.ActionResult{
+				OutputDirectorySymlinks: []*pb.OutputSymlink{
+					{
+						Path: "foo/bar",
+						// Note: empty target.
+					},
 				},
 			},
 		},
 	}
 
-	_, err := acClient.UpdateActionResult(ctx, &upACReq)
-	if err != nil {
-		t.Fatal(err)
+	for _, tc := range tcs {
+		upACReq := pb.UpdateActionResultRequest{
+			ActionDigest: &digest,
+			ActionResult: tc.actionResult,
+		}
+
+		_, err := acClient.UpdateActionResult(ctx, &upACReq)
+		if err == nil {
+			t.Error("invalid ActionResult accepted:", tc.description)
+		}
 	}
 }
 
