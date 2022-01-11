@@ -437,8 +437,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_klauspost_compress",
         importpath = "github.com/klauspost/compress",
-        sum = "h1:P76CopJELS0TiO2mebmnzgWaajssP/EszplttgQxcgc=",
-        version = "v1.13.6",
+        sum = "h1:hLQYb23E8/fO+1u53d02A97a8UnsddcvYzq4ERRU4ds=",
+        version = "v1.14.1",
     )
     go_repository(
         name = "com_github_klauspost_cpuid",
@@ -564,14 +564,14 @@ def go_dependencies():
     go_repository(
         name = "com_github_mostynb_go_grpc_compression",
         importpath = "github.com/mostynb/go-grpc-compression",
-        sum = "h1:9pLWmZldgo3vstd3yGyNgpCzY5gvhCrCj3PyvnvlDiY=",
-        version = "v1.1.15",
+        sum = "h1:D9tGUINmcII049pxOj9dl32Fzhp26TrDVQXECoKJqQg=",
+        version = "v1.1.16",
     )
     go_repository(
         name = "com_github_mostynb_zstdpool_syncpool",
         importpath = "github.com/mostynb/zstdpool-syncpool",
-        sum = "h1:mc1yt5PO+PloYLzLRO3Sb9DksZ8qgcpAk+HdQrZiaLY=",
-        version = "v0.0.11",
+        sum = "h1:vE8zD0+YdQD9Rca0TAGNexUCOCt1IQbdqRUHJoxxERA=",
+        version = "v0.0.12",
     )
     go_repository(
         name = "com_github_mwitkow_go_conntrack",

@@ -9,10 +9,10 @@ require (
 	github.com/google/go-cmp v0.5.6
 	github.com/google/uuid v1.3.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
-	github.com/klauspost/compress v1.13.6
+	github.com/klauspost/compress v1.14.1
 	github.com/minio/minio-go/v7 v7.0.20
-	github.com/mostynb/go-grpc-compression v1.1.15
-	github.com/mostynb/zstdpool-syncpool v0.0.11
+	github.com/mostynb/go-grpc-compression v1.1.16
+	github.com/mostynb/zstdpool-syncpool v0.0.12
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/slok/go-http-metrics v0.10.0
