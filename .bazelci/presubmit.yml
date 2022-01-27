@@ -46,13 +46,14 @@ tasks:
       - ".bazelci/buildkite-install-go.sh"
       - "echo +++ Running go test with race detector"
       - "PATH=$HOME/go/bin:$PATH go test -race ./..."
-  end_to_end_test:
-    platform: ubuntu2004
-    name: "end-to-end test"
-    shell_commands:
-      - ".bazelci/buildkite-install-go.sh"
-      - "echo +++ Run end-to-end system test"
-      - "PATH=$HOME/go/bin:$PATH .bazelci/system-test.sh"
+  # DISABLED: "mc config" hangs on bazelCI for some reason?
+  #end_to_end_test:
+  #  platform: ubuntu2004
+  #  name: "end-to-end test"
+  #  shell_commands:
+  #    - ".bazelci/buildkite-install-go.sh"
+  #    - "echo +++ Run end-to-end system test"
+  #    - "PATH=$HOME/go/bin:$PATH .bazelci/system-test.sh"
   tls_tests:
     platform: ubuntu2004
     name: "TLS tests"
