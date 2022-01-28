@@ -21,15 +21,6 @@ var (
 		"access denied")
 )
 
-var readOnlyMethods = map[string]struct{}{
-	"/build.bazel.remote.execution.v2.ActionCache/GetActionResult":                {},
-	"/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs": {},
-	"/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs":   {},
-	"/build.bazel.remote.execution.v2.ContentAddressableStorage/GetTree":          {},
-	"/build.bazel.remote.execution.v2.Capabilities/GetCapabilities":               {},
-	"/google.bytestream.ByteStream/Read":                                          {},
-}
-
 // GrpcBasicAuth wraps an auth.SecretProvider, and provides gRPC interceptors
 // that verify that requests can be authenticated using HTTP basic auth.
 type GrpcBasicAuth struct {
@@ -46,9 +37,14 @@ func NewGrpcBasicAuth(secrets auth.SecretProvider, allowUnauthenticatedReadOnly 
 	}
 }
 
-// StreamServerInterceptor returns a streaming server interceptor that
-// verifies that each request can be authenticated using HTTP basic auth.
+// StreamServerInterceptor verifies that each request can be authenticated
+// using HTTP basic auth, or is allowed without authentication.
 func (b *GrpcBasicAuth) StreamServerInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+
+	// Always allow health service requests.
+	if info.FullMethod == grpcHealthServiceName {
+		return handler(srv, ss)
+	}
 
 	if b.allowUnauthenticatedReadOnly {
 		_, ro := readOnlyMethods[info.FullMethod]
@@ -72,9 +68,14 @@ func (b *GrpcBasicAuth) StreamServerInterceptor(srv interface{}, ss grpc.ServerS
 	return handler(srv, ss)
 }
 
-// UnaryServerInterceptor returns a unary server interceptor that verifies
-// that each request can be authenticated using HTTP basic auth.
+// UnaryServerInterceptor verifies that each request can be authenticated
+// using HTTP basic auth, or is allowed without authenticated.
 func (b *GrpcBasicAuth) UnaryServerInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+
+	// Always allow health service requests.
+	if info.FullMethod == grpcHealthServiceName {
+		return handler(ctx, req)
+	}
 
 	if b.allowUnauthenticatedReadOnly {
 		_, ro := readOnlyMethods[info.FullMethod]

@@ -95,15 +95,6 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 
 	// Cache miss.
 
-	if s.checkClientCertForWrites {
-		err := checkGRPCClientCert(ctx)
-		if err != nil {
-			return &asset.FetchBlobResponse{
-				Status: &status.Status{Code: int32(codes.NotFound)},
-			}, nil
-		}
-	}
-
 	// See if we can download one of the URIs.
 
 	for _, uri := range req.GetUris() {

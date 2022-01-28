@@ -11,6 +11,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	_ "google.golang.org/grpc/encoding/gzip" // Register gzip support.
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
@@ -31,13 +33,23 @@ const (
 	emptySha256   = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 )
 
+const grpcHealthServiceName = "/grpc.health.v1.Health/Check"
+
 type grpcServer struct {
-	cache                    disk.Cache
-	accessLogger             cache.Logger
-	errorLogger              cache.Logger
-	depsCheck                bool
-	mangleACKeys             bool
-	checkClientCertForWrites bool
+	cache        disk.Cache
+	accessLogger cache.Logger
+	errorLogger  cache.Logger
+	depsCheck    bool
+	mangleACKeys bool
+}
+
+var readOnlyMethods = map[string]struct{}{
+	"/build.bazel.remote.execution.v2.ActionCache/GetActionResult":                {},
+	"/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs": {},
+	"/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs":   {},
+	"/build.bazel.remote.execution.v2.ContentAddressableStorage/GetTree":          {},
+	"/build.bazel.remote.execution.v2.Capabilities/GetCapabilities":               {},
+	"/google.bytestream.ByteStream/Read":                                          {},
 }
 
 // ListenAndServeGRPC creates a new gRPC server and listens on the given
@@ -48,7 +60,6 @@ func ListenAndServeGRPC(
 	validateACDeps bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
-	checkClientCertForWrites bool,
 	c disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	listener, err := net.Listen(network, addr)
@@ -56,22 +67,20 @@ func ListenAndServeGRPC(
 		return err
 	}
 
-	return serveGRPC(listener, opts, validateACDeps, mangleACKeys, enableRemoteAssetAPI, checkClientCertForWrites, c, a, e)
+	return serveGRPC(listener, opts, validateACDeps, mangleACKeys, enableRemoteAssetAPI, c, a, e)
 }
 
 func serveGRPC(l net.Listener, opts []grpc.ServerOption,
 	validateACDepsCheck bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
-	checkClientCertForWrites bool,
 	c disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	srv := grpc.NewServer(opts...)
 	s := &grpcServer{
 		cache: c, accessLogger: a, errorLogger: e,
-		depsCheck:                validateACDepsCheck,
-		mangleACKeys:             mangleACKeys,
-		checkClientCertForWrites: checkClientCertForWrites,
+		depsCheck:    validateACDepsCheck,
+		mangleACKeys: mangleACKeys,
 	}
 	pb.RegisterActionCacheServer(srv, s)
 	pb.RegisterCapabilitiesServer(srv, s)
@@ -80,6 +89,11 @@ func serveGRPC(l net.Listener, opts []grpc.ServerOption,
 	if enableRemoteAssetAPI {
 		asset.RegisterFetchServer(srv, s)
 	}
+
+	h := health.NewServer()
+	grpc_health_v1.RegisterHealthServer(srv, h)
+	h.SetServingStatus(grpcHealthServiceName, grpc_health_v1.HealthCheckResponse_SERVING)
+
 	return srv.Serve(l)
 }
 
@@ -143,6 +157,57 @@ func (s *grpcServer) validateHash(hash string, size int64, logPrefix string) err
 	}
 
 	return nil
+}
+
+// Return a grpc.StreamServerInterceptor that checks for mTLS/client cert
+// authentication, and optionally allows unauthenticated access to readonly
+// RPCs.
+func GRPCmTLSStreamServerInterceptor(allowUnauthenticatedReads bool) grpc.StreamServerInterceptor {
+
+	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+
+		if allowUnauthenticatedReads {
+			_, ro := readOnlyMethods[info.FullMethod]
+			if ro {
+				return handler(srv, ss)
+			}
+		}
+
+		err := checkGRPCClientCert(ss.Context())
+		if err != nil {
+			return err
+		}
+
+		return handler(srv, ss)
+	}
+}
+
+// Return a grpc.UnaryServerInterceptor that checks for mTLS/client cert
+// authentication, and optionally allows unauthenticated access to readonly
+// RPCs, and allows all clients access to the health service.
+func GRPCmTLSUnaryServerInterceptor(allowUnauthenticatedReads bool) grpc.UnaryServerInterceptor {
+
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+
+		// Always allow health service requests.
+		if info.FullMethod == grpcHealthServiceName {
+			return handler(ctx, req)
+		}
+
+		if allowUnauthenticatedReads {
+			_, ro := readOnlyMethods[info.FullMethod]
+			if ro {
+				return handler(ctx, req)
+			}
+		}
+
+		err := checkGRPCClientCert(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		return handler(ctx, req)
+	}
 }
 
 // Return a non-nil grpc error if a valid client certificate can't be

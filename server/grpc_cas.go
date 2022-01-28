@@ -48,13 +48,6 @@ func (s *grpcServer) FindMissingBlobs(ctx context.Context,
 func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 	in *pb.BatchUpdateBlobsRequest) (*pb.BatchUpdateBlobsResponse, error) {
 
-	if s.checkClientCertForWrites {
-		err := checkGRPCClientCert(ctx)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	resp := pb.BatchUpdateBlobsResponse{
 		Responses: make([]*pb.BatchUpdateBlobsResponse_Response,
 			0, len(in.Requests)),

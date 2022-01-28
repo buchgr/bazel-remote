@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 )
 
@@ -444,6 +445,13 @@ func checkCacheWriteOps(conn *grpc.ClientConn, shouldWork bool) error {
 		return err
 	}
 
+	healthClient := grpc_health_v1.NewHealthClient(conn)
+
+	err = checkHealth(healthClient) // This should always work.
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -585,5 +593,26 @@ func checkBytestreamWrite(bsClient bytestream.ByteStreamClient, shouldWork bool)
 	}
 
 	fmt.Println("BytestreamWrite succeeded, as expected")
+	return nil
+}
+
+func checkHealth(healthClient grpc_health_v1.HealthClient) error {
+
+	const grpcHealthServiceName = "/grpc.health.v1.Health/Check"
+
+	req := grpc_health_v1.HealthCheckRequest{Service: grpcHealthServiceName}
+	resp, err := healthClient.Check(context.Background(), &req)
+	if err != nil {
+		return fmt.Errorf("Failed to check health status: %w", err)
+	}
+
+	if resp == nil {
+		return fmt.Errorf("Expected non-nil *HealthCheckResponse")
+	}
+
+	if resp.Status != grpc_health_v1.HealthCheckResponse_SERVING {
+		return fmt.Errorf("Expected health check to return SERVING status, got: %s", resp.Status.String())
+	}
+
 	return nil
 }

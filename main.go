@@ -181,6 +181,13 @@ func run(ctx *cli.Context) error {
 
 			if c.TLSConfig != nil {
 				opts = append(opts, grpc.Creds(credentials.NewTLS(c.TLSConfig)))
+
+				if c.TLSCaFile != "" {
+					streamInterceptors = append(streamInterceptors,
+						server.GRPCmTLSStreamServerInterceptor(c.AllowUnauthenticatedReads))
+					unaryInterceptors = append(unaryInterceptors,
+						server.GRPCmTLSUnaryServerInterceptor(c.AllowUnauthenticatedReads))
+				}
 			}
 
 			if htpasswdSecrets != nil {
@@ -212,8 +219,6 @@ func run(ctx *cli.Context) error {
 			}
 			log.Println("experimental gRPC remote asset API:", remoteAssetStatus)
 
-			checkClientCertForWrites := c.AllowUnauthenticatedReads && c.TLSCaFile != ""
-
 			network := "tcp"
 			addr := c.GRPCAddress
 			if strings.HasPrefix(c.GRPCAddress, "unix://") {
@@ -228,7 +233,6 @@ func run(ctx *cli.Context) error {
 				validateAC,
 				c.EnableACKeyInstanceMangling,
 				enableRemoteAssetAPI,
-				checkClientCertForWrites,
 				diskCache, c.AccessLogger, c.ErrorLogger)
 			if err3 != nil {
 				log.Fatal(err3)

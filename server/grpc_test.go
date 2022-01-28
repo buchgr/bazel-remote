@@ -16,6 +16,8 @@ import (
 
 	asset "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/asset/v1"
 	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
+	"google.golang.org/grpc/health/grpc_health_v1"
+
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 
@@ -44,12 +46,14 @@ const bufSize = 1024 * 1024
 var (
 	listener *bufconn.Listener
 
-	acClient    pb.ActionCacheClient
-	casClient   pb.ContentAddressableStorageClient
-	bsClient    bytestream.ByteStreamClient
-	assetClient asset.FetchClient
-	ctx         = context.Background()
-	diskCache   disk.Cache
+	acClient     pb.ActionCacheClient
+	casClient    pb.ContentAddressableStorageClient
+	bsClient     bytestream.ByteStreamClient
+	assetClient  asset.FetchClient
+	healthClient grpc_health_v1.HealthClient
+
+	ctx       = context.Background()
+	diskCache disk.Cache
 
 	badDigestTestCases = []badDigest{
 		{digest: &pb.Digest{Hash: ""}, reason: "empty hash"},
@@ -91,7 +95,6 @@ func TestMain(m *testing.M) {
 	validateAC := true
 	mangleACKeys := false
 	enableRemoteAssetAPI := true
-	allowUnauthenticatedReads := false
 
 	go func() {
 		err2 := serveGRPC(
@@ -100,7 +103,6 @@ func TestMain(m *testing.M) {
 			validateAC,
 			mangleACKeys,
 			enableRemoteAssetAPI,
-			allowUnauthenticatedReads,
 			diskCache, accessLogger, errorLogger)
 		if err2 != nil {
 			fmt.Println(err2)
@@ -120,6 +122,7 @@ func TestMain(m *testing.M) {
 	acClient = pb.NewActionCacheClient(conn)
 	bsClient = bytestream.NewByteStreamClient(conn)
 	assetClient = asset.NewFetchClient(conn)
+	healthClient = grpc_health_v1.NewHealthClient(conn)
 
 	os.Exit(m.Run())
 }
@@ -2255,5 +2258,21 @@ func TestCompressedBatchReadsAndWrites(t *testing.T) {
 
 	if !bytes.Equal(recoveredData, blob) {
 		t.Fatal("Response data did not match")
+	}
+}
+
+func TestHealthCheck(t *testing.T) {
+	req := grpc_health_v1.HealthCheckRequest{Service: grpcHealthServiceName}
+	resp, err := healthClient.Check(ctx, &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp == nil {
+		t.Fatal("Expected non-nil *HealthCheckResponse")
+	}
+
+	if resp.Status != grpc_health_v1.HealthCheckResponse_SERVING {
+		t.Fatalf("Expected health check to return SERVING status, got: %s", resp.Status.String())
 	}
 }

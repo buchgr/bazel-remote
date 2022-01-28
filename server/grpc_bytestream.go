@@ -348,13 +348,6 @@ var errDecoderPoolFail error = errors.New("failed to get DecoderWrapper from poo
 
 func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 
-	if s.checkClientCertForWrites {
-		err := checkGRPCClientCert(srv.Context())
-		if err != nil {
-			return err
-		}
-	}
-
 	var resp bytestream.WriteResponse
 	pr, pw := io.Pipe()
 

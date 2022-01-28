@@ -462,13 +462,26 @@ If you want the docker container to run in the background pass the `-d` flag rig
 You can adjust the maximum cache size by appending `--max_size=N`, where N is
 the maximum size in Gibibytes.
 
-### Kubernetes note
+### Kubernetes notes
 
-Don't name your deployment `bazel-remote`!
+* Don't name your deployment `bazel-remote`!
+  
+  Kubernetes sets some environment variables based on this name, which conflict
+  with the `BAZEL_REMOTE_*` environment variables that bazel-remote tries to
+  parse.
 
-Kubernetes sets some environment variables based on this name, which conflict
-with the `BAZEL_REMOTE_*` environment variables that bazel-remote tries to
-parse.
+* bazel-remote supports the `/grpc.health.v1.Health/Check` service, which you can
+  configure like so:
+  ```
+  alb.ingress.kubernetes.io/backend-protocol: HTTP
+  alb.ingress.kubernetes.io/backend-protocol-version: GRPC
+  alb.ingress.kubernetes.io/healthcheck-path: /grpc.health.v1.Health/Check
+  alb.ingress.kubernetes.io/healthcheck-port: 9092
+  alb.ingress.kubernetes.io/listen-ports: [{"HTTPS": 9092}]
+  alb.ingress.kubernetes.io/success-codes: 0
+  alb.ingress.kubernetes.io/target-type: ip
+  ```
+
 
 ### Build your own
 
