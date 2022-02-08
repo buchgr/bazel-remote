@@ -69,12 +69,13 @@ type lruItem struct {
 // diskCache is a filesystem-based LRU cache, with an optional backend proxy.
 // It is safe for concurrent use.
 type diskCache struct {
-	dir           string
-	proxy         cache.Proxy
-	storageMode   casblob.CompressionType
-	maxBlobSize   int64
-	accessLogger  *log.Logger
-	containsQueue chan proxyCheck
+	dir              string
+	proxy            cache.Proxy
+	storageMode      casblob.CompressionType
+	maxBlobSize      int64
+	maxProxyBlobSize int64
+	accessLogger     *log.Logger
+	containsQueue    chan proxyCheck
 
 	// Limit the number of simultaneous file removals.
 	fileRemovalSem *semaphore.Weighted
@@ -942,6 +943,9 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 		return nil, -1, internalErr(err)
 	}
 	if r == nil {
+		return nil, -1, nil
+	}
+	if foundSize > c.maxProxyBlobSize {
 		return nil, -1, nil
 	}
 

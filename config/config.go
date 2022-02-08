@@ -62,6 +62,7 @@ type Config struct {
 	HTTPWriteTimeout            time.Duration             `yaml:"http_write_timeout"`
 	AccessLogLevel              string                    `yaml:"access_log_level"`
 	MaxBlobSize                 int64                     `yaml:"max_blob_size"`
+	MaxProxyBlobSize            int64                     `yaml:"max_proxy_blob_size"`
 
 	// Fields that are created by combinations of the flags above.
 	ProxyBackend cache.Proxy
@@ -112,7 +113,8 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 	httpReadTimeout time.Duration,
 	httpWriteTimeout time.Duration,
 	accessLogLevel string,
-	maxBlobSize int64) (*Config, error) {
+	maxBlobSize int64,
+	maxProxyBlobSize int64) (*Config, error) {
 
 	c := Config{
 		HTTPAddress:                 httpAddress,
@@ -142,6 +144,7 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 		HTTPWriteTimeout:            httpWriteTimeout,
 		AccessLogLevel:              accessLogLevel,
 		MaxBlobSize:                 maxBlobSize,
+		MaxProxyBlobSize:            maxProxyBlobSize,
 	}
 
 	err := validateConfig(&c)
@@ -176,6 +179,7 @@ func newFromYaml(data []byte) (*Config, error) {
 			NumUploaders:           100,
 			MaxQueuedUploads:       1000000,
 			MaxBlobSize:            math.MaxInt64,
+			MaxProxyBlobSize:       math.MaxInt64,
 			MetricsDurationBuckets: defaultDurationBuckets,
 			AccessLogLevel:         "all",
 		},
@@ -298,6 +302,10 @@ func validateConfig(c *Config) error {
 
 	if c.MaxBlobSize <= 0 {
 		return errors.New("The 'max_blob_size' flag/key must be a positive integer")
+	}
+
+	if c.MaxProxyBlobSize <= 0 {
+		return errors.New("The 'max_proxy_blob_size' flag/key must be a positive integer")
 	}
 
 	if c.GoogleCloudStorage != nil && c.HTTPBackend != nil && c.S3CloudStorage != nil {
@@ -457,5 +465,6 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.Duration("http_write_timeout"),
 		ctx.String("access_log_level"),
 		ctx.Int64("max_blob_size"),
+		ctx.Int64("max_proxy_blob_size"),
 	)
 }

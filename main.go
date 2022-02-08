@@ -91,7 +91,7 @@ func run(ctx *cli.Context) error {
 		disk.WithAccessLogger(c.AccessLogger),
 	}
 	if c.ProxyBackend != nil {
-		opts = append(opts, disk.WithProxyBackend(c.ProxyBackend))
+		opts = append(opts, disk.WithProxyBackend(c.ProxyBackend, c.MaxProxyBlobSize))
 	}
 	if c.EnableEndpointMetrics {
 		opts = append(opts, disk.WithEndpointMetrics())

@@ -42,7 +42,7 @@ func WithMaxBlobSize(size int64) Option {
 	}
 }
 
-func WithProxyBackend(proxy cache.Proxy) Option {
+func WithProxyBackend(proxy cache.Proxy, maxProxyBlobSize int64) Option {
 	return func(c *CacheConfig) error {
 		if c.diskCache.proxy != nil && proxy != nil {
 			return fmt.Errorf("Proxy backends may be set only once")
@@ -50,6 +50,7 @@ func WithProxyBackend(proxy cache.Proxy) Option {
 
 		if proxy != nil {
 			c.diskCache.proxy = proxy
+			c.diskCache.maxProxyBlobSize = maxProxyBlobSize
 			c.diskCache.spawnContainsQueueWorkers()
 		}
 
