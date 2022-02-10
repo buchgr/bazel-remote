@@ -79,7 +79,7 @@ func TestCacheBasics(t *testing.T) {
 	}
 
 	// Add an item.
-	err = testCache.Put(cache.CAS, hash, itemSize,
+	err = testCache.Put(ctx, cache.CAS, hash, itemSize,
 		ioutil.NopCloser(bytes.NewReader(data)))
 	if err != nil {
 		t.Fatal(err)
@@ -98,6 +98,9 @@ func TestCacheBasics(t *testing.T) {
 }
 
 func TestCachePutWrongSize(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
 	testCache, err := New(cacheDir, BlockSize, WithAccessLogger(testutils.NewSilentLogger()))
@@ -109,21 +112,21 @@ func TestCachePutWrongSize(t *testing.T) {
 	hash := hashStr(content)
 
 	for _, kind := range []cache.EntryKind{cache.AC, cache.CAS, cache.RAW} {
-		err = testCache.Put(kind, hash, int64(len(content)), strings.NewReader(content))
+		err = testCache.Put(ctx, kind, hash, int64(len(content)), strings.NewReader(content))
 		if err != nil {
 			t.Fatal("Expected success", err)
 		}
 
-		err = testCache.Put(kind, hash, int64(len(content))+1, strings.NewReader(content))
+		err = testCache.Put(ctx, kind, hash, int64(len(content))+1, strings.NewReader(content))
 		if err == nil {
 			t.Error("Expected error due to size being different")
 		}
 
-		err = testCache.Put(kind, hash, int64(len(content))-1, strings.NewReader(content))
+		err = testCache.Put(ctx, kind, hash, int64(len(content))-1, strings.NewReader(content))
 		if err == nil {
 			t.Error("Expected error due to size being different")
 		}
-		err = testCache.Put(kind, hashStr(content[:len(content)-1]), int64(len(content))-1, strings.NewReader(content))
+		err = testCache.Put(ctx, kind, hashStr(content[:len(content)-1]), int64(len(content))-1, strings.NewReader(content))
 		if err == nil {
 			t.Error("Expected error due to size being different")
 		}
@@ -144,7 +147,7 @@ func TestCacheGetContainsWrongSize(t *testing.T) {
 	var found bool
 	var rdr io.ReadCloser
 
-	err = testCache.Put(cache.CAS, contentsHash, contentsLength, strings.NewReader(contents))
+	err = testCache.Put(ctx, cache.CAS, contentsHash, contentsLength, strings.NewReader(contents))
 	if err != nil {
 		t.Fatal("Expected success", err)
 	}
@@ -227,7 +230,7 @@ func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
 // digest {contentsHash, contentsLength}.
 type proxyStub struct{}
 
-func (d proxyStub) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
+func (d proxyStub) Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
 	// Not implemented.
 }
 
@@ -294,7 +297,7 @@ func putGetCompareBytes(ctx context.Context, kind cache.EntryKind, hash string, 
 
 	r := bytes.NewReader(data)
 
-	err := testCache.Put(kind, hash, int64(len(data)), r)
+	err := testCache.Put(ctx, kind, hash, int64(len(data)), r)
 	if err != nil {
 		return err
 	}
@@ -448,7 +451,7 @@ func TestCacheExistingFiles(t *testing.T) {
 			continue
 		}
 
-		err = testCache.Put(cache.CAS, hash, int64(len(data)),
+		err = testCache.Put(ctx, cache.CAS, hash, int64(len(data)),
 			bytes.NewReader(data))
 		if err != nil {
 			t.Fatal("failed to Put CAS blob", hash, err)
@@ -476,6 +479,9 @@ func TestCacheExistingFiles(t *testing.T) {
 // Make sure that the cache returns http.StatusInsufficientStorage when trying to upload an item
 // that's bigger than the maximum size.
 func TestCacheBlobTooLarge(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
 	testCacheI, err := New(cacheDir, BlockSize, WithAccessLogger(testutils.NewSilentLogger()))
@@ -486,7 +492,7 @@ func TestCacheBlobTooLarge(t *testing.T) {
 
 	for k := range []cache.EntryKind{cache.AC, cache.RAW} {
 		kind := cache.EntryKind(k)
-		err := testCache.Put(kind, hashStr("foo"), 10000, strings.NewReader(contents))
+		err := testCache.Put(ctx, kind, hashStr("foo"), 10000, strings.NewReader(contents))
 		if err == nil {
 			t.Fatal("Expected an error")
 		}
@@ -503,6 +509,9 @@ func TestCacheBlobTooLarge(t *testing.T) {
 
 // Make sure that Cache rejects an upload whose hashsum doesn't match
 func TestCacheCorruptedCASBlob(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
 	testCacheI, err := New(cacheDir, BlockSize, WithAccessLogger(testutils.NewSilentLogger()))
@@ -511,14 +520,14 @@ func TestCacheCorruptedCASBlob(t *testing.T) {
 	}
 	testCache := testCacheI.(*diskCache)
 
-	err = testCache.Put(cache.CAS, hashStr("foo"), int64(len(contents)),
+	err = testCache.Put(ctx, cache.CAS, hashStr("foo"), int64(len(contents)),
 		strings.NewReader(contents))
 	if err == nil {
 		t.Fatal("expected hash mismatch error")
 	}
 
 	// We expect the upload to succeed without validation:
-	err = testCache.Put(cache.RAW, hashStr("foo"), int64(len(contents)),
+	err = testCache.Put(ctx, cache.RAW, hashStr("foo"), int64(len(contents)),
 		strings.NewReader(contents))
 	if err != nil {
 		t.Fatal(err)
@@ -874,7 +883,7 @@ func TestHttpProxyBackend(t *testing.T) {
 		t.Fatal("Expected empty backend")
 	}
 
-	err = testCache.Put(cache.CAS, casHash, int64(len(blob)),
+	err = testCache.Put(ctx, cache.CAS, casHash, int64(len(blob)),
 		bytes.NewReader(blob))
 	if err != nil {
 		t.Fatal(err)
@@ -988,7 +997,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 	grokHash := sha256.Sum256(grokData)
 	grokHashStr := hex.EncodeToString(grokHash[:])
 
-	err = testCache.Put(cache.CAS, grokHashStr, int64(len(grokData)),
+	err = testCache.Put(ctx, cache.CAS, grokHashStr, int64(len(grokData)),
 		bytes.NewReader(grokData))
 	if err != nil {
 		t.Fatal(err)
@@ -998,7 +1007,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 	fooHash := sha256.Sum256(fooData)
 	fooHashStr := hex.EncodeToString(fooHash[:])
 
-	err = testCache.Put(cache.CAS, fooHashStr, int64(len(fooData)),
+	err = testCache.Put(ctx, cache.CAS, fooHashStr, int64(len(fooData)),
 		bytes.NewReader(fooData))
 	if err != nil {
 		t.Fatal(err)
@@ -1030,7 +1039,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 	barDataHash := sha256.Sum256(barData)
 	barDataHashStr := hex.EncodeToString(barDataHash[:])
 
-	err = testCache.Put(cache.CAS, barDataHashStr, int64(len(barData)),
+	err = testCache.Put(ctx, cache.CAS, barDataHashStr, int64(len(barData)),
 		bytes.NewReader(barData))
 	if err != nil {
 		t.Fatal(err)
@@ -1055,7 +1064,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 	rootDataHash := sha256.Sum256(rootData)
 	rootDataHashStr := hex.EncodeToString(rootDataHash[:])
 
-	err = testCache.Put(cache.CAS, rootDataHashStr, int64(len(rootData)),
+	err = testCache.Put(ctx, cache.CAS, rootDataHashStr, int64(len(rootData)),
 		bytes.NewReader(rootData))
 	if err != nil {
 		t.Fatal(err)
@@ -1072,7 +1081,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 	treeDataHash := sha256.Sum256(treeData)
 	treeDataHashStr := hex.EncodeToString(treeDataHash[:])
 
-	err = testCache.Put(cache.CAS, treeDataHashStr, int64(len(treeData)),
+	err = testCache.Put(ctx, cache.CAS, treeDataHashStr, int64(len(treeData)),
 		bytes.NewReader(treeData))
 	if err != nil {
 		t.Fatal(err)
@@ -1114,7 +1123,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 	arDataHash := sha256.Sum256([]byte("pretend action"))
 	arDataHashStr := hex.EncodeToString(arDataHash[:])
 
-	err = testCache.Put(cache.AC, arDataHashStr, int64(len(arData)),
+	err = testCache.Put(ctx, cache.AC, arDataHashStr, int64(len(arData)),
 		bytes.NewReader(arData))
 	if err != nil {
 		t.Fatal(err)
@@ -1158,7 +1167,7 @@ func TestGetWithOffset(t *testing.T) {
 
 	data, hash := testutils.RandomDataAndHash(blobSize)
 
-	err = testCache.Put(cache.CAS, hash, blobSize,
+	err = testCache.Put(ctx, cache.CAS, hash, blobSize,
 		ioutil.NopCloser(bytes.NewReader(data)))
 	if err != nil {
 		t.Fatal(err)
@@ -1240,7 +1249,7 @@ func TestMetricsUnvalidatedAC(t *testing.T) {
 	}
 	fakeActionHash := "8f279f9d8bc605b4d733d0ba9386de2376004ab628fee6b000144fdc7b30a6a1"
 
-	err = testCache.Put(cache.AC, fakeActionHash, int64(len(arData)), bytes.NewReader(arData))
+	err = testCache.Put(context.Background(), cache.AC, fakeActionHash, int64(len(arData)), bytes.NewReader(arData))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1350,7 +1359,7 @@ func TestMetricsValidatedAC(t *testing.T) {
 	}
 	fakeActionHash := "8f279f9d8bc605b4d733d0ba9386de2376004ab628fee6b000144fdc7b30a6a1"
 
-	err = testCache.Put(cache.AC, fakeActionHash, int64(len(arData)), bytes.NewReader(arData))
+	err = testCache.Put(context.Background(), cache.AC, fakeActionHash, int64(len(arData)), bytes.NewReader(arData))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -129,7 +129,7 @@ func TestEverything(t *testing.T) {
 
 	// PUT two different values with the same key in ac and cas.
 
-	err = diskCache.Put(cache.AC, hash, int64(len(acData)), bytes.NewReader(acData))
+	err = diskCache.Put(ctx, cache.AC, hash, int64(len(acData)), bytes.NewReader(acData))
 	if err != nil {
 		t.Error(err)
 	}
@@ -146,7 +146,7 @@ func TestEverything(t *testing.T) {
 	}
 	s.mu.Unlock()
 
-	err = diskCache.Put(cache.CAS, hash, int64(len(casData)), bytes.NewReader(casData))
+	err = diskCache.Put(ctx, cache.CAS, hash, int64(len(casData)), bytes.NewReader(casData))
 	if err != nil {
 		t.Error(err)
 	}

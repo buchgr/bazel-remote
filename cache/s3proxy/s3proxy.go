@@ -177,7 +177,7 @@ func (c *s3Cache) uploadFile(item uploadReq) {
 	item.rc.Close()
 }
 
-func (c *s3Cache) Put(kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
+func (c *s3Cache) Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
 	if c.uploadQueue == nil {
 		rc.Close()
 		return
