@@ -403,7 +403,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			rdr = rc
 		}
 
-		err := h.cache.Put(kind, hash, contentLength, rdr)
+		err := h.cache.Put(r.Context(), kind, hash, contentLength, rdr)
 		if err != nil {
 			if cerr, ok := err.(*cache.Error); ok {
 				http.Error(w, err.Error(), cerr.Code)

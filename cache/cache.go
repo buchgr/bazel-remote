@@ -70,7 +70,7 @@ type Proxy interface {
 	// `rc` is in the same format as used by the disk.Cache instance.
 	//
 	// This is allowed to fail silently (for example when under heavy load).
-	Put(kind EntryKind, hash string, size int64, rc io.ReadCloser)
+	Put(ctx context.Context, kind EntryKind, hash string, size int64, rc io.ReadCloser)
 
 	// Get returns an io.ReadCloser from which the cache item identified by
 	// `hash` can be read, its logical size, and an error if something went

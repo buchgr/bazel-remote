@@ -443,7 +443,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 				}
 
 				go func() {
-					err := s.cache.Put(cache.CAS, hash, size, rc)
+					err := s.cache.Put(srv.Context(), cache.CAS, hash, size, rc)
 					putResult <- err
 				}()
 

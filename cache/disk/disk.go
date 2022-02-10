@@ -42,7 +42,7 @@ type Cache interface {
 	Get(ctx context.Context, kind cache.EntryKind, hash string, size int64, offset int64) (io.ReadCloser, int64, error)
 	GetValidatedActionResult(ctx context.Context, hash string) (*pb.ActionResult, []byte, error)
 	GetZstd(ctx context.Context, hash string, size int64, offset int64) (io.ReadCloser, int64, error)
-	Put(kind cache.EntryKind, hash string, size int64, r io.Reader) error
+	Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, r io.Reader) error
 	Contains(ctx context.Context, kind cache.EntryKind, hash string, size int64) (bool, int64)
 	FindMissingCasBlobs(ctx context.Context, blobs []*pb.Digest) ([]*pb.Digest, error)
 
@@ -536,7 +536,7 @@ func (c *diskCache) loadExistingFiles() error {
 // If `hash` is not the empty string, and the contents don't match it,
 // a non-nil error is returned. All data will be read from `r` before
 // this function returns.
-func (c *diskCache) Put(kind cache.EntryKind, hash string, size int64, r io.Reader) (rErr error) {
+func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, r io.Reader) (rErr error) {
 	defer func() {
 		if r != nil {
 			_, _ = io.Copy(ioutil.Discard, r)
@@ -646,7 +646,7 @@ func (c *diskCache) Put(kind cache.EntryKind, hash string, size int64, r io.Read
 			log.Println("Failed to proxy Put:", err)
 		} else {
 			// Doesn't block, should be fast.
-			c.proxy.Put(kind, hash, sizeOnDisk, rc)
+			c.proxy.Put(ctx, kind, hash, sizeOnDisk, rc)
 		}
 	}
 

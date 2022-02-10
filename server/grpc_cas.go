@@ -85,7 +85,7 @@ func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 			}
 		}
 
-		err = s.cache.Put(cache.CAS, req.Digest.Hash,
+		err = s.cache.Put(ctx, cache.CAS, req.Digest.Hash,
 			int64(len(req.Data)), bytes.NewReader(req.Data))
 		if err != nil && err != io.EOF {
 			s.errorLogger.Printf("%s %s %s", errorPrefix, req.Digest.Hash, err)

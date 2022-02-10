@@ -167,7 +167,7 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, expectedHash str
 		rc = ioutil.NopCloser(bytes.NewReader(data))
 	}
 
-	err = s.cache.Put(cache.CAS, expectedHash, expectedSize, rc)
+	err = s.cache.Put(ctx, cache.CAS, expectedHash, expectedSize, rc)
 	if err != nil && err != io.EOF {
 		s.errorLogger.Printf("failed to Put %s: %v", expectedHash, err)
 		return false, "", int64(-1)
