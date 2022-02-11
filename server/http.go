@@ -258,7 +258,8 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 		_, err := io.Copy(w, rdr)
 		if err != nil {
-			http.Error(w, "Unexpected copy error", http.StatusInternalServerError)
+			// No point calling http.Error here because we've already started writing data
+			h.errorLogger.Printf("Error writing %s/%s err: %s", kind.String(), hash, err.Error())
 			h.logResponse(http.StatusInternalServerError, r)
 			return
 		}
