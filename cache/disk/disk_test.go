@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -175,7 +176,7 @@ func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
 
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCacheI, err := New(cacheDir, BlockSize, WithProxyBackend(new(proxyStub)), WithAccessLogger(testutils.NewSilentLogger()))
+	testCacheI, err := New(cacheDir, BlockSize, WithProxyBackend(new(proxyStub), math.MaxInt64), WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -851,7 +852,7 @@ func TestHttpProxyBackend(t *testing.T) {
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := int64(1024*10) * 2
 
-	testCacheI, err := New(cacheDir, cacheSize, WithProxyBackend(proxy), WithAccessLogger(testutils.NewSilentLogger()))
+	testCacheI, err := New(cacheDir, cacheSize, WithProxyBackend(proxy, math.MaxInt64), WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
