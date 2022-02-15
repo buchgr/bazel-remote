@@ -914,8 +914,24 @@ func TestHttpProxyBackend(t *testing.T) {
 		t.Fatal("Expected testCache to be empty")
 	}
 
-	// Add the proxy backend and check that we can Get the item.
+	// Add the proxy backend
 	testCache.proxy = proxy
+	testCache.maxProxyBlobSize = 0
+	found, _ = testCache.Contains(ctx, cache.CAS, casHash, blobSize)
+	if found {
+		t.Fatalf("Expected the cache to not contain %s (via the proxy)", casHash)
+	}
+
+	r, fetchedSize, err := testCache.Get(ctx, cache.CAS, casHash, blobSize, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r != nil {
+		t.Fatal("Expected the Get to fail")
+	}
+
+	// Wet a larger max proxy blob size and check that we can Get the item.
+	testCache.maxProxyBlobSize = math.MaxInt64
 
 	found, _ = testCache.Contains(ctx, cache.CAS, casHash, blobSize)
 	if !found {
@@ -923,7 +939,7 @@ func TestHttpProxyBackend(t *testing.T) {
 			casHash)
 	}
 
-	r, fetchedSize, err := testCache.Get(ctx, cache.CAS, casHash, blobSize, 0)
+	r, fetchedSize, err = testCache.Get(ctx, cache.CAS, casHash, blobSize, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

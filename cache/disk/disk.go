@@ -1044,7 +1044,7 @@ func (c *diskCache) Contains(ctx context.Context, kind cache.EntryKind, hash str
 
 	if c.proxy != nil {
 		exists, foundSize = c.proxy.Contains(ctx, kind, hash)
-		if exists && !isSizeMismatch(size, foundSize) {
+		if exists && size <= c.maxProxyBlobSize && !isSizeMismatch(size, foundSize) {
 			return true, foundSize
 		}
 	}
