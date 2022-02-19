@@ -415,7 +415,11 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 				exists, _ := s.cache.Contains(srv.Context(), cache.CAS, hash, size)
 				if exists {
 					// Blob already exists, return without writing anything.
-					resp.CommittedSize = size
+					if cmp == casblob.Identity {
+						resp.CommittedSize = size
+					} else {
+						resp.CommittedSize = -1
+					}
 					putResult <- io.EOF
 					return
 				}
