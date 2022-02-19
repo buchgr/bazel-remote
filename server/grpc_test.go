@@ -978,7 +978,7 @@ func TestGrpcByteStreamZstdWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bswResp.CommittedSize != int64(len(compressedBlob)) {
+	if bswResp.CommittedSize != int64(len(compressedBlob)) && bswResp.CommittedSize != -1 {
 		t.Fatalf("Error: expected to write: %d but committed: %d\n",
 			len(testBlob), bswResp.CommittedSize)
 	}
