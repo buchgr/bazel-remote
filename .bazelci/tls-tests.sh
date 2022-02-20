@@ -94,6 +94,8 @@ for i in $(seq 1 20)
 do
 	sleep 1
 
+	ps -p $server_pid > /dev/null || break
+
 	if wget --inet4-only -d -O - --ca-certificate=$tmpdir/server.crt \
 		--certificate=$tmpdir/client.crt \
 		--private-key=$tmpdir/client.pem \
@@ -185,6 +187,8 @@ running=false
 for i in $(seq 1 20)
 do
 	sleep 1
+
+	ps -p $server_pid > /dev/null || break
 
 	if wget --inet4-only -d -O - --ca-certificate=$tmpdir/server.crt \
 		--certificate=$tmpdir/client.crt \

@@ -39,6 +39,8 @@ for i in $(seq 1 20)
 do
 	sleep 1
 
+	ps -p $server_pid > /dev/null || break
+
 	if wget --inet4-only -d -O - --timeout=2 \
 		--http-user "$USER" --http-password "$PASS" \
 		"http://localhost:$HTTP_PORT/status"
@@ -144,6 +146,8 @@ running=false
 for i in $(seq 1 20)
 do
 	sleep 1
+
+	ps -p $server_pid > /dev/null || break
 
 	if wget --inet4-only -d -O - --timeout=2 \
 		--http-user "$USER" --http-password "$PASS" \

@@ -50,6 +50,8 @@ wait_for_startup() {
 	do
 		sleep 1
 
+		ps -p $server_pid > /dev/null || break
+
 		if wget --inet4-only -d -O - "http://127.0.0.1:$HTTP_PORT/status"
 		then
 			return
