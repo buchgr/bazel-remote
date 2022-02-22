@@ -158,6 +158,13 @@ func GetCliFlags() []cli.Flag {
 			DefaultText: strconv.FormatInt(math.MaxInt64, 10),
 			EnvVars:     []string{"BAZEL_REMOTE_MAX_BLOB_SIZE"},
 		},
+		&cli.Int64Flag{
+			Name:        "max_proxy_blob_size",
+			Value:       math.MaxInt64,
+			Usage:       "The maximum logical/uncompressed blob size that will be downloaded from proxies. Note that this limit is not applied to preexisting blobs in the cache.",
+			DefaultText: strconv.FormatInt(math.MaxInt64, 10),
+			EnvVars:     []string{"BAZEL_REMOTE_MAX_PROXY_BLOB_SIZE"},
+		},
 		&cli.IntFlag{
 			Name:    "num_uploaders",
 			Value:   100,

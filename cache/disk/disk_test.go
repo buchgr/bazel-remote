@@ -176,7 +176,7 @@ func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
 
 	cacheDir := tempDir(t)
 	defer os.RemoveAll(cacheDir)
-	testCacheI, err := New(cacheDir, BlockSize, WithProxyBackend(new(proxyStub), math.MaxInt64), WithAccessLogger(testutils.NewSilentLogger()))
+	testCacheI, err := New(cacheDir, BlockSize, WithProxyBackend(new(proxyStub)), WithProxyMaxBlobSize(math.MaxInt64), WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -852,7 +852,7 @@ func TestHttpProxyBackend(t *testing.T) {
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := int64(1024*10) * 2
 
-	testCacheI, err := New(cacheDir, cacheSize, WithProxyBackend(proxy, math.MaxInt64), WithAccessLogger(testutils.NewSilentLogger()))
+	testCacheI, err := New(cacheDir, cacheSize, WithProxyBackend(proxy), WithProxyMaxBlobSize(math.MaxInt64), WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -916,13 +916,13 @@ func TestHttpProxyBackend(t *testing.T) {
 
 	// Add the proxy backend
 	testCache.proxy = proxy
-	testCache.maxProxyBlobSize = 0
+	testCache.maxProxyBlobSize = blobSize - 1
 	found, _ = testCache.Contains(ctx, cache.CAS, casHash, blobSize)
 	if found {
 		t.Fatalf("Expected the cache to not contain %s (via the proxy)", casHash)
 	}
 
-	r, fetchedSize, err := testCache.Get(ctx, cache.CAS, casHash, blobSize, 0)
+	r, _, err = testCache.Get(ctx, cache.CAS, casHash, blobSize, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -930,7 +930,7 @@ func TestHttpProxyBackend(t *testing.T) {
 		t.Fatal("Expected the Get to fail")
 	}
 
-	// Wet a larger max proxy blob size and check that we can Get the item.
+	// Set a larger max proxy blob size and check that we can Get the item.
 	testCache.maxProxyBlobSize = math.MaxInt64
 
 	found, _ = testCache.Contains(ctx, cache.CAS, casHash, blobSize)
@@ -939,7 +939,7 @@ func TestHttpProxyBackend(t *testing.T) {
 			casHash)
 	}
 
-	r, fetchedSize, err = testCache.Get(ctx, cache.CAS, casHash, blobSize, 0)
+	r, fetchedSize, err := testCache.Get(ctx, cache.CAS, casHash, blobSize, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

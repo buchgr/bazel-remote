@@ -816,7 +816,7 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 	}
 	err = nil
 
-	if c.proxy != nil {
+	if c.proxy != nil && size <= c.maxProxyBlobSize {
 		if size > 0 {
 			// If we know the size, attempt to reserve that much space.
 			if !locked {
@@ -946,6 +946,7 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 		return nil, -1, nil
 	}
 	if foundSize > c.maxProxyBlobSize {
+		r.Close()
 		return nil, -1, nil
 	}
 
@@ -1042,9 +1043,9 @@ func (c *diskCache) Contains(ctx context.Context, kind cache.EntryKind, hash str
 		return true, foundSize
 	}
 
-	if c.proxy != nil {
+	if c.proxy != nil && size <= c.maxProxyBlobSize {
 		exists, foundSize = c.proxy.Contains(ctx, kind, hash)
-		if exists && size <= c.maxProxyBlobSize && !isSizeMismatch(size, foundSize) {
+		if exists && foundSize <= c.maxProxyBlobSize && !isSizeMismatch(size, foundSize) {
 			return true, foundSize
 		}
 	}
