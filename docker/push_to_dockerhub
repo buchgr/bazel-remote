@@ -29,7 +29,7 @@ bazel run //:push_to_dockerhub_amd64
 bazel run //:push_to_dockerhub_arm64
 
 # Create the multiarch manifest.
-docker manifest rm buchgr/bazel-remote-cache:$tag
+docker manifest rm buchgr/bazel-remote-cache:$tag || true
 docker manifest create buchgr/bazel-remote-cache:$tag \
     --amend buchgr/bazel-remote-cache:tmp-amd64 \
     --amend buchgr/bazel-remote-cache:tmp-arm64
