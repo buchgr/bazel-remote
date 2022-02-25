@@ -1135,6 +1135,108 @@ func TestGrpcByteStreamSkippedWrite(t *testing.T) {
 	}
 }
 
+func TestGrpcByteStreamQueryWriteStatus(t *testing.T) {
+
+	testBlob, testBlobHash := testutils.RandomDataAndHash(123)
+	testBlobDigest := pb.Digest{
+		Hash:      testBlobHash,
+		SizeBytes: int64(len(testBlob)),
+	}
+
+	instance := "unusedInstance"
+
+	resourceName := fmt.Sprintf(
+		"%s/uploads/%s/blobs/%s/%d",
+		instance,
+		uuid.New().String(),
+		testBlobDigest.Hash,
+		len(testBlob),
+	)
+
+	req := &bytestream.QueryWriteStatusRequest{ResourceName: resourceName}
+
+	resp, err := bsClient.QueryWriteStatus(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Confirm that the blob does not exist, and we get "0 bytes committed, incomplete".
+
+	if resp == nil {
+		t.Fatal("Expected non-nil *bytestream.QueryWriteStatusResponse")
+	}
+	if resp.CommittedSize != 0 {
+		t.Fatalf("Expected CommittedSize == 0, got: %d", resp.CommittedSize)
+	}
+	if resp.Complete {
+		t.Fatal("Expected incomplete response")
+	}
+
+	// Write the blob.
+	bswc, err := bsClient.Write(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = bswc.Send(&bytestream.WriteRequest{
+		ResourceName: resourceName,
+		FinishWrite:  true,
+		Data:         testBlob,
+		WriteOffset:  0,
+	})
+	if err != nil && err == io.EOF {
+		t.Fatal(err)
+	}
+
+	_, err = bswc.CloseAndRecv()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Confirm that the blob now exists, and we get "len(testBlob) bytes committed, complete".
+
+	resp, err = bsClient.QueryWriteStatus(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp == nil {
+		t.Fatal("Expected non-nil *bytestream.QueryWriteStatusResponse")
+	}
+	if resp.CommittedSize != int64(len(testBlob)) {
+		t.Fatalf("Expected CommittedSize == %d, got: %d", len(testBlob), resp.CommittedSize)
+	}
+	if !resp.Complete {
+		t.Fatal("Expected complete response")
+	}
+
+	// Check the empty blob special case, which should always exist.
+
+	resourceName = fmt.Sprintf(
+		"%s/uploads/%s/blobs/%s/0",
+		instance,
+		uuid.New().String(),
+		emptySha256,
+	)
+
+	req = &bytestream.QueryWriteStatusRequest{ResourceName: resourceName}
+
+	resp, err = bsClient.QueryWriteStatus(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp == nil {
+		t.Fatal("Expected non-nil *bytestream.QueryWriteStatusResponse")
+	}
+	if resp.CommittedSize != 0 {
+		t.Fatalf("Expected CommittedSize == 0, got: %d", resp.CommittedSize)
+	}
+	if !resp.Complete {
+		t.Fatal("Expected complete response")
+	}
+}
+
 func TestGrpcCasBasics(t *testing.T) {
 
 	testBlob, testBlobHash := testutils.RandomDataAndHash(256)

@@ -580,7 +580,21 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 	return nil
 }
 
-func (s *grpcServer) QueryWriteStatus(context.Context, *bytestream.QueryWriteStatusRequest) (*bytestream.QueryWriteStatusResponse, error) {
-	return nil, status.Error(codes.Unimplemented,
-		"QueryWriteStatus is not implemented")
+func (s *grpcServer) QueryWriteStatus(ctx context.Context, req *bytestream.QueryWriteStatusRequest) (*bytestream.QueryWriteStatusResponse, error) {
+
+	hash, size, _, err := s.parseWriteResource(req.ResourceName)
+	if err != nil {
+		return nil, err
+	}
+
+	// We don't support partial writes, so the status will either be fully written
+	// and complete, or 0 written and incomplete.
+
+	exists, _ := s.cache.Contains(ctx, cache.CAS, hash, size)
+
+	if !exists {
+		return &bytestream.QueryWriteStatusResponse{CommittedSize: 0, Complete: false}, nil
+	}
+
+	return &bytestream.QueryWriteStatusResponse{CommittedSize: size, Complete: true}, nil
 }
