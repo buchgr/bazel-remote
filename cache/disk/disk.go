@@ -69,12 +69,13 @@ type lruItem struct {
 // diskCache is a filesystem-based LRU cache, with an optional backend proxy.
 // It is safe for concurrent use.
 type diskCache struct {
-	dir           string
-	proxy         cache.Proxy
-	storageMode   casblob.CompressionType
-	maxBlobSize   int64
-	accessLogger  *log.Logger
-	containsQueue chan proxyCheck
+	dir              string
+	proxy            cache.Proxy
+	storageMode      casblob.CompressionType
+	maxBlobSize      int64
+	maxProxyBlobSize int64
+	accessLogger     *log.Logger
+	containsQueue    chan proxyCheck
 
 	// Limit the number of simultaneous file removals.
 	fileRemovalSem *semaphore.Weighted
@@ -123,8 +124,9 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 		dir: dir,
 
 		// Not using config here, to avoid test import cycles.
-		storageMode: casblob.Zstandard,
-		maxBlobSize: math.MaxInt64,
+		storageMode:      casblob.Zstandard,
+		maxBlobSize:      math.MaxInt64,
+		maxProxyBlobSize: math.MaxInt64,
 
 		// Go defaults to a limit of 10,000 operating system threads.
 		// We probably don't need half of those for file removals at
@@ -815,7 +817,7 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 	}
 	err = nil
 
-	if c.proxy != nil {
+	if c.proxy != nil && size <= c.maxProxyBlobSize {
 		if size > 0 {
 			// If we know the size, attempt to reserve that much space.
 			if !locked {
@@ -944,6 +946,10 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 	if r == nil {
 		return nil, -1, nil
 	}
+	if foundSize > c.maxProxyBlobSize {
+		r.Close()
+		return nil, -1, nil
+	}
 
 	if isSizeMismatch(size, foundSize) || foundSize < 0 {
 		return nil, -1, nil
@@ -1038,9 +1044,9 @@ func (c *diskCache) Contains(ctx context.Context, kind cache.EntryKind, hash str
 		return true, foundSize
 	}
 
-	if c.proxy != nil {
+	if c.proxy != nil && size <= c.maxProxyBlobSize {
 		exists, foundSize = c.proxy.Contains(ctx, kind, hash)
-		if exists && !isSizeMismatch(size, foundSize) {
+		if exists && foundSize <= c.maxProxyBlobSize && !isSizeMismatch(size, foundSize) {
 			return true, foundSize
 		}
 	}

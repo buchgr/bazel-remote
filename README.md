@@ -221,6 +221,11 @@ OPTIONS:
       preexisting blobs in the cache. (default: 9223372036854775807)
       [$BAZEL_REMOTE_MAX_BLOB_SIZE]
 
+   --max_proxy_blob_size value The maximum logical/uncompressed blob size that will
+      be downloaded from proxies. Note that this limit is not applied to
+      preexisting blobs in the cache. (default: 9223372036854775807)
+      [$BAZEL_REMOTE_MAX_PROXY_BLOB_SIZE]
+
    --num_uploaders value When using proxy backends, sets the number of
       Goroutines to process parallel uploads to backend. (default: 100)
       [$BAZEL_REMOTE_NUM_UPLOADERS]

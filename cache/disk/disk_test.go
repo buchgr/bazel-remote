@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -913,8 +914,24 @@ func TestHttpProxyBackend(t *testing.T) {
 		t.Fatal("Expected testCache to be empty")
 	}
 
-	// Add the proxy backend and check that we can Get the item.
+	// Add the proxy backend
 	testCache.proxy = proxy
+	testCache.maxProxyBlobSize = blobSize - 1
+	found, _ = testCache.Contains(ctx, cache.CAS, casHash, blobSize)
+	if found {
+		t.Fatalf("Expected the cache to not contain %s (via the proxy)", casHash)
+	}
+
+	r, _, err = testCache.Get(ctx, cache.CAS, casHash, blobSize, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r != nil {
+		t.Fatal("Expected the Get to fail")
+	}
+
+	// Set a larger max proxy blob size and check that we can Get the item.
+	testCache.maxProxyBlobSize = math.MaxInt64
 
 	found, _ = testCache.Contains(ctx, cache.CAS, casHash, blobSize)
 	if !found {

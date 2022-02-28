@@ -88,6 +88,7 @@ func run(ctx *cli.Context) error {
 	opts := []disk.Option{
 		disk.WithStorageMode(c.StorageMode),
 		disk.WithMaxBlobSize(c.MaxBlobSize),
+		disk.WithProxyMaxBlobSize(c.MaxProxyBlobSize),
 		disk.WithAccessLogger(c.AccessLogger),
 	}
 	if c.ProxyBackend != nil {

@@ -51,6 +51,7 @@ access_log_level: none
 		NumUploaders:                100,
 		MaxQueuedUploads:            1000000,
 		MaxBlobSize:                 math.MaxInt64,
+		MaxProxyBlobSize:            math.MaxInt64,
 		MetricsDurationBuckets:      []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:              "none",
 	}
@@ -90,6 +91,7 @@ gcs_proxy:
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
+		MaxProxyBlobSize:       math.MaxInt64,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 	}
@@ -126,6 +128,7 @@ http_proxy:
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
+		MaxProxyBlobSize:       math.MaxInt64,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 	}
@@ -199,6 +202,7 @@ s3_proxy:
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
+		MaxProxyBlobSize:       math.MaxInt64,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 	}
@@ -229,6 +233,7 @@ profile_address: :7070
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
+		MaxProxyBlobSize:       math.MaxInt64,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 	}
@@ -273,6 +278,7 @@ endpoint_metrics_duration_buckets: [.005, .1, 5]
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
+		MaxProxyBlobSize:       math.MaxInt64,
 		MetricsDurationBuckets: []float64{0.005, 0.1, 5},
 		AccessLogLevel:         "all",
 	}
@@ -287,6 +293,7 @@ func TestMetricsDurationBucketsNoDuplicates(t *testing.T) {
 		HTTPAddress:            "localhost:8080",
 		MaxSize:                42,
 		MaxBlobSize:            200,
+		MaxProxyBlobSize:       math.MaxInt64,
 		Dir:                    "/opt/cache-dir",
 		StorageMode:            "uncompressed",
 		MetricsDurationBuckets: []float64{1, 2, 3, 3},
@@ -398,6 +405,7 @@ storage_mode: zstd
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
+		MaxProxyBlobSize:       math.MaxInt64,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 	}
@@ -428,6 +436,7 @@ storage_mode: zstd
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
+		MaxProxyBlobSize:       math.MaxInt64,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 	}
