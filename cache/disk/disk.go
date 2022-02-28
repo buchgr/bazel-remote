@@ -124,8 +124,9 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 		dir: dir,
 
 		// Not using config here, to avoid test import cycles.
-		storageMode: casblob.Zstandard,
-		maxBlobSize: math.MaxInt64,
+		storageMode:      casblob.Zstandard,
+		maxBlobSize:      math.MaxInt64,
+		maxProxyBlobSize: math.MaxInt64,
 
 		// Go defaults to a limit of 10,000 operating system threads.
 		// We probably don't need half of those for file removals at

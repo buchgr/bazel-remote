@@ -59,6 +59,10 @@ func WithProxyBackend(proxy cache.Proxy) Option {
 
 func WithProxyMaxBlobSize(maxProxyBlobSize int64) Option {
 	return func(c *CacheConfig) error {
+		if maxProxyBlobSize <= 0 {
+			return fmt.Errorf("Invalid MaxProxyBlobSize: %d", maxProxyBlobSize)
+		}
+
 		c.diskCache.maxProxyBlobSize = maxProxyBlobSize
 		return nil
 	}
