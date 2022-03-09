@@ -13,9 +13,10 @@ import (
 )
 
 type proxyCheck struct {
-	wg     *sync.WaitGroup
-	digest **pb.Digest
-	ctx    context.Context
+	wg          *sync.WaitGroup
+	digest      **pb.Digest
+	ctx         context.Context
+	onProxyMiss *func()
 }
 
 // Optimised implementation of FindMissingBlobs, which batches local index
@@ -24,6 +25,15 @@ type proxyCheck struct {
 //
 // Note that this modifies the input slice and returns a subset of it.
 func (c *diskCache) FindMissingCasBlobs(ctx context.Context, blobs []*pb.Digest) ([]*pb.Digest, error) {
+	err := c.findMissingCasBlobsInternal(ctx, blobs, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return filterNonNil(blobs), nil
+}
+
+func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb.Digest, onProxyMiss *func()) error {
 	const batchSize = 20
 
 	var wg sync.WaitGroup
@@ -34,7 +44,7 @@ func (c *diskCache) FindMissingCasBlobs(ctx context.Context, blobs []*pb.Digest)
 	for len(remaining) > 0 {
 		select {
 		case <-ctx.Done():
-			return nil, status.Error(codes.Canceled, "Request was cancelled")
+			return status.Error(codes.Canceled, "Request was cancelled")
 		default:
 		}
 
@@ -52,9 +62,10 @@ func (c *diskCache) FindMissingCasBlobs(ctx context.Context, blobs []*pb.Digest)
 			for i := range chunk {
 				if chunk[i] != nil {
 					c.containsQueue <- proxyCheck{
-						wg:     &wg,
-						digest: &chunk[i],
-						ctx:    ctx,
+						wg:          &wg,
+						digest:      &chunk[i],
+						ctx:         ctx,
+						onProxyMiss: onProxyMiss,
 					}
 				}
 			}
@@ -65,9 +76,7 @@ func (c *diskCache) FindMissingCasBlobs(ctx context.Context, blobs []*pb.Digest)
 		wg.Wait()
 	}
 
-	missingBlobs := filterNonNil(blobs)
-
-	return missingBlobs, nil
+	return nil
 }
 
 // Move all the non-nil items in the input slice to the
@@ -118,6 +127,15 @@ func (c *diskCache) findMissingLocalCAS(blobs []*pb.Digest) int {
 func (c *diskCache) containsWorker() {
 	var ok bool
 	for req := range c.containsQueue {
+		select {
+		case <-req.ctx.Done():
+			// Fast-fail if the context has already been cancelled.
+			c.accessLogger.Printf("GRPC CAS HEAD %s CANCELLED", (*req.digest).Hash)
+			req.wg.Done()
+			continue
+		default:
+		}
+
 		ok, _ = c.proxy.Contains(req.ctx, cache.CAS, (*req.digest).Hash)
 		if ok {
 			c.accessLogger.Printf("GRPC CAS HEAD %s OK", (*req.digest).Hash)
@@ -126,6 +144,9 @@ func (c *diskCache) containsWorker() {
 			*(req.digest) = nil
 		} else {
 			c.accessLogger.Printf("GRPC CAS HEAD %s NOT FOUND", (*req.digest).Hash)
+			if req.onProxyMiss != nil {
+				(*req.onProxyMiss)()
+			}
 		}
 		req.wg.Done()
 	}
