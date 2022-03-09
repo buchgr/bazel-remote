@@ -127,13 +127,15 @@ func (c *diskCache) findMissingLocalCAS(blobs []*pb.Digest) int {
 func (c *diskCache) containsWorker() {
 	var ok bool
 	for req := range c.containsQueue {
-		select {
-		case <-req.ctx.Done():
-			// Fast-fail if the context has already been cancelled.
-			c.accessLogger.Printf("GRPC CAS HEAD %s CANCELLED", (*req.digest).Hash)
-			req.wg.Done()
-			continue
-		default:
+		if req.ctx != nil {
+			select {
+			case <-req.ctx.Done():
+				// Fast-fail if the context has already been cancelled.
+				c.accessLogger.Printf("GRPC CAS HEAD %s CANCELLED", (*req.digest).Hash)
+				req.wg.Done()
+				continue
+			default:
+			}
 		}
 
 		ok, _ = c.proxy.Contains(req.ctx, cache.CAS, (*req.digest).Hash)
