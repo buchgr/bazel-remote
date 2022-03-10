@@ -16,7 +16,7 @@ type proxyCheck struct {
 	wg          *sync.WaitGroup
 	digest      **pb.Digest
 	ctx         context.Context
-	onProxyMiss *func()
+	onProxyMiss func()
 }
 
 // Optimised implementation of FindMissingBlobs, which batches local index
@@ -25,16 +25,21 @@ type proxyCheck struct {
 //
 // Note that this modifies the input slice and returns a subset of it.
 func (c *diskCache) FindMissingCasBlobs(ctx context.Context, blobs []*pb.Digest) ([]*pb.Digest, error) {
-	err := c.findMissingCasBlobsInternal(ctx, blobs, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return filterNonNil(blobs), nil
+	return c.findMissingCasBlobsInternal(ctx, blobs, false)
 }
 
-func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb.Digest, onProxyMiss *func()) error {
+func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb.Digest, failFast bool) ([]*pb.Digest, error) {
+	// batchSize moderates how long the cache lock is held by findMissingLocalCAS.
 	const batchSize = 20
+
+	var contextCancel context.CancelFunc = nil
+
+	if failFast && c.proxy != nil {
+		// We want the contains worker to cancel the context on a cache miss, allowing us to fail fast.
+		ctx, contextCancel = context.WithCancel(ctx)
+
+		defer contextCancel()
+	}
 
 	var wg sync.WaitGroup
 
@@ -44,7 +49,7 @@ func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb
 	for len(remaining) > 0 {
 		select {
 		case <-ctx.Done():
-			return status.Error(codes.Canceled, "Request was cancelled")
+			return nil, status.Error(codes.Canceled, "Request was cancelled")
 		default:
 		}
 
@@ -57,7 +62,11 @@ func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb
 		}
 
 		numMissing := c.findMissingLocalCAS(chunk)
-		if numMissing > 0 && c.proxy != nil {
+		if numMissing == 0 {
+			continue
+		}
+
+		if c.proxy != nil {
 			wg.Add(numMissing)
 			for i := range chunk {
 				if chunk[i] != nil {
@@ -65,10 +74,12 @@ func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb
 						wg:          &wg,
 						digest:      &chunk[i],
 						ctx:         ctx,
-						onProxyMiss: onProxyMiss,
+						onProxyMiss: contextCancel,
 					}
 				}
 			}
+		} else if failFast {
+			break
 		}
 	}
 
@@ -76,7 +87,7 @@ func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb
 		wg.Wait()
 	}
 
-	return nil
+	return filterNonNil(blobs), nil
 }
 
 // Move all the non-nil items in the input slice to the
@@ -147,7 +158,7 @@ func (c *diskCache) containsWorker() {
 		} else {
 			c.accessLogger.Printf("GRPC CAS HEAD %s NOT FOUND", (*req.digest).Hash)
 			if req.onProxyMiss != nil {
-				(*req.onProxyMiss)()
+				req.onProxyMiss()
 			}
 		}
 		req.wg.Done()

@@ -1180,20 +1180,12 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 	}
 
 	if len(pendingValidations) > 0 {
-		cancelableContext, cancel := context.WithCancel(ctx)
-		cacheMiss := false
-
-		onCacheMiss := func() {
-			cacheMiss = true
-			cancel()
-		}
-
-		err = c.findMissingCasBlobsInternal(cancelableContext, pendingValidations, &onCacheMiss)
+		missing, err := c.findMissingCasBlobsInternal(ctx, pendingValidations, true)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		if cacheMiss {
+		if len(missing) > 0 {
 			return nil, nil, nil // aka "not found"
 		}
 	}
