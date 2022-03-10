@@ -69,13 +69,24 @@ func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb
 		if c.proxy != nil {
 			wg.Add(numMissing)
 			for i := range chunk {
-				if chunk[i] != nil {
-					c.containsQueue <- proxyCheck{
-						wg:          &wg,
-						digest:      &chunk[i],
-						ctx:         ctx,
-						onProxyMiss: contextCancel,
+				if chunk[i] == nil {
+					continue
+				}
+
+				if chunk[i].SizeBytes > c.maxProxyBlobSize {
+					// The blob would exceed the limit, so skip it.
+					wg.Add(-1) // remove from the waitgroup
+					if contextCancel != nil {
+						contextCancel()
 					}
+					continue
+				}
+
+				c.containsQueue <- proxyCheck{
+					wg:          &wg,
+					digest:      &chunk[i],
+					ctx:         ctx,
+					onProxyMiss: contextCancel,
 				}
 			}
 		} else if failFast {
