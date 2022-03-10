@@ -108,21 +108,27 @@ func filterNonNil(blobs []*pb.Digest) []*pb.Digest {
 // of missing blobs.
 func (c *diskCache) findMissingLocalCAS(blobs []*pb.Digest) int {
 	var exists bool
+	var item lruItem
 	var key string
 	missing := 0
 
 	c.mu.Lock()
 
 	for i := range blobs {
-		if blobs[i].SizeBytes == 0 {
+		if blobs[i].SizeBytes == 0 && blobs[i].Hash == emptySha256 {
 			c.accessLogger.Printf("GRPC CAS HEAD %s OK", blobs[i].Hash)
 			blobs[i] = nil
 			continue
 		}
 
+		foundSize := int64(-1)
 		key = cache.LookupKey(cache.CAS, blobs[i].Hash)
-		_, exists = c.lru.Get(key)
+		item, exists = c.lru.Get(key)
 		if exists {
+			foundSize = item.size
+		}
+
+		if exists && !isSizeMismatch(blobs[i].SizeBytes, foundSize) {
 			c.accessLogger.Printf("GRPC CAS HEAD %s OK", blobs[i].Hash)
 			blobs[i] = nil
 		} else {
