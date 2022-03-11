@@ -10,7 +10,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/klauspost/compress v1.14.1
-	github.com/minio/minio-go/v7 v7.0.20
+	github.com/minio/minio-go/v7 v7.0.24-0.20220302185830-f2d40be3e82f
 	github.com/mostynb/go-grpc-compression v1.1.16
 	github.com/mostynb/zstdpool-syncpool v0.0.12
 	github.com/prometheus/client_golang v1.11.0
