@@ -1155,18 +1155,16 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 		}
 
 		for _, f := range tree.Root.GetFiles() {
-			if f.Digest == nil {
-				continue
+			if f.Digest != nil {
+				pendingValidations = append(pendingValidations, f.Digest)
 			}
-			pendingValidations = append(pendingValidations, f.Digest)
 		}
 
 		for _, child := range tree.GetChildren() {
 			for _, f := range child.GetFiles() {
-				if f.Digest == nil {
-					continue
+				if f.Digest != nil {
+					pendingValidations = append(pendingValidations, f.Digest)
 				}
-				pendingValidations = append(pendingValidations, f.Digest)
 			}
 		}
 	}
@@ -1179,16 +1177,16 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 		pendingValidations = append(pendingValidations, result.StderrDigest)
 	}
 
-	if len(pendingValidations) > 0 {
-		missing, err := c.findMissingCasBlobsInternal(ctx, pendingValidations, true)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if len(missing) > 0 {
-			return nil, nil, nil // aka "not found"
-		}
+	if len(pendingValidations) == 0 {
+		return result, acdata, nil
 	}
 
-	return result, acdata, nil
+	missing, err := c.findMissingCasBlobsInternal(ctx, pendingValidations, true)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if len(missing) > 0 {
+		return nil, nil, nil // aka "not found"
+	}
 }
