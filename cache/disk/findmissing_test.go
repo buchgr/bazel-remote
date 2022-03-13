@@ -3,6 +3,7 @@ package disk
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -227,15 +228,15 @@ func TestFindMissingCasBlobsWithProxy(t *testing.T) {
 	}
 
 	if len(missing) != 2 {
-		t.Fatal("Expected missing array to have exactly two entries")
+		t.Fatalf("Expected missing array to have exactly two entries, got %d", len(missing))
 	}
 
 	if !proto.Equal(missing[0], &digest2) {
-		t.Fatalf("Expected missing[0] == digest2")
+		t.Fatalf("Expected missing[0] == digest2, got: %+v", missing[0])
 	}
 
 	if !proto.Equal(missing[1], &digest4) {
-		t.Fatalf("Expected missing[1] == digest4")
+		t.Fatalf("Expected missing[1] == digest4, got: %+v", missing[1])
 	}
 }
 
@@ -281,32 +282,161 @@ func TestFindMissingCasBlobsWithProxyFailFast(t *testing.T) {
 	proxy.Put(cache.CAS, digest1.Hash, digest1.SizeBytes, ioutil.NopCloser(bytes.NewReader(data1)))
 	proxy.Put(cache.CAS, digest3.Hash, digest3.SizeBytes, ioutil.NopCloser(bytes.NewReader(data3)))
 
-	missing, err := actualDiskCache.findMissingCasBlobsInternal(ctx, []*pb.Digest{
+	blobs := []*pb.Digest{
 		&digest1,
 		&digest2,
 		&digest3,
 		&digest4,
-	}, true)
+	}
+	err = actualDiskCache.findMissingCasBlobsInternal(ctx, blobs, true)
+
+	if !errors.Is(err, errMissingBlob) {
+		t.Fatalf("Expected err to be errMissingBlob, got: %s", err)
+	}
+
+	if proto.Equal(blobs[0], &digest1) {
+		t.Fatalf("Expected blobs[0] to equal digest1, got: %+v", blobs[0])
+	}
+}
+
+func TestFindMissingCasBlobsWithProxyFailFastNoneMissing(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cacheDir := tempDir(t)
+	defer os.RemoveAll(cacheDir)
+	proxyCacheDir := tempDir(t)
+	defer os.RemoveAll(proxyCacheDir)
+
+	cacheForProxy, err := New(proxyCacheDir, 40*1024, WithAccessLogger(testutils.NewSilentLogger()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	proxy, err := NewProxyAdapter(cacheForProxy)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Explicitly avoid using WithProxyBackEnd, as we want to control the workers.
+	testCacheI, err := New(cacheDir, 40*1024, WithAccessLogger(testutils.NewSilentLogger()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	actualDiskCache := testCacheI.(*diskCache)
+	actualDiskCache.proxy = proxy
+	actualDiskCache.containsQueue = make(chan proxyCheck, 4)
+	defer func() {
+		close(actualDiskCache.containsQueue)
+	}()
+	// Spawn a single worker.
+	go actualDiskCache.containsWorker()
+
+	data1, digest1 := testutils.RandomDataAndDigest(100)
+	data2, digest2 := testutils.RandomDataAndDigest(200)
+	data3, digest3 := testutils.RandomDataAndDigest(300)
+	data4, digest4 := testutils.RandomDataAndDigest(400)
+
+	proxy.Put(cache.CAS, digest1.Hash, digest1.SizeBytes, ioutil.NopCloser(bytes.NewReader(data1)))
+	proxy.Put(cache.CAS, digest2.Hash, digest2.SizeBytes, ioutil.NopCloser(bytes.NewReader(data2)))
+	proxy.Put(cache.CAS, digest3.Hash, digest3.SizeBytes, ioutil.NopCloser(bytes.NewReader(data3)))
+	proxy.Put(cache.CAS, digest4.Hash, digest4.SizeBytes, ioutil.NopCloser(bytes.NewReader(data4)))
+
+	blobs := []*pb.Digest{
+		&digest1,
+		&digest2,
+		&digest3,
+		&digest4,
+	}
+
+	err = actualDiskCache.findMissingCasBlobsInternal(ctx, blobs, true)
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// We expect digtest2, 3, and 4 to be considered "missing".
-	if len(missing) != 3 {
-		t.Fatalf("Expected missing array to have exactly three entries, but got %d", len(missing))
+	if blobs[0] != nil {
+		t.Fatalf("Expected blobs[0] to be nil, got: %+v", blobs[0])
 	}
 
-	if !proto.Equal(missing[0], &digest2) {
-		t.Fatalf("Expected missing[0] == digest2")
+	if blobs[1] != nil {
+		t.Fatalf("Expected blobs[1] to be nil, got: %+v", blobs[1])
 	}
 
-	if !proto.Equal(missing[1], &digest3) {
-		t.Fatalf("Expected missing[1] == digest3")
+	if blobs[2] != nil {
+		t.Fatalf("Expected blobs[3] to be nil, got: %+v", blobs[2])
 	}
 
-	if !proto.Equal(missing[2], &digest4) {
-		t.Fatalf("Expected missing[2] == digest4")
+	if blobs[3] != nil {
+		t.Fatalf("Expected blobs[3] to be nil, got: %+v", blobs[3])
+	}
+}
+
+func TestFindMissingCasBlobsWithProxyFailFastMaxProxyBlobSize(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cacheDir := tempDir(t)
+	defer os.RemoveAll(cacheDir)
+	proxyCacheDir := tempDir(t)
+	defer os.RemoveAll(proxyCacheDir)
+
+	cacheForProxy, err := New(proxyCacheDir, 10*1024, WithAccessLogger(testutils.NewSilentLogger()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	proxy, err := NewProxyAdapter(cacheForProxy)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Explicitly avoid using WithProxyBackEnd, as we want to control the workers.
+	testCacheI, err := New(cacheDir, 10*1024, WithAccessLogger(testutils.NewSilentLogger()), WithProxyMaxBlobSize(300))
+	if err != nil {
+		t.Fatal(err)
+	}
+	actualDiskCache := testCacheI.(*diskCache)
+	actualDiskCache.proxy = proxy
+	actualDiskCache.containsQueue = make(chan proxyCheck, 4)
+	defer func() {
+		close(actualDiskCache.containsQueue)
+	}()
+	// Spawn a single worker.
+	go actualDiskCache.containsWorker()
+
+	data1, digest1 := testutils.RandomDataAndDigest(100)
+	data2, digest2 := testutils.RandomDataAndDigest(200)
+	data3, digest3 := testutils.RandomDataAndDigest(300) // We expect this blob to not be found.
+
+	// Put blobs directly into proxy backend, where it will not be filtered out.
+	proxy.Put(cache.CAS, digest1.Hash, digest1.SizeBytes, ioutil.NopCloser(bytes.NewReader(data1)))
+	proxy.Put(cache.CAS, digest2.Hash, digest2.SizeBytes, ioutil.NopCloser(bytes.NewReader(data2)))
+	proxy.Put(cache.CAS, digest3.Hash, digest3.SizeBytes, ioutil.NopCloser(bytes.NewReader(data3)))
+
+	blobs := []*pb.Digest{
+		&digest1,
+		&digest2,
+		&digest3,
+	}
+	err = actualDiskCache.findMissingCasBlobsInternal(ctx, blobs, true)
+
+	if !errors.Is(err, errMissingBlob) {
+		t.Fatalf("Expected err to be errMissingBlob, got: %s", err)
+	}
+
+	if blobs[0] == nil {
+		t.Fatalf("Expected blobs[0] to be nil, got: %+v", blobs[0])
+	}
+
+	if blobs[1] == nil {
+		t.Fatalf("Expected blobs[1] to be nil, got: %+v", blobs[1])
+	}
+
+	if !proto.Equal(blobs[2], &digest3) {
+		t.Fatalf("Expected blobs[2] == digest3, got %+v", blobs[2])
 	}
 }
 
@@ -355,6 +485,6 @@ func TestFindMissingCasBlobsWithProxyMaxProxyBlobSize(t *testing.T) {
 	}
 
 	if !proto.Equal(missing[0], &digest2) {
-		t.Fatalf("Expected missing[0] == digest2")
+		t.Fatalf("Expected missing[0] == digest2, got %+v", missing[0])
 	}
 }

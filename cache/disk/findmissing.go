@@ -2,6 +2,7 @@ package disk
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/buchgr/bazel-remote/cache"
@@ -19,26 +20,44 @@ type proxyCheck struct {
 	onProxyMiss func()
 }
 
+var errMissingBlob = errors.New("a blob could not be found")
+
 // Optimised implementation of FindMissingBlobs, which batches local index
 // lookups and performs concurrent proxy lookups for local cache misses.
 // Returns a slice with the blobs that are missing from the cache.
 //
 // Note that this modifies the input slice and returns a subset of it.
 func (c *diskCache) FindMissingCasBlobs(ctx context.Context, blobs []*pb.Digest) ([]*pb.Digest, error) {
-	return c.findMissingCasBlobsInternal(ctx, blobs, false)
+	err := c.findMissingCasBlobsInternal(ctx, blobs, false)
+	if err != nil {
+		return nil, err
+	}
+	return filterNonNil(blobs), nil
 }
 
-func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb.Digest, failFast bool) ([]*pb.Digest, error) {
+// Identifies local and proxy cache misses for blobs. Modifies the input `blobs` slice such that found
+// blobs are replaced with nil, while the missing digests remain unchanged.
+//
+// When failFast is true and a blob could not be found in the local cache nor in the
+// proxy back end, the search will immediately terminate and errMissingBlob will be returned. Given that the
+// search is terminated early, the contents of blobs will only have partially been updated.
+func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb.Digest, failFast bool) error {
 	// batchSize moderates how long the cache lock is held by findMissingLocalCAS.
 	const batchSize = 20
 
-	var contextCancel context.CancelFunc = nil
+	var cancelContextForFailFast context.CancelFunc = nil
+	cancelledDueToFailFast := false
 
 	if failFast && c.proxy != nil {
-		// We want the contains worker to cancel the context on a cache miss, allowing us to fail fast.
-		ctx, contextCancel = context.WithCancel(ctx)
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		defer cancel()
 
-		defer contextCancel()
+		cancelContextForFailFast = func() {
+			// Indicate that we were canceled so that we can fail fast.
+			cancelledDueToFailFast = true
+			cancel()
+		}
 	}
 
 	var wg sync.WaitGroup
@@ -49,7 +68,10 @@ func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb
 	for len(remaining) > 0 {
 		select {
 		case <-ctx.Done():
-			return nil, status.Error(codes.Canceled, "Request was cancelled")
+			if cancelledDueToFailFast {
+				return errMissingBlob
+			}
+			return status.Error(codes.Canceled, "Request was cancelled")
 		default:
 		}
 
@@ -61,13 +83,11 @@ func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb
 			remaining = remaining[batchSize:]
 		}
 
-		numMissing := c.findMissingLocalCAS(chunk)
-		if numMissing == 0 {
+		if c.findMissingLocalCAS(chunk) == 0 {
 			continue
 		}
 
 		if c.proxy != nil {
-			wg.Add(numMissing)
 			for i := range chunk {
 				if chunk[i] == nil {
 					continue
@@ -75,30 +95,59 @@ func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb
 
 				if chunk[i].SizeBytes > c.maxProxyBlobSize {
 					// The blob would exceed the limit, so skip it.
-					wg.Add(-1) // remove from the waitgroup
-					if contextCancel != nil {
-						contextCancel()
+					if failFast {
+						return errMissingBlob
 					}
 					continue
 				}
 
+				// Adding to the containsQueue channel may have blocked on a previous iteration,
+				// so check to see if the context has cancelled.
+				select {
+				case <-ctx.Done():
+					if cancelledDueToFailFast {
+						return errMissingBlob
+					}
+					return status.Error(codes.Canceled, "Request was cancelled")
+				default:
+				}
+
+				wg.Add(1)
 				c.containsQueue <- proxyCheck{
-					wg:          &wg,
-					digest:      &chunk[i],
-					ctx:         ctx,
-					onProxyMiss: contextCancel,
+					wg:     &wg,
+					digest: &chunk[i],
+					ctx:    ctx,
+					// When failFast is true, onProxyMiss will have been set to a function that
+					// will cancel the context, causing the remaining proxyChecks to short-circuit.
+					onProxyMiss: cancelContextForFailFast,
 				}
 			}
 		} else if failFast {
-			break
+			// There's no proxy, there are missing blobs from the local cache, and we are failing fast.
+			return errMissingBlob
 		}
 	}
 
 	if c.proxy != nil {
-		wg.Wait()
+		// Adapt the waitgroup for select
+		waitCh := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(waitCh)
+		}()
+
+		// Wait for all proxyChecks to finish or a context cancellation.
+		select {
+		case <-ctx.Done():
+			if cancelledDueToFailFast {
+				return errMissingBlob
+			}
+			return status.Error(codes.Canceled, "Request was cancelled")
+		case <-waitCh: // Everything in the waitgroup has finished.
+		}
 	}
 
-	return filterNonNil(blobs), nil
+	return nil
 }
 
 // Move all the non-nil items in the input slice to the

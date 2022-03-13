@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -1177,16 +1178,12 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 		pendingValidations = append(pendingValidations, result.StderrDigest)
 	}
 
-	if len(pendingValidations) == 0 {
-		return result, acdata, nil
-	}
-
-	missing, err := c.findMissingCasBlobsInternal(ctx, pendingValidations, true)
-	if err != nil {
+	err = c.findMissingCasBlobsInternal(ctx, pendingValidations, true)
+	if errors.Is(err, errMissingBlob) {
+		return nil, nil, nil // aka "not found"
+	} else if err != nil {
 		return nil, nil, err
 	}
 
-	if len(missing) > 0 {
-		return nil, nil, nil // aka "not found"
-	}
+	return result, acdata, nil
 }
