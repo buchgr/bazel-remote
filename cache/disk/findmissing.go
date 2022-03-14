@@ -83,11 +83,15 @@ func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb
 			remaining = remaining[batchSize:]
 		}
 
-		if c.findMissingLocalCAS(chunk) == 0 {
+		numMissing := c.findMissingLocalCAS(chunk)
+		if numMissing == 0 {
 			continue
 		}
 
-		if c.proxy != nil {
+		if c.proxy == nil && failFast {
+			// There's no proxy, there are missing blobs from the local cache, and we are failing fast.
+			return errMissingBlob
+		} else if c.proxy != nil {
 			for i := range chunk {
 				if chunk[i] == nil {
 					continue
@@ -122,9 +126,6 @@ func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb
 					onProxyMiss: cancelContextForFailFast,
 				}
 			}
-		} else if failFast {
-			// There's no proxy, there are missing blobs from the local cache, and we are failing fast.
-			return errMissingBlob
 		}
 	}
 
