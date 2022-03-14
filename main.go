@@ -95,7 +95,7 @@ func run(ctx *cli.Context) error {
 		opts = append(opts, disk.WithProxyBackend(c.ProxyBackend))
 	}
 	if c.EnableEndpointMetrics {
-		opts = append(opts, disk.WithEndpointMetrics())
+		opts = append(opts, disk.WithEndpointMetrics(c.MetricCategories))
 	}
 
 	diskCache, err := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, opts...)

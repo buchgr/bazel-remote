@@ -461,3 +461,38 @@ func TestSocketPathMissing(t *testing.T) {
 		t.Fatal("Expected the error message to mention the missing 'http_address' key/flag")
 	}
 }
+
+func TestMetricCategories(t *testing.T) {
+	yaml := `
+metric_categories:
+  os:
+    - rhel8
+    - rhel9
+    - ubuntu21-04
+  branch:
+    - main
+dir: /opt/cache-dir
+max_size: 42
+storage_mode: zstd
+`
+	config, err := newFromYaml([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+	values, ok := config.MetricCategories["os"]
+	if !ok {
+		t.Fatalf("Missing os in config")
+	}
+	if !contains(values, "rhel9") {
+		t.Fatalf("Missing rhel9 in config")
+	}
+}
+
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}

@@ -201,6 +201,9 @@ func (h *httpCache) logResponse(code int, r *http.Request) {
 }
 
 func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
+
+	r = r.WithContext(disk.ContextWithHttpHeaders(r.Context(), &r.Header))
+
 	defer r.Body.Close()
 
 	kind, hash, instance, err := parseRequestURL(r.URL.Path, h.validateAC)
