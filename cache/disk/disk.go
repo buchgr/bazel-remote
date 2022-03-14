@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -1116,13 +1117,12 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 		return nil, nil, err // Should we return "not found" instead of an error?
 	}
 
+	pendingValidations := []*pb.Digest{}
+
 	for _, f := range result.OutputFiles {
 		// f was validated in validate.ActionResult but blobs were not checked for existence
 		if len(f.Contents) == 0 {
-			found, _ := c.Contains(ctx, cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
-			if !found {
-				return nil, nil, nil // aka "not found"
-			}
+			pendingValidations = append(pendingValidations, f.Digest)
 		}
 	}
 
@@ -1156,40 +1156,33 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 		}
 
 		for _, f := range tree.Root.GetFiles() {
-			if f.Digest == nil {
-				continue
-			}
-			found, _ := c.Contains(ctx, cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
-			if !found {
-				return nil, nil, nil // aka "not found"
+			if f.Digest != nil {
+				pendingValidations = append(pendingValidations, f.Digest)
 			}
 		}
 
 		for _, child := range tree.GetChildren() {
 			for _, f := range child.GetFiles() {
-				if f.Digest == nil {
-					continue
-				}
-				found, _ := c.Contains(ctx, cache.CAS, f.Digest.Hash, f.Digest.SizeBytes)
-				if !found {
-					return nil, nil, nil // aka "not found"
+				if f.Digest != nil {
+					pendingValidations = append(pendingValidations, f.Digest)
 				}
 			}
 		}
 	}
 
 	if result.StdoutDigest != nil {
-		found, _ := c.Contains(ctx, cache.CAS, result.StdoutDigest.Hash, result.StdoutDigest.SizeBytes)
-		if !found {
-			return nil, nil, nil // aka "not found"
-		}
+		pendingValidations = append(pendingValidations, result.StdoutDigest)
 	}
 
 	if result.StderrDigest != nil {
-		found, _ := c.Contains(ctx, cache.CAS, result.StderrDigest.Hash, result.StderrDigest.SizeBytes)
-		if !found {
-			return nil, nil, nil // aka "not found"
-		}
+		pendingValidations = append(pendingValidations, result.StderrDigest)
+	}
+
+	err = c.findMissingCasBlobsInternal(ctx, pendingValidations, true)
+	if errors.Is(err, errMissingBlob) {
+		return nil, nil, nil // aka "not found"
+	} else if err != nil {
+		return nil, nil, err
 	}
 
 	return result, acdata, nil

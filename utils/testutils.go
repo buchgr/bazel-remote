@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"log"
 	"testing"
+
+	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
 )
 
 // TempDir creates a temporary directory and returns its name. If an error
@@ -36,6 +38,14 @@ func RandomDataAndHash(size int64) ([]byte, string) {
 	hash := sha256.Sum256(data)
 	hashStr := hex.EncodeToString(hash[:])
 	return data, hashStr
+}
+
+func RandomDataAndDigest(size int64) ([]byte, pb.Digest) {
+	data, hash := RandomDataAndHash(size)
+	return data, pb.Digest{
+		Hash:      hash,
+		SizeBytes: size,
+	}
 }
 
 // NewSilentLogger returns a cheap logger that doesn't print anything, useful
