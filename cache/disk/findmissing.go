@@ -91,7 +91,9 @@ func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb
 		if c.proxy == nil && failFast {
 			// There's no proxy, there are missing blobs from the local cache, and we are failing fast.
 			return errMissingBlob
-		} else if c.proxy != nil {
+		}
+
+		if c.proxy != nil {
 			for i := range chunk {
 				if chunk[i] == nil {
 					continue

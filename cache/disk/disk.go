@@ -1181,7 +1181,8 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 	err = c.findMissingCasBlobsInternal(ctx, pendingValidations, true)
 	if errors.Is(err, errMissingBlob) {
 		return nil, nil, nil // aka "not found"
-	} else if err != nil {
+	}
+	if err != nil {
 		return nil, nil, err
 	}
 
