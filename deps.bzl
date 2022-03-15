@@ -528,8 +528,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_minio_minio_go_v7",
         importpath = "github.com/minio/minio-go/v7",
-        sum = "h1:0+Xt1SkCKDgcx5cmo3UxXcJ37u5Gy+/2i/+eQYqmYJw=",
-        version = "v7.0.20",
+        sum = "h1:5+NaPkyAjRvzl81ZN3N7VgMYsQwbYwnj3NQ2CJpxwX0=",
+        version = "v7.0.24-0.20220302185830-f2d40be3e82f",
     )
     go_repository(
         name = "com_github_minio_sha256_simd",
