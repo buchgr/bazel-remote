@@ -22,6 +22,8 @@ type proxyCheck struct {
 
 var errMissingBlob = errors.New("a blob could not be found")
 
+var errRequestCancelled = status.Error(codes.Canceled, "Request was cancelled")
+
 // Optimised implementation of FindMissingBlobs, which batches local index
 // lookups and performs concurrent proxy lookups for local cache misses.
 // Returns a slice with the blobs that are missing from the cache.
@@ -71,7 +73,7 @@ func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb
 			if cancelledDueToFailFast {
 				return errMissingBlob
 			}
-			return status.Error(codes.Canceled, "Request was cancelled")
+			return errRequestCancelled
 		default:
 		}
 
@@ -114,7 +116,7 @@ func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb
 					if cancelledDueToFailFast {
 						return errMissingBlob
 					}
-					return status.Error(codes.Canceled, "Request was cancelled")
+					return errRequestCancelled
 				default:
 				}
 
@@ -145,7 +147,7 @@ func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb
 			if cancelledDueToFailFast {
 				return errMissingBlob
 			}
-			return status.Error(codes.Canceled, "Request was cancelled")
+			return errRequestCancelled
 		case <-waitCh: // Everything in the waitgroup has finished.
 		}
 	}
