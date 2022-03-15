@@ -25,6 +25,13 @@ tasks:
       - "..."
   # A series of checks, each in a separate job due to
   # https://github.com/bazelbuild/continuous-integration/issues/938
+  check_modules:
+    platform: ubuntu2004
+    name: "gazelle-update-repos"
+    shell_commands:
+      - "bazel run //:gazelle-update-repos"
+      - "echo check if deps.bzl is up to date"
+      - "git diff --exit-code" # If there is a diff, fail.
   check_gofmt:
     platform: ubuntu2004
     name: "go fmt"
