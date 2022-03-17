@@ -184,6 +184,8 @@ func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, has
 		h.logResponse(http.StatusInternalServerError, r)
 		return
 	}
+
+	h.logResponse(http.StatusOK, r)
 }
 
 // Helper function for logging responses
