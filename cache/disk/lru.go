@@ -280,3 +280,13 @@ func (c *SizedLRU) removeElement(e *list.Element) {
 func roundUp4k(n int64) int64 {
 	return (n + BlockSize - 1) & -BlockSize
 }
+
+// Get the back item of the LRU cache.
+func (c *SizedLRU) getTailItem() (Key, lruItem) {
+	ele := c.ll.Back()
+	if ele != nil {
+		kv := ele.Value.(*entry)
+		return kv.key, kv.value
+	}
+	return nil, lruItem{}
+}
