@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk/casblob"
@@ -30,6 +31,8 @@ import (
 
 	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/prometheus/client_golang/prometheus"
 
 	"golang.org/x/sync/semaphore"
 )
@@ -83,6 +86,8 @@ type diskCache struct {
 
 	mu  sync.Mutex
 	lru SizedLRU
+
+	gaugeCacheAge prometheus.Gauge
 }
 
 type nameAndInfo struct {
@@ -135,6 +140,11 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 		// I suppose it's better to slow down processing than to crash
 		// when hitting the 10k limit or to run out of disk space.
 		fileRemovalSem: semaphore.NewWeighted(5000),
+
+		gaugeCacheAge: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "bazel_remote_disk_cache_longest_item_idle_time_seconds",
+			Help: "The idle time (now - atime) of the last item in the LRU cache, updated once per minute. Depending on filesystem mount options (e.g. relatime), the resolution may be measured in 'days' and not accurate to the second. If using noatime this will be 0.",
+		}),
 	}
 
 	cc := CacheConfig{diskCache: &c}
@@ -143,19 +153,7 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 	// This function is only called while the lock is held
 	// by the current goroutine.
 	onEvict := func(key Key, value lruItem) {
-		ks := key.(string)
-		hash := ks[len(ks)-sha256.Size*2:]
-		var kind cache.EntryKind = cache.AC
-		if strings.HasPrefix(ks, "cas") {
-			kind = cache.CAS
-		} else if strings.HasPrefix(ks, "ac") {
-			kind = cache.AC
-		} else if strings.HasPrefix(ks, "raw") {
-			kind = cache.RAW
-		}
-
-		f := filepath.Join(dir, c.FileLocation(kind, value.legacy, hash, value.size, value.random))
-
+		f := c.getElementPath(key, value)
 		// Run in a goroutine so we can release the lock sooner.
 		go c.removeFile(f)
 	}
@@ -211,6 +209,64 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 // Non-test users must call this to expose metrics.
 func (c *diskCache) RegisterMetrics() {
 	c.lru.RegisterMetrics()
+
+	prometheus.MustRegister(c.gaugeCacheAge)
+
+	// Update the cache age metric on a static interval
+	// Note: this could be modeled as a GuageFunc that updates as needed
+	// but since the updater func must lock the cache mu, it was deemed
+	// necessary to have greater control of when to get the cache age
+	go c.pollCacheAge()
+}
+
+// Update metric every minute with the idle time of the least recently used item in the cache
+func (c *diskCache) pollCacheAge() {
+	ticker := time.NewTicker(60 * time.Second)
+	for ; true; <-ticker.C {
+		c.updateCacheAgeMetric()
+	}
+}
+
+// Get the idle time of the least-recently used item in the cache, and store the value in a metric
+func (c *diskCache) updateCacheAgeMetric() {
+	c.mu.Lock()
+
+	key, value := c.lru.getTailItem()
+	age := 0.0
+	validAge := true
+
+	if key != nil {
+		f := c.getElementPath(key, value)
+		ts, err := atime.Stat(f)
+
+		if err != nil {
+			log.Printf("ERROR: failed to determine time of least recently used cache item: %v, unable to stat %s", err, f)
+			validAge = false
+		} else {
+			age = time.Now().Sub(ts).Seconds()
+		}
+	}
+
+	c.mu.Unlock()
+
+	if validAge {
+		c.gaugeCacheAge.Set(age)
+	}
+}
+
+func (c *diskCache) getElementPath(key Key, value lruItem) string {
+	ks := key.(string)
+	hash := ks[len(ks)-sha256.Size*2:]
+	var kind cache.EntryKind = cache.AC
+	if strings.HasPrefix(ks, "cas") {
+		kind = cache.CAS
+	} else if strings.HasPrefix(ks, "ac") {
+		kind = cache.AC
+	} else if strings.HasPrefix(ks, "raw") {
+		kind = cache.RAW
+	}
+
+	return filepath.Join(c.dir, c.FileLocation(kind, value.legacy, hash, value.size, value.random))
 }
 
 func (c *diskCache) removeFile(f string) {
