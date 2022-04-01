@@ -109,9 +109,9 @@ func (m *metricsDecorator) FindMissingCasBlobs(ctx context.Context, blobs []*pb.
 		return digests, err
 	}
 
-	numFound := len(digests)
+	numMissing := len(digests)
 
-	numMissing := numLooking - numFound
+	numFound := numLooking - numMissing
 
 	hitLabels := prometheus.Labels{
 		"method": containsMethod,
