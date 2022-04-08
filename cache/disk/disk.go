@@ -143,7 +143,7 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 
 		gaugeCacheAge: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "bazel_remote_disk_cache_longest_item_idle_time_seconds",
-			Help: "The file `atime` of oldest item in the LRU cache. Depending on filemount opts (e.g. relatime), the resolution may be measured in 'days' and not accurate to the second. If using mount noatime this will be 0",
+			Help: "The idle time (now - atime) of the last item in the LRU cache, updated once per minute. Depending on filesystem mount options (e.g. relatime), the resolution may be measured in 'days' and not accurate to the second. If using noatime this will be 0.",
 		}),
 	}
 
