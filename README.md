@@ -603,10 +603,3 @@ argument, and add the following flags:
 For more details, see Bazel's [remote
 caching](https://docs.bazel.build/versions/master/remote-caching.html#run-bazel-using-the-remote-cache)
 documentation.
-
-## AWS S3 note
-
-To avoid per-prefix rate limiting with Amazon S3, you may want to try using
-`--s3.key_format=2`, which stores blobs across a larger number of prefixes.
-Reference:
-[Optimizing Amazon S3 Performance](https://docs.aws.amazon.com/AmazonS3/latest/dev/optimizing-performance.html).
