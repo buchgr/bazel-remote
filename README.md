@@ -433,6 +433,26 @@ http_address: localhost:8080
 
 # If supplied, controls the verbosity of the access logger ("none" or "all"):
 #access_log_level: none
+
+# If supplied, declares prometheus metric category names, with allowed value set
+# for each category.
+#metric_categories:
+#  branch:
+#    - main
+#  user:
+#    - ci
+#  product:
+#    - aaa
+#    - bbb
+#  pipeline:
+#    - unit-test
+#    - integration-test
+#    - system-test
+#  os:
+#    - rhel8
+#    - rhel9
+#    - ubuntu21-04
+#    - ubuntu22-04
 ```
 
 ## Docker
@@ -610,3 +630,86 @@ To avoid per-prefix rate limiting with Amazon S3, you may want to try using
 `--s3.key_format=2`, which stores blobs across a larger number of prefixes.
 Reference:
 [Optimizing Amazon S3 Performance](https://docs.aws.amazon.com/AmazonS3/latest/dev/optimizing-performance.html).
+
+## Prometheus Categories
+
+bazel-remote supports declaring categories for the prometheus metrics.
+The categories can be used to calculate cache hit ratio separate per
+type of build, see where most traffic comes from, etc.
+
+Clients can set categories via HTTP and gRPC headers. With bazel
+that is done via the bazel option --remote_header.
+
+Allowed category names are declared in the bazel-remote configuration file.
+The allowed value set for each category also have to be declared as an
+attempt to avoid polluting Prometheus with too many different time series.
+https://prometheus.io/docs/practices/naming/ warns:
+
+> "CAUTION: Remember that every unique combination of key-value
+> label pairs represent a new time series, which can dramatically
+> increase the amount of data stored. Do not use labels to store
+> dimensions with high cardinality (many different label values),
+> such as user IDs, email addresses, or other unbounded sets of
+> values."
+
+Received headers that match a declared category name, but with a value outside
+the declared allowed value set, is reported with the value "other" to
+Prometheus. This is convenient for categories such as "branch", where it from a
+cache hit ratio perspective often make sense to distinguish between "main"
+branch and "other" branches.
+
+### Example
+
+Example from a bazel-remote configuration file that declares categories and
+their allowed value sets:
+```
+metric_categories:
+  branch:
+    - main
+  user:
+    - ci
+  product:
+    - aaa
+    - bbb
+  pipeline:
+    - unit-test
+    - integration-test
+    - system-test
+  os:
+    - rhel8
+    - rhel9
+    - ubuntu21-04
+    - ubuntu22-04
+```
+
+Bazel clients can be configured to always add flags like:
+```
+--remote_header=user=$USER
+--remote_header=host=$HOST
+--remote_header=os=\`get_os_name.sh\`
+```
+
+And bazel clients invoked via CI can in addition add headers like:
+```
+--remote_header=branch=$BRANCH_NAME
+--remote_header=product=$PRODUCT_NAME
+--remote_header=pipeline=$CI_PIPELINE_NAME
+```
+
+The value set for user and branch is not bounded and could therefore not be
+stored as is in Prometheus. But in many cases, it is good enough to distinguish
+between if it was ci user or non-ci user, or if it was main or non-main branch.
+That can be achieved with bazel-remote configuration above which limits the
+value ranges to only "ci" and "main".
+
+Example of prometheus query calculating cache hit ratio specifically for the
+user "ci":
+```
+(sum (rate(bazel_remote_incoming_requests_total{kind="ac",method="get",user="ci",status="hit"}[$__rate_interval]))) / (sum (rate(bazel_remote_incoming_requests_total{kind="ac",method="get",user="ci"}[$__rate_interval])))
+```
+
+Example of prometheus query calculating incoming cache request rate, grouped
+by product:
+```
+sum by(product) (rate(bazel_remote_incoming_requests_total[$__rate_interval]))
+```

@@ -5,6 +5,8 @@ import (
 	"io"
 
 	"github.com/buchgr/bazel-remote/cache"
+	"google.golang.org/grpc/metadata"
+	"net/http"
 
 	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
 
@@ -14,15 +16,17 @@ import (
 type metricsDecorator struct {
 	counter *prometheus.CounterVec
 	*diskCache
+	categories map[string][]string
 }
 
 const (
-	hitStatus  = "hit"
-	missStatus = "miss"
+	hitStatus   = "hit"
+	missStatus  = "miss"
+	emptyStatus = ""
 
 	containsMethod = "contains"
 	getMethod      = "get"
-	//putMethod      = "put"
+	putMethod      = "put"
 
 	acKind  = "ac" // This must be lowercase to match cache.EntryKind.String()
 	casKind = "cas"
@@ -46,6 +50,7 @@ func (m *metricsDecorator) Get(ctx context.Context, kind cache.EntryKind, hash s
 	} else {
 		lbls["status"] = missStatus
 	}
+	m.addCategoryLabels(ctx, lbls)
 	m.counter.With(lbls).Inc()
 
 	return rc, size, nil
@@ -63,6 +68,7 @@ func (m *metricsDecorator) GetValidatedActionResult(ctx context.Context, hash st
 	} else {
 		lbls["status"] = missStatus
 	}
+	m.addCategoryLabels(ctx, lbls)
 	m.counter.With(lbls).Inc()
 
 	return ar, data, err
@@ -83,6 +89,7 @@ func (m *metricsDecorator) GetZstd(ctx context.Context, hash string, size int64,
 	} else {
 		lbls["status"] = missStatus
 	}
+	m.addCategoryLabels(ctx, lbls)
 	m.counter.With(lbls).Inc()
 
 	return rc, size, nil
@@ -97,6 +104,7 @@ func (m *metricsDecorator) Contains(ctx context.Context, kind cache.EntryKind, h
 	} else {
 		lbls["status"] = missStatus
 	}
+	m.addCategoryLabels(ctx, lbls)
 	m.counter.With(lbls).Inc()
 
 	return ok, size
@@ -118,6 +126,7 @@ func (m *metricsDecorator) FindMissingCasBlobs(ctx context.Context, blobs []*pb.
 		"kind":   "cas",
 		"status": hitStatus,
 	}
+	m.addCategoryLabels(ctx, hitLabels)
 	hits := m.counter.With(hitLabels)
 
 	missLabels := prometheus.Labels{
@@ -125,10 +134,89 @@ func (m *metricsDecorator) FindMissingCasBlobs(ctx context.Context, blobs []*pb.
 		"kind":   "cas",
 		"status": missStatus,
 	}
+	m.addCategoryLabels(ctx, missLabels)
 	misses := m.counter.With(missLabels)
 
 	hits.Add(float64(numFound))
 	misses.Add(float64(numMissing))
 
 	return digests, nil
+}
+
+func (m *metricsDecorator) Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, r io.Reader) error {
+	err := m.diskCache.Put(ctx, kind, hash, size, r)
+	if err != nil {
+		return err
+	}
+
+	lbls := prometheus.Labels{"method": putMethod, "kind": kind.String(), "status": emptyStatus}
+	m.addCategoryLabels(ctx, lbls)
+	m.counter.With(lbls).Inc()
+
+	return nil
+}
+
+// Update prometheus labels based on HTTP and gRPC headers available via the context.
+func (m *metricsDecorator) addCategoryLabels(ctx context.Context, labels prometheus.Labels) {
+
+	if len(m.categories) == 0 {
+		return
+	}
+
+	httpHeaders := getHttpHeaders(ctx)
+	var grpcHeaders metadata.MD
+	if httpHeaders == nil {
+		grpcHeaders = getGrpcHeaders(ctx)
+	}
+
+	for categoryNameLowerCase, allowedValues := range m.categories {
+		// Lower case is canonical for gRPC headers and convention for prometheus.
+		var headerValue string = ""
+		if grpcHeaders != nil {
+			grpcHeaderValues := grpcHeaders[categoryNameLowerCase]
+			if len(grpcHeaderValues) > 0 {
+				// Pick the first header with matching name if multiple headers with same name
+				headerValue = grpcHeaderValues[0]
+			}
+		} else if httpHeaders != nil {
+			headerValue = httpHeaders.Get(categoryNameLowerCase)
+		}
+		if len(headerValue) == 0 {
+			labels[categoryNameLowerCase] = ""
+		} else if contains(allowedValues, headerValue) {
+			labels[categoryNameLowerCase] = headerValue
+		} else {
+			labels[categoryNameLowerCase] = "other"
+		}
+	}
+}
+
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+type httpHeadersContextKey struct{}
+
+// Creates a context copy with HTTP headers attached.
+func ContextWithHttpHeaders(ctx context.Context, headers *http.Header) context.Context {
+	return context.WithValue(ctx, httpHeadersContextKey{}, headers)
+}
+
+// Retrieves HTTP headers from context. Minimizes type safety issues.
+func getHttpHeaders(ctx context.Context) *http.Header {
+	headers, ok := ctx.Value(httpHeadersContextKey{}).(*http.Header)
+	if !ok {
+		return nil
+	}
+	return headers
+}
+
+func getGrpcHeaders(ctx context.Context) metadata.MD {
+	grpcHeaders, _ := metadata.FromIncomingContext(ctx)
+	return grpcHeaders
 }

@@ -1229,7 +1229,7 @@ func TestMetricsUnvalidatedAC(t *testing.T) {
 
 	testCacheI, err := New(cacheDir, cacheSize,
 		WithAccessLogger(testutils.NewSilentLogger()),
-		WithEndpointMetrics())
+		WithEndpointMetrics(make(map[string][]string)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1304,7 +1304,6 @@ func TestMetricsUnvalidatedAC(t *testing.T) {
 	if acHits != 2 {
 		t.Fatalf("Expected acHit counter to be 2, found %f", acHits)
 	}
-
 	acMiss = count(testCache.counter, acKind, missStatus)
 	if acMiss != 0 {
 		t.Fatalf("Expected acMiss counter to be 0, found %f", acMiss)
@@ -1339,7 +1338,7 @@ func TestMetricsValidatedAC(t *testing.T) {
 
 	testCacheI, err := New(cacheDir, cacheSize,
 		WithAccessLogger(testutils.NewSilentLogger()),
-		WithEndpointMetrics())
+		WithEndpointMetrics(make(map[string][]string)))
 	if err != nil {
 		t.Fatal(err)
 	}

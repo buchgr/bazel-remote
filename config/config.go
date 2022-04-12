@@ -56,6 +56,7 @@ type Config struct {
 	DisableGRPCACDepsCheck      bool                      `yaml:"disable_grpc_ac_deps_check"`
 	EnableACKeyInstanceMangling bool                      `yaml:"enable_ac_key_instance_mangling"`
 	EnableEndpointMetrics       bool                      `yaml:"enable_endpoint_metrics"`
+	MetricCategories            map[string][]string       `yaml:"metric_categories"`
 	MetricsDurationBuckets      []float64                 `yaml:"endpoint_metrics_duration_buckets"`
 	ExperimentalRemoteAssetAPI  bool                      `yaml:"experimental_remote_asset_api"`
 	HTTPReadTimeout             time.Duration             `yaml:"http_read_timeout"`
@@ -349,6 +350,12 @@ func validateConfig(c *Config) error {
 	case "none", "all":
 	default:
 		return errors.New("'access_log_level' must be set to either \"none\" or \"all\"")
+	}
+
+	for categoryName := range c.MetricCategories {
+		if categoryName != strings.ToLower(categoryName) {
+			return fmt.Errorf("Names in 'metric_categories' must be in lower case: %s", categoryName)
+		}
 	}
 
 	return nil

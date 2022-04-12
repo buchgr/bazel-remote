@@ -75,18 +75,23 @@ func WithAccessLogger(logger *log.Logger) Option {
 	}
 }
 
-func WithEndpointMetrics() Option {
+func WithEndpointMetrics(categories map[string][]string) Option {
 	return func(c *CacheConfig) error {
 		if c.metrics != nil {
 			return fmt.Errorf("WithEndpointMetrics specified multiple times")
 		}
 
+		labels := []string{"method", "status", "kind"}
+		for categoryNameLowerCase := range categories {
+			labels = append(labels, categoryNameLowerCase)
+		}
 		c.metrics = &metricsDecorator{
 			counter: prometheus.NewCounterVec(prometheus.CounterOpts{
 				Name: "bazel_remote_incoming_requests_total",
 				Help: "The number of incoming cache requests",
 			},
-				[]string{"method", "kind", "status"}),
+				labels),
+			categories: categories,
 		}
 
 		return nil
