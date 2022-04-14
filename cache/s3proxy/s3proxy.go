@@ -196,6 +196,19 @@ func (c *s3Cache) Put(ctx context.Context, kind cache.EntryKind, hash string, si
 	}
 }
 
+func (c *s3Cache) CopyObject(ctx context.Context, bucket string, object string) {
+	_, err := c.mcore.CopyObject(
+		context.Background(),
+		bucket,
+		object,
+		bucket,
+		object,
+		map[string]string{},
+		minio.CopySrcOptions{},
+		minio.PutObjectOptions{})
+	logResponse(c.accessLogger, "COPY", bucket, object, err)
+}
+
 func (c *s3Cache) Get(ctx context.Context, kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 
 	rc, info, _, err := c.mcore.GetObject(
@@ -215,7 +228,7 @@ func (c *s3Cache) Get(ctx context.Context, kind cache.EntryKind, hash string) (i
 		return nil, -1, err
 	}
 	cacheHits.Inc()
-
+	c.CopyObject(ctx, c.bucket, c.objectKey(hash, kind))
 	logResponse(c.accessLogger, "DOWNLOAD", c.bucket, c.objectKey(hash, kind), nil)
 
 	if kind == cache.CAS && c.v2mode {
