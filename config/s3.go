@@ -17,6 +17,7 @@ type S3CloudStorageConfig struct {
 	AccessKeyID              string `yaml:"access_key_id"`
 	SecretAccessKey          string `yaml:"secret_access_key"`
 	DisableSSL               bool   `yaml:"disable_ssl"`
+	UpdateTimestamps         bool   `yaml:"update_timestamps"`
 	IAMRoleEndpoint          string `yaml:"iam_role_endpoint"`
 	Region                   string `yaml:"region"`
 	KeyVersion               *int   `yaml:"key_version"`

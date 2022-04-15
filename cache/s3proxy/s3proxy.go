@@ -24,14 +24,15 @@ type uploadReq struct {
 }
 
 type s3Cache struct {
-	mcore        *minio.Core
-	prefix       string
-	bucket       string
-	uploadQueue  chan<- uploadReq
-	accessLogger cache.Logger
-	errorLogger  cache.Logger
-	v2mode       bool
-	objectKey    func(hash string, kind cache.EntryKind) string
+	mcore            *minio.Core
+	prefix           string
+	bucket           string
+	uploadQueue      chan<- uploadReq
+	accessLogger     cache.Logger
+	errorLogger      cache.Logger
+	v2mode           bool
+	updateTimestamps bool
+	objectKey        func(hash string, kind cache.EntryKind) string
 }
 
 var (
@@ -56,6 +57,7 @@ func New(
 	Prefix string,
 	Credentials *credentials.Credentials,
 	DisableSSL bool,
+	UpdateTimestamps bool,
 	Region string,
 
 	storageMode string, accessLogger cache.Logger,
@@ -88,12 +90,13 @@ func New(
 	}
 
 	c := &s3Cache{
-		mcore:        minioCore,
-		prefix:       Prefix,
-		bucket:       Bucket,
-		accessLogger: accessLogger,
-		errorLogger:  errorLogger,
-		v2mode:       storageMode == "zstd",
+		mcore:            minioCore,
+		prefix:           Prefix,
+		bucket:           Bucket,
+		accessLogger:     accessLogger,
+		errorLogger:      errorLogger,
+		v2mode:           storageMode == "zstd",
+		updateTimestamps: UpdateTimestamps,
 	}
 
 	if c.v2mode {
@@ -196,6 +199,22 @@ func (c *s3Cache) Put(ctx context.Context, kind cache.EntryKind, hash string, si
 	}
 }
 
+func (c *s3Cache) UpdateModificationTimestamp(ctx context.Context, bucket string, object string) {
+	src := minio.CopySrcOptions{
+		Bucket: bucket,
+		Object: object,
+	}
+
+	dst := minio.CopyDestOptions{
+		Bucket: bucket,
+		Object: object,
+	}
+
+	_, err := c.mcore.ComposeObject(context.Background(), dst, src)
+
+	logResponse(c.accessLogger, "COMPOSE", bucket, object, err)
+}
+
 func (c *s3Cache) Get(ctx context.Context, kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 
 	rc, info, _, err := c.mcore.GetObject(
@@ -215,6 +234,10 @@ func (c *s3Cache) Get(ctx context.Context, kind cache.EntryKind, hash string) (i
 		return nil, -1, err
 	}
 	cacheHits.Inc()
+
+	if c.updateTimestamps {
+		c.UpdateModificationTimestamp(ctx, c.bucket, c.objectKey(hash, kind))
+	}
 
 	logResponse(c.accessLogger, "DOWNLOAD", c.bucket, c.objectKey(hash, kind), nil)
 

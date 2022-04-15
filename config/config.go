@@ -415,6 +415,7 @@ func get(ctx *cli.Context) (*Config, error) {
 			AccessKeyID:              ctx.String("s3.access_key_id"),
 			SecretAccessKey:          ctx.String("s3.secret_access_key"),
 			DisableSSL:               ctx.Bool("s3.disable_ssl"),
+			UpdateTimestamps:         ctx.Bool("s3.update_timestamps"),
 			IAMRoleEndpoint:          ctx.String("s3.iam_role_endpoint"),
 			Region:                   ctx.String("s3.region"),
 			AWSProfile:               ctx.String("s3.aws_profile"),
