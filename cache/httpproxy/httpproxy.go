@@ -242,7 +242,7 @@ func (r *remoteHTTPProxyCache) Contains(ctx context.Context, kind cache.EntryKin
 
 	url := r.requestURL(hash, kind)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {
 		return false, -1
 	}
