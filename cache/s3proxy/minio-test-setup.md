@@ -29,7 +29,9 @@ production use.
     	--s3.auth_method access_key \
     	--s3.access_key_id minioadmin \
     	--s3.secret_access_key minioadmin \
-    	--s3.disable_ssl
+    	--s3.disable_ssl  \
+        --s3.update_timestamps
+
 
 ## Build something with the bazel-remote cache
 

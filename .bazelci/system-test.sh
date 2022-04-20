@@ -84,6 +84,7 @@ rm -rf $test_cache_dir
 	--s3.access_key_id minioadmin \
 	--s3.secret_access_key minioadmin \
 	--s3.disable_ssl \
+	--s3.update_timestamps \
 	> log.stdout 2> log.stderr &
 test_cache_pid=$!
 echo "Test cache pid: $test_cache_pid"
@@ -141,6 +142,7 @@ rm -rf $test_cache_dir
 	--s3.access_key_id minioadmin \
 	--s3.secret_access_key minioadmin \
 	--s3.disable_ssl \
+	--s3.update_timestamps \
 	> log.stdout 2> log.stderr &
 test_cache_pid=$!
 echo "Test cache pid: $test_cache_pid"
@@ -219,6 +221,7 @@ rm -rf $test_cache_dir
 	--s3.access_key_id minioadmin \
 	--s3.secret_access_key minioadmin \
 	--s3.disable_ssl \
+	--s3.update_timestamps \
 	> log.stdout 2> log.stderr &
 test_cache_pid=$!
 echo "Test cache pid: $test_cache_pid"
