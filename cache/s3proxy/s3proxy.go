@@ -206,8 +206,9 @@ func (c *s3Cache) UpdateModificationTimestamp(ctx context.Context, bucket string
 	}
 
 	dst := minio.CopyDestOptions{
-		Bucket: bucket,
-		Object: object,
+		Bucket:          bucket,
+		Object:          object,
+		ReplaceMetadata: true,
 	}
 
 	_, err := c.mcore.ComposeObject(context.Background(), dst, src)
