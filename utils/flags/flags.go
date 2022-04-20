@@ -249,6 +249,12 @@ func GetCliFlags() []cli.Flag {
 			DefaultText: "false, ie enable TLS/SSL",
 			EnvVars:     []string{"BAZEL_REMOTE_S3_DISABLE_SSL"},
 		},
+		&cli.BoolFlag{
+			Name:        "s3.update_timestamps",
+			Usage:       "Whether to update timestamps of object on cache hit.",
+			DefaultText: "false",
+			EnvVars:     []string{"BAZEL_REMOTE_S3_UPDATE_TIMESTAMPS"},
+		},
 		&cli.StringFlag{
 			Name:    "s3.iam_role_endpoint",
 			Value:   "",
