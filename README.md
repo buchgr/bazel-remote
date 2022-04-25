@@ -280,6 +280,10 @@ OPTIONS:
       backend. (default: false, ie enable TLS/SSL)
       [$BAZEL_REMOTE_S3_DISABLE_SSL]
 
+   --s3.update_timestamps Whether to update timestamps of object on cache
+      hit. (default: false)
+      [$BAZEL_REMOTE_S3_UPDATE_TIMESTAMPS]   
+
    --s3.iam_role_endpoint value Endpoint for using IAM security credentials.
       By default it will look for credentials in the standard locations for the
       AWS platform. Applies to s3 auth method(s): iam_role.
