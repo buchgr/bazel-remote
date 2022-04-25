@@ -36,6 +36,13 @@ func GetCliFlags() []cli.Flag {
 			Usage:   "The maximum size of the remote cache in GiB. This flag is required.",
 			EnvVars: []string{"BAZEL_REMOTE_MAX_SIZE"},
 		},
+		&cli.Int64Flag{
+			Name:        "max_threads",
+			Value:       -1,
+			Usage:       "The maximum number of OS threads the Go service can spawn.",
+			DefaultText: "-1, ie Go defaults kept (see https://pkg.go.dev/runtime/debug#SetMaxThreads)",
+			EnvVars:     []string{"BAZEL_REMOTE_MAX_THREADS"},
+		},
 		&cli.StringFlag{
 			Name:    "storage_mode",
 			Value:   "zstd",

@@ -40,6 +40,7 @@ type Config struct {
 	ProfileAddress              string                    `yaml:"profile_address"`
 	Dir                         string                    `yaml:"dir"`
 	MaxSize                     int                       `yaml:"max_size"`
+	MaxThreads                  int                       `yaml:"max_threads"`
 	StorageMode                 string                    `yaml:"storage_mode"`
 	HtpasswdFile                string                    `yaml:"htpasswd_file"`
 	TLSCaFile                   string                    `yaml:"tls_ca_file"`
@@ -91,7 +92,11 @@ var defaultDurationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
 
 // newFromArgs returns a validated Config with the specified values, and
 // an error if there were any problems with the validation.
-func newFromArgs(dir string, maxSize int, storageMode string,
+func newFromArgs(
+	dir string,
+	maxSize int,
+	maxThreads int,
+	storageMode string,
 	httpAddress string, grpcAddress string,
 	profileAddress string,
 	htpasswdFile string,
@@ -122,6 +127,7 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 		ProfileAddress:              profileAddress,
 		Dir:                         dir,
 		MaxSize:                     maxSize,
+		MaxThreads:                  maxThreads,
 		StorageMode:                 storageMode,
 		HtpasswdFile:                htpasswdFile,
 		MaxQueuedUploads:            maxQueuedUploads,
@@ -441,6 +447,7 @@ func get(ctx *cli.Context) (*Config, error) {
 	return newFromArgs(
 		ctx.String("dir"),
 		ctx.Int("max_size"),
+		ctx.Int("max_threads"),
 		ctx.String("storage_mode"),
 		httpAddress,
 		grpcAddress,

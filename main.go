@@ -9,6 +9,7 @@ import (
 	_ "net/http/pprof" // Register pprof handlers with DefaultServeMux.
 	"os"
 	"runtime"
+	"runtime/debug"
 	"strings"
 
 	auth "github.com/abbot/go-http-auth"
@@ -82,6 +83,11 @@ func run(ctx *cli.Context) error {
 	}
 
 	rlimit.Raise()
+
+	if c.MaxThreads > 0 {
+		log.Printf("Setting MaxThreads to %d", c.MaxThreads)
+		debug.SetMaxThreads(c.MaxThreads)
+	}
 
 	validateAC := !c.DisableHTTPACValidation
 

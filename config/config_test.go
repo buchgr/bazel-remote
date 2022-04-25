@@ -16,6 +16,7 @@ port: 8080
 grpc_port: 9092
 dir: /opt/cache-dir
 max_size: 100
+max_threads: 15000
 htpasswd_file: /opt/.htpasswd
 tls_cert_file: /opt/tls.cert
 tls_key_file:  /opt/tls.key
@@ -38,6 +39,7 @@ access_log_level: none
 		GRPCAddress:                 "localhost:9092",
 		Dir:                         "/opt/cache-dir",
 		MaxSize:                     100,
+		MaxThreads:                  15000,
 		StorageMode:                 "zstd",
 		HtpasswdFile:                "/opt/.htpasswd",
 		TLSCertFile:                 "/opt/tls.cert",
