@@ -141,8 +141,8 @@ OPTIONS:
    --dir value Directory path where to store the cache contents. This flag is
       required. [$BAZEL_REMOTE_DIR]
 
-   --max_size value The maximum size of the remote cache in GiB. This flag is
-      required. (default: -1) [$BAZEL_REMOTE_MAX_SIZE]
+   --max_size value The maximum size of bazel-remote's disk cache in GiB.
+      This flag is required. (default: -1) [$BAZEL_REMOTE_MAX_SIZE]
 
    --storage_mode value Which format to store CAS blobs in. Must be one of
       "zstd" or "uncompressed". (default: "zstd") [$BAZEL_REMOTE_STORAGE_MODE]
@@ -221,9 +221,9 @@ OPTIONS:
       preexisting blobs in the cache. (default: 9223372036854775807)
       [$BAZEL_REMOTE_MAX_BLOB_SIZE]
 
-   --max_proxy_blob_size value The maximum logical/uncompressed blob size that will
-      be downloaded from proxies. Note that this limit is not applied to
-      preexisting blobs in the cache. (default: 9223372036854775807)
+   --max_proxy_blob_size value The maximum logical/uncompressed blob size
+      that will be downloaded from proxies. Note that this limit is not applied
+      to preexisting blobs in the cache. (default: 9223372036854775807)
       [$BAZEL_REMOTE_MAX_PROXY_BLOB_SIZE]
 
    --num_uploaders value When using proxy backends, sets the number of
@@ -281,8 +281,7 @@ OPTIONS:
       [$BAZEL_REMOTE_S3_DISABLE_SSL]
 
    --s3.update_timestamps Whether to update timestamps of object on cache
-      hit. (default: false)
-      [$BAZEL_REMOTE_S3_UPDATE_TIMESTAMPS]   
+      hit. (default: false) [$BAZEL_REMOTE_S3_UPDATE_TIMESTAMPS]
 
    --s3.iam_role_endpoint value Endpoint for using IAM security credentials.
       By default it will look for credentials in the standard locations for the
