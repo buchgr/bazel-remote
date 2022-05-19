@@ -243,7 +243,7 @@ func (c *diskCache) updateCacheAgeMetric() {
 			log.Printf("ERROR: failed to determine time of least recently used cache item: %v, unable to stat %s", err, f)
 			validAge = false
 		} else {
-			age = time.Now().Sub(ts).Seconds()
+			age = time.Since(ts).Seconds()
 		}
 	}
 
