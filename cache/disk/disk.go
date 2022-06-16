@@ -126,6 +126,20 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 		return nil, err
 	}
 
+	// Go defaults to a limit of 10,000 operating system threads.
+	// We probably don't need half of those for file removals at
+	// any given point in time, unless the disk/fs can't keep up.
+	// I suppose it's better to slow down processing than to crash
+	// when hitting the 10k limit or to run out of disk space.
+	semaphoreWeight := int64(5000)
+
+	if strings.HasPrefix(runtime.GOOS, "darwin") {
+		// Mac seems to fail to create os threads when removing
+		// lots of files, so allow fewer than linux.
+		semaphoreWeight = 3000
+	}
+	log.Printf("Limiting concurrent file removals to %d\n", semaphoreWeight)
+
 	c := diskCache{
 		dir: dir,
 
@@ -134,12 +148,7 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 		maxBlobSize:      math.MaxInt64,
 		maxProxyBlobSize: math.MaxInt64,
 
-		// Go defaults to a limit of 10,000 operating system threads.
-		// We probably don't need half of those for file removals at
-		// any given point in time, unless the disk/fs can't keep up.
-		// I suppose it's better to slow down processing than to crash
-		// when hitting the 10k limit or to run out of disk space.
-		fileRemovalSem: semaphore.NewWeighted(5000),
+		fileRemovalSem: semaphore.NewWeighted(semaphoreWeight),
 
 		gaugeCacheAge: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "bazel_remote_disk_cache_longest_item_idle_time_seconds",
