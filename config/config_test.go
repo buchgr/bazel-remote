@@ -3,6 +3,7 @@ package config
 import (
 	"math"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -242,8 +243,8 @@ profile_address: :7070
 		t.Fatalf("Expected '%+v' but got '%+v'", expectedConfig, config)
 	}
 
-	yaml += `
-profile_address: 192.168.1.1:7070`
+	re := regexp.MustCompile("profile_address: .*")
+	yaml = re.ReplaceAllString(yaml, "profile_address: \"192.168.1.1:7070\"")
 
 	expectedConfig.ProfileAddress = "192.168.1.1:7070"
 
