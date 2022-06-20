@@ -18,7 +18,7 @@ import (
 	"github.com/buchgr/bazel-remote/cache/s3proxy"
 
 	"github.com/urfave/cli/v2"
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 )
 
 // GoogleCloudStorageConfig stores the configuration of a GCS proxy backend.
