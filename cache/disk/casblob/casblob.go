@@ -382,6 +382,7 @@ func GetZstdReadCloser(f *os.File, expectedSize int64, offset int64) (io.ReadClo
 	if chunkNum > 0 {
 		_, err = f.Seek(h.chunkOffsets[chunkNum], io.SeekStart)
 		if err != nil {
+			f.Close()
 			return nil, err
 		}
 	}
