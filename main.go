@@ -87,6 +87,11 @@ func run(ctx *cli.Context) error {
 
 	validateAC := !c.DisableHTTPACValidation
 
+	log.Println("Storage mode:", c.StorageMode)
+	if c.StorageMode == "zstd" {
+		log.Println("Zstandard implementation:", c.ZstdImplementation)
+	}
+
 	opts := []disk.Option{
 		disk.WithStorageMode(c.StorageMode),
 		disk.WithZstdImplementation(c.ZstdImplementation),
