@@ -91,7 +91,7 @@ type putWriterToPoolOnClose struct {
 }
 
 func (w putWriterToPoolOnClose) Close() error {
-	err := w.Close()
+	err := w.writerWrapper.Close()
 	writerPool.Put(w.writerWrapper)
 	return err
 }
