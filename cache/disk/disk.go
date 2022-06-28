@@ -142,12 +142,17 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 	}
 	log.Printf("Limiting concurrent file removals to %d\n", semaphoreWeight)
 
+	zi, err := zstdimpl.Get("go")
+	if err != nil {
+		return nil, err
+	}
+
 	c := diskCache{
 		dir: dir,
 
 		// Not using config here, to avoid test import cycles.
 		storageMode:      casblob.Zstandard,
-		zstd:             zstdimpl.Get("go"),
+		zstd:             zi,
 		maxBlobSize:      math.MaxInt64,
 		maxProxyBlobSize: math.MaxInt64,
 

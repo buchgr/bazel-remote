@@ -303,6 +303,7 @@ func TestMetricsDurationBucketsNoDuplicates(t *testing.T) {
 		MaxProxyBlobSize:       math.MaxInt64,
 		Dir:                    "/opt/cache-dir",
 		StorageMode:            "uncompressed",
+		ZstdImplementation:     "go",
 		MetricsDurationBuckets: []float64{1, 2, 3, 3},
 	}
 	err := validateConfig(testConfig)
@@ -376,11 +377,12 @@ storage_mode: gzip
 
 func TestHttpGrpcServerPortConflict(t *testing.T) {
 	testConfig := &Config{
-		HTTPAddress: ":5000",
-		GRPCAddress: ":5000",
-		Dir:         "/opt/cache-dir",
-		MaxSize:     100,
-		StorageMode: "zstd",
+		HTTPAddress:        ":5000",
+		GRPCAddress:        ":5000",
+		Dir:                "/opt/cache-dir",
+		MaxSize:            100,
+		StorageMode:        "zstd",
+		ZstdImplementation: "go",
 	}
 	err := validateConfig(testConfig)
 	if err == nil {
@@ -457,10 +459,11 @@ storage_mode: zstd
 
 func TestSocketPathMissing(t *testing.T) {
 	testConfig := &Config{
-		HTTPAddress: "unix://",
-		Dir:         "/opt/cache-dir",
-		MaxSize:     100,
-		StorageMode: "zstd",
+		HTTPAddress:        "unix://",
+		Dir:                "/opt/cache-dir",
+		MaxSize:            100,
+		StorageMode:        "zstd",
+		ZstdImplementation: "go",
 	}
 	err := validateConfig(testConfig)
 	if err == nil {

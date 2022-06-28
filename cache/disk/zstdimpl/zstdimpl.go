@@ -1,8 +1,8 @@
 package zstdimpl
 
 import (
+	"fmt"
 	"io"
-	"log"
 )
 
 var registry map[string]ZstdImpl
@@ -14,12 +14,12 @@ func register(implName string, impl ZstdImpl) {
 	registry[implName] = impl
 }
 
-func Get(implName string) ZstdImpl {
+func Get(implName string) (ZstdImpl, error) {
 	impl, ok := registry[implName]
 	if !ok {
-		log.Fatalf("Unrecognized ZSTD implementation: %s, supported: %s", implName, registry)
+		return nil, fmt.Errorf("Unrecognized ZSTD implementation: %s, supported: %s", implName, registry)
 	}
-	return impl
+	return impl, nil
 }
 
 type ZstdImpl interface {

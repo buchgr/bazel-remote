@@ -190,8 +190,14 @@ func TestEverything(t *testing.T) {
 		}
 		defer os.Remove(tmpfile2.Name())
 
+		var zi zstdimpl.ZstdImpl
+		zi, err = zstdimpl.Get("go")
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		rc, err := casblob.GetUncompressedReadCloser(
-			zstdimpl.Get("go"), tmpfile2, int64(len(casData)), 0)
+			zi, tmpfile2, int64(len(casData)), 0)
 		if err != nil {
 			t.Fatal(err)
 		}

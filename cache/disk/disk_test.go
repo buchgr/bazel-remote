@@ -247,8 +247,14 @@ func (d proxyStub) Get(ctx context.Context, kind cache.EntryKind, hash string) (
 	tfn := tmpfile.Name()
 	defer os.Remove(tfn)
 
+	var zi zstdimpl.ZstdImpl
+	zi, err = zstdimpl.Get("go")
+	if err != nil {
+		return nil, -1, err
+	}
+
 	_, err = casblob.WriteAndClose(
-		zstdimpl.Get("go"),
+		zi,
 		ioutil.NopCloser(
 			strings.NewReader(contents)), tmpfile, casblob.Zstandard,
 		hash, contentsLength)
@@ -411,7 +417,12 @@ func TestCacheExistingFiles(t *testing.T) {
 			var f *os.File
 			f, err = os.Create(fp)
 			if err == nil {
-				_, err = casblob.WriteAndClose(zstdimpl.Get("go"), r, f, casblob.Zstandard,
+				var zi zstdimpl.ZstdImpl
+				zi, err = zstdimpl.Get("go")
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, err = casblob.WriteAndClose(zi, r, f, casblob.Zstandard,
 					it.hash, int64(len(it.contents)))
 			}
 		} else {

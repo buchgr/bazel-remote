@@ -34,8 +34,9 @@ func WithStorageMode(mode string) Option {
 
 func WithZstdImplementation(impl string) Option {
 	return func(c *CacheConfig) error {
-		c.diskCache.zstd = zstdimpl.Get(impl)
-		return nil
+		var err error
+		c.diskCache.zstd, err = zstdimpl.Get(impl)
+		return err
 	}
 }
 
