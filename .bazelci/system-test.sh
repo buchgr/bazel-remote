@@ -14,6 +14,10 @@ HTTP_PORT=8082
 min_acceptable_hit_rate=95
 overall_result=success
 
+EXTRA_FLAGS=""
+EXTRA_FLAGS_DESC=""
+[ -n "$EXTRA_FLAGS" ] && EXTRA_FLAGS_DESC="(with $EXTRA_FLAGS)"
+
 summary=""
 
 ### Begin minio setup.
@@ -73,10 +77,10 @@ echo "${duration}s"
 # Copy the binary somewhere known, so we can run it manually.
 bazel run --run_under "cp -f " //:bazel-remote $(pwd)/
 
-echo "Starting test cache"
+echo "Starting test cache $EXTRA_FLAGS_DESC"
 test_cache_dir=./bazel-remote-tmp-cache
 rm -rf $test_cache_dir
-./bazel-remote --max_size 1 --dir "$test_cache_dir" --http_address "0.0.0.0:$HTTP_PORT" \
+./bazel-remote --max_size 1 --dir "$test_cache_dir" --http_address "0.0.0.0:$HTTP_PORT" $EXTRA_FLAGS \
 	--s3.endpoint 127.0.0.1:9000 \
 	--s3.bucket bazel-remote \
 	--s3.prefix files \
@@ -103,10 +107,10 @@ grep process http_cold
 
 bazel clean 2> /dev/null
 
-echo "Restarting test cache"
+echo "Restarting test cache $EXTRA_FLAGS_DESC"
 kill -9 $test_cache_pid
 sleep 1
-./bazel-remote --max_size 1 --dir $test_cache_dir --http_address "0.0.0.0:$HTTP_PORT" \
+./bazel-remote --max_size 1 --dir $test_cache_dir --http_address "0.0.0.0:$HTTP_PORT" $EXTRA_FLAGS \
 	> log.stdout 2> log.stderr &
 test_cache_pid=$!
 echo "Test cache pid: $test_cache_pid"
@@ -130,11 +134,11 @@ result=$(awk -vhit_rate=$hit_rate -vmin=$min_acceptable_hit_rate 'BEGIN {if (hit
 echo "hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
 summary+="\n$testsection: hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
 
-echo "Restarting test cache"
+echo "Restarting test cache $EXTRA_FLAGS_DESC"
 kill -9 $test_cache_pid
 sleep 1
 rm -rf $test_cache_dir
-./bazel-remote --max_size 1 --dir $test_cache_dir --http_address "0.0.0.0:$HTTP_PORT" \
+./bazel-remote --max_size 1 --dir $test_cache_dir --http_address "0.0.0.0:$HTTP_PORT" $EXTRA_FLAGS \
 	--s3.endpoint 127.0.0.1:9000 \
 	--s3.bucket bazel-remote \
 	--s3.prefix files \
@@ -168,11 +172,11 @@ result=$(awk -vhit_rate=$hit_rate -vmin=$min_acceptable_hit_rate 'BEGIN {if (hit
 echo "hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
 summary+="\n$testsection: hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
 
-echo "Restarting test cache"
+echo "Restarting test cache $EXTRA_FLAGS_DESC"
 kill -9 $test_cache_pid
 sleep 1
 rm -rf $test_cache_dir
-./bazel-remote --max_size 1 --dir $test_cache_dir --http_address "0.0.0.0:$HTTP_PORT" \
+./bazel-remote --max_size 1 --dir $test_cache_dir --http_address "0.0.0.0:$HTTP_PORT" $EXTRA_FLAGS \
 	> log.stdout 2> log.stderr &
 test_cache_pid=$!
 echo "Test cache pid: $test_cache_pid"
@@ -209,11 +213,11 @@ result=$(awk -vhit_rate=$hit_rate -vmin=$min_acceptable_hit_rate 'BEGIN {if (hit
 echo "hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
 summary+="\n$testsection: hit rate: ${hit_rate}% (hits: $hits misses: $misses) => $result"
 
-echo "Restarting test cache"
+echo "Restarting test cache $EXTRA_FLAGS_DESC"
 kill -9 $test_cache_pid
 sleep 1
 rm -rf $test_cache_dir
-./bazel-remote --max_size 1 --dir $test_cache_dir --http_address "0.0.0.0:$HTTP_PORT" \
+./bazel-remote --max_size 1 --dir $test_cache_dir --http_address "0.0.0.0:$HTTP_PORT" $EXTRA_FLAGS \
 	--s3.endpoint 127.0.0.1:9000 \
 	--s3.bucket bazel-remote \
 	--s3.prefix files \
