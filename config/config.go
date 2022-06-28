@@ -42,6 +42,7 @@ type Config struct {
 	Dir                         string                    `yaml:"dir"`
 	MaxSize                     int                       `yaml:"max_size"`
 	StorageMode                 string                    `yaml:"storage_mode"`
+	ZstdImplementation          string                    `yaml:"zstd_implementation"`
 	HtpasswdFile                string                    `yaml:"htpasswd_file"`
 	TLSCaFile                   string                    `yaml:"tls_ca_file"`
 	TLSCertFile                 string                    `yaml:"tls_cert_file"`
@@ -93,7 +94,7 @@ var defaultDurationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
 
 // newFromArgs returns a validated Config with the specified values, and
 // an error if there were any problems with the validation.
-func newFromArgs(dir string, maxSize int, storageMode string,
+func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation string,
 	httpAddress string, grpcAddress string,
 	profileAddress string,
 	htpasswdFile string,
@@ -126,6 +127,7 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 		Dir:                         dir,
 		MaxSize:                     maxSize,
 		StorageMode:                 storageMode,
+		ZstdImplementation:          zstdImplementation,
 		HtpasswdFile:                htpasswdFile,
 		MaxQueuedUploads:            maxQueuedUploads,
 		NumUploaders:                numUploaders,
@@ -180,6 +182,7 @@ func newFromYaml(data []byte) (*Config, error) {
 	yc := YamlConfig{
 		Config: Config{
 			StorageMode:            "zstd",
+			ZstdImplementation:     "go",
 			NumUploaders:           100,
 			MaxQueuedUploads:       1000000,
 			MaxBlobSize:            math.MaxInt64,
@@ -230,6 +233,9 @@ func validateConfig(c *Config) error {
 
 	if c.StorageMode != "zstd" && c.StorageMode != "uncompressed" {
 		return errors.New("storage_mode must be set to either \"zstd\" or \"uncompressed\"")
+	}
+	if c.ZstdImplementation != "go" && c.ZstdImplementation != "cgo" {
+		return errors.New("zstd_implementation must be set to either \"go\" or \"cgo\", got: " + c.ZstdImplementation)
 	}
 
 	proxyCount := 0
@@ -480,6 +486,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.String("dir"),
 		ctx.Int("max_size"),
 		ctx.String("storage_mode"),
+		ctx.String("zstd_implementation"),
 		httpAddress,
 		grpcAddress,
 		profileAddress,

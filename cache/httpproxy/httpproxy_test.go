@@ -20,6 +20,7 @@ import (
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
 	"github.com/buchgr/bazel-remote/cache/disk/casblob"
+	"github.com/buchgr/bazel-remote/cache/disk/zstdimpl"
 	testutils "github.com/buchgr/bazel-remote/utils"
 )
 
@@ -189,7 +190,8 @@ func TestEverything(t *testing.T) {
 		}
 		defer os.Remove(tmpfile2.Name())
 
-		rc, err := casblob.GetUncompressedReadCloser(tmpfile2, int64(len(casData)), 0)
+		rc, err := casblob.GetUncompressedReadCloser(
+			zstdimpl.Get("go"), tmpfile2, int64(len(casData)), 0)
 		if err != nil {
 			t.Fatal(err)
 		}

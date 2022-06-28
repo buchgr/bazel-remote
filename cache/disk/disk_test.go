@@ -21,6 +21,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk/casblob"
+	"github.com/buchgr/bazel-remote/cache/disk/zstdimpl"
 	"github.com/buchgr/bazel-remote/cache/httpproxy"
 	testutils "github.com/buchgr/bazel-remote/utils"
 
@@ -246,8 +247,10 @@ func (d proxyStub) Get(ctx context.Context, kind cache.EntryKind, hash string) (
 	tfn := tmpfile.Name()
 	defer os.Remove(tfn)
 
-	_, err = casblob.WriteAndClose(ioutil.NopCloser(
-		strings.NewReader(contents)), tmpfile, casblob.Zstandard,
+	_, err = casblob.WriteAndClose(
+		zstdimpl.Get("go"),
+		ioutil.NopCloser(
+			strings.NewReader(contents)), tmpfile, casblob.Zstandard,
 		hash, contentsLength)
 	if err != nil {
 		return nil, -1, err
@@ -408,7 +411,7 @@ func TestCacheExistingFiles(t *testing.T) {
 			var f *os.File
 			f, err = os.Create(fp)
 			if err == nil {
-				_, err = casblob.WriteAndClose(r, f, casblob.Zstandard,
+				_, err = casblob.WriteAndClose(zstdimpl.Get("go"), r, f, casblob.Zstandard,
 					it.hash, int64(len(it.contents)))
 			}
 		} else {

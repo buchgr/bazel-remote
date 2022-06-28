@@ -40,6 +40,7 @@ access_log_level: none
 		Dir:                         "/opt/cache-dir",
 		MaxSize:                     100,
 		StorageMode:                 "zstd",
+		ZstdImplementation:          "go",
 		HtpasswdFile:                "/opt/.htpasswd",
 		TLSCertFile:                 "/opt/tls.cert",
 		TLSKeyFile:                  "/opt/tls.key",
@@ -79,11 +80,12 @@ gcs_proxy:
 	}
 
 	expectedConfig := &Config{
-		HTTPAddress: "localhost:8080",
-		GRPCAddress: "localhost:9092",
-		Dir:         "/opt/cache-dir",
-		MaxSize:     100,
-		StorageMode: "zstd",
+		HTTPAddress:        "localhost:8080",
+		GRPCAddress:        "localhost:9092",
+		Dir:                "/opt/cache-dir",
+		MaxSize:            100,
+		StorageMode:        "zstd",
+		ZstdImplementation: "go",
 		GoogleCloudStorage: &GoogleCloudStorageConfig{
 			Bucket:                "gcs-bucket",
 			UseDefaultCredentials: false,
@@ -118,11 +120,12 @@ http_proxy:
 	}
 
 	expectedConfig := &Config{
-		HTTPAddress: "localhost:8080",
-		GRPCAddress: "localhost:9092",
-		Dir:         "/opt/cache-dir",
-		MaxSize:     100,
-		StorageMode: "zstd",
+		HTTPAddress:        "localhost:8080",
+		GRPCAddress:        "localhost:9092",
+		Dir:                "/opt/cache-dir",
+		MaxSize:            100,
+		StorageMode:        "zstd",
+		ZstdImplementation: "go",
 		HTTPBackend: &HTTPBackendConfig{
 			BaseURL: "https://remote-cache.com:8080/cache",
 		},
@@ -188,10 +191,11 @@ s3_proxy:
 	}
 
 	expectedConfig := &Config{
-		HTTPAddress: "localhost:8080",
-		Dir:         "/opt/cache-dir",
-		MaxSize:     100,
-		StorageMode: "zstd",
+		HTTPAddress:        "localhost:8080",
+		Dir:                "/opt/cache-dir",
+		MaxSize:            100,
+		StorageMode:        "zstd",
+		ZstdImplementation: "go",
 		S3CloudStorage: &S3CloudStorageConfig{
 			Endpoint:        "minio.example.com:9000",
 			Bucket:          "test-bucket",
@@ -230,6 +234,7 @@ profile_address: :7070
 		Dir:                    "/opt/cache-dir",
 		MaxSize:                42,
 		StorageMode:            "zstd",
+		ZstdImplementation:     "go",
 		ProfileAddress:         ":7070",
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
@@ -276,6 +281,7 @@ endpoint_metrics_duration_buckets: [.005, .1, 5]
 		Dir:                    "/opt/cache-dir",
 		MaxSize:                42,
 		StorageMode:            "zstd",
+		ZstdImplementation:     "go",
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
@@ -403,6 +409,7 @@ storage_mode: zstd
 		Dir:                    "/opt/cache-dir",
 		MaxSize:                42,
 		StorageMode:            "zstd",
+		ZstdImplementation:     "go",
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
@@ -434,6 +441,7 @@ storage_mode: zstd
 		Dir:                    "/opt/cache-dir",
 		MaxSize:                42,
 		StorageMode:            "zstd",
+		ZstdImplementation:     "go",
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,

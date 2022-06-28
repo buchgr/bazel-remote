@@ -89,6 +89,7 @@ func run(ctx *cli.Context) error {
 
 	opts := []disk.Option{
 		disk.WithStorageMode(c.StorageMode),
+		disk.WithZstdImplementation(c.ZstdImplementation),
 		disk.WithMaxBlobSize(c.MaxBlobSize),
 		disk.WithProxyMaxBlobSize(c.MaxProxyBlobSize),
 		disk.WithAccessLogger(c.AccessLogger),
