@@ -6,12 +6,17 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/buchgr/bazel-remote/cache/azblobproxy"
 	"github.com/buchgr/bazel-remote/cache/s3proxy"
 	"github.com/urfave/cli/v2"
 )
 
 func s3AuthMsg(authMethods ...string) string {
 	return fmt.Sprintf("Applies to s3 auth method(s): %s.", strings.Join(authMethods, ", "))
+}
+
+func azBlobAuthMsg(authMethods ...string) string {
+	return fmt.Sprintf("Applies to AzBlob auth method(s): %s.", strings.Join(authMethods, ", "))
 }
 
 // GetCliFlags returns a slice of cli.Flag's that bazel-remote accepts.
@@ -273,6 +278,66 @@ func GetCliFlags() []cli.Flag {
 			Value:       2,
 			DefaultText: "2",
 			EnvVars:     []string{"BAZEL_REMOTE_S3_KEY_VERSION"},
+		},
+		&cli.StringFlag{
+			Name:    "azblob.tenant_id",
+			Value:   "",
+			Usage:   "The Azure blob storage tenant id to use when using azblob proxy backend.",
+			EnvVars: []string{"BAZEL_REMOTE_AZBLOB_TENANT_ID", "AZURE_TENANT_ID"},
+		},
+		&cli.StringFlag{
+			Name:    "azblob.storage_account",
+			Value:   "",
+			Usage:   "The Azure blob storage storage account to use when using azblob proxy backend.",
+			EnvVars: []string{"BAZEL_REMOTE_AZBLOB_STORAGE_ACCOUNT"},
+		},
+		&cli.StringFlag{
+			Name:    "azblob.container_name",
+			Value:   "",
+			Usage:   "The Azure blob storage container name to use when using azblob proxy backend.",
+			EnvVars: []string{"BAZEL_REMOTE_AZBLOB_CONTAINER_NAME"},
+		},
+		&cli.StringFlag{
+			Name:    "azblob.prefix",
+			Value:   "",
+			Usage:   "The Azure blob storage object prefix to use when using azblob proxy backend.",
+			EnvVars: []string{"BAZEL_REMOTE_AZBLOB_PREFIX"},
+		},
+		&cli.BoolFlag{
+			Name:        "azblob.update_timestamps",
+			Usage:       "Whether to update timestamps of object on cache hit.",
+			DefaultText: "false",
+			EnvVars:     []string{"BAZEL_REMOTE_AZBLOB_UPDATE_TIMESTAMPS"},
+		},
+		&cli.StringFlag{
+			Name:    "azblob.auth_method",
+			Value:   "",
+			Usage:   fmt.Sprintf("The Azure blob storage authentication method. This argument is required when an azblob proxy backend is used. Allowed values: %s.", strings.Join(azblobproxy.GetAuthMethods(), ", ")),
+			EnvVars: []string{"BAZEL_REMOTE_AZBLOB_AUTH_METHOD"},
+		},
+		&cli.StringFlag{
+			Name:    "azblob.shared_key",
+			Value:   "",
+			Usage:   "The Azure blob storage account access key to use when using azblob proxy backend. " + azBlobAuthMsg(azblobproxy.AuthMethodSharedKey),
+			EnvVars: []string{"BAZEL_REMOTE_AZBLOB_SHARED_KEY", "AZURE_STORAGE_ACCOUNT_KEY"},
+		},
+		&cli.StringFlag{
+			Name:    "azblob.client_id",
+			Value:   "",
+			Usage:   "The Azure blob storage client id to use when using azblob proxy backend. " + azBlobAuthMsg(azblobproxy.AuthMethodClientSecret),
+			EnvVars: []string{"BAZEL_REMOTE_AZBLOB_CLIENT_ID", "AZURE_CLIENT_ID"},
+		},
+		&cli.StringFlag{
+			Name:    "azblob.client_secret",
+			Value:   "",
+			Usage:   "The Azure blob storage client secret key to use when using azblob proxy backend. " + azBlobAuthMsg(azblobproxy.AuthMethodClientSecret),
+			EnvVars: []string{"BAZEL_REMOTE_AZBLOB_SECRET_CLIENT_SECRET", "AZURE_CLIENT_SECRET"},
+		},
+		&cli.StringFlag{
+			Name:    "azblob.cert_path",
+			Value:   "",
+			Usage:   "Path to the certificates file. " + azBlobAuthMsg(azblobproxy.AuthMethodClientCertificate),
+			EnvVars: []string{"BAZEL_REMOTE_AZBLOB_CERT_PATH", "AZURE_CLIENT_CERTIFICATE_PATH"},
 		},
 		&cli.BoolFlag{
 			Name:        "disable_http_ac_validation",

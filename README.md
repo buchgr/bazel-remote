@@ -9,7 +9,8 @@ execution service.
 
 The cache contents are stored in a directory on disk with a maximum cache size,
 and bazel-remote will automatically enforce this limit as needed, by deleting
-the least recently used files. S3 and GCS proxy backends are also supported.
+the least recently used files. S3, GCS and Azure blob storage proxy backends
+are also supported.
 
 **Project status**: bazel-remote has been serving TBs of cache artifacts per day since April 2018, both on
 commodity hardware and AWS servers. Outgoing bandwidth can exceed 15 Gbit/s on the right AWS instance type.
@@ -295,6 +296,45 @@ OPTIONS:
       value. This flag will be removed. (default: 2)
       [$BAZEL_REMOTE_S3_KEY_VERSION]
 
+   --azblob.tenant_id value The Azure blob storage tenant id to use when
+      using azblob proxy backend. [$BAZEL_REMOTE_AZBLOB_TENANT_ID,
+      $AZURE_TENANT_ID]
+
+   --azblob.storage_account value The Azure blob storage storage account to
+      use when using azblob proxy backend.
+      [$BAZEL_REMOTE_AZBLOB_STORAGE_ACCOUNT]
+
+   --azblob.container_name value The Azure blob storage container name to use
+      when using azblob proxy backend. [$BAZEL_REMOTE_AZBLOB_CONTAINER_NAME]
+
+   --azblob.prefix value The Azure blob storage object prefix to use when
+      using azblob proxy backend. [$BAZEL_REMOTE_AZBLOB_PREFIX]
+
+   --azblob.update_timestamps Whether to update timestamps of object on cache
+      hit. (default: false) [$BAZEL_REMOTE_AZBLOB_UPDATE_TIMESTAMPS]
+
+   --azblob.auth_method value The Azure blob storage authentication method.
+      This argument is required when an azblob proxy backend is used. Allowed
+      values: client_certificate, client_secret, environment_credential,
+      shared_key, default. [$BAZEL_REMOTE_AZBLOB_AUTH_METHOD]
+
+   --azblob.shared_key value The Azure blob storage account access key to use
+      when using azblob proxy backend. Applies to AzBlob auth method(s):
+      shared_key. [$BAZEL_REMOTE_AZBLOB_SHARED_KEY, $AZURE_STORAGE_ACCOUNT_KEY]
+
+   --azblob.client_id value The Azure blob storage client id to use when
+      using azblob proxy backend. Applies to AzBlob auth method(s):
+      client_secret. [$BAZEL_REMOTE_AZBLOB_CLIENT_ID, $AZURE_CLIENT_ID]
+
+   --azblob.client_secret value The Azure blob storage client secret key to
+      use when using azblob proxy backend. Applies to AzBlob auth method(s):
+      client_secret. [$BAZEL_REMOTE_AZBLOB_SECRET_CLIENT_SECRET,
+      $AZURE_CLIENT_SECRET]
+
+   --azblob.cert_path value Path to the certificates file. Applies to AzBlob
+      auth method(s): client_certificate. [$BAZEL_REMOTE_AZBLOB_CERT_PATH,
+      $AZURE_CLIENT_CERTIFICATE_PATH]
+
    --disable_http_ac_validation Whether to disable ActionResult validation
       for HTTP requests. (default: false, ie enable validation)
       [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
@@ -425,7 +465,33 @@ http_address: 0.0.0.0:8080
 #
 #http_proxy:
 #  url: https://remote-cache.com:8080/cache
-
+#
+#azblob_proxy:
+#  tenant_id: TENANT_ID
+#  storage_account: STORAGE_ACCOUNT
+#  container_name: CONTAINER_NAME
+#
+# Provide exactly one auth_method (client_certificate, client_secret, environment_credential,
+#￼shared_key, default) and accompanying configuration.
+#
+# Storage account shared key.
+#  auth_method: shared_key
+#  shared_key: APP_SHARED_KEY
+#
+# Client secret credentials.
+#  auth_method: client_secret
+#  client_id: APP_ID
+#  client_secret: APP_SECRET
+#
+# Client certificate credentials.
+#  auth_method: client_certificate
+#  cert_path: path/to/cert_file
+#
+# Default and environment methods don't have any additional parameters.
+#  auth_method: environment_credential
+#
+#  auth_method: default
+  
 # If set to a valid port number, then serve /debug/pprof/* URLs here:
 #profile_port: 7070
 # IP address to use, if profiling is enabled:

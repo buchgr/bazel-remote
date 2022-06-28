@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/cache/azblobproxy"
 	"github.com/buchgr/bazel-remote/cache/s3proxy"
 
 	"github.com/urfave/cli/v2"
@@ -47,6 +48,7 @@ type Config struct {
 	TLSKeyFile                  string                    `yaml:"tls_key_file"`
 	AllowUnauthenticatedReads   bool                      `yaml:"allow_unauthenticated_reads"`
 	S3CloudStorage              *S3CloudStorageConfig     `yaml:"s3_proxy,omitempty"`
+	AzBlobConfig                *AzBlobStorageConfig      `yaml:"azblob_proxy,omitempty"`
 	GoogleCloudStorage          *GoogleCloudStorageConfig `yaml:"gcs_proxy,omitempty"`
 	HTTPBackend                 *HTTPBackendConfig        `yaml:"http_proxy,omitempty"`
 	NumUploaders                int                       `yaml:"num_uploaders"`
@@ -105,6 +107,7 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 	hc *HTTPBackendConfig,
 	gcs *GoogleCloudStorageConfig,
 	s3 *S3CloudStorageConfig,
+	azblob *AzBlobStorageConfig,
 	disableHTTPACValidation bool,
 	disableGRPCACDepsCheck bool,
 	enableACKeyInstanceMangling bool,
@@ -131,6 +134,7 @@ func newFromArgs(dir string, maxSize int, storageMode string,
 		TLSKeyFile:                  tlsKeyFile,
 		AllowUnauthenticatedReads:   allowUnauthenticatedReads,
 		S3CloudStorage:              s3,
+		AzBlobConfig:                azblob,
 		GoogleCloudStorage:          gcs,
 		HTTPBackend:                 hc,
 		IdleTimeout:                 idleTimeout,
@@ -238,6 +242,9 @@ func validateConfig(c *Config) error {
 	if c.GoogleCloudStorage != nil {
 		proxyCount++
 	}
+	if c.AzBlobConfig != nil {
+		proxyCount++
+	}
 
 	if proxyCount > 1 {
 		return errors.New("At most one of the S3/GCS/HTTP proxy backends is allowed")
@@ -331,6 +338,20 @@ func validateConfig(c *Config) error {
 
 		if c.S3CloudStorage.KeyVersion != nil && *c.S3CloudStorage.KeyVersion != 2 {
 			return fmt.Errorf("s3.key_version (deprecated) must be 2, found %d", c.S3CloudStorage.KeyVersion)
+		}
+	}
+
+	if c.AzBlobConfig != nil {
+		if c.AzBlobConfig.StorageAccount == "" {
+			return errors.New("The 'storage_account' field is required for 'azblob_proxy'")
+		}
+
+		if c.AzBlobConfig.ContainerName == "" {
+			return errors.New("The 'container_name' field is required for 'azblob_proxy'")
+		}
+
+		if !azblobproxy.IsValidAuthMethod(c.AzBlobConfig.AuthMethod) {
+			return fmt.Errorf("Invalid azblob.auth_method: %s", c.AzBlobConfig.AuthMethod)
 		}
 	}
 
@@ -439,6 +460,22 @@ func get(ctx *cli.Context) (*Config, error) {
 		}
 	}
 
+	var azblob *AzBlobStorageConfig
+	if ctx.String("azblob.tenant_id") != "" {
+		azblob = &AzBlobStorageConfig{
+			TenantID:         ctx.String("azblob.tenant_id"),
+			StorageAccount:   ctx.String("azblob.storage_account"),
+			ContainerName:    ctx.String("azblob.container_name"),
+			Prefix:           ctx.String("azblob.prefix"),
+			AuthMethod:       ctx.String("azblob.auth_method"),
+			ClientID:         ctx.String("azblob.client_id"),
+			ClientSecret:     ctx.String("azblob.client_secret"),
+			CertPath:         ctx.String("azblob.cert_path"),
+			SharedKey:        ctx.String("azblob.shared_key"),
+			UpdateTimestamps: ctx.Bool("azblob.update_timestamps"),
+		}
+	}
+
 	return newFromArgs(
 		ctx.String("dir"),
 		ctx.Int("max_size"),
@@ -457,6 +494,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		hc,
 		gcs,
 		s3,
+		azblob,
 		ctx.Bool("disable_http_ac_validation"),
 		ctx.Bool("disable_grpc_ac_deps_check"),
 		ctx.Bool("enable_ac_key_instance_mangling"),

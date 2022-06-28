@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "auth_methods.go",
+        "azblobproxy.go",
+    ],
+    importpath = "github.com/buchgr/bazel-remote/cache/azblobproxy",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cache:go_default_library",
+        "//cache/disk/casblob:go_default_library",
+        "@com_github_azure_azure_sdk_for_go_sdk_azcore//:go_default_library",
+        "@com_github_azure_azure_sdk_for_go_sdk_storage_azblob//:go_default_library",
+        "@com_github_prometheus_client_golang//prometheus:go_default_library",
+        "@com_github_prometheus_client_golang//prometheus/promauto:go_default_library",
+    ],
+)
