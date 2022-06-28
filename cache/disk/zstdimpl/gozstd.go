@@ -27,7 +27,6 @@ func init() {
 
 // zstdEncoderWrapper is a zstdEncoder that embeds an encoder,
 // and on Close returns it to the pool
-// TODO(mostynb): Why encoderpool does not provide such functionality. decoderpool has it (IOReadCloser).
 type zstdEncoderWrapper struct {
 	*syncpool.EncoderWrapper
 }
