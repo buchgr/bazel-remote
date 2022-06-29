@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/buchgr/bazel-remote/cache/azblobproxy"
 	"io/ioutil"
 	"log"
 	"math"
@@ -16,6 +15,7 @@ import (
 	"time"
 
 	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/cache/azblobproxy"
 	"github.com/buchgr/bazel-remote/cache/s3proxy"
 
 	"github.com/urfave/cli/v2"
@@ -48,7 +48,7 @@ type Config struct {
 	TLSKeyFile                  string                    `yaml:"tls_key_file"`
 	AllowUnauthenticatedReads   bool                      `yaml:"allow_unauthenticated_reads"`
 	S3CloudStorage              *S3CloudStorageConfig     `yaml:"s3_proxy,omitempty"`
-	AzBlobConfig                *AzBlobStorageConfig      `yaml:"s3_proxy,omitempty"`
+	AzBlobConfig                *AzBlobStorageConfig      `yaml:"azblob_proxy,omitempty"`
 	GoogleCloudStorage          *GoogleCloudStorageConfig `yaml:"gcs_proxy,omitempty"`
 	HTTPBackend                 *HTTPBackendConfig        `yaml:"http_proxy,omitempty"`
 	NumUploaders                int                       `yaml:"num_uploaders"`

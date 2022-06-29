@@ -295,6 +295,35 @@ OPTIONS:
       value. This flag will be removed. (default: 2)
       [$BAZEL_REMOTE_S3_KEY_VERSION]
 
+   --azblob.tenant_id value The AzBlob tenant id to use when using azblob
+      proxy backend. [$BAZEL_REMOTE_AZBLOB_TENANT_ID, $AZURE_TENANT_ID]
+
+   --azblob.storage_account value The AzBlob storage account to use when
+      using azblob proxy backend. [$BAZEL_REMOTE_AZBLOB_STORAGE_ACCOUNT]
+
+   --azblob.container_name value The AzBlob container name to use when using
+      azblob proxy backend. [$BAZEL_REMOTE_AZBLOB_CONTAINER_NAME]
+
+   --azblob.prefix value The AZBLOB object prefix to use when using az blob
+      proxy backend. [$BAZEL_REMOTE_AZBLOB_PREFIX]
+
+   --azblob.auth_method value The AzBlob authentication method. This argument
+      is required when an AzBlob proxy backend is used. Allowed values:
+      client_certificate, client_secret, environment_credential, device_code,
+      default. [$BAZEL_REMOTE_AZBLOB_AUTH_METHOD]
+
+   --azblob.client_id value The AzBlob client id to use when using AzBlob
+      proxy backend. Applies to AzBlob auth method(s): client_secret.
+      [$BAZEL_REMOTE_AZBLOB_CLIENT_ID, $AZURE_CLIENT_ID]
+
+   --azblob.client_secret value The AzBlob cliensecret key to use when using
+      S3 proxy backend. Applies to AzBlob auth method(s): client_secret.
+      [$BAZEL_REMOTE_AZBLOB_SECRET_CLIENT_SECRET, $AZURE_CLIENT_SECRET]
+
+   --azblob.cert_path value Path to the Certificates filefile. Applies to
+      AzBlob auth method(s): client_certificate.
+      [$BAZEL_REMOTE_AZBLOB_CERT_PATH, $AZURE_CLIENT_CERTIFICATE_PATH]
+      
    --disable_http_ac_validation Whether to disable ActionResult validation
       for HTTP requests. (default: false, ie enable validation)
       [$BAZEL_REMOTE_DISABLE_HTTP_AC_VALIDATION]
@@ -425,7 +454,15 @@ http_address: 0.0.0.0:8080
 #
 #http_proxy:
 #  url: https://remote-cache.com:8080/cache
-
+#
+#azblob_proxy:
+#  tenant_id: TENANT_ID
+#  storage_account: STORAGE_ACCOUNT
+#  container_name: CONTAINER_NAME
+#  auth_method: client_secret
+#  client_id: APP_ID
+#  client_secret: APP_SECRET
+  
 # If set to a valid port number, then serve /debug/pprof/* URLs here:
 #profile_port: 7070
 # IP address to use, if profiling is enabled:

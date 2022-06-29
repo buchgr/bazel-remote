@@ -200,6 +200,11 @@ func (c *azBlobCache) uploadFile(item uploadReq) {
 	}
 	client, err := c.containerClient.NewBlockBlobClient(key)
 
+	if err != nil {
+		logResponse(c.accessLogger, "UPLOAD", c.storageAccount, c.container, key, err)
+		return
+	}
+
 	_, err = client.Upload(item.cxt, item.rc.(io.ReadSeekCloser), nil)
 
 	logResponse(c.accessLogger, "UPLOAD", c.storageAccount, c.container, key, err)

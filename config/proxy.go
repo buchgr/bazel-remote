@@ -1,10 +1,10 @@
 package config
 
 import (
-	"github.com/buchgr/bazel-remote/cache/azblobproxy"
 	"net/http"
 	"net/url"
 
+	"github.com/buchgr/bazel-remote/cache/azblobproxy"
 	"github.com/buchgr/bazel-remote/cache/gcsproxy"
 	"github.com/buchgr/bazel-remote/cache/httpproxy"
 	"github.com/buchgr/bazel-remote/cache/s3proxy"
