@@ -73,6 +73,12 @@ func (c *azBlobCache) Get(ctx context.Context, kind cache.EntryKind, hash string
 	}
 	client, err := c.containerClient.NewBlockBlobClient(key)
 
+	if err != nil {
+		cacheMisses.Inc()
+		logResponse(c.accessLogger, "DOWNLOAD", c.storageAccount, c.container, key, err)
+		return nil, -1, err
+	}
+
 	resp, err := client.Download(context.Background(), nil)
 
 	if err != nil {
@@ -82,10 +88,6 @@ func (c *azBlobCache) Get(ctx context.Context, kind cache.EntryKind, hash string
 		return nil, -1, err
 	}
 	cacheHits.Inc()
-
-	//if c.updateTimestamps {
-	//	c.UpdateModificationTimestamp(ctx, c.bucket, c.objectKey(hash, kind))
-	//}
 
 	logResponse(c.accessLogger, "DOWNLOAD", c.storageAccount, c.container, key, err)
 
