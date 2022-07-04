@@ -295,34 +295,37 @@ OPTIONS:
       value. This flag will be removed. (default: 2)
       [$BAZEL_REMOTE_S3_KEY_VERSION]
 
-   --azblob.tenant_id value The AzBlob tenant id to use when using azblob
-      proxy backend. [$BAZEL_REMOTE_AZBLOB_TENANT_ID, $AZURE_TENANT_ID]
+   --azblob.tenant_id value The Azure blob storage tenant id to use when
+      using azblob proxy backend. [$BAZEL_REMOTE_AZBLOB_TENANT_ID,
+      $AZURE_TENANT_ID]
 
-   --azblob.storage_account value The AzBlob storage account to use when
-      using azblob proxy backend. [$BAZEL_REMOTE_AZBLOB_STORAGE_ACCOUNT]
+   --azblob.storage_account value The Azure blob storage storage account to
+      use when using azblob proxy backend.
+      [$BAZEL_REMOTE_AZBLOB_STORAGE_ACCOUNT]
 
-   --azblob.container_name value The AzBlob container name to use when using
-      azblob proxy backend. [$BAZEL_REMOTE_AZBLOB_CONTAINER_NAME]
+   --azblob.container_name value The Azure blob storage container name to use
+      when using azblob proxy backend. [$BAZEL_REMOTE_AZBLOB_CONTAINER_NAME]
 
-   --azblob.prefix value The AZBLOB object prefix to use when using az blob
-      proxy backend. [$BAZEL_REMOTE_AZBLOB_PREFIX]
+   --azblob.prefix value The Azure blob storage object prefix to use when
+      using azblob proxy backend. [$BAZEL_REMOTE_AZBLOB_PREFIX]
 
-   --azblob.auth_method value The AzBlob authentication method. This argument
-      is required when an AzBlob proxy backend is used. Allowed values:
-      client_certificate, client_secret, environment_credential, device_code,
+   --azblob.auth_method value The Azure blob storage authentication method.
+      This argument is required when an azblob proxy backend is used. Allowed
+      values: client_certificate, client_secret, environment_credential,
       default. [$BAZEL_REMOTE_AZBLOB_AUTH_METHOD]
 
-   --azblob.client_id value The AzBlob client id to use when using AzBlob
-      proxy backend. Applies to AzBlob auth method(s): client_secret.
-      [$BAZEL_REMOTE_AZBLOB_CLIENT_ID, $AZURE_CLIENT_ID]
+   --azblob.client_id value The Azure blob storage client id to use when
+      using azblob proxy backend. Applies to AzBlob auth method(s):
+      client_secret. [$BAZEL_REMOTE_AZBLOB_CLIENT_ID, $AZURE_CLIENT_ID]
 
-   --azblob.client_secret value The AzBlob cliensecret key to use when using
-      S3 proxy backend. Applies to AzBlob auth method(s): client_secret.
-      [$BAZEL_REMOTE_AZBLOB_SECRET_CLIENT_SECRET, $AZURE_CLIENT_SECRET]
+   --azblob.client_secret value The Azure blob storage client secret key to
+      use when using azblob proxy backend. Applies to AzBlob auth method(s):
+      client_secret. [$BAZEL_REMOTE_AZBLOB_SECRET_CLIENT_SECRET,
+      $AZURE_CLIENT_SECRET]
 
-   --azblob.cert_path value Path to the Certificates filefile. Applies to
-      AzBlob auth method(s): client_certificate.
-      [$BAZEL_REMOTE_AZBLOB_CERT_PATH, $AZURE_CLIENT_CERTIFICATE_PATH]
+   --azblob.cert_path value Path to the certificates file. Applies to AzBlob
+      auth method(s): client_certificate. [$BAZEL_REMOTE_AZBLOB_CERT_PATH,
+      $AZURE_CLIENT_CERTIFICATE_PATH]
       
    --disable_http_ac_validation Whether to disable ActionResult validation
       for HTTP requests. (default: false, ie enable validation)
@@ -459,17 +462,19 @@ http_address: 0.0.0.0:8080
 #  tenant_id: TENANT_ID
 #  storage_account: STORAGE_ACCOUNT
 #  container_name: CONTAINER_NAME
-
+#
+# Check https://github.com/Azure/azure-sdk-for-go/tree/sdk/azidentity/v1.1.0/sdk/azidentity/ to 
+# read about all the azure auth methods
+#
 # client secret credentials
 #  auth_method: client_secret
 #  client_id: APP_ID
 #  client_secret: APP_SECRET
-
-
+#
 # client certificate credentials
 #  auth_method: client_certificate
 #  cert_path: PATH_TO_CERTS FILE
-
+#
 # default and environment methods don't have any additional parameters
 #  auth_method: default/environment_credential
   
