@@ -4,7 +4,6 @@ const (
 	AuthMethodClientCertificate     = "client_certificate"
 	AuthMethodClientSecret          = "client_secret"
 	AuthMethodEnvironmentCredential = "environment_credential"
-	AuthMethodDeviceCode            = "device_code"
 	AuthMethodDefault               = "default"
 )
 
@@ -13,7 +12,6 @@ func GetAuthMethods() []string {
 		AuthMethodClientCertificate,
 		AuthMethodClientSecret,
 		AuthMethodEnvironmentCredential,
-		AuthMethodDeviceCode,
 		AuthMethodDefault,
 	}
 }

@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log"
+	"path"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk/casblob"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"io"
-	"log"
-	"path"
 )
 
 var (
@@ -31,7 +32,6 @@ type uploadReq struct {
 	size int64
 	kind cache.EntryKind
 	rc   io.ReadCloser
-	cxt  context.Context
 }
 
 type azBlobCache struct {
@@ -58,7 +58,6 @@ func (c *azBlobCache) Put(ctx context.Context, kind cache.EntryKind, hash string
 		size: size,
 		kind: kind,
 		rc:   rc,
-		cxt:  context.Background(),
 	}:
 	default:
 		c.errorLogger.Printf("too many uploads queued\n")
@@ -82,7 +81,6 @@ func (c *azBlobCache) Get(ctx context.Context, kind cache.EntryKind, hash string
 	resp, err := client.Download(context.Background(), nil)
 
 	if err != nil {
-
 		cacheMisses.Inc()
 		logResponse(c.accessLogger, "DOWNLOAD", c.storageAccount, c.container, key, err)
 		return nil, -1, err
@@ -131,7 +129,6 @@ func (c *azBlobCache) Contains(ctx context.Context, kind cache.EntryKind, hash s
 	logResponse(c.accessLogger, "CONTAINS", c.storageAccount, c.container, key, err)
 
 	return exists, size
-
 }
 
 func New(
@@ -142,7 +139,6 @@ func New(
 	storageMode string, accessLogger cache.Logger,
 	errorLogger cache.Logger, numUploaders, maxQueuedUploads int,
 ) cache.Proxy {
-
 	url := fmt.Sprintf("https://%s.blob.core.windows.net/", storageAccount)
 	serviceClient, err := azblob.NewServiceClient(url, creds, nil)
 	if err != nil {
@@ -196,6 +192,7 @@ func New(
 }
 
 func (c *azBlobCache) uploadFile(item uploadReq) {
+	defer item.rc.Close()
 	key := c.objectKey(item.hash, item.kind)
 	if c.prefix != "" {
 		key = c.prefix + "/" + key
@@ -207,11 +204,9 @@ func (c *azBlobCache) uploadFile(item uploadReq) {
 		return
 	}
 
-	_, err = client.Upload(item.cxt, item.rc.(io.ReadSeekCloser), nil)
+	_, err = client.Upload(context.Background(), item.rc.(io.ReadSeekCloser), nil)
 
 	logResponse(c.accessLogger, "UPLOAD", c.storageAccount, c.container, key, err)
-
-	item.rc.Close()
 }
 
 func objectKeyV2(prefix string, hash string, kind cache.EntryKind) string {

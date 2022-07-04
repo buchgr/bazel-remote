@@ -459,9 +459,19 @@ http_address: 0.0.0.0:8080
 #  tenant_id: TENANT_ID
 #  storage_account: STORAGE_ACCOUNT
 #  container_name: CONTAINER_NAME
+
+# client secret credentials
 #  auth_method: client_secret
 #  client_id: APP_ID
 #  client_secret: APP_SECRET
+
+
+# client certificate credentials
+#  auth_method: client_certificate
+#  cert_path: PATH_TO_CERTS FILE
+
+# default and environment methods don't have any additional parameters
+#  auth_method: default/environment_credential
   
 # If set to a valid port number, then serve /debug/pprof/* URLs here:
 #profile_port: 7070

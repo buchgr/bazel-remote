@@ -2,11 +2,12 @@ package config
 
 import (
 	"fmt"
+	"log"
+	"os"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/buchgr/bazel-remote/cache/azblobproxy"
-	"log"
-	"os"
 )
 
 type AzBlobStorageConfig struct {
@@ -24,7 +25,9 @@ func (azblobc AzBlobStorageConfig) GetCredentials() (azcore.TokenCredential, err
 	if azblobc.AuthMethod == azblobproxy.AuthMethodDefault {
 		log.Println("AzBlob Credentials: using Default Credentials")
 		return azidentity.NewDefaultAzureCredential(nil)
-	} else if azblobc.AuthMethod == azblobproxy.AuthMethodClientCertificate {
+	}
+
+	if azblobc.AuthMethod == azblobproxy.AuthMethodClientCertificate {
 		log.Println("AzBlob Credentials: using client certificate credentials")
 
 		certData, err := os.ReadFile(azblobc.CertPath)
@@ -35,16 +38,18 @@ func (azblobc AzBlobStorageConfig) GetCredentials() (azcore.TokenCredential, err
 		if err != nil {
 			return nil, fmt.Errorf(`failed to load certificate from "%s": %v`, azblobc.CertPath, err)
 		}
-
 		return azidentity.NewClientCertificateCredential(azblobc.TenantID, azblobc.ClientID, certs, key, nil)
-	} else if azblobc.AuthMethod == azblobproxy.AuthMethodClientSecret {
+	}
+
+	if azblobc.AuthMethod == azblobproxy.AuthMethodClientSecret {
 		log.Println("AzBlob Credentials: using client secret credentials")
 		return azidentity.NewClientSecretCredential(azblobc.TenantID, azblobc.ClientID, azblobc.ClientSecret, nil)
-	} else if azblobc.AuthMethod == azblobproxy.AuthMethodEnvironmentCredential {
+	}
+
+	if azblobc.AuthMethod == azblobproxy.AuthMethodEnvironmentCredential {
 		log.Println("AzBlob Credentials: using client secret credentials")
 		return azidentity.NewEnvironmentCredential(nil)
 	}
 
 	return nil, fmt.Errorf("invalid azblob.auth_method: %s", azblobc.AuthMethod)
-
 }
