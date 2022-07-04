@@ -463,15 +463,16 @@ func get(ctx *cli.Context) (*Config, error) {
 	var azblob *AzBlobStorageConfig
 	if ctx.String("azblob.tenant_id") != "" {
 		azblob = &AzBlobStorageConfig{
-			TenantID:       ctx.String("azblob.tenant_id"),
-			StorageAccount: ctx.String("azblob.storage_account"),
-			ContainerName:  ctx.String("azblob.container_name"),
-			Prefix:         ctx.String("azblob.prefix"),
-			AuthMethod:     ctx.String("azblob.auth_method"),
-			ClientID:       ctx.String("azblob.client_id"),
-			ClientSecret:   ctx.String("azblob.client_secret"),
-			CertPath:       ctx.String("azblob.cert_path"),
-			SharedKey:      ctx.String("azblob.shared_key"),
+			TenantID:         ctx.String("azblob.tenant_id"),
+			StorageAccount:   ctx.String("azblob.storage_account"),
+			ContainerName:    ctx.String("azblob.container_name"),
+			Prefix:           ctx.String("azblob.prefix"),
+			AuthMethod:       ctx.String("azblob.auth_method"),
+			ClientID:         ctx.String("azblob.client_id"),
+			ClientSecret:     ctx.String("azblob.client_secret"),
+			CertPath:         ctx.String("azblob.cert_path"),
+			SharedKey:        ctx.String("azblob.shared_key"),
+			UpdateTimestamps: ctx.Bool("azblob.update_timestamps"),
 		}
 	}
 

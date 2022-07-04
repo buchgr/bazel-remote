@@ -308,6 +308,12 @@ func GetCliFlags() []cli.Flag {
 			Usage:   "The Azure blob storage object prefix to use when using azblob proxy backend.",
 			EnvVars: []string{"BAZEL_REMOTE_AZBLOB_PREFIX"},
 		},
+		&cli.BoolFlag{
+			Name:        "azblob.update_timestamps",
+			Usage:       "Whether to update timestamps of object on cache hit.",
+			DefaultText: "false",
+			EnvVars:     []string{"BAZEL_REMOTE_AZBLOB_UPDATE_TIMESTAMPS"},
+		},
 		&cli.StringFlag{
 			Name:    "azblob.auth_method",
 			Value:   "",

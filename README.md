@@ -309,10 +309,13 @@ OPTIONS:
    --azblob.prefix value The Azure blob storage object prefix to use when
       using azblob proxy backend. [$BAZEL_REMOTE_AZBLOB_PREFIX]
 
+   --azblob.update_timestamps Whether to update timestamps of object on cache
+      hit. (default: false) [$BAZEL_REMOTE_AZBLOB_UPDATE_TIMESTAMPS]
+
    --azblob.auth_method value The Azure blob storage authentication method.
       This argument is required when an azblob proxy backend is used. Allowed
       values: client_certificate, client_secret, environment_credential,
-      default. [$BAZEL_REMOTE_AZBLOB_AUTH_METHOD]
+      shared_key, default. [$BAZEL_REMOTE_AZBLOB_AUTH_METHOD]
 
    --azblob.shared_key value The Azure blob storage account access key to use
       when using azblob proxy backend. Applies to AzBlob auth method(s):

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"path"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
@@ -35,15 +36,16 @@ type uploadReq struct {
 }
 
 type azBlobCache struct {
-	containerClient *azblob.ContainerClient
-	storageAccount  string
-	container       string
-	prefix          string
-	v2mode          bool
-	uploadQueue     chan<- uploadReq
-	accessLogger    cache.Logger
-	errorLogger     cache.Logger
-	objectKey       func(hash string, kind cache.EntryKind) string
+	containerClient  *azblob.ContainerClient
+	storageAccount   string
+	container        string
+	prefix           string
+	v2mode           bool
+	uploadQueue      chan<- uploadReq
+	accessLogger     cache.Logger
+	errorLogger      cache.Logger
+	objectKey        func(hash string, kind cache.EntryKind) string
+	updateTimestamps bool
 }
 
 func (c *azBlobCache) Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
@@ -86,6 +88,10 @@ func (c *azBlobCache) Get(ctx context.Context, kind cache.EntryKind, hash string
 		return nil, -1, err
 	}
 	cacheHits.Inc()
+
+	if c.updateTimestamps {
+		c.UpdateModificationTimestamp(ctx, key)
+	}
 
 	logResponse(c.accessLogger, "DOWNLOAD", c.storageAccount, c.container, key, err)
 
@@ -137,6 +143,7 @@ func New(
 	prefix string,
 	creds azcore.TokenCredential,
 	sharedKey string,
+	UpdateTimestamps bool,
 	storageMode string, accessLogger cache.Logger,
 	errorLogger cache.Logger, numUploaders, maxQueuedUploads int,
 ) cache.Proxy {
@@ -149,7 +156,7 @@ func New(
 		if e != nil {
 			log.Fatalln(e)
 		}
-		serviceClient, e = azblob.NewServiceClientWithSharedKey(url, cred, nil)
+		serviceClient, err = azblob.NewServiceClientWithSharedKey(url, cred, nil)
 
 	} else {
 		serviceClient, err = azblob.NewServiceClient(url, creds, nil)
@@ -170,13 +177,14 @@ func New(
 	}
 
 	c := &azBlobCache{
-		containerClient: containerClient,
-		prefix:          prefix,
-		storageAccount:  storageAccount,
-		container:       containerName,
-		accessLogger:    accessLogger,
-		errorLogger:     errorLogger,
-		v2mode:          storageMode == "zstd",
+		containerClient:  containerClient,
+		prefix:           prefix,
+		storageAccount:   storageAccount,
+		container:        containerName,
+		accessLogger:     accessLogger,
+		errorLogger:      errorLogger,
+		v2mode:           storageMode == "zstd",
+		updateTimestamps: UpdateTimestamps,
 	}
 
 	if c.v2mode {
@@ -221,6 +229,18 @@ func (c *azBlobCache) uploadFile(item uploadReq) {
 	_, err = client.Upload(context.Background(), item.rc.(io.ReadSeekCloser), nil)
 
 	logResponse(c.accessLogger, "UPLOAD", c.storageAccount, c.container, key, err)
+}
+
+func (c *azBlobCache) UpdateModificationTimestamp(ctx context.Context, key string) {
+	client, err := c.containerClient.NewBlockBlobClient(key)
+	if err != nil {
+		logResponse(c.accessLogger, "UPDATE_TIMESTAMPS", c.storageAccount, c.container, key, err)
+	}
+	metadata := map[string]string{
+		"LastModified": time.Now().Format("1/2/2006, 03:05 PM"),
+	}
+	_, err = client.SetMetadata(ctx, metadata, nil)
+	logResponse(c.accessLogger, "UPDATE_TIMESTAMPS", c.storageAccount, c.container, key, err)
 }
 
 func objectKeyV2(prefix string, hash string, kind cache.EntryKind) string {

@@ -70,6 +70,7 @@ func (c *Config) setProxy() error {
 			c.AzBlobConfig.Prefix,
 			creds,
 			c.AzBlobConfig.SharedKey,
+			c.AzBlobConfig.UpdateTimestamps,
 			c.StorageMode, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads,
 		)
 		return nil

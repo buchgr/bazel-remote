@@ -11,15 +11,16 @@ import (
 )
 
 type AzBlobStorageConfig struct {
-	StorageAccount string `yaml:"storage_account"`
-	ContainerName  string `yaml:"container_name"`
-	Prefix         string `yaml:"prefix"`
-	AuthMethod     string `yaml:"auth_method"`
-	TenantID       string `yaml:"tenant_id"`
-	ClientID       string `yaml:"client_id"`
-	ClientSecret   string `yaml:"client_secret"`
-	CertPath       string `yaml:"cert_path"`
-	SharedKey      string `yaml:"shared_key"`
+	StorageAccount   string `yaml:"storage_account"`
+	ContainerName    string `yaml:"container_name"`
+	Prefix           string `yaml:"prefix"`
+	AuthMethod       string `yaml:"auth_method"`
+	TenantID         string `yaml:"tenant_id"`
+	ClientID         string `yaml:"client_id"`
+	ClientSecret     string `yaml:"client_secret"`
+	CertPath         string `yaml:"cert_path"`
+	SharedKey        string `yaml:"shared_key"`
+	UpdateTimestamps bool   `yaml:"update_timestamps"`
 }
 
 func (azblobc AzBlobStorageConfig) GetCredentials() (azcore.TokenCredential, error) {
