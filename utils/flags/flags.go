@@ -315,6 +315,12 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_AZBLOB_AUTH_METHOD"},
 		},
 		&cli.StringFlag{
+			Name:    "azblob.shared_key",
+			Value:   "",
+			Usage:   "The Azure blob storage account access key to use when using azblob proxy backend. " + azBlobAuthMsg(azblobproxy.AuthMethodSharedKey),
+			EnvVars: []string{"BAZEL_REMOTE_AZBLOB_SHARED_KEY", "AZURE_STORAGE_ACCOUNT_KEY"},
+		},
+		&cli.StringFlag{
 			Name:    "azblob.client_id",
 			Value:   "",
 			Usage:   "The Azure blob storage client id to use when using azblob proxy backend. " + azBlobAuthMsg(azblobproxy.AuthMethodClientSecret),

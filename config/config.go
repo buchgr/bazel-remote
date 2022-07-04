@@ -471,6 +471,7 @@ func get(ctx *cli.Context) (*Config, error) {
 			ClientID:       ctx.String("azblob.client_id"),
 			ClientSecret:   ctx.String("azblob.client_secret"),
 			CertPath:       ctx.String("azblob.cert_path"),
+			SharedKey:      ctx.String("azblob.shared_key"),
 		}
 	}
 

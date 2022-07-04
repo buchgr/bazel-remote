@@ -136,11 +136,25 @@ func New(
 	containerName string,
 	prefix string,
 	creds azcore.TokenCredential,
+	sharedKey string,
 	storageMode string, accessLogger cache.Logger,
 	errorLogger cache.Logger, numUploaders, maxQueuedUploads int,
 ) cache.Proxy {
 	url := fmt.Sprintf("https://%s.blob.core.windows.net/", storageAccount)
-	serviceClient, err := azblob.NewServiceClient(url, creds, nil)
+
+	var err error
+	var serviceClient *azblob.ServiceClient
+	if creds == nil && len(sharedKey) > 0 {
+		cred, e := azblob.NewSharedKeyCredential(storageAccount, sharedKey)
+		if e != nil {
+			log.Fatalln(e)
+		}
+		serviceClient, e = azblob.NewServiceClientWithSharedKey(url, cred, nil)
+
+	} else {
+		serviceClient, err = azblob.NewServiceClient(url, creds, nil)
+	}
+
 	if err != nil {
 		log.Fatalln(err)
 	}

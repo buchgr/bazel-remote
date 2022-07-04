@@ -19,6 +19,7 @@ type AzBlobStorageConfig struct {
 	ClientID       string `yaml:"client_id"`
 	ClientSecret   string `yaml:"client_secret"`
 	CertPath       string `yaml:"cert_path"`
+	SharedKey      string `yaml:"shared_key"`
 }
 
 func (azblobc AzBlobStorageConfig) GetCredentials() (azcore.TokenCredential, error) {
@@ -27,9 +28,14 @@ func (azblobc AzBlobStorageConfig) GetCredentials() (azcore.TokenCredential, err
 		return azidentity.NewDefaultAzureCredential(nil)
 	}
 
+	if azblobc.AuthMethod == azblobproxy.AuthMethodSharedKey {
+		log.Println("AzBlob Credentials: using Shared Key")
+		//Special case beacuse the shared key credential doesn't implement TokenCredential
+		return nil, nil
+	}
+
 	if azblobc.AuthMethod == azblobproxy.AuthMethodClientCertificate {
 		log.Println("AzBlob Credentials: using client certificate credentials")
-
 		certData, err := os.ReadFile(azblobc.CertPath)
 		if err != nil {
 			return nil, fmt.Errorf(`failed to read certificate file "%s": %v`, azblobc.CertPath, err)

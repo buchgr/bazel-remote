@@ -314,6 +314,10 @@ OPTIONS:
       values: client_certificate, client_secret, environment_credential,
       default. [$BAZEL_REMOTE_AZBLOB_AUTH_METHOD]
 
+   --azblob.shared_key value The Azure blob storage account access key to use
+      when using azblob proxy backend. Applies to AzBlob auth method(s):
+      shared_key. [$BAZEL_REMOTE_AZBLOB_SHARED_KEY, $AZURE_STORAGE_ACCOUNT_KEY]
+
    --azblob.client_id value The Azure blob storage client id to use when
       using azblob proxy backend. Applies to AzBlob auth method(s):
       client_secret. [$BAZEL_REMOTE_AZBLOB_CLIENT_ID, $AZURE_CLIENT_ID]
@@ -465,6 +469,9 @@ http_address: 0.0.0.0:8080
 #
 # Check https://github.com/Azure/azure-sdk-for-go/tree/sdk/azidentity/v1.1.0/sdk/azidentity/ to 
 # read about all the azure auth methods
+# storage account shared key 
+#  auth_method: shared_key
+#  shared_key: APP_SHARED_KEY
 #
 # client secret credentials
 #  auth_method: client_secret
