@@ -82,7 +82,12 @@ func (c *azBlobCache) Get(ctx context.Context, kind cache.EntryKind, hash string
 
 	resp, err := client.Download(context.Background(), nil)
 	if err != nil {
+		var stgErr *azblob.StorageError
 		cacheMisses.Inc()
+		if errors.As(err, &stgErr) && stgErr.ErrorCode == azblob.StorageErrorCodeBlobNotFound {
+			logResponse(c.accessLogger, "DOWNLOAD", c.storageAccount, c.container, key, errNotFound)
+			return nil, -1, nil
+		}
 		logResponse(c.accessLogger, "DOWNLOAD", c.storageAccount, c.container, key, err)
 		return nil, -1, err
 	}
@@ -94,6 +99,8 @@ func (c *azBlobCache) Get(ctx context.Context, kind cache.EntryKind, hash string
 
 	logResponse(c.accessLogger, "DOWNLOAD", c.storageAccount, c.container, key, err)
 
+	rc = resp.Body(&azblob.RetryReaderOptions{MaxRetryRequests: 2})
+
 	if kind == cache.CAS && c.v2mode {
 		return casblob.ExtractLogicalSize(rc)
 	}
@@ -101,8 +108,6 @@ func (c *azBlobCache) Get(ctx context.Context, kind cache.EntryKind, hash string
 	if resp.ContentLength != nil {
 		size = *resp.ContentLength
 	}
-
-	rc = resp.Body(&azblob.RetryReaderOptions{MaxRetryRequests: 2})
 
 	return rc, size, nil
 }
@@ -119,13 +124,17 @@ func (c *azBlobCache) Contains(ctx context.Context, kind cache.EntryKind, hash s
 	exists := false
 
 	client, err := c.containerClient.NewBlobClient(key)
+	if err != nil {
+		logResponse(c.accessLogger, "CONTAINS", c.storageAccount, c.container, key, err)
+		return exists, size
+	}
+
+	props, err := client.GetProperties(context.Background(), nil)
 
 	exists = (err == nil)
 	if err != nil {
 		err = errNotFound
 	} else if kind != cache.CAS || !c.v2mode {
-		props, e := client.GetProperties(context.Background(), nil)
-		err = e
 		if props.ContentLength != nil {
 			size = *props.ContentLength
 		}
