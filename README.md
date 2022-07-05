@@ -9,8 +9,8 @@ execution service.
 
 The cache contents are stored in a directory on disk with a maximum cache size,
 and bazel-remote will automatically enforce this limit as needed, by deleting
-the least recently used files. S3, GCS and Azure blob storage proxy backends
-are also supported.
+the least recently used files. S3, GCS and experimental Azure blob storage
+proxy backends are also supported.
 
 **Project status**: bazel-remote has been serving TBs of cache artifacts per day since April 2018, both on
 commodity hardware and AWS servers. Outgoing bandwidth can exceed 15 Gbit/s on the right AWS instance type.
