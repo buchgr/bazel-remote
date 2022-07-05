@@ -83,12 +83,11 @@ func (c *azBlobCache) Get(ctx context.Context, kind cache.EntryKind, hash string
 	resp, err := client.Download(context.Background(), nil)
 	if err != nil {
 		var stgErr *azblob.StorageError
+		cacheMisses.Inc()
 		if errors.As(err, &stgErr) && stgErr.ErrorCode == azblob.StorageErrorCodeBlobNotFound {
-			cacheMisses.Inc()
 			logResponse(c.accessLogger, "DOWNLOAD", c.storageAccount, c.container, key, errNotFound)
 			return nil, -1, nil
 		}
-		cacheMisses.Inc()
 		logResponse(c.accessLogger, "DOWNLOAD", c.storageAccount, c.container, key, err)
 		return nil, -1, err
 	}
@@ -125,7 +124,6 @@ func (c *azBlobCache) Contains(ctx context.Context, kind cache.EntryKind, hash s
 	exists := false
 
 	client, err := c.containerClient.NewBlobClient(key)
-
 	if err != nil {
 		logResponse(c.accessLogger, "CONTAINS", c.storageAccount, c.container, key, err)
 		return exists, size
