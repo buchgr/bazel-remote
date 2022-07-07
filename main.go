@@ -77,8 +77,8 @@ func run(ctx *cli.Context) error {
 		}
 		fmt.Fprintf(ctx.App.Writer, "\n")
 
-		err = cli.ShowAppHelp(ctx)
-		return cli.Exit(err.Error(), 1)
+		_ = cli.ShowAppHelp(ctx)
+		os.Exit(1)
 	}
 
 	rlimit.Raise()
