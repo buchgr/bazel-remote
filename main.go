@@ -38,6 +38,8 @@ import (
 var gitCommit string
 
 func main() {
+	log.SetFlags(config.LogFlags)
+
 	maybeGitCommitMsg := ""
 	if len(gitCommit) > 0 && gitCommit != "{STABLE_GIT_COMMIT}" {
 		maybeGitCommitMsg = fmt.Sprintf(" from git commit %s", gitCommit)

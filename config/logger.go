@@ -7,14 +7,12 @@ import (
 )
 
 const (
-	logFlags = log.Ldate | log.Ltime | log.LUTC
+	LogFlags = log.Ldate | log.Ltime | log.LUTC
 )
 
 func (c *Config) setLogger() error {
-	log.SetFlags(logFlags)
-
-	c.AccessLogger = log.New(os.Stdout, "", logFlags)
-	c.ErrorLogger = log.New(os.Stderr, "", logFlags)
+	c.AccessLogger = log.New(os.Stdout, "", LogFlags)
+	c.ErrorLogger = log.New(os.Stderr, "", LogFlags)
 
 	if c.AccessLogLevel == "none" {
 		c.AccessLogger.SetOutput(ioutil.Discard)
