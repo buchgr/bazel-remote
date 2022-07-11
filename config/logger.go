@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	LogFlags = log.Ldate | log.Ltime | log.LUTC
+	LogFlags = log.Ldate | log.Ltime
 )
 
 func (c *Config) setLogger() error {
