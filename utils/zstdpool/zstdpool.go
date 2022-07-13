@@ -17,7 +17,8 @@ func GetEncoderPool() *sync.Pool {
 	onceEncPool.Do(func() {
 		encoderPool = syncpool.NewEncoderPool(
 			zstd.WithEncoderConcurrency(1),
-			zstd.WithEncoderLevel(zstd.SpeedFastest))
+			zstd.WithEncoderLevel(zstd.SpeedFastest),
+			zstd.WithLowerEncoderMem(true))
 	})
 
 	return encoderPool
@@ -26,7 +27,8 @@ func GetEncoderPool() *sync.Pool {
 func GetDecoderPool() *sync.Pool {
 	onceDecPool.Do(func() {
 		decoderPool = syncpool.NewDecoderPool(
-			zstd.WithDecoderConcurrency(1))
+			zstd.WithDecoderConcurrency(1),
+			zstd.WithDecoderLowmem(true))
 	})
 
 	return decoderPool

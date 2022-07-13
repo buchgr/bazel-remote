@@ -26,8 +26,8 @@ const (
 
 var zstdFastestLevel = zstd.WithEncoderLevel(zstd.SpeedFastest)
 
-var encoder, _ = zstd.NewWriter(nil, zstdFastestLevel) // TODO: raise WithEncoderConcurrency ?
-var decoder, _ = zstd.NewReader(nil)                   // TODO: raise WithDecoderConcurrency ?
+var encoder, _ = zstd.NewWriter(nil, zstdFastestLevel, zstd.WithLowerEncoderMem(true)) // TODO: raise WithEncoderConcurrency ?
+var decoder, _ = zstd.NewReader(nil, zstd.WithDecoderLowmem(true))                     // TODO: raise WithDecoderConcurrency ?
 
 var encoderPool = zstdpool.GetEncoderPool()
 var decoderPool = zstdpool.GetDecoderPool()
