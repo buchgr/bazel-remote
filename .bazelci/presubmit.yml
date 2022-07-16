@@ -7,13 +7,15 @@ tasks:
   ubuntu1804:
     platform: ubuntu1804
     build_targets:
-      - "..."
+      - "//:bazel-remote"
+      - "//:bazel-remote-image"
     test_targets:
       - "..."
   ubuntu2004:
     platform: ubuntu2004
     build_targets:
-      - "..."
+      - "//:bazel-remote"
+      - "//:bazel-remote-image"
     test_targets:
       - "..."
   macos:
