@@ -47,7 +47,7 @@ go_binary(
     name = "bazel-remote",
     embed = [":go_default_library"],
     pure = "off",
-    static = "on",
+    static = "off",
     visibility = ["//visibility:public"],
     x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
 )
@@ -58,7 +58,7 @@ go_binary(
     goarch = "amd64",
     goos = "linux",
     pure = "off",
-    static = "on",
+    static = "off",
     visibility = ["//visibility:public"],
     x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
 )
