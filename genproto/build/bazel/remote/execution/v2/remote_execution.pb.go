@@ -749,20 +749,20 @@ func (x *Platform) GetProperties() []*Platform_Property {
 // value, the following restrictions MUST be obeyed when constructing a
 // a `Directory`:
 //
-// * Every child in the directory must have a path of exactly one segment.
-//   Multiple levels of directory hierarchy may not be collapsed.
-// * Each child in the directory must have a unique path segment (file name).
-//   Note that while the API itself is case-sensitive, the environment where
-//   the Action is executed may or may not be case-sensitive. That is, it is
-//   legal to call the API with a Directory that has both "Foo" and "foo" as
-//   children, but the Action may be rejected by the remote system upon
-//   execution.
-// * The files, directories and symlinks in the directory must each be sorted
-//   in lexicographical order by path. The path strings must be sorted by code
-//   point, equivalently, by UTF-8 bytes.
-// * The [NodeProperties][build.bazel.remote.execution.v2.NodeProperty] of files,
-//   directories, and symlinks must be sorted in lexicographical order by
-//   property name.
+//   - Every child in the directory must have a path of exactly one segment.
+//     Multiple levels of directory hierarchy may not be collapsed.
+//   - Each child in the directory must have a unique path segment (file name).
+//     Note that while the API itself is case-sensitive, the environment where
+//     the Action is executed may or may not be case-sensitive. That is, it is
+//     legal to call the API with a Directory that has both "Foo" and "foo" as
+//     children, but the Action may be rejected by the remote system upon
+//     execution.
+//   - The files, directories and symlinks in the directory must each be sorted
+//     in lexicographical order by path. The path strings must be sorted by code
+//     point, equivalently, by UTF-8 bytes.
+//   - The [NodeProperties][build.bazel.remote.execution.v2.NodeProperty] of files,
+//     directories, and symlinks must be sorted in lexicographical order by
+//     property name.
 //
 // A `Directory` that obeys the restrictions is said to be in canonical form.
 //
@@ -772,46 +772,49 @@ func (x *Platform) GetProperties() []*Platform_Property {
 //
 // ```json
 // // (Directory proto)
-// {
-//   files: [
-//     {
-//       name: "bar",
-//       digest: {
-//         hash: "4a73bc9d03...",
-//         size: 65534
-//       },
-//       node_properties: [
-//         {
-//           "name": "MTime",
-//           "value": "2017-01-15T01:30:15.01Z"
-//         }
-//       ]
-//     }
-//   ],
-//   directories: [
-//     {
-//       name: "foo",
-//       digest: {
-//         hash: "4cf2eda940...",
-//         size: 43
-//       }
-//     }
-//   ]
-// }
+//
+//	{
+//	  files: [
+//	    {
+//	      name: "bar",
+//	      digest: {
+//	        hash: "4a73bc9d03...",
+//	        size: 65534
+//	      },
+//	      node_properties: [
+//	        {
+//	          "name": "MTime",
+//	          "value": "2017-01-15T01:30:15.01Z"
+//	        }
+//	      ]
+//	    }
+//	  ],
+//	  directories: [
+//	    {
+//	      name: "foo",
+//	      digest: {
+//	        hash: "4cf2eda940...",
+//	        size: 43
+//	      }
+//	    }
+//	  ]
+//	}
 //
 // // (Directory proto with hash "4cf2eda940..." and size 43)
-// {
-//   files: [
-//     {
-//       name: "baz",
-//       digest: {
-//         hash: "b2c941073e...",
-//         size: 1294,
-//       },
-//       is_executable: true
-//     }
-//   ]
-// }
+//
+//	{
+//	  files: [
+//	    {
+//	      name: "baz",
+//	      digest: {
+//	        hash: "b2c941073e...",
+//	        size: 1294,
+//	      },
+//	      is_executable: true
+//	    }
+//	  ]
+//	}
+//
 // ```
 type Directory struct {
 	state         protoimpl.MessageState
@@ -953,7 +956,6 @@ func (x *NodeProperty) GetValue() string {
 // [DirectoryNodes][build.bazel.remote.execution.v2.DirectoryNode], and
 // [SymlinkNodes][build.bazel.remote.execution.v2.SymlinkNode]. The server is
 // responsible for specifying the properties that it accepts.
-//
 type NodeProperties struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

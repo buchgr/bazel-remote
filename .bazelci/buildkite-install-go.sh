@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-pkg=go1.18.4.linux-amd64.tar.gz
+pkg=go1.19.linux-amd64.tar.gz
 
 wget -o "$HOME/$pkg" "https://golang.org/dl/$pkg" 1>&2
 tar -xv -C "$HOME" -f "$pkg" 1>&2
