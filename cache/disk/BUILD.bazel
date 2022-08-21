@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "disk.go",
         "findmissing.go",
+        "load.go",
         "lru.go",
         "metrics.go",
         "options.go",
