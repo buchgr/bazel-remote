@@ -5,9 +5,9 @@ package gcsproxy
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/httpproxy"
@@ -29,7 +29,7 @@ func New(bucket string, useDefaultCredentials bool, jsonCredentialsFile string, 
 			return nil, err
 		}
 	} else if jsonCredentialsFile != "" {
-		jsonConfig, err := ioutil.ReadFile(jsonCredentialsFile)
+		jsonConfig, err := os.ReadFile(jsonCredentialsFile)
 		if err != nil {
 			err = fmt.Errorf("Failed to read Google Credentials file '%s': %v", jsonCredentialsFile, err)
 			return nil, err

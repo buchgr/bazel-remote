@@ -23,7 +23,7 @@ func NewCreator() *Creator {
 // Fast "quick and dirty" linear congruential (pseudo-random) number
 // generator from Numerical Recipes. Excerpt here:
 // https://www.unf.edu/~cwinton/html/cop4300/s09/class.notes/LCGinfo.pdf
-// This is the same algorithm as used in the ioutil.TempFile go standard
+// This is the same algorithm as used in the old ioutil.TempFile go standard
 // library function.
 func (c *Creator) ranqd1() string {
 	c.mu.Lock()

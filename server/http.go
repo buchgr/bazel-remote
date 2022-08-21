@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"regexp"
@@ -325,7 +324,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		if h.validateAC && kind == cache.AC {
 			// verify that this is a valid ActionResult
 
-			data, err := ioutil.ReadAll(rdr)
+			data, err := io.ReadAll(rdr)
 			if err != nil {
 				msg := "failed to read request body"
 				http.Error(w, msg, http.StatusInternalServerError)

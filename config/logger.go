@@ -1,7 +1,7 @@
 package config
 
 import (
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 )
@@ -15,7 +15,7 @@ func (c *Config) setLogger() error {
 	c.ErrorLogger = log.New(os.Stderr, "", LogFlags)
 
 	if c.AccessLogLevel == "none" {
-		c.AccessLogger.SetOutput(ioutil.Discard)
+		c.AccessLogger.SetOutput(io.Discard)
 	}
 
 	return nil

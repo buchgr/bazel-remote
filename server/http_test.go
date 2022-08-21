@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -185,7 +184,7 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 			handler.ServeHTTP(rr, request)
 
 			if status := rr.Code; status != http.StatusOK {
-				resp, _ := ioutil.ReadAll(rr.Body)
+				resp, _ := io.ReadAll(rr.Body)
 				t.Error("Handler returned wrong status code",
 					"expected", http.StatusOK,
 					"got", status,
@@ -269,7 +268,7 @@ func TestUploadEmptyActionResult(t *testing.T) {
 	rr2 := httptest.NewRecorder()
 	handler.ServeHTTP(rr2, getReq)
 
-	cachedData, err := ioutil.ReadAll(rr2.Result().Body)
+	cachedData, err := io.ReadAll(rr2.Result().Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -472,7 +471,7 @@ func (r *fakeResponseWriter) WriteHeader(statusCode int) {
 }
 
 func TestRemoteReturnsNotFound(t *testing.T) {
-	cacheDir, err := ioutil.TempDir("", "bazel-remote")
+	cacheDir, err := os.MkdirTemp("", "bazel-remote")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -487,7 +486,7 @@ func TestRemoteReturnsNotFound(t *testing.T) {
 	_, hash := testutils.RandomDataAndHash(1024)
 	url, _ := url.Parse(fmt.Sprintf("http://localhost:8080/ac/%s", hash))
 	reader := bytes.NewReader([]byte{})
-	body := ioutil.NopCloser(reader)
+	body := io.NopCloser(reader)
 	req := &http.Request{
 		Method:     "GET",
 		URL:        url,

@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"strings"
 
@@ -71,7 +70,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 		}
 		defer rdr.Close()
 
-		acdata, err := ioutil.ReadAll(rdr)
+		acdata, err := io.ReadAll(rdr)
 		if err != nil {
 			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 			return nil, status.Error(codes.Unknown, err.Error())

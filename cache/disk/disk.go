@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math"
 	"net/http"
@@ -357,7 +356,7 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 
 	log.Println("Migrating files (if any) to new directory structure:", sourceDir)
 
-	listing, err := ioutil.ReadDir(sourceDir)
+	listing, err := os.ReadDir(sourceDir)
 	if err != nil {
 		return err
 	}
@@ -371,7 +370,7 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 
 	targetDir := path.Join(baseDir, kind.DirName())
 
-	itemChan := make(chan os.FileInfo)
+	itemChan := make(chan os.DirEntry)
 	errChan := make(chan error)
 
 	var wg sync.WaitGroup
@@ -402,7 +401,7 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 					continue
 				}
 
-				if !item.Mode().IsRegular() {
+				if !item.Type().IsRegular() {
 					log.Println("Warning: skipping non-regular file:", oldNamePath)
 					continue
 				}
@@ -456,7 +455,7 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 }
 
 func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error {
-	listing, err := ioutil.ReadDir(oldDir)
+	listing, err := os.ReadDir(oldDir)
 	if err != nil {
 		return err
 	}
@@ -612,7 +611,7 @@ func (c *diskCache) loadExistingFiles() error {
 func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, r io.Reader) (rErr error) {
 	defer func() {
 		if r != nil {
-			_, _ = io.Copy(ioutil.Discard, r)
+			_, _ = io.Copy(io.Discard, r)
 		}
 	}()
 
@@ -944,10 +943,10 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 
 	if kind == cache.CAS && size <= 0 && hash == emptySha256 {
 		if zstd {
-			return ioutil.NopCloser(bytes.NewReader(emptyZstdBlob)), 0, nil
+			return io.NopCloser(bytes.NewReader(emptyZstdBlob)), 0, nil
 		}
 
-		return ioutil.NopCloser(bytes.NewReader([]byte{})), 0, nil
+		return io.NopCloser(bytes.NewReader([]byte{})), 0, nil
 	}
 
 	if kind != cache.CAS && zstd {
@@ -1173,7 +1172,7 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 		return nil, nil, nil // aka "not found"
 	}
 
-	acdata, err := ioutil.ReadAll(rc)
+	acdata, err := io.ReadAll(rc)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1216,7 +1215,7 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 		}
 
 		var oddata []byte
-		oddata, err = ioutil.ReadAll(r)
+		oddata, err = io.ReadAll(r)
 		r.Close()
 		if err != nil {
 			return nil, nil, err

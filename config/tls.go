@@ -4,13 +4,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
+	"os"
 )
 
 func (c *Config) setTLSConfig() error {
 	if len(c.TLSCaFile) != 0 {
 		caCertPool := x509.NewCertPool()
-		caCert, err := ioutil.ReadFile(c.TLSCaFile)
+		caCert, err := os.ReadFile(c.TLSCaFile)
 		if err != nil {
 			return fmt.Errorf("Error reading TLS CA File: %w", err)
 		}

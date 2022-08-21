@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"sync"
 	"testing"
@@ -213,8 +212,8 @@ func TestFindMissingCasBlobsWithProxy(t *testing.T) {
 	data3, digest3 := testutils.RandomDataAndDigest(300)
 	_, digest4 := testutils.RandomDataAndDigest(400)
 
-	proxy.Put(ctx, cache.CAS, digest1.Hash, digest1.SizeBytes, ioutil.NopCloser(bytes.NewReader(data1)))
-	proxy.Put(ctx, cache.CAS, digest3.Hash, digest3.SizeBytes, ioutil.NopCloser(bytes.NewReader(data3)))
+	proxy.Put(ctx, cache.CAS, digest1.Hash, digest1.SizeBytes, io.NopCloser(bytes.NewReader(data1)))
+	proxy.Put(ctx, cache.CAS, digest3.Hash, digest3.SizeBytes, io.NopCloser(bytes.NewReader(data3)))
 
 	missing, err := testCache.FindMissingCasBlobs(ctx, []*pb.Digest{
 		&digest1,
@@ -279,8 +278,8 @@ func TestFindMissingCasBlobsWithProxyFailFast(t *testing.T) {
 	data3, digest3 := testutils.RandomDataAndDigest(300)
 	_, digest4 := testutils.RandomDataAndDigest(400)
 
-	proxy.Put(ctx, cache.CAS, digest1.Hash, digest1.SizeBytes, ioutil.NopCloser(bytes.NewReader(data1)))
-	proxy.Put(ctx, cache.CAS, digest3.Hash, digest3.SizeBytes, ioutil.NopCloser(bytes.NewReader(data3)))
+	proxy.Put(ctx, cache.CAS, digest1.Hash, digest1.SizeBytes, io.NopCloser(bytes.NewReader(data1)))
+	proxy.Put(ctx, cache.CAS, digest3.Hash, digest3.SizeBytes, io.NopCloser(bytes.NewReader(data3)))
 
 	blobs := []*pb.Digest{
 		&digest1,
@@ -338,10 +337,10 @@ func TestFindMissingCasBlobsWithProxyFailFastNoneMissing(t *testing.T) {
 	data3, digest3 := testutils.RandomDataAndDigest(300)
 	data4, digest4 := testutils.RandomDataAndDigest(400)
 
-	proxy.Put(ctx, cache.CAS, digest1.Hash, digest1.SizeBytes, ioutil.NopCloser(bytes.NewReader(data1)))
-	proxy.Put(ctx, cache.CAS, digest2.Hash, digest2.SizeBytes, ioutil.NopCloser(bytes.NewReader(data2)))
-	proxy.Put(ctx, cache.CAS, digest3.Hash, digest3.SizeBytes, ioutil.NopCloser(bytes.NewReader(data3)))
-	proxy.Put(ctx, cache.CAS, digest4.Hash, digest4.SizeBytes, ioutil.NopCloser(bytes.NewReader(data4)))
+	proxy.Put(ctx, cache.CAS, digest1.Hash, digest1.SizeBytes, io.NopCloser(bytes.NewReader(data1)))
+	proxy.Put(ctx, cache.CAS, digest2.Hash, digest2.SizeBytes, io.NopCloser(bytes.NewReader(data2)))
+	proxy.Put(ctx, cache.CAS, digest3.Hash, digest3.SizeBytes, io.NopCloser(bytes.NewReader(data3)))
+	proxy.Put(ctx, cache.CAS, digest4.Hash, digest4.SizeBytes, io.NopCloser(bytes.NewReader(data4)))
 
 	blobs := []*pb.Digest{
 		&digest1,
@@ -412,9 +411,9 @@ func TestFindMissingCasBlobsWithProxyFailFastMaxProxyBlobSize(t *testing.T) {
 	data3, digest3 := testutils.RandomDataAndDigest(300) // We expect this blob to not be found.
 
 	// Put blobs directly into proxy backend, where it will not be filtered out.
-	proxy.Put(ctx, cache.CAS, digest1.Hash, digest1.SizeBytes, ioutil.NopCloser(bytes.NewReader(data1)))
-	proxy.Put(ctx, cache.CAS, digest2.Hash, digest2.SizeBytes, ioutil.NopCloser(bytes.NewReader(data2)))
-	proxy.Put(ctx, cache.CAS, digest3.Hash, digest3.SizeBytes, ioutil.NopCloser(bytes.NewReader(data3)))
+	proxy.Put(ctx, cache.CAS, digest1.Hash, digest1.SizeBytes, io.NopCloser(bytes.NewReader(data1)))
+	proxy.Put(ctx, cache.CAS, digest2.Hash, digest2.SizeBytes, io.NopCloser(bytes.NewReader(data2)))
+	proxy.Put(ctx, cache.CAS, digest3.Hash, digest3.SizeBytes, io.NopCloser(bytes.NewReader(data3)))
 
 	blobs := []*pb.Digest{
 		&digest1,
@@ -468,8 +467,8 @@ func TestFindMissingCasBlobsWithProxyMaxProxyBlobSize(t *testing.T) {
 	data1, digest1 := testutils.RandomDataAndDigest(100)
 	data2, digest2 := testutils.RandomDataAndDigest(600)
 
-	proxy.Put(ctx, cache.CAS, digest1.Hash, digest1.SizeBytes, ioutil.NopCloser(bytes.NewReader(data1)))
-	proxy.Put(ctx, cache.CAS, digest2.Hash, digest2.SizeBytes, ioutil.NopCloser(bytes.NewReader(data2)))
+	proxy.Put(ctx, cache.CAS, digest1.Hash, digest1.SizeBytes, io.NopCloser(bytes.NewReader(data1)))
+	proxy.Put(ctx, cache.CAS, digest2.Hash, digest2.SizeBytes, io.NopCloser(bytes.NewReader(data2)))
 
 	missing, err := testCache.FindMissingCasBlobs(ctx, []*pb.Digest{
 		&digest1,

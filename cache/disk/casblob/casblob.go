@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 
@@ -293,7 +292,7 @@ func GetUncompressedReadCloser(zstd zstdimpl.ZstdImpl, f *os.File, expectedSize 
 		// Last chunk in the file.
 		r := bytes.NewReader(uncompressedFirstChunk[remainder:])
 		f.Close()
-		return ioutil.NopCloser(r), nil
+		return io.NopCloser(r), nil
 	}
 
 	z, err := zstd.GetDecoder(f)
@@ -387,7 +386,7 @@ func GetZstdReadCloser(zstd zstdimpl.ZstdImpl, f *os.File, expectedSize int64, o
 	br := bytes.NewReader(recompressedChunk)
 	if chunkNum == int64(len(h.chunkOffsets)-2) {
 		f.Close()
-		return ioutil.NopCloser(br), nil
+		return io.NopCloser(br), nil
 	}
 
 	return &readCloserWrapper{

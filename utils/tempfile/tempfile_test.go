@@ -1,7 +1,6 @@
 package tempfile_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -13,7 +12,7 @@ import (
 func TestTempfileCreator(t *testing.T) {
 	tfc := tempfile.NewCreator()
 
-	dir, err := ioutil.TempDir("", "foo")
+	dir, err := os.MkdirTemp("", "foo")
 	if err != nil {
 		t.Fatal(err)
 	}

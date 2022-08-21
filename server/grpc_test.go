@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"testing"
@@ -71,7 +70,7 @@ func bufDialer(context.Context, string) (net.Conn, error) {
 }
 
 func TestMain(m *testing.M) {
-	dir, err := ioutil.TempDir("", "bazel-remote-grpc-tests")
+	dir, err := os.MkdirTemp("", "bazel-remote-grpc-tests")
 	if err != nil {
 		fmt.Println("Test setup failed")
 		os.Exit(1)

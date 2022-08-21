@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -33,7 +32,7 @@ import (
 )
 
 func tempDir(t *testing.T) string {
-	dir, err := ioutil.TempDir("", "bazel-remote")
+	dir, err := os.MkdirTemp("", "bazel-remote")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +80,7 @@ func TestCacheBasics(t *testing.T) {
 
 	// Add an item.
 	err = testCache.Put(ctx, cache.CAS, hash, itemSize,
-		ioutil.NopCloser(bytes.NewReader(data)))
+		io.NopCloser(bytes.NewReader(data)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +239,7 @@ func (d proxyStub) Get(ctx context.Context, kind cache.EntryKind, hash string) (
 		return nil, -1, nil
 	}
 
-	tmpfile, err := ioutil.TempFile("", "proxyStubGet")
+	tmpfile, err := os.CreateTemp("", "proxyStubGet")
 	if err != nil {
 		return nil, -1, err
 	}
@@ -255,7 +254,7 @@ func (d proxyStub) Get(ctx context.Context, kind cache.EntryKind, hash string) (
 
 	_, err = casblob.WriteAndClose(
 		zi,
-		ioutil.NopCloser(
+		io.NopCloser(
 			strings.NewReader(contents)), tmpfile, casblob.Zstandard,
 		hash, contentsLength)
 	if err != nil {
@@ -282,7 +281,7 @@ func expectContentEquals(rdr io.ReadCloser, sizeBytes int64, expectedContent []b
 	if rdr == nil {
 		return fmt.Errorf("expected the item to exist")
 	}
-	data, err := ioutil.ReadAll(rdr)
+	data, err := io.ReadAll(rdr)
 	if err != nil {
 		return err
 	}
@@ -426,7 +425,7 @@ func TestCacheExistingFiles(t *testing.T) {
 					it.hash, int64(len(it.contents)))
 			}
 		} else {
-			err = ioutil.WriteFile(fp, []byte(it.contents), os.ModePerm)
+			err = os.WriteFile(fp, []byte(it.contents), os.ModePerm)
 		}
 		if err != nil {
 			t.Fatal(err)
@@ -558,7 +557,7 @@ func createRandomFile(dir string, size int64) (string, error) {
 	}
 	filepath := dir + "/" + hash
 
-	return hash, ioutil.WriteFile(filepath, data, os.ModePerm)
+	return hash, os.WriteFile(filepath, data, os.ModePerm)
 }
 
 func createRandomV1CASFile(dir string, size int64) (string, error) {
@@ -569,7 +568,7 @@ func createRandomV1CASFile(dir string, size int64) (string, error) {
 	}
 	filePath := dir + "/" + hash
 
-	err = ioutil.WriteFile(filePath, data, os.ModePerm)
+	err = os.WriteFile(filePath, data, os.ModePerm)
 	if err != nil {
 		return "", err
 	}
@@ -649,7 +648,7 @@ func TestLoadExistingEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = ioutil.WriteFile(path.Join(cacheDir, "ac", acHash), acData, 0644)
+	err = os.WriteFile(path.Join(cacheDir, "ac", acHash), acData, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -660,7 +659,7 @@ func TestLoadExistingEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = ioutil.WriteFile(path.Join(cacheDir, "cas", casHash), casData, 0644)
+	err = os.WriteFile(path.Join(cacheDir, "cas", casHash), casData, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -671,7 +670,7 @@ func TestLoadExistingEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = ioutil.WriteFile(path.Join(cacheDir, "cas", casV1Hash[:2], casV1Hash), casV1Data, 0644)
+	err = os.WriteFile(path.Join(cacheDir, "cas", casV1Hash[:2], casV1Hash), casV1Data, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -682,7 +681,7 @@ func TestLoadExistingEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = ioutil.WriteFile(path.Join(cacheDir, "ac", acV1Hash[:2], acV1Hash), acV1Data, 0644)
+	err = os.WriteFile(path.Join(cacheDir, "ac", acV1Hash[:2], acV1Hash), acV1Data, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -693,7 +692,7 @@ func TestLoadExistingEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = ioutil.WriteFile(path.Join(cacheDir, "raw", rawHash[:2], rawHash), rawData, 0644)
+	err = os.WriteFile(path.Join(cacheDir, "raw", rawHash[:2], rawHash), rawData, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -817,7 +816,7 @@ func (s *testServer) handler(w http.ResponseWriter, r *http.Request) {
 		return
 
 	case http.MethodPut:
-		data, err := ioutil.ReadAll(r.Body)
+		data, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "failed to read body", http.StatusInternalServerError)
 			return
@@ -973,7 +972,7 @@ func TestHttpProxyBackend(t *testing.T) {
 		t.Fatalf("Expected a blob of size %d, got %d", blobSize, fetchedSize)
 	}
 
-	retrievedData, err := ioutil.ReadAll(r)
+	retrievedData, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1182,7 +1181,7 @@ func TestGetWithOffset(t *testing.T) {
 	data, hash := testutils.RandomDataAndHash(blobSize)
 
 	err = testCache.Put(ctx, cache.CAS, hash, blobSize,
-		ioutil.NopCloser(bytes.NewReader(data)))
+		io.NopCloser(bytes.NewReader(data)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1197,7 +1196,7 @@ func TestGetWithOffset(t *testing.T) {
 	}
 
 	// Read back the full blob, confirm the test state is OK.
-	foundData, err := ioutil.ReadAll(rc)
+	foundData, err := io.ReadAll(rc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1217,7 +1216,7 @@ func TestGetWithOffset(t *testing.T) {
 				foundSize, int64(len(data)))
 		}
 
-		foundData, err = ioutil.ReadAll(rc)
+		foundData, err = io.ReadAll(rc)
 		if err != nil {
 			t.Fatal(err)
 		}

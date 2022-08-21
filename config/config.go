@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"math"
 	"net"
@@ -170,7 +170,7 @@ func newFromYamlFile(path string) (*Config, error) {
 	}
 	defer file.Close()
 
-	data, err := ioutil.ReadAll(file)
+	data, err := io.ReadAll(file)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read config file '%s': %v", path, err)
 	}

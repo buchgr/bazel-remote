@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -90,7 +89,7 @@ func (r *remoteHTTPProxyCache) uploadFile(item uploadReq) {
 		r.errorLogger.Printf("HTTP %s UPLOAD: %s", url, err.Error())
 		return
 	}
-	_, err = io.Copy(ioutil.Discard, rsp.Body)
+	_, err = io.Copy(io.Discard, rsp.Body)
 	if err != nil {
 		r.errorLogger.Printf("HTTP %s UPLOAD: %s", url, err.Error())
 		return
@@ -201,7 +200,7 @@ func (r *remoteHTTPProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 		// If the failed http response contains some data then
 		// forward up to 1 KiB.
 		var errorBytes []byte
-		errorBytes, err = ioutil.ReadAll(io.LimitReader(rsp.Body, 1024))
+		errorBytes, err = io.ReadAll(io.LimitReader(rsp.Body, 1024))
 		var errorText string
 		if err == nil {
 			errorText = string(errorBytes)

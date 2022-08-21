@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -63,7 +62,7 @@ func (s *testServer) handler(w http.ResponseWriter, r *http.Request) {
 		return
 
 	case http.MethodPut:
-		data, err := ioutil.ReadAll(r.Body)
+		data, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "failed to read body", http.StatusInternalServerError)
 			return
@@ -173,7 +172,7 @@ func TestEverything(t *testing.T) {
 
 		// TODO: tweak the GetUncompressedReadCloser API to accept more than os.File.
 
-		tmpfile, err := ioutil.TempFile("", "bazel-remote-httpproxy-test")
+		tmpfile, err := os.CreateTemp("", "bazel-remote-httpproxy-test")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -202,7 +201,7 @@ func TestEverything(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer rc.Close()
-		vData, err := ioutil.ReadAll(rc)
+		vData, err := io.ReadAll(rc)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -252,7 +251,7 @@ func TestEverything(t *testing.T) {
 			len(acData), size)
 	}
 
-	data, err = ioutil.ReadAll(rc)
+	data, err = io.ReadAll(rc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -272,7 +271,7 @@ func TestEverything(t *testing.T) {
 			len(casData), size)
 	}
 
-	data, err = ioutil.ReadAll(rc)
+	data, err = io.ReadAll(rc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -330,7 +329,7 @@ func TestEverything(t *testing.T) {
 			len(acData), size)
 	}
 
-	data, err = ioutil.ReadAll(rc)
+	data, err = io.ReadAll(rc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -350,7 +349,7 @@ func TestEverything(t *testing.T) {
 			len(casData), size)
 	}
 
-	data, err = ioutil.ReadAll(rc)
+	data, err = io.ReadAll(rc)
 	if err != nil {
 		t.Error(err)
 	}
