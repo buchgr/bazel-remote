@@ -366,6 +366,15 @@ func TestOverwrite(t *testing.T) {
 	}
 }
 
+func ensureDirExists(path string, t *testing.T) {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		err = os.MkdirAll(path, os.ModePerm)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestCacheExistingFiles(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -409,7 +418,7 @@ func TestCacheExistingFiles(t *testing.T) {
 	for _, it := range items {
 
 		fp := path.Join(cacheDir, it.file)
-		ensureDirExists(path.Dir(fp))
+		ensureDirExists(path.Dir(fp), t)
 
 		if strings.HasPrefix(it.file, "cas.v2/") {
 			r := bytes.NewReader([]byte(it.contents))

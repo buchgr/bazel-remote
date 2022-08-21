@@ -1146,15 +1146,6 @@ func isSizeMismatch(requestedSize int64, foundSize int64) bool {
 	return requestedSize > -1 && foundSize > -1 && requestedSize != foundSize
 }
 
-func ensureDirExists(path string) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		err = os.MkdirAll(path, os.ModePerm)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-}
-
 // GetValidatedActionResult returns a valid ActionResult and its serialized
 // value from the CAS if it and all its dependencies are also available. If
 // not, nil values are returned. If something unexpected went wrong, return
