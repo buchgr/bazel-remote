@@ -499,19 +499,10 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 	return nil
 }
 
-// loadExistingFiles lists all files in the cache directory, and adds them to the
-// LRU index so that they can be served. Files are sorted by access time first,
-// so that the eviction behavior is preserved across server restarts.
-func (c *diskCache) loadExistingFiles() error {
-	log.Printf("Loading existing files in %s.\n", c.dir)
-
-	// compressed CAS items: <hash>-<logical size>-<random digits/ascii letters>
-	// uncompressed CAS items: <hash>-<logical size>-<random digits/ascii letters>.v1
-	// AC and RAW items: <hash>-<random digits/ascii letters>
-	re := regexp.MustCompile(`^([a-f0-9]{64})(?:-([1-9][0-9]*))?-([0-9a-zA-Z]+)(\.v1)?$`)
+func (c *diskCache) scanDir() ([]nameAndInfo, error) {
+	var files []nameAndInfo
 
 	// Walk the directory tree
-	var files []nameAndInfo
 	err := filepath.Walk(c.dir, func(name string, info os.FileInfo, err error) error {
 		if err != nil {
 			log.Println("Error while walking directory:", err)
@@ -532,8 +523,28 @@ func (c *diskCache) loadExistingFiles() error {
 		return nil
 	})
 	if err != nil {
+		return nil, err
+	}
+
+	return files, nil
+}
+
+// loadExistingFiles lists all files in the cache directory, and adds them to the
+// LRU index so that they can be served. Files are sorted by access time first,
+// so that the eviction behavior is preserved across server restarts.
+func (c *diskCache) loadExistingFiles() error {
+	log.Printf("Loading existing files in %s.\n", c.dir)
+
+	files, err := c.scanDir()
+	if err != nil {
+		log.Printf("Failed to scan cache dir: %s", err.Error())
 		return err
 	}
+
+	// compressed CAS items: <hash>-<logical size>-<random digits/ascii letters>
+	// uncompressed CAS items: <hash>-<logical size>-<random digits/ascii letters>.v1
+	// AC and RAW items: <hash>-<random digits/ascii letters>
+	re := regexp.MustCompile(`^([a-f0-9]{64})(?:-([1-9][0-9]*))?-([0-9a-zA-Z]+)(\.v1)?$`)
 
 	log.Println("Sorting cache files by atime.")
 	// Sort in increasing order of atime
