@@ -148,6 +148,9 @@ OPTIONS:
    --storage_mode value Which format to store CAS blobs in. Must be one of
       "zstd" or "uncompressed". (default: "zstd") [$BAZEL_REMOTE_STORAGE_MODE]
 
+   --zstd_implementation value ZSTD implementation to use. Must be one of
+      "go" or "cgo". (default: "go") [$BAZEL_REMOTE_ZSTD_IMPLEMENTATION]
+
    --http_address value Address specification for the HTTP server listener,
       formatted either as [host]:port for TCP or unix://path.sock for Unix
       domain sockets. [$BAZEL_REMOTE_HTTP_ADDRESS]

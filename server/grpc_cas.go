@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/ioutil"
 
 	"google.golang.org/genproto/googleapis/rpc/code"
 	"google.golang.org/genproto/googleapis/rpc/status"
@@ -126,7 +125,7 @@ func (s *grpcServer) getBlobData(ctx context.Context, hash string, size int64) (
 		return []byte{}, errBadSize
 	}
 
-	data, err := ioutil.ReadAll(rdr)
+	data, err := io.ReadAll(rdr)
 	if err != nil {
 		rdr.Close()
 		return []byte{}, err
@@ -158,7 +157,7 @@ func (s *grpcServer) getBlobResponse(ctx context.Context, digest *pb.Digest, all
 			return &r
 		}
 
-		data, err := ioutil.ReadAll(rc)
+		data, err := io.ReadAll(rc)
 		if err != nil {
 			s.errorLogger.Printf("GRPC CAS GET %s INTERNAL ERROR: %v", digest.Hash, err)
 			r.Status = &status.Status{Code: int32(code.Code_INTERNAL)}

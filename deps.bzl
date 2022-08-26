@@ -844,6 +844,16 @@ def go_dependencies():
         sum = "h1:TVEnxayobAdVkhQfrfes2IzOB6o+z4roRkPF52WA1u4=",
         version = "v1.2.1",
     )
+
+    go_repository(
+        name = "com_github_valyala_gozstd",
+        build_file_generation = "off",  # keep
+        importpath = "github.com/valyala/gozstd",
+        patch_args = ["-p1"],  # keep
+        patches = ["gozstd.patch"],  # keep
+        sum = "h1:M4Ds4MIrw+pD+s6vYtuFZ8D3iEw9htzfdytOV3C3iQU=",
+        version = "v1.17.0",
+    )
     go_repository(
         name = "com_github_yuin_goldmark",
         importpath = "github.com/yuin/goldmark",

@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -147,7 +146,7 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, expectedHash str
 	if expectedHash == "" || expectedSize < 0 {
 		// We can't call Put until we know the hash and size.
 
-		data, err := ioutil.ReadAll(resp.Body)
+		data, err := io.ReadAll(resp.Body)
 		if err != nil {
 			s.errorLogger.Printf("failed to read data: %v", uri)
 			return false, "", int64(-1)
@@ -164,7 +163,7 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, expectedHash str
 		}
 
 		expectedHash = hashStr
-		rc = ioutil.NopCloser(bytes.NewReader(data))
+		rc = io.NopCloser(bytes.NewReader(data))
 	}
 
 	err = s.cache.Put(ctx, cache.CAS, expectedHash, expectedSize, rc)

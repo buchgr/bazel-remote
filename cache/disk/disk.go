@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math"
 	"net/http"
@@ -24,6 +23,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk/casblob"
+	"github.com/buchgr/bazel-remote/cache/disk/zstdimpl"
 	"github.com/buchgr/bazel-remote/utils/tempfile"
 	"github.com/buchgr/bazel-remote/utils/validate"
 
@@ -76,6 +76,7 @@ type diskCache struct {
 	dir              string
 	proxy            cache.Proxy
 	storageMode      casblob.CompressionType
+	zstd             zstdimpl.ZstdImpl
 	maxBlobSize      int64
 	maxProxyBlobSize int64
 	accessLogger     *log.Logger
@@ -140,11 +141,17 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 	}
 	log.Printf("Limiting concurrent file removals to %d\n", semaphoreWeight)
 
+	zi, err := zstdimpl.Get("go")
+	if err != nil {
+		return nil, err
+	}
+
 	c := diskCache{
 		dir: dir,
 
 		// Not using config here, to avoid test import cycles.
 		storageMode:      casblob.Zstandard,
+		zstd:             zi,
 		maxBlobSize:      math.MaxInt64,
 		maxProxyBlobSize: math.MaxInt64,
 
@@ -349,7 +356,7 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 
 	log.Println("Migrating files (if any) to new directory structure:", sourceDir)
 
-	listing, err := ioutil.ReadDir(sourceDir)
+	listing, err := os.ReadDir(sourceDir)
 	if err != nil {
 		return err
 	}
@@ -363,7 +370,7 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 
 	targetDir := path.Join(baseDir, kind.DirName())
 
-	itemChan := make(chan os.FileInfo)
+	itemChan := make(chan os.DirEntry)
 	errChan := make(chan error)
 
 	var wg sync.WaitGroup
@@ -394,7 +401,7 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 					continue
 				}
 
-				if !item.Mode().IsRegular() {
+				if !item.Type().IsRegular() {
 					log.Println("Warning: skipping non-regular file:", oldNamePath)
 					continue
 				}
@@ -448,7 +455,7 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 }
 
 func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error {
-	listing, err := ioutil.ReadDir(oldDir)
+	listing, err := os.ReadDir(oldDir)
 	if err != nil {
 		return err
 	}
@@ -604,7 +611,7 @@ func (c *diskCache) loadExistingFiles() error {
 func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, r io.Reader) (rErr error) {
 	defer func() {
 		if r != nil {
-			_, _ = io.Copy(ioutil.Discard, r)
+			_, _ = io.Copy(io.Discard, r)
 		}
 	}()
 
@@ -735,7 +742,7 @@ func (c *diskCache) writeAndCloseFile(r io.Reader, kind cache.EntryKind, hash st
 	var sizeOnDisk int64
 
 	if kind == cache.CAS && c.storageMode != casblob.Identity {
-		sizeOnDisk, err = casblob.WriteAndClose(r, f, c.storageMode, hash, size)
+		sizeOnDisk, err = casblob.WriteAndClose(c.zstd, r, f, c.storageMode, hash, size)
 		if err != nil {
 			return -1, err
 		}
@@ -842,16 +849,16 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 					// The file is uncompressed, without a casblob header.
 					_, err = f.Seek(offset, io.SeekStart)
 					if zstd && err == nil {
-						rc, err = casblob.GetLegacyZstdReadCloser(f)
+						rc, err = casblob.GetLegacyZstdReadCloser(c.zstd, f)
 					} else if err == nil {
 						rc = f
 					}
 				} else {
 					// The file is compressed.
 					if zstd {
-						rc, err = casblob.GetZstdReadCloser(f, size, offset)
+						rc, err = casblob.GetZstdReadCloser(c.zstd, f, size, offset)
 					} else {
-						rc, err = casblob.GetUncompressedReadCloser(f, size, offset)
+						rc, err = casblob.GetUncompressedReadCloser(c.zstd, f, size, offset)
 					}
 				}
 
@@ -936,10 +943,10 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 
 	if kind == cache.CAS && size <= 0 && hash == emptySha256 {
 		if zstd {
-			return ioutil.NopCloser(bytes.NewReader(emptyZstdBlob)), 0, nil
+			return io.NopCloser(bytes.NewReader(emptyZstdBlob)), 0, nil
 		}
 
-		return ioutil.NopCloser(bytes.NewReader([]byte{})), 0, nil
+		return io.NopCloser(bytes.NewReader([]byte{})), 0, nil
 	}
 
 	if kind != cache.CAS && zstd {
@@ -1054,15 +1061,15 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 		}
 
 		if zstd {
-			rc, err = casblob.GetLegacyZstdReadCloser(rcf)
+			rc, err = casblob.GetLegacyZstdReadCloser(c.zstd, rcf)
 		} else {
 			rc = rcf
 		}
 	} else { // Compressed CAS blob.
 		if zstd {
-			rc, err = casblob.GetZstdReadCloser(rcf, foundSize, offset)
+			rc, err = casblob.GetZstdReadCloser(c.zstd, rcf, foundSize, offset)
 		} else {
-			rc, err = casblob.GetUncompressedReadCloser(rcf, foundSize, offset)
+			rc, err = casblob.GetUncompressedReadCloser(c.zstd, rcf, foundSize, offset)
 		}
 	}
 	if err != nil {
@@ -1139,15 +1146,6 @@ func isSizeMismatch(requestedSize int64, foundSize int64) bool {
 	return requestedSize > -1 && foundSize > -1 && requestedSize != foundSize
 }
 
-func ensureDirExists(path string) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		err = os.MkdirAll(path, os.ModePerm)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-}
-
 // GetValidatedActionResult returns a valid ActionResult and its serialized
 // value from the CAS if it and all its dependencies are also available. If
 // not, nil values are returned. If something unexpected went wrong, return
@@ -1165,7 +1163,7 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 		return nil, nil, nil // aka "not found"
 	}
 
-	acdata, err := ioutil.ReadAll(rc)
+	acdata, err := io.ReadAll(rc)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1208,7 +1206,7 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 		}
 
 		var oddata []byte
-		oddata, err = ioutil.ReadAll(r)
+		oddata, err = io.ReadAll(r)
 		r.Close()
 		if err != nil {
 			return nil, nil, err

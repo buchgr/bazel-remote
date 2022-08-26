@@ -14,7 +14,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"time"
 
@@ -124,7 +123,7 @@ func dial(serverAddr string, caCertFile string, clientCertFile string, clientKey
 	} else {
 		fmt.Println("reading", caCertFile)
 
-		caCertData, err := ioutil.ReadFile(caCertFile)
+		caCertData, err := os.ReadFile(caCertFile)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to read CA cert file %q: %w",
 				caCertFile, err), nil, nil

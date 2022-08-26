@@ -27,12 +27,13 @@ require (
 )
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v0.4.1
+	github.com/valyala/gozstd v1.17.0
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.0.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v0.5.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -62,4 +63,4 @@ require (
 	gopkg.in/ini.v1 v1.66.2 // indirect
 )
 
-go 1.18
+go 1.19

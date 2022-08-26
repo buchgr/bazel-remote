@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +19,7 @@ import (
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
 	"github.com/buchgr/bazel-remote/cache/disk/casblob"
+	"github.com/buchgr/bazel-remote/cache/disk/zstdimpl"
 	testutils "github.com/buchgr/bazel-remote/utils"
 )
 
@@ -62,7 +62,7 @@ func (s *testServer) handler(w http.ResponseWriter, r *http.Request) {
 		return
 
 	case http.MethodPut:
-		data, err := ioutil.ReadAll(r.Body)
+		data, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "failed to read body", http.StatusInternalServerError)
 			return
@@ -172,7 +172,7 @@ func TestEverything(t *testing.T) {
 
 		// TODO: tweak the GetUncompressedReadCloser API to accept more than os.File.
 
-		tmpfile, err := ioutil.TempFile("", "bazel-remote-httpproxy-test")
+		tmpfile, err := os.CreateTemp("", "bazel-remote-httpproxy-test")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -189,12 +189,19 @@ func TestEverything(t *testing.T) {
 		}
 		defer os.Remove(tmpfile2.Name())
 
-		rc, err := casblob.GetUncompressedReadCloser(tmpfile2, int64(len(casData)), 0)
+		var zi zstdimpl.ZstdImpl
+		zi, err = zstdimpl.Get("go")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rc, err := casblob.GetUncompressedReadCloser(
+			zi, tmpfile2, int64(len(casData)), 0)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer rc.Close()
-		vData, err := ioutil.ReadAll(rc)
+		vData, err := io.ReadAll(rc)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -244,7 +251,7 @@ func TestEverything(t *testing.T) {
 			len(acData), size)
 	}
 
-	data, err = ioutil.ReadAll(rc)
+	data, err = io.ReadAll(rc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -264,7 +271,7 @@ func TestEverything(t *testing.T) {
 			len(casData), size)
 	}
 
-	data, err = ioutil.ReadAll(rc)
+	data, err = io.ReadAll(rc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -322,7 +329,7 @@ func TestEverything(t *testing.T) {
 			len(acData), size)
 	}
 
-	data, err = ioutil.ReadAll(rc)
+	data, err = io.ReadAll(rc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -342,7 +349,7 @@ func TestEverything(t *testing.T) {
 			len(casData), size)
 	}
 
-	data, err = ioutil.ReadAll(rc)
+	data, err = io.ReadAll(rc)
 	if err != nil {
 		t.Error(err)
 	}

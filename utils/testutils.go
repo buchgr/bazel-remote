@@ -4,8 +4,9 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"io/ioutil"
+	"io"
 	"log"
+	"os"
 	"testing"
 
 	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
@@ -14,7 +15,7 @@ import (
 // TempDir creates a temporary directory and returns its name. If an error
 // occurs, then it panics.
 func TempDir(t *testing.T) string {
-	dir, err := ioutil.TempDir("", "bazel-remote")
+	dir, err := os.MkdirTemp("", "bazel-remote")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,5 +52,5 @@ func RandomDataAndDigest(size int64) ([]byte, pb.Digest) {
 // NewSilentLogger returns a cheap logger that doesn't print anything, useful
 // for tests.
 func NewSilentLogger() *log.Logger {
-	return log.New(ioutil.Discard, "", 0)
+	return log.New(io.Discard, "", 0)
 }
