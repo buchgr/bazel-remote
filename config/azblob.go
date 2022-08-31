@@ -45,10 +45,18 @@ func (azblobc AzBlobStorageConfig) GetCredentials() (azcore.TokenCredential, err
 		if err != nil {
 			return nil, fmt.Errorf(`failed to load certificate from "%s": %v`, azblobc.CertPath, err)
 		}
+		if azblobc.TenantID == "" {
+			return nil, fmt.Errorf("An Azure blob tenant ID is required.")
+		}
+
 		return azidentity.NewClientCertificateCredential(azblobc.TenantID, azblobc.ClientID, certs, key, nil)
 	}
 
 	if azblobc.AuthMethod == azblobproxy.AuthMethodClientSecret {
+		if azblobc.TenantID == "" {
+			return nil, fmt.Errorf("An Azure blob tenant ID is required.")
+		}
+
 		log.Println("AzBlob Credentials: using client secret credentials")
 		return azidentity.NewClientSecretCredential(azblobc.TenantID, azblobc.ClientID, azblobc.ClientSecret, nil)
 	}
