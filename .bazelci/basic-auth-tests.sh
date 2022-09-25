@@ -136,6 +136,7 @@ bazel build //:bazel-remote --remote_cache=grpc://localhost:9092 \
 
 # Restart the server with authentication enabled but unauthenticated reads disabled.
 kill -9 $server_pid
+sleep 2
 ./bazel-remote --dir "$tmpdir/cache" --max_size 1 --http_address "0.0.0.0:$HTTP_PORT" \
 	--htpasswd_file "$tmpdir/htpasswd" > "$tmpdir/bazel-remote-authenticated.log" 2>&1 &
 server_pid=$!
