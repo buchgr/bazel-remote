@@ -24,6 +24,7 @@ go_library(
         "@org_golang_google_grpc//codes:go_default_library",
         "@org_golang_google_grpc//status:go_default_library",
         "@org_golang_google_protobuf//proto:go_default_library",
+        "@org_golang_x_sync//errgroup:go_default_library",
         "@org_golang_x_sync//semaphore:go_default_library",
     ],
 )
@@ -39,6 +40,7 @@ go_test(
     deps = [
         "//cache:go_default_library",
         "//cache/disk/casblob:go_default_library",
+        "//cache/disk/zstdimpl:go_default_library",
         "//cache/httpproxy:go_default_library",
         "//genproto/build/bazel/remote/execution/v2:go_default_library",
         "//utils:go_default_library",

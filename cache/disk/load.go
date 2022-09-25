@@ -23,6 +23,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -310,31 +311,125 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 }
 
 func (c *diskCache) scanDir() ([]nameAndInfo, error) {
+
+	numWorkers := runtime.NumCPU()
+	if numWorkers < 4 {
+		numWorkers = 4
+	} else if numWorkers > 16 {
+		numWorkers = 16 // Consider increasing the upper limit after more testing.
+	}
+	log.Println("Scanning cache directory with", numWorkers, "goroutines")
+
+	dc := make(chan string, numWorkers) // Feed directory names to workers.
+	dcClosed := false
+	defer func() {
+		if !dcClosed {
+			close(dc)
+		}
+	}()
+
+	nis := make(chan nameAndInfo, numWorkers) // Received from workers.
+	nisClosed := false
+	defer func() {
+		if !nisClosed {
+			close(nis)
+		}
+	}()
+
 	var files []nameAndInfo
 
-	// Walk the directory tree
-	err := filepath.Walk(c.dir, func(name string, info os.FileInfo, err error) error {
-		if err != nil {
-			log.Println("Error while walking directory:", err)
-			return err
-		}
+	received := make(chan struct{})
 
-		if info.IsDir() {
+	go func() {
+		for ni := range nis {
+			files = append(files, ni)
+		}
+		received <- struct{}{}
+	}()
+
+	dirListers := new(errgroup.Group)
+
+	for i := 0; i < numWorkers; i++ {
+		dirListers.Go(func() error {
+			for d := range dc {
+				dirName := path.Join(c.dir, d)
+
+				des, err := os.ReadDir(dirName)
+				if err != nil {
+					return err
+				}
+
+				for _, de := range des {
+					if de.IsDir() {
+						return fmt.Errorf("Unexpected directory: %s", de.Name())
+					}
+
+					info, err := de.Info()
+					if err != nil {
+						return fmt.Errorf("Failed to get file info: %w", err)
+					}
+
+					filename := path.Join(dirName, de.Name())
+					nis <- nameAndInfo{name: filename, info: info}
+				}
+			}
+
 			return nil
+		})
+	}
+
+	des, err := os.ReadDir(c.dir)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to read cache dir %q: %w", c.dir, err)
+	}
+
+	dre := regexp.MustCompile(`^[a-f0-9]{2}$`)
+
+	for _, de := range des {
+		name := de.Name()
+
+		if !de.IsDir() {
+			return nil, fmt.Errorf("Unexpected file: %s", name)
 		}
 
-		if info.Mode()&os.ModeSetgid == os.ModeSetgid {
-			log.Println("Removing incomplete file:", name)
-			os.Remove(name)
-		} else {
-			files = append(files, nameAndInfo{name: name, info: info})
+		if name != "ac.v2" && name != "cas.v2" && name != "raw.v2" {
+			return nil, fmt.Errorf("Unexpected dir: %s", name)
 		}
 
-		return nil
-	})
+		dir := path.Join(c.dir, name)
+		des2, err := os.ReadDir(dir)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, de2 := range des2 {
+			name2 := de2.Name()
+
+			dirPath := path.Join(name, name2)
+
+			if !de2.IsDir() {
+				return nil, fmt.Errorf("Unexpected file: %s", dirPath)
+			}
+
+			if !dre.MatchString(name2) {
+				return nil, fmt.Errorf("Unexpected dir: %s", dirPath)
+			}
+
+			dc <- dirPath
+		}
+	}
+
+	close(dc) // Ensure that the workers exit their range loop.
+	dcClosed = true
+
+	err = dirListers.Wait()
 	if err != nil {
 		return nil, err
 	}
+	close(nis)
+	nisClosed = true
+
+	<-received
 
 	return files, nil
 }
