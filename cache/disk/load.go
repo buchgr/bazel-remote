@@ -328,7 +328,7 @@ func (c *diskCache) scanDir() ([]nameAndInfo, error) {
 		}
 	}()
 
-	nis := make(chan nameAndInfo, numWorkers) // Received from workers.
+	nis := make(chan []nameAndInfo, numWorkers) // Received from workers.
 	nisClosed := false
 	defer func() {
 		if !nisClosed {
@@ -342,7 +342,7 @@ func (c *diskCache) scanDir() ([]nameAndInfo, error) {
 
 	go func() {
 		for ni := range nis {
-			files = append(files, ni)
+			files = append(files, ni...)
 		}
 		received <- struct{}{}
 	}()
@@ -359,6 +359,9 @@ func (c *diskCache) scanDir() ([]nameAndInfo, error) {
 					return err
 				}
 
+				chunk := make([]nameAndInfo, len(des))
+
+				i := 0
 				for _, de := range des {
 					if de.IsDir() {
 						return fmt.Errorf("Unexpected directory: %s", de.Name())
@@ -370,8 +373,12 @@ func (c *diskCache) scanDir() ([]nameAndInfo, error) {
 					}
 
 					filename := path.Join(dirName, de.Name())
-					nis <- nameAndInfo{name: filename, info: info}
+					chunk[i] = nameAndInfo{name: filename, info: info}
+
+					i++
 				}
+
+				nis <- chunk
 			}
 
 			return nil
