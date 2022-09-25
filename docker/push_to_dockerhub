@@ -25,8 +25,12 @@ then
 fi
 
 # push test-amd64 and test-arm64 images.
+if [ "$(uname -p)" = aarch64 ]
+then
+	CC=clang-12 bazel run //:push_to_dockerhub_arm64
+	exit 0
+fi
 bazel run //:push_to_dockerhub_amd64
-bazel run //:push_to_dockerhub_arm64
 
 # Create the multiarch manifest.
 docker manifest rm buchgr/bazel-remote-cache:$tag || true
