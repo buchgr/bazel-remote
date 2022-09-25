@@ -90,17 +90,6 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 
 	cc := CacheConfig{diskCache: &c}
 
-	// The eviction callback deletes the file from disk.
-	// This function is only called while the lock is held
-	// by the current goroutine.
-	onEvict := func(key Key, value lruItem) {
-		f := c.getElementPath(key, value)
-		// Run in a goroutine so we can release the lock sooner.
-		go c.removeFile(f)
-	}
-
-	c.lru = NewSizedLRU(maxSizeBytes, onEvict)
-
 	// Apply options.
 	for _, o := range opts {
 		err = o(&cc)
@@ -133,7 +122,7 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Attempting to migrate the old directory structure failed: %w", err)
 	}
-	err = c.loadExistingFiles()
+	err = c.loadExistingFiles(maxSizeBytes)
 	if err != nil {
 		return nil, fmt.Errorf("Loading of existing cache entries failed due to error: %w", err)
 	}
@@ -502,7 +491,7 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 // loadExistingFiles lists all files in the cache directory, and adds them to the
 // LRU index so that they can be served. Files are sorted by access time first,
 // so that the eviction behavior is preserved across server restarts.
-func (c *diskCache) loadExistingFiles() error {
+func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
 	log.Printf("Loading existing files in %s.\n", c.dir)
 
 	files, err := c.scanDir()
@@ -517,7 +506,19 @@ func (c *diskCache) loadExistingFiles() error {
 		return atime.Get(files[i].info).Before(atime.Get(files[j].info))
 	})
 
+	// The eviction callback deletes the file from disk.
+	// This function is only called while the lock is held
+	// by the current goroutine.
+	onEvict := func(key Key, value lruItem) {
+		f := c.getElementPath(key, value)
+		// Run in a goroutine so we can release the lock sooner.
+		go c.removeFile(f)
+	}
+
 	log.Println("Building LRU index.")
+
+	c.lru = NewSizedLRU(maxSizeBytes, onEvict, len(files))
+
 	for _, f := range files {
 		ok := c.lru.Add(f.lookupKey, lruItem{
 			size:       f.size,

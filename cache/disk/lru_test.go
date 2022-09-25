@@ -20,7 +20,7 @@ func checkSizeAndNumItems(t *testing.T, lru SizedLRU, expSize int64, expNum int)
 
 func TestBasics(t *testing.T) {
 	maxSize := int64(BlockSize)
-	lru := NewSizedLRU(maxSize, nil)
+	lru := NewSizedLRU(maxSize, nil, 0)
 
 	// Empty cache
 	if maxSize != lru.MaxSize() {
@@ -64,7 +64,7 @@ func TestEviction(t *testing.T) {
 		evictions = append(evictions, key.(int))
 	}
 
-	lru := NewSizedLRU(10*BlockSize, onEvict)
+	lru := NewSizedLRU(10*BlockSize, onEvict, 0)
 
 	expectedSizesNumItems := []struct {
 		expBlocks   int64
@@ -101,7 +101,7 @@ func TestEviction(t *testing.T) {
 
 func TestRejectBigItem(t *testing.T) {
 	// Bounded caches should reject big items
-	lru := NewSizedLRU(10, nil)
+	lru := NewSizedLRU(10, nil, 0)
 
 	ok := lru.Add("hello", lruItem{size: 11, sizeOnDisk: 11})
 	if ok {
@@ -114,7 +114,7 @@ func TestRejectBigItem(t *testing.T) {
 func TestReserveZeroAlwaysPossible(t *testing.T) {
 	largeItem := lruItem{size: math.MaxInt64, sizeOnDisk: math.MaxInt64}
 
-	lru := NewSizedLRU(math.MaxInt64, nil)
+	lru := NewSizedLRU(math.MaxInt64, nil, 0)
 	lru.Add("foo", largeItem)
 	ok, err := lru.Reserve(0)
 	if err != nil {
@@ -129,7 +129,7 @@ func TestReserveAtCapacity(t *testing.T) {
 	var ok bool
 	var err error
 
-	lru := NewSizedLRU(math.MaxInt64, nil)
+	lru := NewSizedLRU(math.MaxInt64, nil, 0)
 
 	ok, err = lru.Reserve(math.MaxInt64)
 	if err != nil {
@@ -173,7 +173,7 @@ func TestReserveOverflow(t *testing.T) {
 	var ok bool
 	var err error
 
-	lru = NewSizedLRU(1, nil)
+	lru = NewSizedLRU(1, nil, 0)
 
 	ok, err = lru.Reserve(1)
 	if err != nil {
@@ -191,7 +191,7 @@ func TestReserveOverflow(t *testing.T) {
 		t.Fatal("Expected overflow")
 	}
 
-	lru = NewSizedLRU(10, nil)
+	lru = NewSizedLRU(10, nil, 0)
 	ok, err = lru.Reserve(math.MaxInt64)
 	if err != nil {
 		t.Fatal(err)
@@ -206,7 +206,7 @@ func TestUnreserve(t *testing.T) {
 	var err error
 
 	cap := int64(10)
-	lru := NewSizedLRU(cap, nil)
+	lru := NewSizedLRU(cap, nil, 0)
 
 	for i := int64(1); i <= cap; i++ {
 		ok, err = lru.Reserve(1)
@@ -245,7 +245,7 @@ func TestUnreserve(t *testing.T) {
 }
 
 func TestAddWithSpaceReserved(t *testing.T) {
-	lru := NewSizedLRU(roundUp4k(2), nil)
+	lru := NewSizedLRU(roundUp4k(2), nil, 0)
 
 	ok, err := lru.Reserve(1)
 	if err != nil {
