@@ -28,8 +28,14 @@ import (
 )
 
 type nameAndInfo struct {
-	name string // relative path
 	info os.FileInfo
+
+	lookupKey string
+
+	size       int64
+	sizeOnDisk int64
+	random     string
+	legacy     bool
 }
 
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
@@ -310,7 +316,7 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 	return nil
 }
 
-func (c *diskCache) scanDir() ([]nameAndInfo, error) {
+func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 
 	numWorkers := runtime.NumCPU()
 	if numWorkers < 4 {
@@ -328,7 +334,7 @@ func (c *diskCache) scanDir() ([]nameAndInfo, error) {
 		}
 	}()
 
-	nis := make(chan []nameAndInfo, numWorkers) // Received from workers.
+	nis := make(chan []*nameAndInfo, numWorkers) // Received from workers.
 	nisClosed := false
 	defer func() {
 		if !nisClosed {
@@ -336,7 +342,7 @@ func (c *diskCache) scanDir() ([]nameAndInfo, error) {
 		}
 	}()
 
-	var files []nameAndInfo
+	var files []*nameAndInfo
 
 	received := make(chan struct{})
 
@@ -349,6 +355,11 @@ func (c *diskCache) scanDir() ([]nameAndInfo, error) {
 
 	dirListers := new(errgroup.Group)
 
+	// compressed CAS items: <hash>-<logical size>-<random digits/ascii letters>
+	// uncompressed CAS items: <hash>-<logical size>-<random digits/ascii letters>.v1
+	// AC and RAW items: <hash>-<random digits/ascii letters>
+	re := regexp.MustCompile(`^([a-f0-9]{64})(?:-([1-9][0-9]*))?-([0-9a-zA-Z]+)(\.v1)?$`)
+
 	for i := 0; i < numWorkers; i++ {
 		dirListers.Go(func() error {
 			for d := range dc {
@@ -359,7 +370,7 @@ func (c *diskCache) scanDir() ([]nameAndInfo, error) {
 					return err
 				}
 
-				chunk := make([]nameAndInfo, len(des))
+				chunk := make([]*nameAndInfo, len(des))
 
 				i := 0
 				for _, de := range des {
@@ -372,8 +383,55 @@ func (c *diskCache) scanDir() ([]nameAndInfo, error) {
 						return fmt.Errorf("Failed to get file info: %w", err)
 					}
 
-					filename := path.Join(dirName, de.Name())
-					chunk[i] = nameAndInfo{name: filename, info: info}
+					name := de.Name()
+
+					fields := strings.Split(name, "/")
+					file := fields[len(fields)-1]
+
+					sm := re.FindStringSubmatch(file)
+					if len(sm) != 5 {
+						return fmt.Errorf("Unrecognized file: %q", name)
+					}
+
+					hash := sm[1]
+
+					sizeOnDisk := info.Size()
+					size := sizeOnDisk
+					if len(sm[2]) > 0 {
+						size, err = strconv.ParseInt(sm[2], 10, 64)
+						if err != nil {
+							return fmt.Errorf("Failed to parse int from %q: %w", sm[2], err)
+						}
+					}
+
+					random := sm[3]
+					if len(random) == 0 {
+						return fmt.Errorf("Unrecognized file (no random string): %q", file)
+					}
+
+					legacy := sm[4] == ".v1"
+
+					var lookupKey string
+
+					if strings.HasPrefix(d, "cas.v2/") {
+						lookupKey = "cas/" + hash
+					} else if strings.HasPrefix(d, "ac.v2/") {
+						lookupKey = "ac/" + hash
+					} else if strings.HasPrefix(d, "raw.v2/") {
+						lookupKey = "raw/" + hash
+					} else {
+						return fmt.Errorf("Unrecognised file in cache dir: %q", d)
+					}
+
+					chunk[i] = &nameAndInfo{
+						info: info,
+
+						lookupKey:  lookupKey,
+						size:       size,
+						sizeOnDisk: sizeOnDisk,
+						random:     random,
+						legacy:     legacy,
+					}
 
 					i++
 				}
@@ -453,11 +511,6 @@ func (c *diskCache) loadExistingFiles() error {
 		return err
 	}
 
-	// compressed CAS items: <hash>-<logical size>-<random digits/ascii letters>
-	// uncompressed CAS items: <hash>-<logical size>-<random digits/ascii letters>.v1
-	// AC and RAW items: <hash>-<random digits/ascii letters>
-	re := regexp.MustCompile(`^([a-f0-9]{64})(?:-([1-9][0-9]*))?-([0-9a-zA-Z]+)(\.v1)?$`)
-
 	log.Println("Sorting cache files by atime.")
 	// Sort in increasing order of atime
 	sort.Slice(files, func(i int, j int) bool {
@@ -466,56 +519,14 @@ func (c *diskCache) loadExistingFiles() error {
 
 	log.Println("Building LRU index.")
 	for _, f := range files {
-		relPath := f.name[len(c.dir)+1:]
-
-		fields := strings.Split(relPath, "/")
-
-		file := fields[len(fields)-1]
-
-		sm := re.FindStringSubmatch(file)
-
-		if len(sm) != 5 {
-			return fmt.Errorf("Unrecognized file: %q", relPath)
-		}
-
-		hash := sm[1]
-
-		sizeOnDisk := f.info.Size()
-		size := sizeOnDisk
-		if len(sm[2]) > 0 {
-			size, err = strconv.ParseInt(sm[2], 10, 64)
-			if err != nil {
-				return fmt.Errorf("Failed to parse int from %q: %w", sm[2], err)
-			}
-		}
-
-		random := sm[3]
-		if len(random) == 0 {
-			return fmt.Errorf("Unrecognized file (no random string): %q", file)
-		}
-
-		legacy := sm[4] == ".v1"
-
-		var lookupKey string
-
-		if strings.HasPrefix(relPath, "cas.v2/") {
-			lookupKey = "cas/" + hash
-		} else if strings.HasPrefix(relPath, "ac.v2/") {
-			lookupKey = "ac/" + hash
-		} else if strings.HasPrefix(relPath, "raw.v2/") {
-			lookupKey = "raw/" + hash
-		} else {
-			return fmt.Errorf("Unrecognised file in cache dir: %q", relPath)
-		}
-
-		ok := c.lru.Add(lookupKey, lruItem{
-			size:       size,
-			sizeOnDisk: sizeOnDisk,
-			legacy:     legacy,
-			random:     random,
+		ok := c.lru.Add(f.lookupKey, lruItem{
+			size:       f.size,
+			sizeOnDisk: f.sizeOnDisk,
+			legacy:     f.legacy,
+			random:     f.random,
 		})
 		if !ok {
-			err = os.Remove(filepath.Join(c.dir, relPath))
+			err = os.Remove(filepath.Join(c.dir, f.lookupKey))
 			if err != nil {
 				return err
 			}
