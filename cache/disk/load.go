@@ -349,6 +349,10 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 	// AC and RAW items: <hash>-<random digits/ascii letters>
 	re := regexp.MustCompile(`^([a-f0-9]{64})(?:-([1-9][0-9]*))?-([0-9a-zA-Z]+)(\.v1)?$`)
 
+	// Ignore lost+found dirs, which are automatically created in the
+	// root dir of some unix style filesystems.
+	const lostAndFound = "lost+found"
+
 	for i := 0; i < numWorkers; i++ {
 		dirListers.Go(func() error {
 			for d := range dc {
@@ -359,11 +363,14 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 					return err
 				}
 
-				chunk := make([]*nameAndInfo, len(des))
+				chunk := make([]*nameAndInfo, 0, len(des))
 
-				i := 0
 				for _, de := range des {
 					if de.IsDir() {
+						if de.Name() == lostAndFound {
+							continue
+						}
+
 						return fmt.Errorf("Unexpected directory: %s", de.Name())
 					}
 
@@ -412,7 +419,7 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 						return fmt.Errorf("Unrecognised file in cache dir: %q", d)
 					}
 
-					chunk[i] = &nameAndInfo{
+					chunk = append(chunk, &nameAndInfo{
 						info: info,
 
 						lookupKey:  lookupKey,
@@ -420,9 +427,7 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 						sizeOnDisk: sizeOnDisk,
 						random:     random,
 						legacy:     legacy,
-					}
-
-					i++
+					})
 				}
 
 				nis <- chunk
@@ -446,6 +451,10 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 			return nil, fmt.Errorf("Unexpected file: %s", name)
 		}
 
+		if name == lostAndFound {
+			continue
+		}
+
 		if name != "ac.v2" && name != "cas.v2" && name != "raw.v2" {
 			return nil, fmt.Errorf("Unexpected dir: %s", name)
 		}
@@ -463,6 +472,10 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 
 			if !de2.IsDir() {
 				return nil, fmt.Errorf("Unexpected file: %s", dirPath)
+			}
+
+			if name2 == lostAndFound {
+				continue
 			}
 
 			if !dre.MatchString(name2) {

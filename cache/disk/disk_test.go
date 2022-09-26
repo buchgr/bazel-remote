@@ -1429,3 +1429,37 @@ func TestMetricsValidatedAC(t *testing.T) {
 		t.Fatalf("Expected rawMiss counter to be 0, found %f", rawMisses)
 	}
 }
+
+func TestCacheDirLostAndFound(t *testing.T) {
+	cacheDir := tempDir(t)
+	defer os.RemoveAll(cacheDir)
+
+	var err error
+
+	// Create "lost+found" directories in every expected subdir of the cache dir.
+	// We expect to be able to load this cache dir and ignore them.
+	err = os.Mkdir(path.Join(cacheDir, "lost+found"), os.ModePerm)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	hexChars := []rune("0123456789abcdef")
+	keySpaces := []string{"ac.v2", "cas.v2", "raw.v2"}
+
+	for _, i := range hexChars {
+		for _, j := range hexChars {
+			bd := string(i) + string(j)
+			for _, sd := range keySpaces {
+				err = os.MkdirAll(path.Join(cacheDir, sd, bd, "lost+found"), os.ModePerm)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+	}
+
+	_, err = New(cacheDir, 4096, WithAccessLogger(testutils.NewSilentLogger()))
+	if err != nil {
+		t.Fatal(err)
+	}
+}
