@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk/casblob"
@@ -26,17 +27,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
-
-type nameAndInfo struct {
-	info os.FileInfo
-
-	lookupKey string
-
-	size       int64
-	sizeOnDisk int64
-	random     string
-	legacy     bool
-}
 
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
 // with a maximum size of `maxSizeBytes` bytes and `opts` Options set.
@@ -305,7 +295,37 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 	return nil
 }
 
-func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
+// Metadata for an lruItem.
+type keyAndAtime struct {
+	lookupKey string
+
+	// atime of the file.
+	ts time.Time
+}
+
+type scanResult struct {
+	// These will eventually populate the LRU index.
+	item []lruItem
+
+	// Metadata for each item above. Both slices must be the same length.
+	metadata []keyAndAtime
+}
+
+// Implement the sort.Sort interface.
+func (r scanResult) Len() int {
+	return len(r.item)
+}
+
+func (r scanResult) Less(i, j int) bool {
+	return r.metadata[i].ts.Before(r.metadata[j].ts)
+}
+
+func (r scanResult) Swap(i, j int) {
+	r.item[i], r.item[j] = r.item[j], r.item[i]
+	r.metadata[i], r.metadata[j] = r.metadata[j], r.metadata[i]
+}
+
+func (c *diskCache) scanDir() (scanResult, error) {
 
 	numWorkers := runtime.NumCPU()
 	if numWorkers < 4 {
@@ -323,21 +343,25 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 		}
 	}()
 
-	nis := make(chan []*nameAndInfo, numWorkers) // Received from workers.
-	nisClosed := false
+	scanResults := make(chan scanResult, numWorkers) // Received from workers.
+	scanResultsClosed := false
 	defer func() {
-		if !nisClosed {
-			close(nis)
+		if !scanResultsClosed {
+			close(scanResults)
 		}
 	}()
 
-	var files []*nameAndInfo
+	finalScanResult := scanResult{
+		item:     []lruItem{},
+		metadata: []keyAndAtime{},
+	}
 
 	received := make(chan struct{})
 
 	go func() {
-		for ni := range nis {
-			files = append(files, ni...)
+		for sr := range scanResults {
+			finalScanResult.item = append(finalScanResult.item, sr.item...)
+			finalScanResult.metadata = append(finalScanResult.metadata, sr.metadata...)
 		}
 		received <- struct{}{}
 	}()
@@ -363,8 +387,10 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 					return err
 				}
 
-				chunk := make([]*nameAndInfo, 0, len(des))
+				item := make([]lruItem, len(des))
+				metadata := make([]keyAndAtime, len(des))
 
+				n := 0 // The number of items to return for this dir.
 				for _, de := range des {
 					if de.IsDir() {
 						if de.Name() == lostAndFound {
@@ -391,46 +417,41 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 
 					hash := sm[1]
 
-					sizeOnDisk := info.Size()
-					size := sizeOnDisk
+					item[n].sizeOnDisk = info.Size()
+					item[n].size = item[n].sizeOnDisk
 					if len(sm[2]) > 0 {
-						size, err = strconv.ParseInt(sm[2], 10, 64)
+						item[n].size, err = strconv.ParseInt(sm[2], 10, 64)
 						if err != nil {
 							return fmt.Errorf("Failed to parse int from %q: %w", sm[2], err)
 						}
 					}
 
-					random := sm[3]
-					if len(random) == 0 {
+					item[n].random = sm[3]
+					if len(item[n].random) == 0 {
 						return fmt.Errorf("Unrecognized file (no random string): %q", file)
 					}
 
-					legacy := sm[4] == ".v1"
-
-					var lookupKey string
+					item[n].legacy = sm[4] == ".v1"
 
 					if strings.HasPrefix(d, "cas.v2/") {
-						lookupKey = "cas/" + hash
+						metadata[n].lookupKey = "cas/" + hash
 					} else if strings.HasPrefix(d, "ac.v2/") {
-						lookupKey = "ac/" + hash
+						metadata[n].lookupKey = "ac/" + hash
 					} else if strings.HasPrefix(d, "raw.v2/") {
-						lookupKey = "raw/" + hash
+						metadata[n].lookupKey = "raw/" + hash
 					} else {
 						return fmt.Errorf("Unrecognised file in cache dir: %q", d)
 					}
 
-					chunk = append(chunk, &nameAndInfo{
-						info: info,
+					metadata[n].ts = atime.Get(info)
 
-						lookupKey:  lookupKey,
-						size:       size,
-						sizeOnDisk: sizeOnDisk,
-						random:     random,
-						legacy:     legacy,
-					})
+					n++
 				}
 
-				nis <- chunk
+				scanResults <- scanResult{
+					item:     item[:n],
+					metadata: metadata[:n],
+				}
 			}
 
 			return nil
@@ -439,7 +460,7 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 
 	des, err := os.ReadDir(c.dir)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to read cache dir %q: %w", c.dir, err)
+		return scanResult{}, fmt.Errorf("Failed to read cache dir %q: %w", c.dir, err)
 	}
 
 	dre := regexp.MustCompile(`^[a-f0-9]{2}$`)
@@ -448,7 +469,7 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 		name := de.Name()
 
 		if !de.IsDir() {
-			return nil, fmt.Errorf("Unexpected file: %s", name)
+			return scanResult{}, fmt.Errorf("Unexpected file: %s", name)
 		}
 
 		if name == lostAndFound {
@@ -456,13 +477,13 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 		}
 
 		if name != "ac.v2" && name != "cas.v2" && name != "raw.v2" {
-			return nil, fmt.Errorf("Unexpected dir: %s", name)
+			return scanResult{}, fmt.Errorf("Unexpected dir: %s", name)
 		}
 
 		dir := path.Join(c.dir, name)
 		des2, err := os.ReadDir(dir)
 		if err != nil {
-			return nil, err
+			return scanResult{}, err
 		}
 
 		for _, de2 := range des2 {
@@ -471,7 +492,7 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 			dirPath := path.Join(name, name2)
 
 			if !de2.IsDir() {
-				return nil, fmt.Errorf("Unexpected file: %s", dirPath)
+				return scanResult{}, fmt.Errorf("Unexpected file: %s", dirPath)
 			}
 
 			if name2 == lostAndFound {
@@ -479,7 +500,7 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 			}
 
 			if !dre.MatchString(name2) {
-				return nil, fmt.Errorf("Unexpected dir: %s", dirPath)
+				return scanResult{}, fmt.Errorf("Unexpected dir: %s", dirPath)
 			}
 
 			dc <- dirPath
@@ -491,14 +512,14 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 
 	err = dirListers.Wait()
 	if err != nil {
-		return nil, err
+		return scanResult{}, err
 	}
-	close(nis)
-	nisClosed = true
+	close(scanResults)
+	scanResultsClosed = true
 
 	<-received
 
-	return files, nil
+	return finalScanResult, nil
 }
 
 // loadExistingFiles lists all files in the cache directory, and adds them to the
@@ -507,17 +528,14 @@ func (c *diskCache) scanDir() ([]*nameAndInfo, error) {
 func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
 	log.Printf("Loading existing files in %s.\n", c.dir)
 
-	files, err := c.scanDir()
+	result, err := c.scanDir()
 	if err != nil {
 		log.Printf("Failed to scan cache dir: %s", err.Error())
 		return err
 	}
 
 	log.Println("Sorting cache files by atime.")
-	// Sort in increasing order of atime
-	sort.Slice(files, func(i int, j int) bool {
-		return atime.Get(files[i].info).Before(atime.Get(files[j].info))
-	})
+	sort.Sort(result)
 
 	// The eviction callback deletes the file from disk.
 	// This function is only called while the lock is held
@@ -530,17 +548,12 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
 
 	log.Println("Building LRU index.")
 
-	c.lru = NewSizedLRU(maxSizeBytes, onEvict, len(files))
+	c.lru = NewSizedLRU(maxSizeBytes, onEvict, len(result.item))
 
-	for _, f := range files {
-		ok := c.lru.Add(f.lookupKey, lruItem{
-			size:       f.size,
-			sizeOnDisk: f.sizeOnDisk,
-			legacy:     f.legacy,
-			random:     f.random,
-		})
+	for i := 0; i < len(result.item); i++ {
+		ok := c.lru.Add(result.metadata[i].lookupKey, result.item[i])
 		if !ok {
-			err = os.Remove(filepath.Join(c.dir, f.lookupKey))
+			err = os.Remove(filepath.Join(c.dir, result.metadata[i].lookupKey))
 			if err != nil {
 				return err
 			}
