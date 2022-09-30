@@ -303,12 +303,15 @@ type keyAndAtime struct {
 	ts time.Time
 }
 
+// The result of scanning a directory for cache items. This uses slices
+// of pointers because it seems to perform better than slices of values.
+// I suspect this might be due to a reduction of the amount of data to append.
 type scanResult struct {
 	// These will eventually populate the LRU index.
-	item []lruItem
+	item []*lruItem
 
 	// Metadata for each item above. Both slices must be the same length.
-	metadata []keyAndAtime
+	metadata []*keyAndAtime
 }
 
 // Implement the sort.Sort interface.
@@ -352,8 +355,8 @@ func (c *diskCache) scanDir() (scanResult, error) {
 	}()
 
 	finalScanResult := scanResult{
-		item:     []lruItem{},
-		metadata: []keyAndAtime{},
+		item:     []*lruItem{},
+		metadata: []*keyAndAtime{},
 	}
 
 	received := make(chan struct{})
@@ -387,8 +390,10 @@ func (c *diskCache) scanDir() (scanResult, error) {
 					return err
 				}
 
-				item := make([]lruItem, len(des))
-				metadata := make([]keyAndAtime, len(des))
+				item := make([]*lruItem, len(des))
+				item_values := make([]lruItem, len(des))
+				metadata := make([]*keyAndAtime, len(des))
+				metadata_values := make([]keyAndAtime, len(des))
 
 				n := 0 // The number of items to return for this dir.
 				for _, de := range des {
@@ -416,6 +421,9 @@ func (c *diskCache) scanDir() (scanResult, error) {
 					}
 
 					hash := sm[1]
+
+					item[n] = &item_values[n]
+					metadata[n] = &metadata_values[n]
 
 					item[n].sizeOnDisk = info.Size()
 					item[n].size = item[n].sizeOnDisk
@@ -551,7 +559,7 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
 	c.lru = NewSizedLRU(maxSizeBytes, onEvict, len(result.item))
 
 	for i := 0; i < len(result.item); i++ {
-		ok := c.lru.Add(result.metadata[i].lookupKey, result.item[i])
+		ok := c.lru.Add(result.metadata[i].lookupKey, *result.item[i])
 		if !ok {
 			err = os.Remove(filepath.Join(c.dir, result.metadata[i].lookupKey))
 			if err != nil {
