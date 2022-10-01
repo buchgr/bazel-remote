@@ -385,6 +385,17 @@ func (c *diskCache) scanDir() (scanResult, error) {
 			for d := range dc {
 				dirName := path.Join(c.dir, d)
 
+				var lookupKeyPrefix string
+				if strings.HasPrefix(d, "cas.v2/") {
+					lookupKeyPrefix = "cas/"
+				} else if strings.HasPrefix(d, "ac.v2/") {
+					lookupKeyPrefix = "ac/"
+				} else if strings.HasPrefix(d, "raw.v2/") {
+					lookupKeyPrefix = "raw/"
+				} else {
+					return fmt.Errorf("Unrecognised directory in cache dir: %q", dirName)
+				}
+
 				des, err := os.ReadDir(dirName)
 				if err != nil {
 					return err
@@ -425,6 +436,8 @@ func (c *diskCache) scanDir() (scanResult, error) {
 					item[n] = &item_values[n]
 					metadata[n] = &metadata_values[n]
 
+					metadata[n].lookupKey = lookupKeyPrefix + hash
+
 					item[n].sizeOnDisk = info.Size()
 					item[n].size = item[n].sizeOnDisk
 					if len(sm[2]) > 0 {
@@ -441,16 +454,6 @@ func (c *diskCache) scanDir() (scanResult, error) {
 					}
 
 					item[n].legacy = sm[4] == ".v1"
-
-					if strings.HasPrefix(d, "cas.v2/") {
-						metadata[n].lookupKey = "cas/" + hash
-					} else if strings.HasPrefix(d, "ac.v2/") {
-						metadata[n].lookupKey = "ac/" + hash
-					} else if strings.HasPrefix(d, "raw.v2/") {
-						metadata[n].lookupKey = "raw/" + hash
-					} else {
-						return fmt.Errorf("Unrecognised file in cache dir: %q", path.Join(dirName, name))
-					}
 
 					metadata[n].ts = atime.Get(info)
 
