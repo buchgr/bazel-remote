@@ -397,27 +397,27 @@ func (c *diskCache) scanDir() (scanResult, error) {
 
 				n := 0 // The number of items to return for this dir.
 				for _, de := range des {
+					name := de.Name()
+
 					if de.IsDir() {
 						if de.Name() == lostAndFound {
 							continue
 						}
 
-						return fmt.Errorf("Unexpected directory: %s", de.Name())
+						return fmt.Errorf("Unexpected directory: %q", path.Join(dirName, name))
 					}
 
 					info, err := de.Info()
 					if err != nil {
-						return fmt.Errorf("Failed to get file info: %w", err)
+						return fmt.Errorf("Failed to get file info for %q: %w", path.Join(dirName, name), err)
 					}
-
-					name := de.Name()
 
 					fields := strings.Split(name, "/")
 					file := fields[len(fields)-1]
 
 					sm := re.FindStringSubmatch(file)
 					if len(sm) != 5 {
-						return fmt.Errorf("Unrecognized file: %q", name)
+						return fmt.Errorf("Unrecognized file: %q", path.Join(dirName, name))
 					}
 
 					hash := sm[1]
@@ -430,13 +430,14 @@ func (c *diskCache) scanDir() (scanResult, error) {
 					if len(sm[2]) > 0 {
 						item[n].size, err = strconv.ParseInt(sm[2], 10, 64)
 						if err != nil {
-							return fmt.Errorf("Failed to parse int from %q: %w", sm[2], err)
+							return fmt.Errorf("Failed to parse int from %q in file %q: %w",
+								sm[2], path.Join(dirName, name), err)
 						}
 					}
 
 					item[n].random = sm[3]
 					if len(item[n].random) == 0 {
-						return fmt.Errorf("Unrecognized file (no random string): %q", file)
+						return fmt.Errorf("Unrecognized file (no random string): %q", path.Join(dirName, name))
 					}
 
 					item[n].legacy = sm[4] == ".v1"
@@ -448,7 +449,7 @@ func (c *diskCache) scanDir() (scanResult, error) {
 					} else if strings.HasPrefix(d, "raw.v2/") {
 						metadata[n].lookupKey = "raw/" + hash
 					} else {
-						return fmt.Errorf("Unrecognised file in cache dir: %q", d)
+						return fmt.Errorf("Unrecognised file in cache dir: %q", path.Join(dirName, name))
 					}
 
 					metadata[n].ts = atime.Get(info)
