@@ -273,15 +273,15 @@ func run(ctx *cli.Context) error {
 		log.Fatal(`Failed to listen on address: "`, c.HTTPAddress, `": `, err)
 	}
 
+	if idleTimer != nil {
+		log.Printf("Starting idle timer with value %v", c.IdleTimeout)
+		idleTimer.Start()
+	}
+
 	if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
 		log.Printf("Starting HTTPS server on address %s", httpServer.Addr)
 		log.Println("HTTP AC validation:", validateStatus)
 		return httpServer.ServeTLS(ln, c.TLSCertFile, c.TLSKeyFile)
-	}
-
-	if idleTimer != nil {
-		log.Printf("Starting idle timer with value %v", c.IdleTimeout)
-		idleTimer.Start()
 	}
 
 	log.Printf("Starting HTTP server on address %s", c.HTTPAddress)
