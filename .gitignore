@@ -10,6 +10,6 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-bazel-*
+/bazel-*
 
-bazel-remote
+/bazel-remote

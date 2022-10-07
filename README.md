@@ -126,6 +126,9 @@ line flags and environment variables are ignored. Otherwise, the flags and
 environment variables listed in the help text below can be specified (flags
 override the corresponding environment variables).
 
+See [examples/bazel-remote.service](examples/bazel-remote.service) for an
+example (systemd) linux setup.
+
 ### Command line flags
 
 ```
