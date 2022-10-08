@@ -8,8 +8,10 @@ import (
 	"net/http"
 	_ "net/http/pprof" // Register pprof handlers with DefaultServeMux.
 	"os"
+	"os/signal"
 	"runtime"
 	"strings"
+	"syscall"
 
 	auth "github.com/abbot/go-http-auth"
 
@@ -31,6 +33,8 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+
+	"golang.org/x/sync/semaphore"
 )
 
 // gitCommit is the version stamp for the server. The value of this var
@@ -85,6 +89,43 @@ func run(ctx *cli.Context) error {
 
 	rlimit.Raise()
 
+	grpcSem := semaphore.NewWeighted(1)
+	var grpcServer *grpc.Server
+
+	httpSem := semaphore.NewWeighted(1)
+	var httpServer *http.Server
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		for sig := range sigChan {
+			log.Printf("Received signal: %s, attempting graceful shutdown", sig)
+
+			if !grpcSem.TryAcquire(1) {
+				if grpcServer != nil {
+					log.Println("Stopping gRPC server")
+					grpcServer.GracefulStop()
+					log.Println("gRPC server stopped")
+				}
+			}
+
+			// The main goroutine exits when httpServer is stopped, so we
+			// need to wait until the gRPC server is stopped first.
+
+			if !httpSem.TryAcquire(1) {
+				if httpServer != nil {
+					log.Println("Stopping HTTP server")
+					err := httpServer.Shutdown(context.Background())
+					if err != nil {
+						log.Println("Error occurred while stopping HTTP server:", err)
+					}
+
+					// The "HTTP server stopped" log comes from the main goroutine.
+				}
+			}
+		}
+	}()
+
 	validateAC := !c.DisableHTTPACValidation
 
 	log.Println("Storage mode:", c.StorageMode)
@@ -113,7 +154,7 @@ func run(ctx *cli.Context) error {
 	diskCache.RegisterMetrics()
 
 	mux := http.NewServeMux()
-	httpServer := &http.Server{
+	httpServer = &http.Server{
 		Handler:      mux,
 		ReadTimeout:  c.HTTPReadTimeout,
 		TLSConfig:    c.TLSConfig,
@@ -237,14 +278,20 @@ func run(ctx *cli.Context) error {
 
 			log.Printf("Starting gRPC server on address %s", addr)
 
-			err3 := server.ListenAndServeGRPC(
-				network, addr, opts,
+			grpcServer = grpc.NewServer(opts...)
+
+			if !grpcSem.TryAcquire(1) {
+				log.Println("bazel-remote is shutting down, not starting gRPC server")
+				return
+			}
+			err3 := server.ListenAndServeGRPC(grpcServer,
+				network, addr,
 				validateAC,
 				c.EnableACKeyInstanceMangling,
 				enableRemoteAssetAPI,
 				diskCache, c.AccessLogger, c.ErrorLogger)
 			if err3 != nil {
-				log.Fatal(err3)
+				log.Fatal("gRPC server returned fatal error:", err3)
 			}
 		}()
 	}
@@ -281,12 +328,36 @@ func run(ctx *cli.Context) error {
 	if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
 		log.Printf("Starting HTTPS server on address %s", httpServer.Addr)
 		log.Println("HTTP AC validation:", validateStatus)
-		return httpServer.ServeTLS(ln, c.TLSCertFile, c.TLSKeyFile)
+
+		if !httpSem.TryAcquire(1) {
+			log.Println("bazel-remote is shutting down, not starting HTTPS server")
+			return nil
+		}
+
+		err = httpServer.ServeTLS(ln, c.TLSCertFile, c.TLSKeyFile)
+		if err == http.ErrServerClosed {
+			log.Println("HTTPS server stopped")
+			return nil
+		}
+
+		return err
 	}
 
 	log.Printf("Starting HTTP server on address %s", c.HTTPAddress)
 	log.Println("HTTP AC validation:", validateStatus)
-	return httpServer.Serve(ln)
+
+	if !httpSem.TryAcquire(1) {
+		log.Println("bazel-remote is shutting down, not starting HTTP server")
+		return nil
+	}
+
+	err = httpServer.Serve(ln)
+	if err == http.ErrServerClosed {
+		log.Println("HTTP server stopped")
+		return nil
+	}
+
+	return err
 }
 
 func wrapIdleHandler(handler http.HandlerFunc, idleTimer *idle.Timer, accessLogger cache.Logger, httpServer *http.Server) http.HandlerFunc {

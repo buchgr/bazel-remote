@@ -56,7 +56,8 @@ var readOnlyMethods = map[string]struct{}{
 // address. This function either returns an error quickly, or triggers a
 // blocking call to https://godoc.org/google.golang.org/grpc#Server.Serve
 func ListenAndServeGRPC(
-	network string, addr string, opts []grpc.ServerOption,
+	srv *grpc.Server,
+	network string, addr string,
 	validateACDeps bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
@@ -67,16 +68,15 @@ func ListenAndServeGRPC(
 		return err
 	}
 
-	return serveGRPC(listener, opts, validateACDeps, mangleACKeys, enableRemoteAssetAPI, c, a, e)
+	return serveGRPC(listener, srv, validateACDeps, mangleACKeys, enableRemoteAssetAPI, c, a, e)
 }
 
-func serveGRPC(l net.Listener, opts []grpc.ServerOption,
+func serveGRPC(l net.Listener, srv *grpc.Server,
 	validateACDepsCheck bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
 	c disk.Cache, a cache.Logger, e cache.Logger) error {
 
-	srv := grpc.NewServer(opts...)
 	s := &grpcServer{
 		cache: c, accessLogger: a, errorLogger: e,
 		depsCheck:    validateACDepsCheck,

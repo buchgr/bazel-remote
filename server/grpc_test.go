@@ -98,7 +98,7 @@ func TestMain(m *testing.M) {
 	go func() {
 		err2 := serveGRPC(
 			listener,
-			[]grpc.ServerOption{},
+			grpc.NewServer(),
 			validateAC,
 			mangleACKeys,
 			enableRemoteAssetAPI,
