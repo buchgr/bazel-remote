@@ -10,26 +10,18 @@ import (
 type Timer struct {
 	mu          sync.Mutex
 	timeout     time.Duration
-	notify      []chan struct{}
+	notify      chan struct{}
 	lastRequest time.Time
 }
 
 // NewTimer creates a new Timer that will send notifications on
 // any registered channels once the idle timeout has been reached.
-func NewTimer(timeout time.Duration) *Timer {
+func NewTimer(timeout time.Duration, notificationChan chan struct{}) *Timer {
 	return &Timer{
 		timeout:     timeout,
 		lastRequest: time.Now(),
-		notify:      make([]chan struct{}, 0),
+		notify:      notificationChan,
 	}
-}
-
-// Register adds a channel that will be notified once the idle
-// timeout is reached.
-func (t *Timer) Register(c chan struct{}) {
-	t.mu.Lock()
-	t.notify = append(t.notify, c)
-	t.mu.Unlock()
 }
 
 // Start begins the idle timer, and returns immediately.
@@ -48,9 +40,7 @@ func (t *Timer) start() {
 
 		if elapsed > t.timeout {
 			ticker.Stop()
-			for _, c := range t.notify {
-				c <- struct{}{}
-			}
+			t.notify <- struct{}{}
 			return
 		}
 	}

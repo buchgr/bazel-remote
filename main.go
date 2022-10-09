@@ -180,8 +180,7 @@ func run(ctx *cli.Context) error {
 
 	var idleTimer *idle.Timer
 	if c.IdleTimeout > 0 {
-		idleTimer = idle.NewTimer(c.IdleTimeout)
-		idleTimer.Register(idleTimeoutChan)
+		idleTimer = idle.NewTimer(c.IdleTimeout, idleTimeoutChan)
 	}
 
 	acKeyManglingStatus := "disabled"
