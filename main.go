@@ -378,25 +378,25 @@ func startGrpcServer(c *config.Config, grpcServer **grpc.Server,
 		addr = c.GRPCAddress[len("unix://"):]
 	}
 
-	log.Printf("Starting gRPC server on address %s", addr)
-
 	*grpcServer = grpc.NewServer(opts...)
 
 	if !grpcSem.TryAcquire(1) {
 		log.Println("bazel-remote is shutting down, not starting gRPC server")
 		return nil
 	}
-	err3 := server.ListenAndServeGRPC(*grpcServer,
+
+	log.Println("Starting gRPC server on address", addr)
+	err := server.ListenAndServeGRPC(*grpcServer,
 		network, addr,
 		validateAC,
 		c.EnableACKeyInstanceMangling,
 		enableRemoteAssetAPI,
 		diskCache, c.AccessLogger, c.ErrorLogger)
-	if err3 != nil {
-		log.Fatal("gRPC server returned fatal error:", err3)
+	if err != nil {
+		log.Fatal("gRPC server returned fatal error:", err)
 	}
 
-	return err3
+	return nil
 }
 
 // A http.HandlerFunc wrapper which requires successful basic
