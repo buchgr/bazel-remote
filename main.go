@@ -190,12 +190,20 @@ func run(ctx *cli.Context) error {
 	log.Println("Mangling non-empty instance names with AC keys:", acKeyManglingStatus)
 
 	servers.Go(func() error {
-		return startHttpServer(c, &httpServer, htpasswdSecrets, idleTimer, httpSem, diskCache)
+		err := startHttpServer(c, &httpServer, htpasswdSecrets, idleTimer, httpSem, diskCache)
+		if err != nil {
+			log.Fatal("HTTP server returned fatal error:", err)
+		}
+		return nil
 	})
 
 	if c.GRPCAddress != "none" {
 		servers.Go(func() error {
-			return startGrpcServer(c, &grpcServer, htpasswdSecrets, idleTimer, grpcSem, diskCache)
+			err := startGrpcServer(c, &grpcServer, htpasswdSecrets, idleTimer, grpcSem, diskCache)
+			if err != nil {
+				log.Fatal("gRPC server returned fatal error:", err)
+			}
+			return nil
 		})
 	}
 
@@ -384,17 +392,13 @@ func startGrpcServer(c *config.Config, grpcServer **grpc.Server,
 	}
 
 	log.Println("Starting gRPC server on address", addr)
-	err := server.ListenAndServeGRPC(*grpcServer,
+
+	return server.ListenAndServeGRPC(*grpcServer,
 		network, addr,
 		validateAC,
 		c.EnableACKeyInstanceMangling,
 		enableRemoteAssetAPI,
 		diskCache, c.AccessLogger, c.ErrorLogger)
-	if err != nil {
-		log.Fatal("gRPC server returned fatal error:", err)
-	}
-
-	return nil
 }
 
 // A http.HandlerFunc wrapper which requires successful basic
