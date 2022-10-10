@@ -286,13 +286,12 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 	log.Println("HTTP AC validation:", validateStatus)
 
 	if len(c.TLSCertFile) > 0 && len(c.TLSKeyFile) > 0 {
-		log.Printf("Starting HTTPS server on address %s", (*httpServer).Addr)
-
 		if !httpSem.TryAcquire(1) {
 			log.Println("bazel-remote is shutting down, not starting HTTPS server")
 			return nil
 		}
 
+		log.Printf("Starting HTTPS server on address %s", (*httpServer).Addr)
 		err = (*httpServer).ServeTLS(ln, c.TLSCertFile, c.TLSKeyFile)
 		if err == http.ErrServerClosed {
 			log.Println("HTTPS server stopped")
@@ -302,13 +301,12 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 		return err
 	}
 
-	log.Printf("Starting HTTP server on address %s", c.HTTPAddress)
-
 	if !httpSem.TryAcquire(1) {
 		log.Println("bazel-remote is shutting down, not starting HTTP server")
 		return nil
 	}
 
+	log.Printf("Starting HTTP server on address %s", c.HTTPAddress)
 	err = (*httpServer).Serve(ln)
 	if err == http.ErrServerClosed {
 		return nil
