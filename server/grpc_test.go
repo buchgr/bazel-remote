@@ -30,7 +30,7 @@ import (
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
 	"github.com/buchgr/bazel-remote/cache/disk/casblob"
-	"github.com/buchgr/bazel-remote/utils"
+	testutils "github.com/buchgr/bazel-remote/utils"
 
 	"github.com/klauspost/compress/zstd"
 )
@@ -92,7 +92,7 @@ func TestMain(m *testing.M) {
 	listener = bufconn.Listen(bufSize)
 
 	validateAC := true
-	mangleACKeys := false
+	mangleACKeys := true
 	enableRemoteAssetAPI := true
 
 	go func() {
@@ -282,6 +282,70 @@ func TestGrpcAc(t *testing.T) {
 
 	if !proto.Equal(&ar, gacrResp) {
 		t.Fatal("Error: uploaded and returned ActionResult differ")
+	}
+}
+
+func TestAcKeyMangling(t *testing.T) {
+	ar := pb.ActionResult{
+		StdoutRaw: []byte("pretend action stdout"),
+		StderrRaw: []byte("pretend action stderr"),
+		ExitCode:  int32(42),
+	}
+
+	data, err := proto.Marshal(&ar)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sum := sha256.Sum256(data)
+	hash := hex.EncodeToString(sum[:])
+
+	digest := pb.Digest{
+		Hash:      hash,
+		SizeBytes: int64(len(data)),
+	}
+
+	instanceName := "foo-instance"
+
+	// UpdateActionResultRequest.
+	upACReq := pb.UpdateActionResultRequest{
+		ActionDigest: &digest,
+		ActionResult: &ar,
+		InstanceName: instanceName,
+	}
+
+	_, err = acClient.UpdateActionResult(ctx, &upACReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// GetActionResultRequest with the same InstanceName, expect cache hit.
+	getReq := pb.GetActionResultRequest{
+		ActionDigest:      &digest,
+		InlineStdout:      true,
+		InlineStderr:      true,
+		InlineOutputFiles: []string{},
+		InstanceName:      instanceName,
+	}
+
+	gacrResp, err := acClient.GetActionResult(ctx, &getReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Remove the metadata so we can compare with the request.
+	gacrResp.ExecutionMetadata = nil
+
+	if !proto.Equal(&ar, gacrResp) {
+		t.Fatal("Error: uploaded and returned ActionResult differ")
+	}
+
+	// GetActionResultRequest with different InstanceName, expect cache miss.
+	instanceName = "bar-instance"
+	getReq.InstanceName = instanceName
+	_, err = acClient.GetActionResult(ctx, &getReq)
+	if err == nil {
+		t.Fatal("Expected NotFound")
 	}
 }
 
