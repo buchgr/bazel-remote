@@ -67,6 +67,10 @@ var (
 )
 
 func grpcTestSetup(t *testing.T) (tc grpcTestFixture) {
+	return grpcTestSetupInternal(t, false)
+}
+
+func grpcTestSetupInternal(t *testing.T, mangleACKeys bool) (tc grpcTestFixture) {
 	dir, err := os.MkdirTemp("", "bazel-remote-grpc-tests-"+t.Name())
 	if err != nil {
 		t.Fatal("Failed to create grpc test temp dir", err)
@@ -92,7 +96,6 @@ func grpcTestSetup(t *testing.T) (tc grpcTestFixture) {
 	}
 
 	validateAC := true
-	mangleACKeys := true
 	enableRemoteAssetAPI := true
 
 	go func() {
@@ -294,7 +297,7 @@ func TestGrpcAc(t *testing.T) {
 }
 
 func TestAcKeyMangling(t *testing.T) {
-	fixture := grpcTestSetup(t)
+	fixture := grpcTestSetupInternal(t, true)
 	defer os.Remove(fixture.tempdir)
 
 	ar := pb.ActionResult{
