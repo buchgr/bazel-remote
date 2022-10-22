@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -17,9 +18,9 @@ import (
 	testutils "github.com/buchgr/bazel-remote/utils"
 )
 
-// These tests rely on TestMain in grpc_test.go.
-
 func TestAssetFetchBlob(t *testing.T) {
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
 
 	ts := newTestGetServer()
 
@@ -44,7 +45,7 @@ func TestAssetFetchBlob(t *testing.T) {
 		},
 	}
 
-	resp, err := assetClient.FetchBlob(ctx, &req)
+	resp, err := fixture.assetClient.FetchBlob(ctx, &req)
 	if err != nil {
 		t.Fatal(err)
 	}
