@@ -19,6 +19,8 @@ import (
 )
 
 func TestAssetFetchBlob(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 

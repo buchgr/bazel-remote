@@ -152,6 +152,8 @@ func checkBadDigestErr(t *testing.T, err error, bd badDigest) {
 }
 
 func TestGrpcAc(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -297,6 +299,8 @@ func TestGrpcAc(t *testing.T) {
 }
 
 func TestAcKeyMangling(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetupInternal(t, true)
 	defer os.Remove(fixture.tempdir)
 
@@ -364,6 +368,8 @@ func TestAcKeyMangling(t *testing.T) {
 }
 
 func TestGrpcCasEmptySha256(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -391,6 +397,8 @@ func TestGrpcCasEmptySha256(t *testing.T) {
 }
 
 func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -596,6 +604,8 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 }
 
 func TestGrpcByteStreamDeadline(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -691,6 +701,8 @@ func TestGrpcByteStreamDeadline(t *testing.T) {
 }
 
 func TestGrpcByteStreamEmptySha256(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -763,6 +775,8 @@ func TestGrpcByteStreamEmptySha256(t *testing.T) {
 }
 
 func TestGrpcByteStream(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -980,6 +994,8 @@ func TestGrpcByteStream(t *testing.T) {
 }
 
 func TestGrpcByteStreamEmptyLastWrite(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -1019,6 +1035,8 @@ func TestGrpcByteStreamEmptyLastWrite(t *testing.T) {
 }
 
 func TestGrpcByteStreamZstdWrite(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -1117,6 +1135,8 @@ func TestGrpcByteStreamZstdWrite(t *testing.T) {
 }
 
 func TestGrpcByteStreamInvalidReadLimit(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -1156,6 +1176,8 @@ func TestGrpcByteStreamInvalidReadLimit(t *testing.T) {
 }
 
 func TestGrpcByteStreamSkippedWrite(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -1236,6 +1258,8 @@ func TestGrpcByteStreamSkippedWrite(t *testing.T) {
 }
 
 func TestGrpcByteStreamQueryWriteStatus(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -1340,6 +1364,8 @@ func TestGrpcByteStreamQueryWriteStatus(t *testing.T) {
 }
 
 func TestGrpcCasBasics(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -1420,6 +1446,8 @@ func TestGrpcCasBasics(t *testing.T) {
 }
 
 func TestGrpcCasTreeRequest(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -1606,6 +1634,8 @@ func TestGrpcCasTreeRequest(t *testing.T) {
 }
 
 func TestBadUpdateActionResultRequest(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -1980,6 +2010,8 @@ func TestBadUpdateActionResultRequest(t *testing.T) {
 }
 
 func TestParseReadResource(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -2188,6 +2220,8 @@ func TestParseReadResource(t *testing.T) {
 }
 
 func TestParseWriteResource(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -2391,6 +2425,8 @@ func TestParseWriteResource(t *testing.T) {
 }
 
 func TestCompressedBatchReadsAndWrites(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
@@ -2482,6 +2518,8 @@ func TestCompressedBatchReadsAndWrites(t *testing.T) {
 }
 
 func TestHealthCheck(t *testing.T) {
+	t.Parallel()
+
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
