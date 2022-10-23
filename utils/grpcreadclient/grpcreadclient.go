@@ -253,6 +253,13 @@ func checkCacheReadOps(conn *grpc.ClientConn, shouldWork bool) error {
 		return err
 	}
 
+	healthClient := grpc_health_v1.NewHealthClient(conn)
+
+	err = checkHealth(healthClient) // This should always work.
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -440,13 +447,6 @@ func checkCacheWriteOps(conn *grpc.ClientConn, shouldWork bool) error {
 	bsClient := bytestream.NewByteStreamClient(conn)
 
 	err = checkBytestreamWrite(bsClient, shouldWork)
-	if err != nil {
-		return err
-	}
-
-	healthClient := grpc_health_v1.NewHealthClient(conn)
-
-	err = checkHealth(healthClient) // This should always work.
 	if err != nil {
 		return err
 	}
