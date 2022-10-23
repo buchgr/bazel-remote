@@ -37,7 +37,7 @@ generate_keys() {
 
 	# Add subjectAltName aka "SAN", which replaces CN.
 	# Required for Go >= 1.15.
-	cat << EOF > domain.ext
+	cat << EOF > "$tmpdir/domain.ext"
 authorityKeyIdentifier=keyid,issuer
 basicConstraints=CA:FALSE
 keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
@@ -48,7 +48,7 @@ EOF
 
 	# Self-signed server certificate:
 	openssl x509 -req -passin pass:1111 -days 358000 -in "$tmpdir/server.csr" \
-		-extfile domain.ext \
+		-extfile "$tmpdir/domain.ext" \
 		-CA "$tmpdir/ca.crt" -CAkey "$tmpdir/ca.key" -set_serial 01 -out "$tmpdir/server.crt"
 
 	# Remove passphrase from server key:
