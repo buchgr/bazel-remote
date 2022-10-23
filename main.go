@@ -237,17 +237,20 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 		WriteTimeout: c.HTTPWriteTimeout,
 	}
 
-	checkClientCertForWrites := c.TLSCaFile != "" && c.AllowUnauthenticatedReads
+	checkClientCertForReads := c.TLSCaFile != "" && !c.AllowUnauthenticatedReads
+	checkClientCertForWrites := c.TLSCaFile != ""
 	validateAC := !c.DisableHTTPACValidation
 	h := server.NewHTTPCache(diskCache, c.AccessLogger, c.ErrorLogger, validateAC,
-		c.EnableACKeyInstanceMangling, checkClientCertForWrites, gitCommit)
+		c.EnableACKeyInstanceMangling, checkClientCertForReads, checkClientCertForWrites, gitCommit)
 
 	cacheHandler := h.CacheHandler
+	var basicAuthenticator auth.BasicAuth
 	if c.HtpasswdFile != "" {
 		if c.AllowUnauthenticatedReads {
 			cacheHandler = unauthenticatedReadWrapper(cacheHandler, htpasswdSecrets, c.HTTPAddress)
 		} else {
-			cacheHandler = authWrapper(cacheHandler, htpasswdSecrets, c.HTTPAddress)
+			basicAuthenticator = auth.BasicAuth{Realm: c.HTTPAddress, Secrets: htpasswdSecrets}
+			cacheHandler = basicAuthWrapper(cacheHandler, &basicAuthenticator)
 		}
 	}
 
@@ -258,23 +261,42 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 		})
 	}
 
+	var statusHandler http.HandlerFunc = h.StatusPageHandler
+
+	if !c.AllowUnauthenticatedReads {
+		if c.TLSCaFile != "" {
+			statusHandler = h.VerifyClientCertHandler(statusHandler).ServeHTTP
+		} else if c.HtpasswdFile != "" {
+			statusHandler = basicAuthWrapper(statusHandler, &basicAuthenticator)
+		}
+	}
+
 	if c.EnableEndpointMetrics {
 		metricsMdlw := middleware.New(middleware.Config{
 			Recorder: httpmetrics.NewRecorder(httpmetrics.Config{
 				DurationBuckets: c.MetricsDurationBuckets,
 			}),
 		})
-		mux.Handle("/metrics", middlewarestd.Handler("metrics", metricsMdlw,
-			promhttp.Handler()))
-		mux.Handle("/status", middlewarestd.Handler("status", metricsMdlw,
-			http.HandlerFunc(h.StatusPageHandler)))
-		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+
+		middlewareHandler := middlewarestd.Handler("metrics", metricsMdlw, promhttp.Handler())
+		if !c.AllowUnauthenticatedReads {
+			if c.TLSCaFile != "" {
+				middlewareHandler = h.VerifyClientCertHandler(middlewareHandler)
+			} else if c.HtpasswdFile != "" {
+				middlewareHandler = basicAuthWrapper(middlewareHandler.ServeHTTP, &basicAuthenticator)
+			}
+		}
+		mux.Handle("/metrics", middlewareHandler)
+
+		statusHandler = middlewarestd.Handler("status", metricsMdlw, http.HandlerFunc(h.StatusPageHandler)).ServeHTTP
+
+		cacheHandler = func(w http.ResponseWriter, r *http.Request) {
 			middlewarestd.Handler(r.Method, metricsMdlw, http.HandlerFunc(cacheHandler)).ServeHTTP(w, r)
-		})
-	} else {
-		mux.HandleFunc("/status", h.StatusPageHandler)
-		mux.HandleFunc("/", cacheHandler)
+		}
 	}
+
+	mux.HandleFunc("/status", statusHandler)
+	mux.HandleFunc("/", cacheHandler)
 
 	var ln net.Listener
 	var err error
@@ -403,8 +425,7 @@ func startGrpcServer(c *config.Config, grpcServer **grpc.Server,
 
 // A http.HandlerFunc wrapper which requires successful basic
 // authentication for all requests.
-func authWrapper(handler http.HandlerFunc, secrets auth.SecretProvider, addr string) http.HandlerFunc {
-	authenticator := &auth.BasicAuth{Realm: addr, Secrets: secrets}
+func basicAuthWrapper(handler http.HandlerFunc, authenticator *auth.BasicAuth) http.HandlerFunc {
 	return auth.JustCheck(authenticator, handler)
 }
 

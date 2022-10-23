@@ -612,6 +612,7 @@ func checkHealth(healthClient grpc_health_v1.HealthClient) error {
 	if resp.Status != grpc_health_v1.HealthCheckResponse_SERVING {
 		return fmt.Errorf("Expected health check to return SERVING status, got: %s", resp.Status.String())
 	}
+	fmt.Println("Health check succeeded, as expected")
 
 	return nil
 }

@@ -211,10 +211,7 @@ func GRPCmTLSUnaryServerInterceptor(allowUnauthenticatedReads bool) grpc.UnarySe
 }
 
 // Return a non-nil grpc error if a valid client certificate can't be
-// extracted from ctx.
-//
-// This is only used when mutual TLS authentication and unauthenticated
-// reads are enabled.
+// extracted from ctx. This is only used with mTLS authentication.
 func checkGRPCClientCert(ctx context.Context) error {
 
 	p, ok := peer.FromContext(ctx)
