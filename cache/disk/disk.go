@@ -255,7 +255,7 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 			os.Remove(blobFile)
 		} else if blobFile != "" {
 			// Mark the file as "complete".
-			err := os.Chmod(blobFile, tempfile.EndMode)
+			err := os.Chmod(blobFile, tempfile.FinalMode)
 			if err != nil {
 				log.Println("Failed to mark", blobFile, "as complete:", err)
 			}
@@ -583,7 +583,7 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 			os.Remove(blobFile)
 		} else if blobFile != "" {
 			// Mark the file as "complete".
-			err := os.Chmod(blobFile, tempfile.EndMode)
+			err := os.Chmod(blobFile, tempfile.FinalMode)
 			if err != nil {
 				log.Println("Failed to mark", blobFile, "as complete:", err)
 			}
