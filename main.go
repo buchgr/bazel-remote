@@ -321,7 +321,7 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 			return nil
 		}
 
-		log.Printf("Starting HTTPS server on address %s", (*httpServer).Addr)
+		log.Printf("Starting HTTPS server on address %s", c.HTTPAddress)
 		err = (*httpServer).ServeTLS(ln, c.TLSCertFile, c.TLSKeyFile)
 		if err == http.ErrServerClosed {
 			log.Println("HTTPS server stopped")
