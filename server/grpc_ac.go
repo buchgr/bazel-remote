@@ -26,6 +26,9 @@ var (
 	// we modify incoming ActionResults to make them non-zero.
 	errEmptyActionResult = status.Error(codes.Internal,
 		"rejecting empty ActionResult")
+
+	errNilActionDigest = status.Error(codes.InvalidArgument,
+		"expected a non-nil ActionDigest")
 )
 
 const (
@@ -41,6 +44,10 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 	req *pb.GetActionResultRequest) (*pb.ActionResult, error) {
 
 	logPrefix := "GRPC AC GET"
+
+	if req.ActionDigest == nil {
+		return nil, errNilActionDigest
+	}
 
 	if s.mangleACKeys {
 		req.ActionDigest.Hash = cache.TransformActionCacheKey(req.ActionDigest.Hash, req.InstanceName, s.accessLogger)
@@ -204,6 +211,10 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 	req *pb.UpdateActionResultRequest) (*pb.ActionResult, error) {
 
 	logPrefix := "GRPC AC PUT"
+
+	if req.ActionDigest == nil {
+		return nil, errNilActionDigest
+	}
 
 	if s.mangleACKeys {
 		req.ActionDigest.Hash = cache.TransformActionCacheKey(req.ActionDigest.Hash, req.InstanceName, s.accessLogger)
