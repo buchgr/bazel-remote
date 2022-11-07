@@ -33,8 +33,19 @@ var decoderPool = zstdpool.GetDecoderPool()
 
 var emptyZstdBlob = []byte{40, 181, 47, 253, 32, 0, 1, 0, 0}
 
+var (
+	errNilReadRequest = status.Error(codes.InvalidArgument,
+		"expected a non-nil *bytestream.ReadRequest")
+	errNilQueryWriteStatusRequest = status.Error(codes.InvalidArgument,
+		"expected a non-nil *bytestream.QueryWriteStatusRequest")
+)
+
 func (s *grpcServer) Read(req *bytestream.ReadRequest,
 	resp bytestream.ByteStream_ReadServer) error {
+
+	if req == nil {
+		return errNilReadRequest
+	}
 
 	errorPrefix := "GRPC BYTESTREAM READ"
 
@@ -581,6 +592,10 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 }
 
 func (s *grpcServer) QueryWriteStatus(ctx context.Context, req *bytestream.QueryWriteStatusRequest) (*bytestream.QueryWriteStatusResponse, error) {
+
+	if req == nil {
+		return nil, errNilQueryWriteStatusRequest
+	}
 
 	hash, size, _, err := s.parseWriteResource(req.ResourceName)
 	if err != nil {
