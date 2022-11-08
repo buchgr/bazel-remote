@@ -49,6 +49,15 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 	// Should we place a limit on the size of the index?
 
 	for _, q := range req.GetQualifiers() {
+		if q == nil {
+			return &asset.FetchBlobResponse{
+				Status: &status.Status{
+					Code:    int32(codes.InvalidArgument),
+					Message: "unexpected nil qualifier in FetchBlobRequest",
+				},
+			}, nil
+		}
+
 		if q.Name == "checksum.sri" && strings.HasPrefix(q.Value, "sha256-") {
 			// Ref: https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity
 
