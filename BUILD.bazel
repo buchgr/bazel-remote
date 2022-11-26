@@ -102,6 +102,7 @@ BAZEL_REMOTE_USER_ID = 65532
 
 go_image(
     name = "bazel-remote-base",
+    base = "@cgo_amd64_base//image",  # Does not include openssl.
     embed = [":go_default_library"],
     goarch = "amd64",
     goos = "linux",
@@ -113,6 +114,7 @@ go_image(
 
 go_image(
     name = "bazel-remote-base-arm64",
+    base = "@cgo_arm64_base//image",  # Does not include openssl.
     embed = [":go_default_library"],
     goarch = "arm64",
     goos = "linux",
