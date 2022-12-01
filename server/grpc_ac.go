@@ -29,6 +29,10 @@ var (
 
 	errNilActionDigest = status.Error(codes.InvalidArgument,
 		"expected a non-nil ActionDigest")
+	errNilGetActionResultRequest = status.Error(codes.InvalidArgument,
+		"expected a non-nil GetActionResultRequest")
+	errNilUpdateActionResultRequest = status.Error(codes.InvalidArgument,
+		"expected a non-nil UpdateActionResultRequest")
 )
 
 const (
@@ -44,6 +48,10 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 	req *pb.GetActionResultRequest) (*pb.ActionResult, error) {
 
 	logPrefix := "GRPC AC GET"
+
+	if req == nil {
+		return nil, errNilGetActionResultRequest
+	}
 
 	if req.ActionDigest == nil {
 		return nil, errNilActionDigest
@@ -211,6 +219,10 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 	req *pb.UpdateActionResultRequest) (*pb.ActionResult, error) {
 
 	logPrefix := "GRPC AC PUT"
+
+	if req == nil {
+		return nil, errNilUpdateActionResultRequest
+	}
 
 	if req.ActionDigest == nil {
 		return nil, errNilActionDigest
