@@ -124,7 +124,7 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 			SupportedBatchUpdateCompressors: []pb.Compressor_Value{pb.Compressor_ZSTD},
 		},
 		LowApiVersion:  &semver.SemVer{Major: int32(2)},
-		HighApiVersion: &semver.SemVer{Major: int32(2), Minor: int32(1)},
+		HighApiVersion: &semver.SemVer{Major: int32(2), Minor: int32(3)},
 	}
 
 	s.accessLogger.Printf("GRPC GETCAPABILITIES")
