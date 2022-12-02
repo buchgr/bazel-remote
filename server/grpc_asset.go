@@ -13,6 +13,7 @@ import (
 
 	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
+	grpc_status "google.golang.org/grpc/status"
 
 	asset "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/asset/v1"
 	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
@@ -21,6 +22,9 @@ import (
 )
 
 // FetchServer implementation
+
+var errNilFetchBlobRequest = grpc_status.Error(codes.InvalidArgument,
+	"expected a non-nil *FetchBlobRequest")
 
 func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest) (*asset.FetchBlobResponse, error) {
 
@@ -47,6 +51,10 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 	// For TTL items, we need another (persistent) index, eg BadgerDB?
 	// key -> CAS sha256 + timestamp
 	// Should we place a limit on the size of the index?
+
+	if req == nil {
+		return nil, errNilFetchBlobRequest
+	}
 
 	for _, q := range req.GetQualifiers() {
 		if q == nil {
