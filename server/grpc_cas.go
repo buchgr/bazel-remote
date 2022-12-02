@@ -27,6 +27,8 @@ var (
 		"expected a non-nil *Digest")
 	errNilGetTreeRequest = grpc_status.Error(codes.InvalidArgument,
 		"expected a non-nil *GetTreeRequest")
+	errNilFindMissingBlobsRequest = grpc_status.Error(codes.InvalidArgument,
+		"expected a non-nil *FindMissingBlobsRequest")
 	errNilBatchUpdateBlobsRequest = grpc_status.Error(codes.InvalidArgument,
 		"expected a non-nil *BatchUpdateBlobsRequest")
 	errNilBatchReadBlobsRequest = grpc_status.Error(codes.InvalidArgument,
@@ -37,6 +39,10 @@ var (
 
 func (s *grpcServer) FindMissingBlobs(ctx context.Context,
 	req *pb.FindMissingBlobsRequest) (*pb.FindMissingBlobsResponse, error) {
+
+	if req == nil {
+		return nil, errNilFindMissingBlobsRequest
+	}
 
 	errorPrefix := "GRPC CAS HEAD"
 	for _, digest := range req.BlobDigests {
