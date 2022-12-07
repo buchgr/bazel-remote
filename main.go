@@ -290,8 +290,9 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 
 		statusHandler = middlewarestd.Handler("status", metricsMdlw, http.HandlerFunc(h.StatusPageHandler)).ServeHTTP
 
+		ch := cacheHandler // Avoid an infinite loop in the closure below.
 		cacheHandler = func(w http.ResponseWriter, r *http.Request) {
-			middlewarestd.Handler(r.Method, metricsMdlw, http.HandlerFunc(cacheHandler)).ServeHTTP(w, r)
+			middlewarestd.Handler(r.Method, metricsMdlw, http.HandlerFunc(ch)).ServeHTTP(w, r)
 		}
 	}
 
