@@ -126,6 +126,9 @@ line flags and environment variables are ignored. Otherwise, the flags and
 environment variables listed in the help text below can be specified (flags
 override the corresponding environment variables).
 
+See [examples/bazel-remote.service](examples/bazel-remote.service) for an
+example (systemd) linux setup.
+
 ### Command line flags
 
 ```
@@ -327,7 +330,8 @@ OPTIONS:
 
    --azblob.client_id value The Azure blob storage client id to use when
       using azblob proxy backend. Applies to AzBlob auth method(s):
-      client_secret. [$BAZEL_REMOTE_AZBLOB_CLIENT_ID, $AZURE_CLIENT_ID]
+      client_secret, client_certificate. [$BAZEL_REMOTE_AZBLOB_CLIENT_ID,
+      $AZURE_CLIENT_ID]
 
    --azblob.client_secret value The Azure blob storage client secret key to
       use when using azblob proxy backend. Applies to AzBlob auth method(s):

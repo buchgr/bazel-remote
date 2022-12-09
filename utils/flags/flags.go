@@ -330,7 +330,7 @@ func GetCliFlags() []cli.Flag {
 		&cli.StringFlag{
 			Name:    "azblob.client_id",
 			Value:   "",
-			Usage:   "The Azure blob storage client id to use when using azblob proxy backend. " + azBlobAuthMsg(azblobproxy.AuthMethodClientSecret),
+			Usage:   "The Azure blob storage client id to use when using azblob proxy backend. " + azBlobAuthMsg(azblobproxy.AuthMethodClientSecret, azblobproxy.AuthMethodClientCertificate),
 			EnvVars: []string{"BAZEL_REMOTE_AZBLOB_CLIENT_ID", "AZURE_CLIENT_ID"},
 		},
 		&cli.StringFlag{

@@ -60,11 +60,11 @@ type entry struct {
 const BlockSize = 4096
 
 // NewSizedLRU returns a new SizedLRU cache
-func NewSizedLRU(maxSize int64, onEvict EvictCallback) SizedLRU {
+func NewSizedLRU(maxSize int64, onEvict EvictCallback, initialCapacity int) SizedLRU {
 	return SizedLRU{
 		maxSize: maxSize,
 		ll:      list.New(),
-		cache:   make(map[interface{}]*list.Element),
+		cache:   make(map[interface{}]*list.Element, initialCapacity),
 		onEvict: onEvict,
 
 		gaugeCacheSizeBytes: prometheus.NewGauge(prometheus.GaugeOpts{

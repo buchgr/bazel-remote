@@ -37,7 +37,7 @@ generate_keys() {
 
 	# Add subjectAltName aka "SAN", which replaces CN.
 	# Required for Go >= 1.15.
-	cat << EOF > domain.ext
+	cat << EOF > "$tmpdir/domain.ext"
 authorityKeyIdentifier=keyid,issuer
 basicConstraints=CA:FALSE
 keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
@@ -48,7 +48,7 @@ EOF
 
 	# Self-signed server certificate:
 	openssl x509 -req -passin pass:1111 -days 358000 -in "$tmpdir/server.csr" \
-		-extfile domain.ext \
+		-extfile "$tmpdir/domain.ext" \
 		-CA "$tmpdir/ca.crt" -CAkey "$tmpdir/ca.key" -set_serial 01 -out "$tmpdir/server.crt"
 
 	# Remove passphrase from server key:
@@ -175,6 +175,7 @@ bazel build //:bazel-remote --remote_cache=grpcs://localhost:9092 \
 
 # Restart the server with authentication enabled but unauthenticated reads disabled.
 kill -9 $server_pid
+sleep 2
 ./bazel-remote --dir "$tmpdir/cache" --max_size 1 --http_address "0.0.0.0:$HTTP_PORT" \
 	--tls_cert_file "$tmpdir/server.crt" \
 	--tls_key_file "$tmpdir/server.key" \

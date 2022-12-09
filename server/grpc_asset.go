@@ -13,6 +13,7 @@ import (
 
 	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
+	grpc_status "google.golang.org/grpc/status"
 
 	asset "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/asset/v1"
 	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
@@ -21,6 +22,9 @@ import (
 )
 
 // FetchServer implementation
+
+var errNilFetchBlobRequest = grpc_status.Error(codes.InvalidArgument,
+	"expected a non-nil *FetchBlobRequest")
 
 func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest) (*asset.FetchBlobResponse, error) {
 
@@ -48,7 +52,20 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 	// key -> CAS sha256 + timestamp
 	// Should we place a limit on the size of the index?
 
+	if req == nil {
+		return nil, errNilFetchBlobRequest
+	}
+
 	for _, q := range req.GetQualifiers() {
+		if q == nil {
+			return &asset.FetchBlobResponse{
+				Status: &status.Status{
+					Code:    int32(codes.InvalidArgument),
+					Message: "unexpected nil qualifier in FetchBlobRequest",
+				},
+			}, nil
+		}
+
 		if q.Name == "checksum.sri" && strings.HasPrefix(q.Value, "sha256-") {
 			// Ref: https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity
 

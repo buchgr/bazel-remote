@@ -77,8 +77,21 @@ echo "${duration}s"
 # Copy the binary somewhere known, so we can run it manually.
 bazel run --run_under "cp -f " //:bazel-remote $(pwd)/
 
-echo "Starting test cache $EXTRA_FLAGS_DESC"
 test_cache_dir=./bazel-remote-tmp-cache
+
+echo "Starting test cache (with --enable_endpoint_metrics)"
+rm -rf $test_cache_dir
+./bazel-remote --max_size 1 --dir "$test_cache_dir" --http_address "0.0.0.0:$HTTP_PORT" \
+	--enable_endpoint_metrics &
+test_cache_pid=$!
+echo "Test cache pid: $test_cache_pid"
+wait_for_startup "$test_cache_pid"
+wget -O - http://127.0.0.1:$HTTP_PORT/cas/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+kill -9 $test_cache_pid
+sleep 1
+echo "Done testing --enable_endpoint_metrics"
+
+echo "Starting test cache $EXTRA_FLAGS_DESC"
 rm -rf $test_cache_dir
 ./bazel-remote --max_size 1 --dir "$test_cache_dir" --http_address "0.0.0.0:$HTTP_PORT" $EXTRA_FLAGS \
 	--s3.endpoint 127.0.0.1:9000 \

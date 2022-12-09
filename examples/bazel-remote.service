@@ -1,0 +1,44 @@
+# Example configuration for systemd based Linux machines.
+#
+# Customize this file and add it to /etc/systemd/system/
+# then run "systemctl daemon-reload" so systemd finds the file.
+# "systemctl start bazel-remote" will then start the service
+# and "systemctl enable bazel-remote" will make systemd start
+# the service after booting up.
+
+[Unit]
+Description=bazel-remote cache
+
+[Service]
+# Assuming you have created a bazel-remote user and group, that can write
+# to the cache directory specified in ExecStart below:
+User=bazel-remote
+Group=bazel-remote
+
+# We need to have a lot of files open at once.
+LimitNOFILE=40000
+
+# Try to avoid "runtime: failed to create new OS thread (have 2458 already; errno=11)"
+# errors. You can check if this worked by running "systemctl status bazel-remote"
+# and see if there's a "Tasks: 18 (limit: 2457)" line (hopefully not, after adding this).
+LimitNPROC=infinity
+TasksMax=infinity
+
+Restart=on-failure
+
+# If you want to log GC events.
+Environment=GODEBUG=gctrace=1
+
+# If you want bazel-remote to listen on ports < 1024 make sure to run
+# setcap cap_net_bind_service+eip /absolute/path/to/bazel-remote
+# (as root) to allow the executable to have this capability without
+# running as root.
+ExecStart=/absolute/path/to/bazel-remote \
+	--max_size 1000 \
+	--dir /path/to/cache/dir \
+	--profile_host 127.0.0.1 \
+	--profile_port 8000 \
+	--enable_endpoint_metrics
+
+[Install]
+WantedBy=multi-user.target

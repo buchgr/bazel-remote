@@ -30,7 +30,7 @@ import (
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk"
 	"github.com/buchgr/bazel-remote/cache/disk/casblob"
-	"github.com/buchgr/bazel-remote/utils"
+	testutils "github.com/buchgr/bazel-remote/utils"
 
 	"github.com/klauspost/compress/zstd"
 )
@@ -40,19 +40,20 @@ type badDigest struct {
 	reason string
 }
 
-const bufSize = 1024 * 1024
-
-var (
-	listener *bufconn.Listener
-
+type grpcTestFixture struct {
 	acClient     pb.ActionCacheClient
 	casClient    pb.ContentAddressableStorageClient
 	bsClient     bytestream.ByteStreamClient
 	assetClient  asset.FetchClient
 	healthClient grpc_health_v1.HealthClient
 
-	ctx       = context.Background()
 	diskCache disk.Cache
+
+	tempdir string
+}
+
+var (
+	ctx = context.Background()
 
 	badDigestTestCases = []badDigest{
 		{digest: &pb.Digest{Hash: ""}, reason: "empty hash"},
@@ -65,22 +66,20 @@ var (
 	}
 )
 
-func bufDialer(context.Context, string) (net.Conn, error) {
-	return listener.Dial()
+func grpcTestSetup(t *testing.T) (tc grpcTestFixture) {
+	return grpcTestSetupInternal(t, false)
 }
 
-func TestMain(m *testing.M) {
-	dir, err := os.MkdirTemp("", "bazel-remote-grpc-tests")
+func grpcTestSetupInternal(t *testing.T, mangleACKeys bool) (tc grpcTestFixture) {
+	dir, err := os.MkdirTemp("", "bazel-remote-grpc-tests-"+t.Name())
 	if err != nil {
-		fmt.Println("Test setup failed")
-		os.Exit(1)
+		t.Fatal("Failed to create grpc test temp dir", err)
 	}
-	defer os.RemoveAll(dir)
 
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := int64(10 * maxChunkSize * 2)
 
-	diskCache, err = disk.New(dir, cacheSize, disk.WithAccessLogger(testutils.NewSilentLogger()))
+	diskCache, err := disk.New(dir, cacheSize, disk.WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		fmt.Println("Test setup failed")
 		os.Exit(1)
@@ -89,16 +88,20 @@ func TestMain(m *testing.M) {
 	accessLogger := testutils.NewSilentLogger()
 	errorLogger := testutils.NewSilentLogger()
 
-	listener = bufconn.Listen(bufSize)
+	const bufSize = 1024 * 1024
+	listener := bufconn.Listen(bufSize)
+
+	bufDialer := func(context.Context, string) (net.Conn, error) {
+		return listener.Dial()
+	}
 
 	validateAC := true
-	mangleACKeys := false
 	enableRemoteAssetAPI := true
 
 	go func() {
 		err2 := serveGRPC(
 			listener,
-			[]grpc.ServerOption{},
+			grpc.NewServer(),
 			validateAC,
 			mangleACKeys,
 			enableRemoteAssetAPI,
@@ -117,13 +120,18 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	casClient = pb.NewContentAddressableStorageClient(conn)
-	acClient = pb.NewActionCacheClient(conn)
-	bsClient = bytestream.NewByteStreamClient(conn)
-	assetClient = asset.NewFetchClient(conn)
-	healthClient = grpc_health_v1.NewHealthClient(conn)
+	return grpcTestFixture{
+		casClient:    pb.NewContentAddressableStorageClient(conn),
+		acClient:     pb.NewActionCacheClient(conn),
+		bsClient:     bytestream.NewByteStreamClient(conn),
+		assetClient:  asset.NewFetchClient(conn),
+		healthClient: grpc_health_v1.NewHealthClient(conn),
 
-	os.Exit(m.Run())
+		diskCache: diskCache,
+
+		// Callers should defer os.Remove(tc.tempdir)
+		tempdir: dir,
+	}
 }
 
 func checkBadDigestErr(t *testing.T, err error, bd badDigest) {
@@ -144,6 +152,11 @@ func checkBadDigestErr(t *testing.T, err error, bd badDigest) {
 }
 
 func TestGrpcAc(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
+
 	ar := pb.ActionResult{
 		StdoutRaw: []byte("pretend action stdout"),
 		StderrRaw: []byte("pretend action stderr"),
@@ -172,7 +185,7 @@ func TestGrpcAc(t *testing.T) {
 		InlineOutputFiles: []string{},
 	}
 
-	_, err = acClient.GetActionResult(ctx, &getReq)
+	_, err = fixture.acClient.GetActionResult(ctx, &getReq)
 	if err == nil {
 		t.Fatal("Expected NotFound")
 	}
@@ -186,7 +199,7 @@ func TestGrpcAc(t *testing.T) {
 
 	for _, tc := range badDigestTestCases {
 		r := pb.GetActionResultRequest{ActionDigest: tc.digest}
-		_, err = acClient.GetActionResult(ctx, &r)
+		_, err = fixture.acClient.GetActionResult(ctx, &r)
 		checkBadDigestErr(t, err, tc)
 	}
 
@@ -197,7 +210,7 @@ func TestGrpcAc(t *testing.T) {
 		ActionResult: &ar,
 	}
 
-	upACResp, err := acClient.UpdateActionResult(ctx, &upACReq)
+	upACResp, err := fixture.acClient.UpdateActionResult(ctx, &upACReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +233,7 @@ func TestGrpcAc(t *testing.T) {
 
 	for _, tc := range badDigestTestCases {
 		r := pb.UpdateActionResultRequest{ActionDigest: tc.digest}
-		_, err = acClient.UpdateActionResult(ctx, &r)
+		_, err = fixture.acClient.UpdateActionResult(ctx, &r)
 		checkBadDigestErr(t, err, tc)
 	}
 
@@ -241,7 +254,7 @@ func TestGrpcAc(t *testing.T) {
 		ActionDigest: &zeroDigest,
 		ActionResult: &zeroActionResult,
 	}
-	zeroResp, err := acClient.UpdateActionResult(ctx, &zeroReq)
+	zeroResp, err := fixture.acClient.UpdateActionResult(ctx, &zeroReq)
 	if proto.Equal(&zeroReq, zeroResp) {
 		t.Fatal("expected non-zero ActionResult to be returned")
 	}
@@ -265,7 +278,7 @@ func TestGrpcAc(t *testing.T) {
 
 	// GetActionResultRequest again, expect cache hit.
 
-	gacrResp, err := acClient.GetActionResult(ctx, &getReq)
+	gacrResp, err := fixture.acClient.GetActionResult(ctx, &getReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +298,80 @@ func TestGrpcAc(t *testing.T) {
 	}
 }
 
+func TestAcKeyMangling(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetupInternal(t, true)
+	defer os.Remove(fixture.tempdir)
+
+	ar := pb.ActionResult{
+		StdoutRaw: []byte("pretend action stdout"),
+		StderrRaw: []byte("pretend action stderr"),
+		ExitCode:  int32(42),
+	}
+
+	data, err := proto.Marshal(&ar)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sum := sha256.Sum256(data)
+	hash := hex.EncodeToString(sum[:])
+
+	digest := pb.Digest{
+		Hash:      hash,
+		SizeBytes: int64(len(data)),
+	}
+
+	instanceName := "foo-instance"
+
+	// UpdateActionResultRequest.
+	upACReq := pb.UpdateActionResultRequest{
+		ActionDigest: &digest,
+		ActionResult: &ar,
+		InstanceName: instanceName,
+	}
+
+	_, err = fixture.acClient.UpdateActionResult(ctx, &upACReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// GetActionResultRequest with the same InstanceName, expect cache hit.
+	getReq := pb.GetActionResultRequest{
+		ActionDigest:      &digest,
+		InlineStdout:      true,
+		InlineStderr:      true,
+		InlineOutputFiles: []string{},
+		InstanceName:      instanceName,
+	}
+
+	gacrResp, err := fixture.acClient.GetActionResult(ctx, &getReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Remove the metadata so we can compare with the request.
+	gacrResp.ExecutionMetadata = nil
+
+	if !proto.Equal(&ar, gacrResp) {
+		t.Fatal("Error: uploaded and returned ActionResult differ")
+	}
+
+	// GetActionResultRequest with different InstanceName, expect cache miss.
+	instanceName = "bar-instance"
+	getReq.InstanceName = instanceName
+	_, err = fixture.acClient.GetActionResult(ctx, &getReq)
+	if err == nil {
+		t.Fatal("Expected NotFound")
+	}
+}
+
 func TestGrpcCasEmptySha256(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
 
 	// Check that we can "download" an empty blob, even if it hasn't
 	// been uploaded.
@@ -300,7 +386,7 @@ func TestGrpcCasEmptySha256(t *testing.T) {
 		Digests: []*pb.Digest{&emptyDigest},
 	}
 
-	downResp, err := casClient.BatchReadBlobs(ctx, &downReq)
+	downResp, err := fixture.casClient.BatchReadBlobs(ctx, &downReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,6 +397,10 @@ func TestGrpcCasEmptySha256(t *testing.T) {
 }
 
 func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
 
 	// Upload an ActionResult with some inlined blobs.
 
@@ -387,7 +477,7 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 		},
 	}
 
-	_, err = casClient.BatchUpdateBlobs(ctx, &treeUpReq)
+	_, err = fixture.casClient.BatchUpdateBlobs(ctx, &treeUpReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,7 +523,7 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 		SizeBytes: int64(len(arData)),
 	}
 
-	_, err = acClient.UpdateActionResult(ctx, &pb.UpdateActionResultRequest{
+	_, err = fixture.acClient.UpdateActionResult(ctx, &pb.UpdateActionResultRequest{
 		ActionDigest: &arDigest,
 		ActionResult: &ar,
 	})
@@ -451,7 +541,7 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 		},
 	}
 
-	missingResp, err := casClient.FindMissingBlobs(ctx, &missingReq)
+	missingResp, err := fixture.casClient.FindMissingBlobs(ctx, &missingReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -475,7 +565,7 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 		},
 	}
 
-	downResp, err := casClient.BatchReadBlobs(ctx, &downReq)
+	downResp, err := fixture.casClient.BatchReadBlobs(ctx, &downReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -507,13 +597,18 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 		InlineOutputFiles: []string{},
 	}
 
-	_, err = acClient.GetActionResult(ctx, &getAcReq)
+	_, err = fixture.acClient.GetActionResult(ctx, &getAcReq)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestGrpcByteStreamDeadline(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
+
 	testCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -529,8 +624,15 @@ func TestGrpcByteStreamDeadline(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
 	defer cancel()
 
-	bswc, err := bsClient.Write(ctx)
+	bswc, err := fixture.bsClient.Write(ctx)
 	if err != nil {
+		statusError, ok := status.FromError(err)
+		if ok && statusError.Code() == codes.DeadlineExceeded {
+			// We can't run the rest of the test. Not great, but
+			// maybe this is unavoidable with timeout tests?
+			t.SkipNow()
+		}
+
 		t.Fatal(err)
 	}
 
@@ -575,7 +677,7 @@ func TestGrpcByteStreamDeadline(t *testing.T) {
 	ctx, cancel = context.WithTimeout(context.Background(), time.Millisecond*500)
 	defer cancel()
 
-	bswc, err = bsClient.Write(ctx)
+	bswc, err = fixture.bsClient.Write(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -595,7 +697,7 @@ func TestGrpcByteStreamDeadline(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, sz, err := diskCache.Get(testCtx, cache.CAS, testBlobHash, testBlobSize, 0)
+	_, sz, err := fixture.diskCache.Get(testCtx, cache.CAS, testBlobHash, testBlobSize, 0)
 	if err != nil {
 		t.Fatalf("get error: %v\n", err)
 	}
@@ -606,12 +708,17 @@ func TestGrpcByteStreamDeadline(t *testing.T) {
 }
 
 func TestGrpcByteStreamEmptySha256(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
+
 	// We should always be able to read the empty blob.
 
 	resource := fmt.Sprintf("emptyRead/blobs/%s/0", emptySha256)
 	bsrReq := bytestream.ReadRequest{ResourceName: resource}
 
-	bsrc, err := bsClient.Read(ctx, &bsrReq)
+	bsrc, err := fixture.bsClient.Read(ctx, &bsrReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -642,7 +749,7 @@ func TestGrpcByteStreamEmptySha256(t *testing.T) {
 	resource = fmt.Sprintf("emptyRead/compressed-blobs/zstd/%s/0", emptySha256)
 	bsrReq = bytestream.ReadRequest{ResourceName: resource}
 
-	bsrc, err = bsClient.Read(ctx, &bsrReq)
+	bsrc, err = fixture.bsClient.Read(ctx, &bsrReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -675,6 +782,10 @@ func TestGrpcByteStreamEmptySha256(t *testing.T) {
 }
 
 func TestGrpcByteStream(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
 
 	// Must be large enough to test multiple iterations of the
 	// bytestream Read Recv loop.
@@ -694,7 +805,7 @@ func TestGrpcByteStream(t *testing.T) {
 		ResourceName: resourceName,
 	}
 
-	bsrc, err := bsClient.Read(ctx, &bsrReq)
+	bsrc, err := fixture.bsClient.Read(ctx, &bsrReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -711,7 +822,7 @@ func TestGrpcByteStream(t *testing.T) {
 
 	// Write the blob, in two chunks.
 
-	bswc, err := bsClient.Write(ctx)
+	bswc, err := fixture.bsClient.Write(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -760,7 +871,7 @@ func TestGrpcByteStream(t *testing.T) {
 			instance, testBlobDigest.Hash, len(testBlob)),
 	}
 
-	bsrc, err = bsClient.Read(ctx, &bsrReq)
+	bsrc, err = fixture.bsClient.Read(ctx, &bsrReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -797,7 +908,7 @@ func TestGrpcByteStream(t *testing.T) {
 			instance, testBlobDigest.Hash, len(testBlob)),
 	}
 
-	bsrc, err = bsClient.Read(ctx, &bsrReq)
+	bsrc, err = fixture.bsClient.Read(ctx, &bsrReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -855,7 +966,7 @@ func TestGrpcByteStream(t *testing.T) {
 			ResourceName: fmt.Sprintf("%s/blobs/%s/42",
 				"instance", tc.digest.Hash),
 		}
-		rc, err := bsClient.Read(ctx, &r)
+		rc, err := fixture.bsClient.Read(ctx, &r)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -865,7 +976,7 @@ func TestGrpcByteStream(t *testing.T) {
 
 	// Invalid Write's.
 	for _, tc := range badDigestTestCases {
-		wc, err := bsClient.Write(ctx)
+		wc, err := fixture.bsClient.Write(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -890,6 +1001,11 @@ func TestGrpcByteStream(t *testing.T) {
 }
 
 func TestGrpcByteStreamEmptyLastWrite(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
+
 	instance := "ignoredByteStreamInstance"
 	testBlob, testBlobHash := testutils.RandomDataAndHash(7)
 	req1 := bytestream.WriteRequest{
@@ -901,7 +1017,7 @@ func TestGrpcByteStreamEmptyLastWrite(t *testing.T) {
 	req2 := bytestream.WriteRequest{
 		FinishWrite: true,
 	}
-	bswc, err := bsClient.Write(ctx)
+	bswc, err := fixture.bsClient.Write(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -926,6 +1042,11 @@ func TestGrpcByteStreamEmptyLastWrite(t *testing.T) {
 }
 
 func TestGrpcByteStreamZstdWrite(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
+
 	// Must be large enough to test multiple iterations of the
 	// bytestream Read Recv loop.
 	testBlobSize := int64(maxChunkSize * 3 / 2)
@@ -942,7 +1063,7 @@ func TestGrpcByteStreamZstdWrite(t *testing.T) {
 	compressedBlob := enc.EncodeAll(testBlob, nil)
 	enc.Close()
 
-	bswc, err := bsClient.Write(ctx)
+	bswc, err := fixture.bsClient.Write(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -989,7 +1110,7 @@ func TestGrpcByteStreamZstdWrite(t *testing.T) {
 			instance, testBlobDigest.Hash, len(testBlob)),
 	}
 
-	bsrc, err := bsClient.Read(ctx, &bsrReq)
+	bsrc, err := fixture.bsClient.Read(ctx, &bsrReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1021,6 +1142,11 @@ func TestGrpcByteStreamZstdWrite(t *testing.T) {
 }
 
 func TestGrpcByteStreamInvalidReadLimit(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
+
 	testBlobSize := int64(maxChunkSize)
 	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize)
 	testBlobDigest := pb.Digest{
@@ -1036,7 +1162,7 @@ func TestGrpcByteStreamInvalidReadLimit(t *testing.T) {
 		ReadLimit: 1024,
 	}
 
-	bsrc, err := bsClient.Read(ctx, &bsrReq)
+	bsrc, err := fixture.bsClient.Read(ctx, &bsrReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1057,6 +1183,10 @@ func TestGrpcByteStreamInvalidReadLimit(t *testing.T) {
 }
 
 func TestGrpcByteStreamSkippedWrite(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
 
 	// Must be large enough to test multiple iterations of the
 	// bytestream Read Recv loop.
@@ -1067,7 +1197,7 @@ func TestGrpcByteStreamSkippedWrite(t *testing.T) {
 		SizeBytes: int64(len(testBlob)),
 	}
 
-	bswc, err := bsClient.Write(ctx)
+	bswc, err := fixture.bsClient.Write(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1109,7 +1239,7 @@ func TestGrpcByteStreamSkippedWrite(t *testing.T) {
 
 	// Attempt to write the blob again with a new request.
 
-	bswc, err = bsClient.Write(ctx)
+	bswc, err = fixture.bsClient.Write(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1135,6 +1265,10 @@ func TestGrpcByteStreamSkippedWrite(t *testing.T) {
 }
 
 func TestGrpcByteStreamQueryWriteStatus(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
 
 	testBlob, testBlobHash := testutils.RandomDataAndHash(123)
 	testBlobDigest := pb.Digest{
@@ -1154,7 +1288,7 @@ func TestGrpcByteStreamQueryWriteStatus(t *testing.T) {
 
 	req := &bytestream.QueryWriteStatusRequest{ResourceName: resourceName}
 
-	resp, err := bsClient.QueryWriteStatus(context.Background(), req)
+	resp, err := fixture.bsClient.QueryWriteStatus(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1172,7 +1306,7 @@ func TestGrpcByteStreamQueryWriteStatus(t *testing.T) {
 	}
 
 	// Write the blob.
-	bswc, err := bsClient.Write(context.Background())
+	bswc, err := fixture.bsClient.Write(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1194,7 +1328,7 @@ func TestGrpcByteStreamQueryWriteStatus(t *testing.T) {
 
 	// Confirm that the blob now exists, and we get "len(testBlob) bytes committed, complete".
 
-	resp, err = bsClient.QueryWriteStatus(context.Background(), req)
+	resp, err = fixture.bsClient.QueryWriteStatus(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1220,7 +1354,7 @@ func TestGrpcByteStreamQueryWriteStatus(t *testing.T) {
 
 	req = &bytestream.QueryWriteStatusRequest{ResourceName: resourceName}
 
-	resp, err = bsClient.QueryWriteStatus(context.Background(), req)
+	resp, err = fixture.bsClient.QueryWriteStatus(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1237,6 +1371,10 @@ func TestGrpcByteStreamQueryWriteStatus(t *testing.T) {
 }
 
 func TestGrpcCasBasics(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
 
 	testBlob, testBlobHash := testutils.RandomDataAndHash(256)
 	testBlobDigest := pb.Digest{
@@ -1250,7 +1388,7 @@ func TestGrpcCasBasics(t *testing.T) {
 
 	// FindMissingBlobs, expect cache miss.
 
-	missingResp, err := casClient.FindMissingBlobs(ctx, &missingReq)
+	missingResp, err := fixture.casClient.FindMissingBlobs(ctx, &missingReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1267,7 +1405,7 @@ func TestGrpcCasBasics(t *testing.T) {
 		Data:   testBlob,
 	}
 	upReq.Requests = append(upReq.Requests, &r)
-	upResp, err := casClient.BatchUpdateBlobs(ctx, &upReq)
+	upResp, err := fixture.casClient.BatchUpdateBlobs(ctx, &upReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1283,7 +1421,7 @@ func TestGrpcCasBasics(t *testing.T) {
 
 	// FindMissingBlobsRequest again, expect cache hit.
 
-	missingResp, err = casClient.FindMissingBlobs(ctx, &missingReq)
+	missingResp, err = fixture.casClient.FindMissingBlobs(ctx, &missingReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1297,7 +1435,7 @@ func TestGrpcCasBasics(t *testing.T) {
 	downReq := pb.BatchReadBlobsRequest{
 		Digests: []*pb.Digest{&testBlobDigest},
 	}
-	downResp, err := casClient.BatchReadBlobs(ctx, &downReq)
+	downResp, err := fixture.casClient.BatchReadBlobs(ctx, &downReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1315,6 +1453,10 @@ func TestGrpcCasBasics(t *testing.T) {
 }
 
 func TestGrpcCasTreeRequest(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
 
 	// Create a test tree, which does not yet exist in the CAS.
 
@@ -1396,7 +1538,7 @@ func TestGrpcCasTreeRequest(t *testing.T) {
 
 	req := pb.GetTreeRequest{RootDigest: &treeDigest}
 
-	resp, err := casClient.GetTree(ctx, &req)
+	resp, err := fixture.casClient.GetTree(ctx, &req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1441,7 +1583,7 @@ func TestGrpcCasTreeRequest(t *testing.T) {
 		},
 	}
 
-	_, err = casClient.BatchUpdateBlobs(ctx, &upReq)
+	_, err = fixture.casClient.BatchUpdateBlobs(ctx, &upReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1451,7 +1593,7 @@ func TestGrpcCasTreeRequest(t *testing.T) {
 	// Re-do the GetTreeRequest, expect cache hit and all the data
 	// returned in a single Recv.
 
-	resp, err = casClient.GetTree(ctx, &req)
+	resp, err = fixture.casClient.GetTree(ctx, &req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1499,6 +1641,11 @@ func TestGrpcCasTreeRequest(t *testing.T) {
 }
 
 func TestBadUpdateActionResultRequest(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
+
 	digest := pb.Digest{
 		Hash:      "0123456789012345678901234567890123456789012345678901234567890123",
 		SizeBytes: 1,
@@ -1862,7 +2009,7 @@ func TestBadUpdateActionResultRequest(t *testing.T) {
 			ActionResult: tc.actionResult,
 		}
 
-		_, err := acClient.UpdateActionResult(ctx, &upACReq)
+		_, err := fixture.acClient.UpdateActionResult(ctx, &upACReq)
 		if err == nil {
 			t.Error("invalid ActionResult accepted:", tc.description)
 		}
@@ -1870,6 +2017,11 @@ func TestBadUpdateActionResultRequest(t *testing.T) {
 }
 
 func TestParseReadResource(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
+
 	// Format: [{instance_name}]/blobs/{hash}/{size}
 
 	s := &grpcServer{
@@ -2075,6 +2227,11 @@ func TestParseReadResource(t *testing.T) {
 }
 
 func TestParseWriteResource(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
+
 	// Format: [{instance_name}/]uploads/{uuid}/blobs/{hash}/{size}[/{optionalmetadata}]
 	// Or: [{instance_name}/]uploads/{uuid}/compressed-blobs/{compressor}/{uncompressed_hash}/{uncompressed_size}[{/optional_metadata}]
 
@@ -2275,6 +2432,11 @@ func TestParseWriteResource(t *testing.T) {
 }
 
 func TestCompressedBatchReadsAndWrites(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
+
 	blob := []byte("payload data")
 
 	enc, err := zstd.NewWriter(nil, zstd.WithEncoderConcurrency(1))
@@ -2304,7 +2466,7 @@ func TestCompressedBatchReadsAndWrites(t *testing.T) {
 		},
 	}
 
-	_, err = casClient.BatchUpdateBlobs(ctx, &upReq)
+	_, err = fixture.casClient.BatchUpdateBlobs(ctx, &upReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2315,7 +2477,7 @@ func TestCompressedBatchReadsAndWrites(t *testing.T) {
 		Digests:               []*pb.Digest{&digest},
 	}
 
-	resp, err := casClient.BatchReadBlobs(ctx, &downReq)
+	resp, err := fixture.casClient.BatchReadBlobs(ctx, &downReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2363,8 +2525,13 @@ func TestCompressedBatchReadsAndWrites(t *testing.T) {
 }
 
 func TestHealthCheck(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
+
 	req := grpc_health_v1.HealthCheckRequest{Service: grpcHealthServiceName}
-	resp, err := healthClient.Check(ctx, &req)
+	resp, err := fixture.healthClient.Check(ctx, &req)
 	if err != nil {
 		t.Fatal(err)
 	}

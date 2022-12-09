@@ -20,6 +20,19 @@ import (
 var (
 	errBadSize      = errors.New("Unexpected size")
 	errBlobNotFound = errors.New("Blob not found")
+
+	errNilBatchUpdateBlobsRequest_Request = grpc_status.Error(codes.InvalidArgument,
+		"expected a non-nil *BatchUpdateBlobsRequest_Request")
+	errNilDigest = grpc_status.Error(codes.InvalidArgument,
+		"expected a non-nil *Digest")
+	errNilGetTreeRequest = grpc_status.Error(codes.InvalidArgument,
+		"expected a non-nil *GetTreeRequest")
+	errNilFindMissingBlobsRequest = grpc_status.Error(codes.InvalidArgument,
+		"expected a non-nil *FindMissingBlobsRequest")
+	errNilBatchUpdateBlobsRequest = grpc_status.Error(codes.InvalidArgument,
+		"expected a non-nil *BatchUpdateBlobsRequest")
+	errNilBatchReadBlobsRequest = grpc_status.Error(codes.InvalidArgument,
+		"expected a non-nil *BatchReadBlobsRequest")
 )
 
 // ContentAddressableStorageServer interface:
@@ -27,10 +40,18 @@ var (
 func (s *grpcServer) FindMissingBlobs(ctx context.Context,
 	req *pb.FindMissingBlobsRequest) (*pb.FindMissingBlobsResponse, error) {
 
+	if req == nil {
+		return nil, errNilFindMissingBlobsRequest
+	}
+
 	errorPrefix := "GRPC CAS HEAD"
 	for _, digest := range req.BlobDigests {
-		hash := digest.GetHash()
-		err := s.validateHash(hash, digest.SizeBytes, errorPrefix)
+
+		if digest == nil {
+			return nil, errNilDigest
+		}
+
+		err := s.validateHash(digest.Hash, digest.SizeBytes, errorPrefix)
 		if err != nil {
 			return nil, err
 		}
@@ -47,6 +68,10 @@ func (s *grpcServer) FindMissingBlobs(ctx context.Context,
 func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 	in *pb.BatchUpdateBlobsRequest) (*pb.BatchUpdateBlobsResponse, error) {
 
+	if in == nil {
+		return nil, errNilBatchUpdateBlobsRequest
+	}
+
 	resp := pb.BatchUpdateBlobsResponse{
 		Responses: make([]*pb.BatchUpdateBlobsResponse_Response,
 			0, len(in.Requests)),
@@ -55,6 +80,15 @@ func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 	errorPrefix := "GRPC CAS PUT"
 	for _, req := range in.Requests {
 		// TODO: consider fanning-out goroutines here.
+
+		if req == nil {
+			return nil, errNilBatchUpdateBlobsRequest_Request
+		}
+
+		if req.Digest == nil {
+			return nil, errNilDigest
+		}
+
 		err := s.validateHash(req.Digest.Hash, req.Digest.SizeBytes, errorPrefix)
 		if err != nil {
 			return nil, err
@@ -112,7 +146,9 @@ func (s *grpcServer) getBlobData(ctx context.Context, hash string, size int64) (
 
 	rdr, sizeBytes, err := s.cache.Get(ctx, cache.CAS, hash, size, 0)
 	if err != nil {
-		rdr.Close()
+		if rdr != nil {
+			rdr.Close()
+		}
 		return []byte{}, err
 	}
 
@@ -195,6 +231,10 @@ func (s *grpcServer) getBlobResponse(ctx context.Context, digest *pb.Digest, all
 func (s *grpcServer) BatchReadBlobs(ctx context.Context,
 	in *pb.BatchReadBlobsRequest) (*pb.BatchReadBlobsResponse, error) {
 
+	if in == nil {
+		return nil, errNilBatchReadBlobsRequest
+	}
+
 	resp := pb.BatchReadBlobsResponse{
 		Responses: make([]*pb.BatchReadBlobsResponse_Response,
 			0, len(in.Digests)),
@@ -211,6 +251,11 @@ func (s *grpcServer) BatchReadBlobs(ctx context.Context,
 	errorPrefix := "GRPC CAS GET"
 	for _, digest := range in.Digests {
 		// TODO: consider fanning-out goroutines here.
+
+		if digest == nil {
+			return nil, errNilDigest
+		}
+
 		err := s.validateHash(digest.Hash, digest.SizeBytes, errorPrefix)
 		if err != nil {
 			return nil, err
@@ -228,6 +273,15 @@ func (s *grpcServer) GetTree(in *pb.GetTreeRequest,
 		Directories: make([]*pb.Directory, 0),
 	}
 	errorPrefix := "GRPC CAS GETTREEREQUEST"
+
+	if in == nil {
+		return errNilGetTreeRequest
+	}
+
+	if in.RootDigest == nil {
+		return errNilDigest
+	}
+
 	err := s.validateHash(in.RootDigest.Hash, in.RootDigest.SizeBytes, errorPrefix)
 	if err != nil {
 		return err

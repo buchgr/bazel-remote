@@ -35,8 +35,13 @@ func (c *Creator) ranqd1() string {
 
 const flags = os.O_RDWR | os.O_CREATE | os.O_EXCL
 
-const EndMode = 0666
-const wipMode = EndMode | os.ModeSetgid
+// The final permissions of the cache files, once they have finished
+// being uploaded.
+const FinalMode = 0664
+
+// The permissions to use for cache files that are still being uploaded.
+// The setgid bit will be unset when the upload has finished.
+const wipMode = FinalMode | os.ModeSetgid
 
 var errNoTempfile = errors.New("Failed to create a temp file")
 
@@ -48,7 +53,7 @@ var errNoTempfile = errors.New("Failed to create a temp file")
 // wrong.
 //
 // Once the file has been successfully written by the caller, it
-// should be chmod'ed to `EndMode` to mark it as complete.
+// should be chmod'ed to `FinalMode` to mark it as complete.
 func (c *Creator) Create(base string, legacy bool) (*os.File, string, error) {
 	var err error
 	var f *os.File
