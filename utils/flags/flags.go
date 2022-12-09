@@ -382,5 +382,12 @@ func GetCliFlags() []cli.Flag {
 			DefaultText: "all, ie enable full access logging",
 			EnvVars:     []string{"BAZEL_REMOTE_ACCESS_LOG_LEVEL"},
 		},
+		&cli.StringFlag{
+			Name:        "log_timezone",
+			Usage:       "The timezone to use for log timestamps. If supplied, must be one of \"UTC\" or \"Local\".",
+			Value:       "UTC",
+			DefaultText: "UTC, ie use UTC timezone",
+			EnvVars:     []string{"BAZEL_LOG_TIMEZONE"},
+		},
 	}
 }

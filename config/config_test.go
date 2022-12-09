@@ -27,6 +27,7 @@ experimental_remote_asset_api: true
 http_read_timeout: 5s
 http_write_timeout: 10s
 access_log_level: none
+log_timezone: local
 `
 
 	config, err := newFromYaml([]byte(yaml))
@@ -56,6 +57,7 @@ access_log_level: none
 		MaxProxyBlobSize:            math.MaxInt64,
 		MetricsDurationBuckets:      []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:              "none",
+		LogTimezone:                 "local",
 	}
 
 	if !reflect.DeepEqual(config, expectedConfig) {
@@ -97,6 +99,7 @@ gcs_proxy:
 		MaxProxyBlobSize:       math.MaxInt64,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
+		LogTimezone:            "UTC",
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -135,6 +138,7 @@ http_proxy:
 		MaxProxyBlobSize:       math.MaxInt64,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
+		LogTimezone:            "UTC",
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -210,6 +214,7 @@ s3_proxy:
 		MaxProxyBlobSize:       math.MaxInt64,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
+		LogTimezone:            "UTC",
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -242,6 +247,7 @@ profile_address: :7070
 		MaxProxyBlobSize:       math.MaxInt64,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
+		LogTimezone:            "UTC",
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -288,6 +294,7 @@ endpoint_metrics_duration_buckets: [.005, .1, 5]
 		MaxProxyBlobSize:       math.MaxInt64,
 		MetricsDurationBuckets: []float64{0.005, 0.1, 5},
 		AccessLogLevel:         "all",
+		LogTimezone:            "UTC",
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -418,6 +425,7 @@ storage_mode: zstd
 		MaxProxyBlobSize:       math.MaxInt64,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
+		LogTimezone:            "UTC",
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -450,6 +458,7 @@ storage_mode: zstd
 		MaxProxyBlobSize:       math.MaxInt64,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
+		LogTimezone:            "UTC",
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
