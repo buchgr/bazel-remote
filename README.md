@@ -366,6 +366,10 @@ OPTIONS:
       must be one of "none" or "all". (default: all, ie enable full access
       logging) [$BAZEL_REMOTE_ACCESS_LOG_LEVEL]
 
+   --log_timezone value The timezone to use for log timestamps. If supplied,
+      must be one of "UTC" or "Local". (default: UTC, ie use UTC timezone)
+      [$BAZEL_LOG_TIMEZONE]
+
    --help, -h  show help (default: false)
 ```
 
@@ -509,6 +513,9 @@ http_address: 0.0.0.0:8080
 
 # If supplied, controls the verbosity of the access logger ("none" or "all"):
 #access_log_level: none
+
+# If supplied, controls the timezone of the access logger ("local" or "UTC"):
+#log_timezone: local
 ```
 
 ## Docker
