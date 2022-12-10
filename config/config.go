@@ -382,6 +382,12 @@ func validateConfig(c *Config) error {
 		return errors.New("'access_log_level' must be set to either \"none\" or \"all\"")
 	}
 
+	switch c.LogTimezone {
+	case "local", "UTC":
+	default:
+		return errors.New("'log_timezone' must be set to either \"local\" or \"utc\"")
+	}
+
 	return nil
 }
 

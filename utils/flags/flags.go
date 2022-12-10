@@ -384,7 +384,7 @@ func GetCliFlags() []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:        "log_timezone",
-			Usage:       "The timezone to use for log timestamps. If supplied, must be one of \"UTC\" or \"Local\".",
+			Usage:       "The timezone to use for log timestamps. If supplied, must be one of \"UTC\" or \"local\".",
 			Value:       "UTC",
 			DefaultText: "UTC, ie use UTC timezone",
 			EnvVars:     []string{"BAZEL_LOG_TIMEZONE"},
