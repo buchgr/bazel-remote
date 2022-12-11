@@ -367,8 +367,8 @@ OPTIONS:
       logging) [$BAZEL_REMOTE_ACCESS_LOG_LEVEL]
 
    --log_timezone value The timezone to use for log timestamps. If supplied,
-      must be one of "UTC" or "local". (default: UTC, ie use UTC timezone)
-      [$BAZEL_LOG_TIMEZONE]
+      must be one of "UTC", "local" or "none" for no timestamps. (default: UTC,
+      ie use UTC timezone) [$BAZEL_REMOTE_LOG_TIMEZONE]
 
    --help, -h  show help (default: false)
 ```
@@ -514,7 +514,7 @@ http_address: 0.0.0.0:8080
 # If supplied, controls the verbosity of the access logger ("none" or "all"):
 #access_log_level: none
 
-# If supplied, controls the timezone of the access logger ("local" or "UTC"):
+# If supplied, controls the timezone of the access logger ("UTC", "local" or "none"):
 #log_timezone: local
 ```
 
