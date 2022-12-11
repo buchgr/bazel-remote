@@ -367,7 +367,7 @@ OPTIONS:
       logging) [$BAZEL_REMOTE_ACCESS_LOG_LEVEL]
 
    --log_timezone value The timezone to use for log timestamps. If supplied,
-      must be one of "UTC" or "Local". (default: UTC, ie use UTC timezone)
+      must be one of "UTC" or "local". (default: UTC, ie use UTC timezone)
       [$BAZEL_LOG_TIMEZONE]
 
    --help, -h  show help (default: false)
