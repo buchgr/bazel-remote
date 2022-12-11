@@ -64,6 +64,7 @@ type Config struct {
 	HTTPReadTimeout             time.Duration             `yaml:"http_read_timeout"`
 	HTTPWriteTimeout            time.Duration             `yaml:"http_write_timeout"`
 	AccessLogLevel              string                    `yaml:"access_log_level"`
+	LogTimezone                 string                    `yaml:"log_timezone"`
 	MaxBlobSize                 int64                     `yaml:"max_blob_size"`
 	MaxProxyBlobSize            int64                     `yaml:"max_proxy_blob_size"`
 
@@ -117,6 +118,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	httpReadTimeout time.Duration,
 	httpWriteTimeout time.Duration,
 	accessLogLevel string,
+	logTimezone string,
 	maxBlobSize int64,
 	maxProxyBlobSize int64) (*Config, error) {
 
@@ -149,6 +151,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		HTTPReadTimeout:             httpReadTimeout,
 		HTTPWriteTimeout:            httpWriteTimeout,
 		AccessLogLevel:              accessLogLevel,
+		LogTimezone:                 logTimezone,
 		MaxBlobSize:                 maxBlobSize,
 		MaxProxyBlobSize:            maxProxyBlobSize,
 	}
@@ -189,6 +192,7 @@ func newFromYaml(data []byte) (*Config, error) {
 			MaxProxyBlobSize:       math.MaxInt64,
 			MetricsDurationBuckets: defaultDurationBuckets,
 			AccessLogLevel:         "all",
+			LogTimezone:            "UTC",
 		},
 	}
 
@@ -378,6 +382,12 @@ func validateConfig(c *Config) error {
 		return errors.New("'access_log_level' must be set to either \"none\" or \"all\"")
 	}
 
+	switch c.LogTimezone {
+	case "local", "UTC":
+	default:
+		return errors.New("'log_timezone' must be set to either \"local\" or \"utc\"")
+	}
+
 	return nil
 }
 
@@ -510,6 +520,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.Duration("http_read_timeout"),
 		ctx.Duration("http_write_timeout"),
 		ctx.String("access_log_level"),
+		ctx.String("log_timezone"),
 		ctx.Int64("max_blob_size"),
 		ctx.Int64("max_proxy_blob_size"),
 	)
