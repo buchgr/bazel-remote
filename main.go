@@ -42,15 +42,6 @@ import (
 var gitCommit string
 
 func main() {
-	log.SetFlags(config.LogFlags)
-
-	maybeGitCommitMsg := ""
-	if len(gitCommit) > 0 && gitCommit != "{STABLE_GIT_COMMIT}" {
-		maybeGitCommitMsg = fmt.Sprintf(" from git commit %s", gitCommit)
-	}
-	log.Printf("bazel-remote built with %s%s.",
-		runtime.Version(), maybeGitCommitMsg)
-
 	app := cli.NewApp()
 
 	cli.AppHelpTemplate = flags.Template
@@ -86,6 +77,13 @@ func run(ctx *cli.Context) error {
 		_ = cli.ShowAppHelp(ctx)
 		os.Exit(1)
 	}
+
+	maybeGitCommitMsg := ""
+	if len(gitCommit) > 0 && gitCommit != "{STABLE_GIT_COMMIT}" {
+		maybeGitCommitMsg = fmt.Sprintf(" from git commit %s", gitCommit)
+	}
+	log.Printf("bazel-remote built with %s%s.",
+		runtime.Version(), maybeGitCommitMsg)
 
 	rlimit.Raise()
 
