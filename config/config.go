@@ -383,9 +383,9 @@ func validateConfig(c *Config) error {
 	}
 
 	switch c.LogTimezone {
-	case "local", "UTC":
+	case "UTC", "local", "none":
 	default:
-		return errors.New("'log_timezone' must be set to either \"UTC\" or \"local\"")
+		return errors.New("'log_timezone' must be set to either \"UTC\", \"local\" or \"none\"")
 	}
 
 	return nil

@@ -7,10 +7,17 @@ import (
 )
 
 func (c *Config) setLogger() error {
-	logFlags := log.Ldate | log.Ltime | log.LUTC
-	if c.LogTimezone == "local" {
+
+	var logFlags int
+	switch c.LogTimezone {
+	case "UTC":
+		logFlags = log.Ldate | log.Ltime | log.LUTC
+	case "local":
 		logFlags = log.Ldate | log.Ltime
+	case "none":
+		logFlags = 0
 	}
+
 	log.SetFlags(logFlags)
 
 	c.AccessLogger = log.New(os.Stdout, "", logFlags)
