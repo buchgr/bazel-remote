@@ -9,10 +9,13 @@ import (
 	"path"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk/casblob"
+	"github.com/buchgr/bazel-remote/utils/backendproxy"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -28,38 +31,32 @@ var (
 	})
 )
 
-type uploadReq struct {
-	hash string
-	size int64
-	kind cache.EntryKind
-	rc   io.ReadCloser
-}
-
 type azBlobCache struct {
 	containerClient  *azblob.ContainerClient
 	storageAccount   string
 	container        string
 	prefix           string
 	v2mode           bool
-	uploadQueue      chan<- uploadReq
+	uploadQueue      chan<- backendproxy.UploadReq
 	accessLogger     cache.Logger
 	errorLogger      cache.Logger
 	objectKey        func(hash string, kind cache.EntryKind) string
 	updateTimestamps bool
 }
 
-func (c *azBlobCache) Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
+func (c *azBlobCache) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
 	if c.uploadQueue == nil {
 		rc.Close()
 		return
 	}
 
 	select {
-	case c.uploadQueue <- uploadReq{
-		hash: hash,
-		size: size,
-		kind: kind,
-		rc:   rc,
+	case c.uploadQueue <- backendproxy.UploadReq{
+		Hash:        hash,
+		LogicalSize: logicalSize,
+		SizeOnDisk:  sizeOnDisk,
+		Kind:        kind,
+		Rc:          rc,
 	}:
 	default:
 		c.errorLogger.Printf("too many uploads queued\n")
@@ -205,26 +202,15 @@ func New(
 		}
 	}
 
-	if maxQueuedUploads > 0 && numUploaders > 0 {
-		uploadQueue := make(chan uploadReq, maxQueuedUploads)
-		for uploader := 0; uploader < numUploaders; uploader++ {
-			go func() {
-				for item := range uploadQueue {
-					c.uploadFile(item)
-				}
-			}()
-		}
-
-		c.uploadQueue = uploadQueue
-	}
+	c.uploadQueue = backendproxy.StartUploaders(c, numUploaders, maxQueuedUploads)
 
 	return c
 }
 
-func (c *azBlobCache) uploadFile(item uploadReq) {
-	defer item.rc.Close()
+func (c *azBlobCache) UploadFile(item backendproxy.UploadReq) {
+	defer item.Rc.Close()
 
-	key := c.objectKey(item.hash, item.kind)
+	key := c.objectKey(item.Hash, item.Kind)
 	if c.prefix != "" {
 		key = c.prefix + "/" + key
 	}
@@ -234,7 +220,7 @@ func (c *azBlobCache) uploadFile(item uploadReq) {
 		return
 	}
 
-	_, err = client.Upload(context.Background(), item.rc.(io.ReadSeekCloser), nil)
+	_, err = client.Upload(context.Background(), item.Rc.(io.ReadSeekCloser), nil)
 
 	logResponse(c.accessLogger, "UPLOAD", c.storageAccount, c.container, key, err)
 }

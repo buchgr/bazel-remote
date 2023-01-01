@@ -14,22 +14,16 @@ import (
 
 	"github.com/buchgr/bazel-remote/cache"
 	"github.com/buchgr/bazel-remote/cache/disk/casblob"
+	"github.com/buchgr/bazel-remote/utils/backendproxy"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-type uploadReq struct {
-	hash string
-	size int64
-	kind cache.EntryKind
-	rc   io.ReadCloser
-}
-
 type remoteHTTPProxyCache struct {
 	remote       *http.Client
 	baseURL      string
-	uploadQueue  chan<- uploadReq
+	uploadQueue  chan<- backendproxy.UploadReq
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
 	requestURL   func(hash string, kind cache.EntryKind) string
@@ -47,42 +41,42 @@ var (
 	})
 )
 
-func (r *remoteHTTPProxyCache) uploadFile(item uploadReq) {
+func (r *remoteHTTPProxyCache) UploadFile(item backendproxy.UploadReq) {
 
-	if item.size == 0 {
-		item.rc.Close()
+	if item.LogicalSize == 0 {
+		item.Rc.Close()
 		// See https://github.com/golang/go/issues/20257#issuecomment-299509391
-		item.rc = http.NoBody
+		item.Rc = http.NoBody
 	}
 
-	url := r.requestURL(item.hash, item.kind)
+	url := r.requestURL(item.Hash, item.Kind)
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodHead, url, nil)
 	if err != nil {
 		r.errorLogger.Printf("INTERNAL ERROR, FAILED TO SETUP HTTP PROXY UPLOAD %s: %s", url, err)
-		item.rc.Close()
+		item.Rc.Close()
 		return
 	}
 
 	rsp, err := r.remote.Do(req)
 	if err == nil && rsp.StatusCode == http.StatusOK {
-		r.accessLogger.Printf("SKIP UPLOAD %s", item.hash)
-		item.rc.Close()
+		r.accessLogger.Printf("SKIP UPLOAD %s", item.Hash)
+		item.Rc.Close()
 		return
 	}
 
-	req, err = http.NewRequestWithContext(context.Background(), http.MethodPut, url, item.rc)
+	req, err = http.NewRequestWithContext(context.Background(), http.MethodPut, url, item.Rc)
 	if err != nil {
 		r.errorLogger.Printf("INTERNAL ERROR, FAILED TO SETUP HTTP PROXY UPLOAD %s: %s", url, err)
 
-		// item.rc will be closed if we call req.Do(), but not if we
+		// item.Rc will be closed if we call req.Do(), but not if we
 		// return earlier.
-		item.rc.Close()
+		item.Rc.Close()
 
 		return
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
-	req.ContentLength = item.size
+	req.ContentLength = item.SizeOnDisk
 
 	rsp, err = r.remote.Do(req)
 	if err != nil {
@@ -131,19 +125,7 @@ func New(baseURL *url.URL, storageMode string, remote *http.Client,
 			storageMode)
 	}
 
-	if maxQueuedUploads > 0 && numUploaders > 0 {
-		uploadQueue := make(chan uploadReq, maxQueuedUploads)
-
-		for i := 0; i < numUploaders; i++ {
-			go func() {
-				for item := range uploadQueue {
-					proxy.uploadFile(item)
-				}
-			}()
-		}
-
-		proxy.uploadQueue = uploadQueue
-	}
+	proxy.uploadQueue = backendproxy.StartUploaders(proxy, numUploaders, maxQueuedUploads)
 
 	return proxy, nil
 }
@@ -153,17 +135,18 @@ func logResponse(logger cache.Logger, method string, code int, url string) {
 	logger.Printf("HTTP %s %d %s", method, code, url)
 }
 
-func (r *remoteHTTPProxyCache) Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
+func (r *remoteHTTPProxyCache) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
 	if r.uploadQueue == nil {
 		rc.Close()
 		return
 	}
 
-	item := uploadReq{
-		hash: hash,
-		size: size,
-		kind: kind,
-		rc:   rc,
+	item := backendproxy.UploadReq{
+		Hash:        hash,
+		LogicalSize: logicalSize,
+		SizeOnDisk:  sizeOnDisk,
+		Kind:        kind,
+		Rc:          rc,
 	}
 
 	select {

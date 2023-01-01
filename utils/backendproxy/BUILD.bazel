@@ -1,0 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["backendproxy.go"],
+    importpath = "github.com/buchgr/bazel-remote/utils/backendproxy",
+    visibility = ["//visibility:public"],
+    deps = ["//cache:go_default_library"],
+)

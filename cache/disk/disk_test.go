@@ -230,7 +230,7 @@ func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
 // digest {contentsHash, contentsLength}.
 type proxyStub struct{}
 
-func (d proxyStub) Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, rc io.ReadCloser) {
+func (d proxyStub) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
 	// Not implemented.
 }
 

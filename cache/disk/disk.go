@@ -325,7 +325,7 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 			log.Println("Failed to proxy Put:", err)
 		} else {
 			// Doesn't block, should be fast.
-			c.proxy.Put(ctx, kind, hash, sizeOnDisk, rc)
+			c.proxy.Put(ctx, kind, hash, size, sizeOnDisk, rc)
 		}
 	}
 
