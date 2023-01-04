@@ -252,6 +252,11 @@ func (c *s3Cache) Contains(ctx context.Context, kind cache.EntryKind, hash strin
 		size = s.Size
 	}
 
+	if exists && c.updateTimestamps {
+		// TODO: check if this hurts performance.
+		c.UpdateModificationTimestamp(ctx, c.bucket, c.objectKey(hash, kind))
+	}
+
 	logResponse(c.accessLogger, "CONTAINS", c.bucket, c.objectKey(hash, kind), err)
 
 	return exists, size
