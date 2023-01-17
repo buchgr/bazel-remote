@@ -649,6 +649,10 @@ $ docker run -u 1000:1000 -v /path/to/cache/dir:/data -v $HOME/.aws:/aws-config 
    --max_size=5
 ```
 
+Note that if you use the `--s3.auth_method=iam_role` flag with docker, then in
+order to make the S3 host instance metadata service (located at 169.254.169.254)
+reachable, then you may need to use the docker flag `--network=host`.
+
 ### Profiling
 
 To enable pprof profiling, specify an address to listen to with
