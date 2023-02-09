@@ -420,8 +420,9 @@ func (c *diskCache) commit(key string, legacy bool, tempfile string, reservedSiz
 // but that we can try the proxy backend.
 //
 // This function assumes that only CAS blobs are requested in zstd form.
-func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size int64, offset int64, zstd bool) (rc io.ReadCloser, foundSize int64, tryProxy bool, err error) {
+func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size int64, offset int64, zstd bool) (io.ReadCloser, int64, bool, error) {
 	locked := true
+	var err error
 	c.mu.Lock()
 
 	key := cache.LookupKey(kind, hash)
@@ -452,6 +453,7 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 				// Race condition, was the item purged after we released the lock?
 				log.Printf("Warning: expected %q to exist on disk, undersized cache?", blobPath)
 			} else if kind == cache.CAS {
+				var rc io.ReadCloser
 				if item.legacy {
 					// The file is uncompressed, without a casblob header.
 					_, err = f.Seek(offset, io.SeekStart)
@@ -472,7 +474,6 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 				if err != nil {
 					log.Printf("Warning: expected item to be on disk, but something happened: %v", err)
 					f.Close()
-					rc = nil
 				} else {
 					return rc, item.size, false, nil
 				}
@@ -496,6 +497,8 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 		}
 	}
 	err = nil
+
+	var tryProxy bool
 
 	if c.proxy != nil && size <= c.maxProxyBlobSize {
 		if size > 0 {
