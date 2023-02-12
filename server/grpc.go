@@ -238,6 +238,10 @@ func gRPCErrCode(err error, dflt codes.Code) codes.Code {
 		return codes.OK
 	}
 
+	if err == disk.ErrOverloaded {
+		return codes.ResourceExhausted
+	}
+
 	cerr, ok := err.(*cache.Error)
 	if ok && cerr.Code == http.StatusBadRequest {
 		return codes.InvalidArgument
