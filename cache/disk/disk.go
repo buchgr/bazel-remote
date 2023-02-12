@@ -79,8 +79,9 @@ type diskCache struct {
 	accessLogger     *log.Logger
 	containsQueue    chan proxyCheck
 
-	// Limit the number of simultaneous file removals.
-	fileRemovalSem *semaphore.Weighted
+	// Limit the number of simultaneous file removals and filesystem write
+	// operations (apart from atime updates, which we hope are fast).
+	diskWaitSem *semaphore.Weighted
 
 	mu  sync.Mutex
 	lru SizedLRU
@@ -103,6 +104,11 @@ func badReqErr(format string, a ...interface{}) *cache.Error {
 		Code: http.StatusBadRequest,
 		Text: fmt.Sprintf(format, a...),
 	}
+}
+
+var ErrOverloaded = &cache.Error{
+	Code: http.StatusServiceUnavailable, // Too many requests/disk overloaded.
+	Text: "Too many requests/disk overloaded (please try again later)",
 }
 
 // Non-test users must call this to expose metrics.
@@ -169,12 +175,12 @@ func (c *diskCache) getElementPath(key Key, value lruItem) string {
 }
 
 func (c *diskCache) removeFile(f string) {
-	err := c.fileRemovalSem.Acquire(context.Background(), 1)
+	err := c.diskWaitSem.Acquire(context.Background(), 1)
 	if err != nil {
 		log.Printf("ERROR: failed to aquire semaphore: %v, unable to remove %s", err, f)
 		return
 	}
-	defer c.fileRemovalSem.Release(1)
+	defer c.diskWaitSem.Release(1)
 
 	err = os.Remove(f)
 	if err != nil {
@@ -242,6 +248,12 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 	if kind == cache.CAS && size == 0 && hash == emptySha256 {
 		return nil
 	}
+
+	if !c.diskWaitSem.TryAcquire(1) {
+		// We are probably overloaded, and want to avoid hitting Go's default 10,000 max OS thread limit.
+		return ErrOverloaded
+	}
+	defer c.diskWaitSem.Release(1)
 
 	key := cache.LookupKey(kind, hash)
 

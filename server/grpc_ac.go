@@ -171,6 +171,12 @@ func (s *grpcServer) maybeInline(ctx context.Context, inline bool, slice *[]byte
 			return nil // Not inlined, nothing to do.
 		}
 
+		if (*digest).SizeBytes <= 0 {
+			// Unexpected corner case?
+			*slice = []byte{}
+			return nil
+		}
+
 		if *digest == nil {
 			hash := sha256.Sum256(*slice)
 			*digest = &pb.Digest{
@@ -183,10 +189,10 @@ func (s *grpcServer) maybeInline(ctx context.Context, inline bool, slice *[]byte
 		if !found {
 			err := s.cache.Put(ctx, cache.CAS, (*digest).Hash, (*digest).SizeBytes,
 				bytes.NewReader(*slice))
-			if err != nil && err != io.EOF {
-				return err
+			if err == nil || err == io.EOF {
+				s.accessLogger.Printf("GRPC CAS PUT %s OK", (*digest).Hash)
 			}
-			s.accessLogger.Printf("GRPC CAS PUT %s OK", (*digest).Hash)
+			// De-inline failed (possibly due to "resource overload"), that's OK though.
 		}
 
 		*slice = []byte{}
