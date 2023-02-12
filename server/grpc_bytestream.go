@@ -537,6 +537,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 			}
 			return nil
 		}
+
 		if err == nil {
 			// Unexpected early return. Should not happen.
 			msg := fmt.Sprintf("GRPC BYTESTREAM WRITE INTERNAL ERROR %s", resourceName)
@@ -546,7 +547,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 
 		msg := fmt.Sprintf("GRPC BYTESTREAM WRITE CACHE ERROR: %s %v", resourceName, err)
 		s.accessLogger.Printf(msg)
-		return status.Error(codes.Internal, msg)
+		return status.Error(gRPCErrCode(err, codes.Internal), msg)
 	}
 
 	select {
