@@ -706,6 +706,20 @@ func TestLoadExistingEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Create some .DS_Store files which should be ignored or deleted.
+	err = os.WriteFile(path.Join(cacheDir, "raw", rawHash[:2], ".DS_Store"), []byte{1, 2, 3}, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(path.Join(cacheDir, "raw", ".DS_Store"), []byte{}, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(path.Join(cacheDir, ".DS_Store"), []byte{4, 5, 6}, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := int64((blobSize + BlockSize) * numBlobs * 2)
 
