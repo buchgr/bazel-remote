@@ -28,6 +28,8 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
+const lowercaseDSStoreFile = ".ds_store"
+
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
 // with a maximum size of `maxSizeBytes` bytes and `opts` Options set.
 func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
@@ -259,13 +261,20 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 	if kind == cache.CAS {
 		for _, item := range listing {
 
-			oldPath := path.Join(oldDir, item.Name())
+			name := item.Name()
 
-			if !validate.HashKeyRegex.MatchString(item.Name()) {
+			oldPath := path.Join(oldDir, name)
+
+			if !validate.HashKeyRegex.MatchString(name) {
+				if strings.ToLower(name) == lowercaseDSStoreFile {
+					os.Remove(oldPath)
+					continue
+				}
+
 				return fmt.Errorf("Unexpected file: %s", oldPath)
 			}
 
-			destPath := path.Join(destDir, item.Name()) + "-556677.v1"
+			destPath := path.Join(destDir, name) + "-556677.v1"
 			err = os.Rename(oldPath, destPath)
 			if err != nil {
 				return fmt.Errorf("Failed to migrate CAS blob %s: %w",
@@ -277,13 +286,20 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 	}
 
 	for _, item := range listing {
-		oldPath := path.Join(oldDir, item.Name())
+		name := item.Name()
 
-		if !validate.HashKeyRegex.MatchString(item.Name()) {
-			return fmt.Errorf("Unexpected file: %s %s", oldPath, item.Name())
+		oldPath := path.Join(oldDir, name)
+
+		if !validate.HashKeyRegex.MatchString(name) {
+			if strings.ToLower(name) == lowercaseDSStoreFile {
+				os.Remove(oldPath)
+				continue
+			}
+
+			return fmt.Errorf("Unexpected file: %s %s", oldPath, name)
 		}
 
-		destPath := path.Join(destDir, item.Name()) + "-112233"
+		destPath := path.Join(destDir, name) + "-112233"
 
 		// TODO: support cross-filesystem migration.
 		err = os.Rename(oldPath, destPath)
@@ -481,6 +497,10 @@ func (c *diskCache) scanDir() (scanResult, error) {
 		name := de.Name()
 
 		if !de.IsDir() {
+			if strings.ToLower(name) == lowercaseDSStoreFile {
+				continue
+			}
+
 			return scanResult{}, fmt.Errorf("Unexpected file: %s", name)
 		}
 
@@ -504,6 +524,10 @@ func (c *diskCache) scanDir() (scanResult, error) {
 			dirPath := path.Join(name, name2)
 
 			if !de2.IsDir() {
+				if strings.ToLower(name) == lowercaseDSStoreFile {
+					continue
+				}
+
 				return scanResult{}, fmt.Errorf("Unexpected file: %s", dirPath)
 			}
 
