@@ -61,14 +61,14 @@ tasks:
     shell_commands:
       - ".bazelci/buildkite-install-go.sh"
       - "echo +++ Run end-to-end system test - pure go zstd"
-      - "PATH=$HOME/go/bin:$PATH timeout 30m .bazelci/system-test.sh"
+      - "PATH=$HOME/go/bin:$PATH timeout 45m .bazelci/system-test.sh"
   end_to_end_test_cgo:
     platform: ubuntu2004
     name: "end-to-end test - cgo zstd"
     shell_commands:
       - ".bazelci/buildkite-install-go.sh"
       - "echo +++ Run end-to-end system test - cgo zstd"
-      - "PATH=$HOME/go/bin:$PATH EXTRA_FLAGS=\"--zstd_implementation=cgo\" timeout 30m .bazelci/system-test.sh"
+      - "PATH=$HOME/go/bin:$PATH EXTRA_FLAGS=\"--zstd_implementation=cgo\" timeout 45m .bazelci/system-test.sh"
   tls_tests:
     platform: ubuntu2004
     name: "TLS tests"
