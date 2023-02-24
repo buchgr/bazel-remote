@@ -17,8 +17,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_abbot_go_http_auth",
         importpath = "github.com/abbot/go-http-auth",
-        sum = "h1:9ZqcMQ0fB+ywKACVjGfZM4C7Uq9D5rq0iSmwIjX187k=",
-        version = "v0.4.1-0.20181019201920-860ed7f246ff",
+        sum = "h1:R2ZVGCZzU95oXFJxncosHS9LsX8N4/MYUdGGWOb2cFk=",
+        version = "v0.4.1-0.20220112235402-e1cee1c72f2f",
     )
     go_repository(
         name = "com_github_alecthomas_template",
@@ -1311,8 +1311,8 @@ def go_dependencies():
     go_repository(
         name = "org_golang_x_net",
         importpath = "golang.org/x/net",
-        sum = "h1:wv66FM3rLZGPdxpYL+ApnDe2HzHcTFta3z5nsc13wI4=",
-        version = "v0.0.0-20221004154528-8021a29435af",
+        sum = "h1:D0B/7al0LLrVC8aWF4+oxpv/m8bc7ViFfVS8/gXGdqI=",
+        version = "v0.0.0-20220909164309-bea034e7d591",
     )
     go_repository(
         name = "org_golang_x_oauth2",

@@ -1,7 +1,7 @@
 module github.com/buchgr/bazel-remote
 
 require (
-	github.com/abbot/go-http-auth v0.4.1-0.20181019201920-860ed7f246ff
+	github.com/abbot/go-http-auth v0.4.1-0.20220112235402-e1cee1c72f2f
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/djherbis/atime v1.1.0
 	github.com/golang/protobuf v1.5.2
@@ -59,7 +59,7 @@ require (
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	golang.org/x/crypto v0.0.0-20221005025214-4161e89ecf1b // indirect
-	golang.org/x/net v0.0.0-20221004154528-8021a29435af // indirect
+	golang.org/x/net v0.0.0-20220909164309-bea034e7d591 // indirect
 	golang.org/x/text v0.3.8 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
