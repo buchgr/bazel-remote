@@ -22,7 +22,7 @@ package remoteexecution
 
 import (
 	context "context"
-	semver "github.com/buchgr/bazel-remote/genproto/build/bazel/semver"
+	semver "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/semver"
 	proto "github.com/golang/protobuf/proto"
 	any "github.com/golang/protobuf/ptypes/any"
 	duration "github.com/golang/protobuf/ptypes/duration"

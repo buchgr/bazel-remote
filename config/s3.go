@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/buchgr/bazel-remote/cache/s3proxy"
+	"github.com/buchgr/bazel-remote/v2/cache/s3proxy"
+
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 

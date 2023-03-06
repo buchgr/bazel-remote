@@ -9,8 +9,8 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/buchgr/bazel-remote/cache"
-	"github.com/buchgr/bazel-remote/cache/httpproxy"
+	"github.com/buchgr/bazel-remote/v2/cache"
+	"github.com/buchgr/bazel-remote/v2/cache/httpproxy"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"

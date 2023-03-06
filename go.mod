@@ -1,4 +1,4 @@
-module github.com/buchgr/bazel-remote
+module github.com/buchgr/bazel-remote/v2
 
 require (
 	github.com/abbot/go-http-auth v0.4.1-0.20220112235402-e1cee1c72f2f

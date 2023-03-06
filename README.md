@@ -12,6 +12,12 @@ and bazel-remote will automatically enforce this limit as needed, by deleting
 the least recently used files. S3, GCS and experimental Azure blob storage
 proxy backends are also supported.
 
+Note that while bazel-remote is consumable as a go module, we provide no
+guarantees on the stability or backwards compatibility of the APIs. We do
+attempt to keep the standalone executable backwards-compatible between
+releases however, and cache directory format changes are only allowed in
+major version upgrades.
+
 **Project status**: bazel-remote has been serving TBs of cache artifacts per day since April 2018, both on
 commodity hardware and AWS servers. Outgoing bandwidth can exceed 15 Gbit/s on the right AWS instance type.
 

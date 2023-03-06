@@ -7,6 +7,6 @@ go_library(
         "rlimit_unix.go",
         "rlimit_windows.go",
     ],
-    importpath = "github.com/buchgr/bazel-remote/utils/rlimit",
+    importpath = "github.com/buchgr/bazel-remote/v2/utils/rlimit",
     visibility = ["//visibility:public"],
 )

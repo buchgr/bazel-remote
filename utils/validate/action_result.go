@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
+	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 )
 
 var (

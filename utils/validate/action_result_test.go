@@ -3,7 +3,7 @@ package validate
 import (
 	"testing"
 
-	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
+	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 )
 
 func TestValidateNilPointers(t *testing.T) {

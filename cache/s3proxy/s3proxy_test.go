@@ -3,7 +3,7 @@ package s3proxy
 import (
 	"testing"
 
-	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/v2/cache"
 )
 
 func TestObjectKey(t *testing.T) {

@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/buchgr/bazel-remote/cache/azblobproxy"
-	"github.com/buchgr/bazel-remote/cache/gcsproxy"
-	"github.com/buchgr/bazel-remote/cache/httpproxy"
-	"github.com/buchgr/bazel-remote/cache/s3proxy"
+	"github.com/buchgr/bazel-remote/v2/cache/azblobproxy"
+	"github.com/buchgr/bazel-remote/v2/cache/gcsproxy"
+	"github.com/buchgr/bazel-remote/v2/cache/httpproxy"
+	"github.com/buchgr/bazel-remote/v2/cache/s3proxy"
 )
 
 func (c *Config) setProxy() error {

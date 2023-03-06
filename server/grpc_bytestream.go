@@ -12,12 +12,12 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/buchgr/bazel-remote/cache"
-	"github.com/buchgr/bazel-remote/cache/disk/casblob"
+	"github.com/buchgr/bazel-remote/v2/cache"
+	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
 
 	"github.com/klauspost/compress/zstd"
 
-	"github.com/buchgr/bazel-remote/utils/zstdpool"
+	"github.com/buchgr/bazel-remote/v2/utils/zstdpool"
 	syncpool "github.com/mostynb/zstdpool-syncpool"
 )
 

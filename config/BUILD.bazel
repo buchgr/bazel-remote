@@ -10,7 +10,7 @@ go_library(
         "s3.go",
         "tls.go",
     ],
-    importpath = "github.com/buchgr/bazel-remote/config",
+    importpath = "github.com/buchgr/bazel-remote/v2/config",
     visibility = ["//visibility:public"],
     deps = [
         "//cache:go_default_library",

@@ -8,9 +8,9 @@ import (
 	"log"
 	"path"
 
-	"github.com/buchgr/bazel-remote/cache"
-	"github.com/buchgr/bazel-remote/cache/disk/casblob"
-	"github.com/buchgr/bazel-remote/utils/backendproxy"
+	"github.com/buchgr/bazel-remote/v2/cache"
+	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
+	"github.com/buchgr/bazel-remote/v2/utils/backendproxy"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"

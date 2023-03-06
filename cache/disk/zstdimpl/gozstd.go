@@ -2,10 +2,12 @@ package zstdimpl
 
 import (
 	"errors"
-	"github.com/buchgr/bazel-remote/utils/zstdpool"
+	"io"
+
+	"github.com/buchgr/bazel-remote/v2/utils/zstdpool"
+
 	"github.com/klauspost/compress/zstd"
 	syncpool "github.com/mostynb/zstdpool-syncpool"
-	"io"
 )
 
 var zstdFastestLevel = zstd.WithEncoderLevel(zstd.SpeedFastest)

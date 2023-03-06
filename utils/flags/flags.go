@@ -6,8 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/buchgr/bazel-remote/cache/azblobproxy"
-	"github.com/buchgr/bazel-remote/cache/s3proxy"
+	"github.com/buchgr/bazel-remote/v2/cache/azblobproxy"
+	"github.com/buchgr/bazel-remote/v2/cache/s3proxy"
+
 	"github.com/urfave/cli/v2"
 )
 

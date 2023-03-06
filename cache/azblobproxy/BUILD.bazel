@@ -6,7 +6,7 @@ go_library(
         "auth_methods.go",
         "azblobproxy.go",
     ],
-    importpath = "github.com/buchgr/bazel-remote/cache/azblobproxy",
+    importpath = "github.com/buchgr/bazel-remote/v2/cache/azblobproxy",
     visibility = ["//visibility:public"],
     deps = [
         "//cache:go_default_library",

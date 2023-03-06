@@ -11,7 +11,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/buchgr/bazel-remote/cache/disk/zstdimpl"
+	"github.com/buchgr/bazel-remote/v2/cache/disk/zstdimpl"
 )
 
 type CompressionType uint8

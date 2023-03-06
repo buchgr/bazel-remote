@@ -11,7 +11,7 @@ go_library(
         ],
         "//conditions:default": [],
     }),
-    importpath = "github.com/buchgr/bazel-remote/cache/disk/zstdimpl",
+    importpath = "github.com/buchgr/bazel-remote/v2/cache/disk/zstdimpl",
     visibility = ["//visibility:public"],
     deps = [
         "//utils/zstdpool:go_default_library",

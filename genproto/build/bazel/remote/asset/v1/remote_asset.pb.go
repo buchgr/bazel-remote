@@ -6,7 +6,7 @@ package remoteasset
 import (
 	context "context"
 	fmt "fmt"
-	v2 "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
+	v2 "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 	proto "github.com/golang/protobuf/proto"
 	duration "github.com/golang/protobuf/ptypes/duration"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"

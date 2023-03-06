@@ -10,12 +10,12 @@ import (
 	"strings"
 	"testing"
 
-	asset "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/asset/v1"
-	//pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
+	asset "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/asset/v1"
+	//pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 
 	"google.golang.org/grpc/codes"
 
-	testutils "github.com/buchgr/bazel-remote/utils"
+	testutils "github.com/buchgr/bazel-remote/v2/utils"
 )
 
 func TestAssetFetchBlob(t *testing.T) {

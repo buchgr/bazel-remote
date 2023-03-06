@@ -15,10 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/buchgr/bazel-remote/cache"
-	"github.com/buchgr/bazel-remote/cache/disk/casblob"
-	"github.com/buchgr/bazel-remote/cache/disk/zstdimpl"
-	"github.com/buchgr/bazel-remote/utils/validate"
+	"github.com/buchgr/bazel-remote/v2/cache"
+	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
+	"github.com/buchgr/bazel-remote/v2/cache/disk/zstdimpl"
+	"github.com/buchgr/bazel-remote/v2/utils/validate"
 
 	"github.com/djherbis/atime"
 

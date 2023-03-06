@@ -10,7 +10,7 @@ go_library(
         "metrics.go",
         "options.go",
     ],
-    importpath = "github.com/buchgr/bazel-remote/cache/disk",
+    importpath = "github.com/buchgr/bazel-remote/v2/cache/disk",
     visibility = ["//visibility:public"],
     deps = [
         "//cache:go_default_library",

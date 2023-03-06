@@ -12,7 +12,7 @@ go_library(
         "grpc_idle_timeout.go",
         "http.go",
     ],
-    importpath = "github.com/buchgr/bazel-remote/server",
+    importpath = "github.com/buchgr/bazel-remote/v2/server",
     visibility = ["//visibility:public"],
     deps = [
         "//cache:go_default_library",

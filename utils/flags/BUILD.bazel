@@ -6,7 +6,7 @@ go_library(
         "flags.go",
         "usage.go",
     ],
-    importpath = "github.com/buchgr/bazel-remote/utils/flags",
+    importpath = "github.com/buchgr/bazel-remote/v2/utils/flags",
     visibility = ["//visibility:public"],
     deps = [
         "//cache/azblobproxy:go_default_library",

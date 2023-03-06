@@ -12,9 +12,9 @@ import (
 	grpc_status "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
-	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
+	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 
-	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/v2/cache"
 )
 
 var (

@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	asset "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/asset/v1"
-	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
+	asset "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/asset/v1"
+	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/google/uuid"
@@ -27,10 +27,10 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
-	"github.com/buchgr/bazel-remote/cache"
-	"github.com/buchgr/bazel-remote/cache/disk"
-	"github.com/buchgr/bazel-remote/cache/disk/casblob"
-	testutils "github.com/buchgr/bazel-remote/utils"
+	"github.com/buchgr/bazel-remote/v2/cache"
+	"github.com/buchgr/bazel-remote/v2/cache/disk"
+	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
+	testutils "github.com/buchgr/bazel-remote/v2/utils"
 
 	"github.com/klauspost/compress/zstd"
 )

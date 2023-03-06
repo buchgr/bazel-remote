@@ -3,7 +3,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "go_default_library",
     srcs = ["idle.go"],
-    importpath = "github.com/buchgr/bazel-remote/utils/idle",
+    importpath = "github.com/buchgr/bazel-remote/v2/utils/idle",
     visibility = ["//visibility:public"],
 )
 

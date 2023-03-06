@@ -6,7 +6,7 @@ go_library(
         "auth_methods.go",
         "s3proxy.go",
     ],
-    importpath = "github.com/buchgr/bazel-remote/cache/s3proxy",
+    importpath = "github.com/buchgr/bazel-remote/v2/cache/s3proxy",
     visibility = ["//visibility:public"],
     deps = [
         "//cache:go_default_library",

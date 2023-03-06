@@ -5,9 +5,9 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/buchgr/bazel-remote/cache"
+	"github.com/buchgr/bazel-remote/v2/cache"
 
-	pb "github.com/buchgr/bazel-remote/genproto/build/bazel/remote/execution/v2"
+	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
