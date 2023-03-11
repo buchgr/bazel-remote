@@ -156,10 +156,7 @@ func TestReserveAtCapacity(t *testing.T) {
 	}
 
 	ok, err = lru.Reserve(1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ok {
+	if ok || err == nil {
 		t.Fatal("Should not be able to reserve any space")
 	}
 	if lru.TotalSize() != math.MaxInt64 {
@@ -184,19 +181,13 @@ func TestReserveOverflow(t *testing.T) {
 	}
 
 	ok, err = lru.Reserve(math.MaxInt64)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ok {
+	if ok || err == nil {
 		t.Fatal("Expected overflow")
 	}
 
 	lru = NewSizedLRU(10, nil, 0)
 	ok, err = lru.Reserve(math.MaxInt64)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ok {
+	if ok || err == nil {
 		t.Fatal("Expected overflow")
 	}
 }

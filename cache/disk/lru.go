@@ -215,15 +215,19 @@ func (c *SizedLRU) Reserve(size int64) (bool, error) {
 		return true, nil
 	}
 
-	if size < 0 || size > c.maxSize {
-		return false, nil
+	if size < 0 {
+		return false, fmt.Errorf("Invalid negative blob size: %d", size)
+	}
+
+	if size > c.maxSize {
+		return false, fmt.Errorf("Unable to reserve space for blob (size: %d) larger than cache size %d", size, c.maxSize)
 	}
 
 	if sumLargerThan(size, c.reservedSize, c.maxSize) {
 		// If size + c.reservedSize is larger than c.maxSize
 		// then we cannot evict enough items to make enough
 		// space.
-		return false, nil
+		return false, fmt.Errorf("INTERNAL ERROR: unable to reserve enough space for blob with size %d (undersized cache?)", size)
 	}
 
 	// Evict elements until we are able to reserve enough space.

@@ -278,7 +278,10 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 		ok, err := c.lru.Reserve(size)
 		if err != nil {
 			c.mu.Unlock()
-			return internalErr(err)
+			return &cache.Error{
+				Code: http.StatusInsufficientStorage,
+				Text: err.Error(),
+			}
 		}
 		if !ok {
 			c.mu.Unlock()
