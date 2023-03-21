@@ -558,6 +558,9 @@ the maximum size in Gibibytes.
 
 ### Kubernetes notes
 
+* See [examples/kubernetes.yml](examples/kubernetes.yml) for an example
+  configuration.
+
 * Don't name your deployment `bazel-remote`!
   
   Kubernetes sets some environment variables based on this name, which conflict

@@ -1,0 +1,49 @@
+# This configuration has been reported as working with k8s >= 1.24
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: bazel-remote-cache
+        image: buchgr/bazel-remote-cache:latest
+        ports:
+          - containerPort: 7442
+            name: http
+            protocol: TCP
+          - containerPort: 8080
+            name: http-default
+            protocol: TCP
+        livenessProbe:
+            grpc:
+              service: /grpc.health.v1.Health/Check
+              port: 9092
+            failureThreshold: 3
+            initialDelaySeconds: 3
+            periodSeconds: 1
+            successThreshold: 1
+            timeoutSeconds: 1
+        readinessProbe:
+            grpc:
+              service: /grpc.health.v1.Health/Check
+              port: 9092
+            failureThreshold: 3
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 10
+        env:
+          # Set bazel-remote configuration value here...
+          BAZEL_REMOTE_DIR: /data
+          BAZEL_REMOTE_MAX_SIZE: 1000
