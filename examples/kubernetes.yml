@@ -20,7 +20,7 @@ spec:
       - name: bazel-remote-cache
         image: buchgr/bazel-remote-cache:latest
         ports:
-          - containerPort: 7442
+          - containerPort: 9092
             name: http
             protocol: TCP
           - containerPort: 8080
@@ -43,6 +43,7 @@ spec:
             periodSeconds: 3
             successThreshold: 1
             timeoutSeconds: 10
+        args: ["--max_size=$(BAZEL_REMOTE_MAX_SIZE)"] # ensure we override the default --max_size argument from the container.
         env:
           # Set bazel-remote configuration value here...
           BAZEL_REMOTE_DIR: /data
