@@ -8,7 +8,7 @@ require (
 	github.com/google/go-cmp v0.5.8
 	github.com/google/uuid v1.3.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
-	github.com/klauspost/compress v1.15.11
+	github.com/klauspost/compress v1.16.5
 	github.com/minio/minio-go/v7 v7.0.39
 	github.com/mostynb/go-grpc-compression v1.1.17
 	github.com/mostynb/zstdpool-syncpool v0.0.12
