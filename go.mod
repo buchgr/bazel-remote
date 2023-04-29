@@ -29,7 +29,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v0.4.1
-	github.com/valyala/gozstd v1.17.0
+	github.com/valyala/gozstd v1.19.1
 )
 
 require (

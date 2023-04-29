@@ -777,8 +777,8 @@ def go_dependencies():
         importpath = "github.com/valyala/gozstd",
         patch_args = ["-p1"],  # keep
         patches = ["gozstd.patch"],  # keep
-        sum = "h1:M4Ds4MIrw+pD+s6vYtuFZ8D3iEw9htzfdytOV3C3iQU=",
-        version = "v1.17.0",
+        sum = "h1:6Ftg2xogscS/9FEdn+qJvM8AxifLNUK65Ez6tp3doYI=",
+        version = "v1.19.1",
     )
     go_repository(
         name = "com_github_xrash_smetrics",
