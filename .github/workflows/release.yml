@@ -12,44 +12,28 @@ jobs:
     steps:
       - name: checkout code
         uses: actions/checkout@v2
+      - name: get release version
+        id: release_version
+        run: echo VERSION=${GITHUB_REF/refs\/tags\/v/} >> $GITHUB_ENV
       - name: build amd64
         run: |
           set -eu
           bazelisk build //:bazel-remote-linux-amd64
-          bazelisk run --run_under "cp -f " //:bazel-remote-linux-amd64 $(pwd)/bazel-remote-linux-amd64
+          bazelisk run --run_under "cp -f " //:bazel-remote-linux-amd64 $(pwd)/bazel-remote-${{ env.VERSION }}-linux-x86_64
       - name: build arm64
         run: |
           set -eu
           bazelisk build //:bazel-remote-linux-arm64
-          bazelisk run --run_under "cp -f " //:bazel-remote-linux-arm64 $(pwd)/bazel-remote-linux-arm64
-      - name: get release URL
-        id: get_release
-        uses: bruceadams/get-release@v1.2.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: get release version
-        id: release_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\/v/}
-      - name: upload linux amd64
-        id: upload-release-asset-linux-amd64
-        uses: actions/upload-release-asset@v1
+          bazelisk run --run_under "cp -f " //:bazel-remote-linux-arm64 $(pwd)/bazel-remote-${{ env.VERSION }}-linux-arm64
+      - name: upload linux binaries
+        id: upload-release-assets-linux
+        uses: xresloader/upload-to-github-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: bazel-remote-linux-amd64
-          asset_name: bazel-remote-${{ steps.release_version.outputs.VERSION }}-linux-x86_64
-          asset_content_type: application/octet-stream
-      - name: upload linux arm64
-        id: upload-release-asset-linux-arm64
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: bazel-remote-linux-arm64
-          asset_name: bazel-remote-${{ steps.release_version.outputs.VERSION }}-linux-arm64
-          asset_content_type: application/octet-stream
+          file: bazel-remote-${{ env.VERSION }}-linux-*
+          overwrite: true
+          tags: true
 
   mac:
     name: create mac binaries
@@ -57,41 +41,25 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v2
+      - name: get release version
+        id: release_version
+        run: echo VERSION=${GITHUB_REF/refs\/tags\/v/} >> $GITHUB_ENV
       - name: build amd64
         run: |
           set -eu
           bazelisk build //:bazel-remote-darwin-amd64
-          bazelisk run --run_under "cp -f " //:bazel-remote-darwin-amd64 $(pwd)/bazel-remote-darwin-amd64
+          bazelisk run --run_under "cp -f " //:bazel-remote-darwin-amd64 $(pwd)/bazel-remote-${{ env.VERSION }}-darwin-amd64
       - name: build arm64
         run: |
           set -eu
           bazelisk build //:bazel-remote-darwin-arm64
-          bazelisk run --run_under "cp -f " //:bazel-remote-darwin-arm64 $(pwd)/bazel-remote-darwin-arm64
-      - name: get release URL
-        id: get_release
-        uses: bruceadams/get-release@v1.2.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: get release version
-        id: release_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\/v/}
-      - name: upload darwin amd64
-        id: upload-release-asset-darwin-amd64
-        uses: actions/upload-release-asset@v1
+          bazelisk run --run_under "cp -f " //:bazel-remote-darwin-arm64 $(pwd)/bazel-remote-${{ env.VERSION }}-darwin-arm64
+      - name: upload darwin binaries
+        id: upload-release-assets-darwin
+        uses: xresloader/upload-to-github-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: bazel-remote-darwin-amd64
-          asset_name: bazel-remote-${{ steps.release_version.outputs.VERSION }}-darwin-x86_64
-          asset_content_type: application/octet-stream
-      - name: upload darwin arm64
-        id: upload-release-asset-darwin-arm64
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: bazel-remote-darwin-arm64
-          asset_name: bazel-remote-${{ steps.release_version.outputs.VERSION }}-darwin-arm64
-          asset_content_type: application/octet-stream
+          file: bazel-remote-${{ env.VERSION }}-darwin-*
+          overwrite: true
+          tags: true
