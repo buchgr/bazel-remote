@@ -178,6 +178,10 @@ OPTIONS:
       server listener. Set to 0 to disable. (default: 9092)
       [$BAZEL_REMOTE_GRPC_PORT]
 
+   --grpc_max_recv_msg_size value  The maximum message size in bytes the gRPC
+      server can receive. (default: 4194304)
+      [$BAZEL_REMOTE_GRPC_MAX_RECV_MSG_SIZE]
+
    --profile_address value Address specification for a http server to listen
       on for profiling, formatted either as [host]:port for TCP or
       unix://path.sock for Unix domain sockets. Off by default, but can also be
@@ -444,6 +448,9 @@ http_address: 0.0.0.0:8080
 # as described above):
 #grpc_address: 0.0.0.0:9092
 
+# Increase the gRPC server maximum receive message size
+#grpc_max_recv_msg_size: 26214400
+
 # If profile_address (or the deprecated profile_port and/or profile_host)
 # is specified, then serve /debug/pprof/* URLs here (unix sockets are also
 # supported as described above):
@@ -575,7 +582,7 @@ http_address: 0.0.0.0:8080
 #  auth_method: environment_credential
 #
 #  auth_method: default
-  
+
 # If set to a valid port number, then serve /debug/pprof/* URLs here:
 #profile_port: 7070
 # IP address to use, if profiling is enabled:
@@ -635,7 +642,7 @@ See [examples/docker-compose.yml](examples/docker-compose.yml) for an example co
   configuration.
 
 * Don't name your deployment `bazel-remote`!
-  
+
   Kubernetes sets some environment variables based on this name, which conflict
   with the `BAZEL_REMOTE_*` environment variables that bazel-remote tries to
   parse.
