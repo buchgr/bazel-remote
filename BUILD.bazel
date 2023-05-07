@@ -46,6 +46,7 @@ go_library(
 
 go_binary(
     name = "bazel-remote",
+    cgo = True,
     embed = [":go_default_library"],
     pure = "off",
     static = "off",
@@ -55,6 +56,7 @@ go_binary(
 
 go_binary(
     name = "bazel-remote-linux-amd64",
+    cgo = True,
     embed = [":go_default_library"],
     goarch = "amd64",
     goos = "linux",
@@ -66,10 +68,11 @@ go_binary(
 
 go_binary(
     name = "bazel-remote-linux-arm64",
+    cgo = True,
     embed = [":go_default_library"],
     goarch = "arm64",
     goos = "linux",
-    pure = "on",
+    pure = "off",
     static = "on",
     visibility = ["//visibility:public"],
     x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
@@ -77,10 +80,11 @@ go_binary(
 
 go_binary(
     name = "bazel-remote-darwin-amd64",
+    cgo = True,
     embed = [":go_default_library"],
     goarch = "amd64",
     goos = "darwin",
-    pure = "on",
+    pure = "off",
     static = "on",
     visibility = ["//visibility:public"],
     x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
@@ -88,10 +92,11 @@ go_binary(
 
 go_binary(
     name = "bazel-remote-darwin-arm64",
+    cgo = True,
     embed = [":go_default_library"],
     goarch = "arm64",
     goos = "darwin",
-    pure = "on",
+    pure = "off",
     static = "on",
     visibility = ["//visibility:public"],
     x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
@@ -103,6 +108,7 @@ BAZEL_REMOTE_USER_ID = 65532
 go_image(
     name = "bazel-remote-base",
     base = "@cgo_amd64_base//image",  # Does not include openssl.
+    cgo = True,
     embed = [":go_default_library"],
     goarch = "amd64",
     goos = "linux",
@@ -115,6 +121,7 @@ go_image(
 go_image(
     name = "bazel-remote-base-arm64",
     base = "@cgo_arm64_base//image",  # Does not include openssl.
+    cgo = True,
     embed = [":go_default_library"],
     goarch = "arm64",
     goos = "linux",
