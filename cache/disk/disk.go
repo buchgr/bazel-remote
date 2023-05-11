@@ -174,12 +174,6 @@ func (c *diskCache) getElementPath(key Key, value lruItem) string {
 }
 
 func (c *diskCache) removeFile(f string) {
-	if err := c.diskWaitSem.Acquire(context.Background(), 1); err != nil {
-		log.Printf("ERROR: failed to aquire semaphore: %v, unable to remove %s", err, f)
-		return
-	}
-	defer c.diskWaitSem.Release(1)
-
 	err := os.Remove(f)
 	if err != nil {
 		log.Printf("ERROR: failed to remove evicted cache file: %s", f)
@@ -247,9 +241,14 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 		return nil
 	}
 
-	if !c.diskWaitSem.TryAcquire(1) {
-		// We are probably overloaded, and want to avoid hitting Go's default 10,000 max OS thread limit.
-		return ErrOverloaded
+	// Put requests are processed using blocking file syscalls, which
+	// consume one operating system thread per put request. Throttling
+	// the Put requests with a semaphore to avoid requring too many
+	// operating system threads. Get requests do not seem to consume any
+	// significant amount of OS threads and are therefore not throttled.
+	if err := c.diskWaitSem.Acquire(context.Background(), 1); err != nil {
+		log.Printf("ERROR: failed to aquire semaphore: %v", err)
+		return internalErr(err)
 	}
 	defer c.diskWaitSem.Release(1)
 

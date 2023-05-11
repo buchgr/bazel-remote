@@ -42,6 +42,24 @@ type SizedLRU struct {
 	// cache below maxSize.
 	maxSize int64
 
+	// Channel containing evicted entries removed from ll, but not yet
+	// removed from file system.
+	//
+	// The entries are wrapped in a slice to allow the queue to grow
+	// dynamically and not being limited by the channel's max size. Note
+	// that one single new large file can result in evicting thousands of
+	// small old files. And on high load, with many new files, the queue
+	// of evicting entries aggregates and can grow quickly.
+	//
+	// The consumer of the channel does not have to bother about the
+	// diskCache.mu mutex.
+	//
+	// The removal of evicted files asynchronously improves the latency for
+	// Put requests that can start writing the new file earlier. And in
+	// addition, improves latency for all requests by not having to hold
+	// the diskCache.mu mutex during file system remove syscalls.
+	queuedEvictionsChan chan []*entry
+
 	onEvict EvictCallback
 
 	gaugeCacheSizeBytes     prometheus.Gauge
@@ -94,6 +112,7 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback, initialCapacity int) Size
 				1:    0,
 			},
 		}),
+		queuedEvictionsChan: make(chan []*entry, 1),
 	}
 }
 
@@ -131,10 +150,9 @@ func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
 		c.ll.MoveToFront(ee)
 		c.counterOverwrittenBytes.Add(float64(ee.Value.(*entry).value.sizeOnDisk))
 
-		prevValue := ee.Value.(*entry).value
-		if c.onEvict != nil {
-			c.onEvict(key, prevValue)
-		}
+		kv := ee.Value.(*entry)
+		kvCopy := &entry{kv.key, kv.value}
+		c.appendEvictionToQueue(kvCopy)
 
 		ee.Value.(*entry).value = value
 	} else {
@@ -287,10 +305,7 @@ func (c *SizedLRU) removeElement(e *list.Element) {
 	c.currentSize -= roundUp4k(kv.value.sizeOnDisk)
 	c.uncompressedSize -= roundUp4k(kv.value.size)
 	c.counterEvictedBytes.Add(float64(kv.value.sizeOnDisk))
-
-	if c.onEvict != nil {
-		c.onEvict(kv.key, kv.value)
-	}
+	c.appendEvictionToQueue(kv)
 }
 
 // Round n up to the nearest multiple of BlockSize (4096).
@@ -306,4 +321,36 @@ func (c *SizedLRU) getTailItem() (Key, lruItem) {
 		return kv.key, kv.value
 	}
 	return nil, lruItem{}
+}
+
+// Append an entry to the eviction queue. The entry must have been removed
+// from SizedLRU.ll before being sent to this method.
+// Note that this method can be invoked without holding the diskCache.mu mutex,
+// but it is guaranteed to never block for full channel buffer as long as
+// it is invoked only when holding the diskCache.mu mutex and no one else tries
+// to send to queuedEvictionsChan concurrently.
+func (c *SizedLRU) appendEvictionToQueue(e *entry) {
+	select {
+	case queuedEvictions := <-c.queuedEvictionsChan:
+		c.queuedEvictionsChan <- append(queuedEvictions, e)
+	default:
+		c.queuedEvictionsChan <- []*entry{e}
+	}
+}
+
+// Block waiting for a slice of evicted entries and then remove them from
+// file system. Note that one single slice could theoretically contain
+// millions of entries in overload situations.
+// Note that this method may be invoked without holding the diskCache.mu mutex.
+func (c *SizedLRU) performQueuedEvictions() {
+	for _, kv := range <-c.queuedEvictionsChan {
+		c.onEvict(kv.key, kv.value)
+	}
+}
+
+// Note that this method may be invoked without holding the diskCache.mu mutex.
+func (c *SizedLRU) performQueuedEvictionsContinuously() {
+	for {
+		c.performQueuedEvictions()
+	}
 }

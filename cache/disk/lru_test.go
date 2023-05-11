@@ -89,7 +89,9 @@ func TestEviction(t *testing.T) {
 		if !ok {
 			t.Fatalf("Add: failed adding %d", i)
 		}
-
+		if len(lru.queuedEvictionsChan) > 0 {
+			lru.performQueuedEvictions()
+		}
 		checkSizeAndNumItems(t, lru, thisExpected.expBlocks*BlockSize, thisExpected.expNumItems)
 
 		expectedEvictions = append(expectedEvictions, thisExpected.expEvicted...)
