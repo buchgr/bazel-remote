@@ -538,14 +538,16 @@ size of `5 GiB`.
 # Dockerhub example:
 $ docker pull buchgr/bazel-remote-cache
 $ docker run -u 1000:1000 -v /path/to/cache/dir:/data \
-	-p 9090:8080 -p 9092:9092 buchgr/bazel-remote-cache
+	-p 9090:8080 -p 9092:9092 buchgr/bazel-remote-cache \
+	--max_size 5
 ```
 
 ```bash
 # quay.io example:
 $ docker pull quay.io/bazel-remote/bazel-remote
 $ docker run -u 1000:1000 -v /path/to/cache/dir:/data \
-	-p 9090:8080 -p 9092:9092 quay.io/bazel-remote/bazel-remote
+	-p 9090:8080 -p 9092:9092 quay.io/bazel-remote/bazel-remote \
+	--max_size 5
 ```
 
 Note that you will need to change `/path/to/cache/dir` to a valid directory that is readable
@@ -553,7 +555,7 @@ and writable by the specified user (or by uid/gid `65532` if no user was specifi
 
 If you want the docker container to run in the background pass the `-d` flag right after `docker run`.
 
-You can adjust the maximum cache size by appending `--max_size=N`, where N is
+You can adjust the maximum cache size by appending `--max_size N`, where N is
 the maximum size in Gibibytes.
 
 ### Kubernetes notes
@@ -585,7 +587,7 @@ the maximum size in Gibibytes.
 The command below will build a docker image from source and install it into your local docker registry.
 
 ```bash
-$ bazel run :bazel-remote-image
+$ bazel run :bazel-remote-image -- --max_size 5 --dir /your/path/to/data
 ```
 
 ### ARM Support
@@ -595,7 +597,7 @@ Bazel remote cache server can be run on an ARM architecture (i.e.: on a Raspberr
 To build for ARM, use:
 
 ```bash
-$ bazel run :bazel-remote-image-arm64
+$ bazel run :bazel-remote-image-arm64 -- --max_size 5 --dir /your/path/to/data
 ```
 
 ## Build a standalone Linux binary
@@ -623,7 +625,7 @@ $ docker run -v /path/to/cache/dir:/data \
 	-p 9090:8080 -p 9092:9092 buchgr/bazel-remote-cache \
 	--tls_cert_file=/etc/bazel-remote/server_cert \
 	--tls_key_file=/etc/bazel-remote/server_key \
-	--htpasswd_file /etc/bazel-remote/htpasswd --max_size=5
+	--htpasswd_file /etc/bazel-remote/htpasswd --max_size 5
 ```
 
 If you prefer not using `.htpasswd` files it is also possible to
@@ -641,7 +643,7 @@ $ docker run -v /path/to/cache/dir:/data \
 	--tls_ca_file=/etc/bazel-remote/ca_cert \
 	--tls_cert_file=/etc/bazel-remote/server_cert \
 	--tls_key_file=/etc/bazel-remote/server_key \
-	--max_size=5
+	--max_size 5
 ```
 
 ### Using bazel-remote with AWS Credential file authentication for S3 inside a docker container
@@ -655,7 +657,7 @@ $ docker run -u 1000:1000 -v /path/to/cache/dir:/data -v $HOME/.aws:/aws-config 
    --s3.auth_method=aws_credentials_file --s3.aws_profile=supercool \
    --s3.aws_shared_credentials_file=/aws-config/credentials \
    --s3.bucket=my-bucket --s3.endpoint=s3.us-east-1.amazonaws.com \
-   --max_size=5
+   --max_size 5
 ```
 
 Note that if you use the `--s3.auth_method=iam_role` flag with docker, then in
