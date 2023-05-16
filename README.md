@@ -538,14 +538,16 @@ size of `5 GiB`.
 # Dockerhub example:
 $ docker pull buchgr/bazel-remote-cache
 $ docker run -u 1000:1000 -v /path/to/cache/dir:/data \
-	-p 9090:8080 -p 9092:9092 buchgr/bazel-remote-cache
+	-p 9090:8080 -p 9092:9092 buchgr/bazel-remote-cache \
+	---max_size=5
 ```
 
 ```bash
 # quay.io example:
 $ docker pull quay.io/bazel-remote/bazel-remote
 $ docker run -u 1000:1000 -v /path/to/cache/dir:/data \
-	-p 9090:8080 -p 9092:9092 quay.io/bazel-remote/bazel-remote
+	-p 9090:8080 -p 9092:9092 quay.io/bazel-remote/bazel-remote \
+	---max_size=5
 ```
 
 Note that you will need to change `/path/to/cache/dir` to a valid directory that is readable
@@ -585,7 +587,7 @@ the maximum size in Gibibytes.
 The command below will build a docker image from source and install it into your local docker registry.
 
 ```bash
-$ bazel run :bazel-remote-image
+$ bazel run :bazel-remote-image -- --max_size=5 --dir=/your/path/to/data
 ```
 
 ### ARM Support
@@ -595,7 +597,7 @@ Bazel remote cache server can be run on an ARM architecture (i.e.: on a Raspberr
 To build for ARM, use:
 
 ```bash
-$ bazel run :bazel-remote-image-arm64
+$ bazel run :bazel-remote-image-arm64 -- --max_size=5 --dir=/your/path/to/data
 ```
 
 ## Build a standalone Linux binary

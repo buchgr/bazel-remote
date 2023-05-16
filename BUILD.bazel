@@ -128,7 +128,6 @@ container_image(
     name = "bazel-remote-image",
     architecture = "amd64",
     base = ":bazel-remote-base",
-    cmd = ["--max_size=5"],
     entrypoint = [
         "/app/bazel-remote-base.binary",
         "--http_address=:8080",
@@ -151,7 +150,6 @@ container_image(
     name = "bazel-remote-image-arm64",
     architecture = "arm64",
     base = ":bazel-remote-base-arm64",
-    cmd = ["--max_size=1"],
     entrypoint = [
         "/app/bazel-remote-base-arm64.binary",
         "--http_address=:8080",
