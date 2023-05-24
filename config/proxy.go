@@ -49,6 +49,7 @@ func (c *Config) setProxy() error {
 		c.ProxyBackend = s3proxy.New(
 			c.S3CloudStorage.Endpoint,
 			c.S3CloudStorage.Bucket,
+			c.S3CloudStorage.BucketLookupType,
 			c.S3CloudStorage.Prefix,
 			creds,
 			c.S3CloudStorage.DisableSSL,
