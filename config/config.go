@@ -349,6 +349,12 @@ func validateConfig(c *Config) error {
 		if c.S3CloudStorage.KeyVersion != nil && *c.S3CloudStorage.KeyVersion != 2 {
 			return fmt.Errorf("s3.key_version (deprecated) must be 2, found %d", c.S3CloudStorage.KeyVersion)
 		}
+
+		if c.S3CloudStorage.BucketLookupType != "" && c.S3CloudStorage.BucketLookupType != "auto" &&
+			c.S3CloudStorage.BucketLookupType != "dns" && c.S3CloudStorage.BucketLookupType != "path" {
+			return fmt.Errorf("s3.bucket_lookup_type must be one of: \"auto\", \"dns\", \"path\" or empty/unspecified, found: \"%s\"",
+				c.S3CloudStorage.BucketLookupType)
+		}
 	}
 
 	if c.AzBlobConfig != nil {
@@ -447,6 +453,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		s3 = &S3CloudStorageConfig{
 			Endpoint:                 ctx.String("s3.endpoint"),
 			Bucket:                   ctx.String("s3.bucket"),
+			BucketLookupType:         ctx.String("s3.bucket_lookup_type"),
 			Prefix:                   ctx.String("s3.prefix"),
 			AuthMethod:               ctx.String("s3.auth_method"),
 			AccessKeyID:              ctx.String("s3.access_key_id"),

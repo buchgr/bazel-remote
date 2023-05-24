@@ -49,6 +49,7 @@ func New(
 	// S3CloudStorageConfig struct fields:
 	Endpoint string,
 	Bucket string,
+	BucketLookupType minio.BucketLookupType,
 	Prefix string,
 	Credentials *credentials.Credentials,
 	DisableSSL bool,
@@ -69,7 +70,8 @@ func New(
 
 	// Initialize minio client with credentials
 	opts := &minio.Options{
-		Creds: Credentials,
+		Creds:        Credentials,
+		BucketLookup: BucketLookupType,
 
 		Region: Region,
 		Secure: !DisableSSL,

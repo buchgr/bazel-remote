@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/buchgr/bazel-remote/v2/cache/gcsproxy"
 	"github.com/buchgr/bazel-remote/v2/cache/httpproxy"
 	"github.com/buchgr/bazel-remote/v2/cache/s3proxy"
+	"github.com/minio/minio-go/v7"
 )
 
 func (c *Config) setProxy() error {
@@ -46,9 +48,14 @@ func (c *Config) setProxy() error {
 			return err
 		}
 
+		bucketLookupType, err := parseBucketLookupType(c.S3CloudStorage.BucketLookupType)
+		if err != nil {
+			return err
+		}
 		c.ProxyBackend = s3proxy.New(
 			c.S3CloudStorage.Endpoint,
 			c.S3CloudStorage.Bucket,
+			bucketLookupType,
 			c.S3CloudStorage.Prefix,
 			creds,
 			c.S3CloudStorage.DisableSSL,
@@ -77,4 +84,19 @@ func (c *Config) setProxy() error {
 	}
 
 	return nil
+}
+
+func parseBucketLookupType(typeStr string) (minio.BucketLookupType, error) {
+	valMap := map[string]minio.BucketLookupType{
+		"auto": minio.BucketLookupAuto,
+		"dns":  minio.BucketLookupDNS,
+		"path": minio.BucketLookupPath,
+	}
+
+	val, ok := valMap[typeStr]
+	if !ok {
+		return 0, fmt.Errorf("Unsupported value: %s", typeStr)
+	}
+
+	return val, nil
 }
