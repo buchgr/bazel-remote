@@ -27,7 +27,7 @@ import (
 	syncpool "github.com/mostynb/zstdpool-syncpool"
 )
 
-var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac|cas(?:\\.v2)?/)([a-f0-9]{64})$")
+var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?((?:ac|cas(?:\\.v2)?)/)([a-f0-9]{64})$")
 
 var decoder, _ = zstd.NewReader(nil) // TODO: raise WithDecoderConcurrency ?
 
