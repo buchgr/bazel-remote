@@ -41,6 +41,7 @@ type Config struct {
 	ProfileAddress              string                    `yaml:"profile_address"`
 	Dir                         string                    `yaml:"dir"`
 	MaxSize                     int                       `yaml:"max_size"`
+	DiskSizeLimit               int                       `yaml:"disk_size_limit"`
 	StorageMode                 string                    `yaml:"storage_mode"`
 	ZstdImplementation          string                    `yaml:"zstd_implementation"`
 	HtpasswdFile                string                    `yaml:"htpasswd_file"`
@@ -119,6 +120,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	httpWriteTimeout time.Duration,
 	accessLogLevel string,
 	logTimezone string,
+	diskSizeLimit int,
 	maxBlobSize int64,
 	maxProxyBlobSize int64) (*Config, error) {
 
@@ -128,6 +130,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		ProfileAddress:              profileAddress,
 		Dir:                         dir,
 		MaxSize:                     maxSize,
+		DiskSizeLimit:               diskSizeLimit,
 		StorageMode:                 storageMode,
 		ZstdImplementation:          zstdImplementation,
 		HtpasswdFile:                htpasswdFile,
@@ -521,6 +524,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.Duration("http_write_timeout"),
 		ctx.String("access_log_level"),
 		ctx.String("log_timezone"),
+		ctx.Int("disk_size_limit"),
 		ctx.Int64("max_blob_size"),
 		ctx.Int64("max_proxy_blob_size"),
 	)

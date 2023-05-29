@@ -16,6 +16,7 @@ type Option func(*CacheConfig) error
 type CacheConfig struct {
 	diskCache *diskCache        // Assumed to be non-nil.
 	metrics   *metricsDecorator // May be nil.
+	diskSizeLimit int64
 }
 
 func WithStorageMode(mode string) Option {
@@ -98,6 +99,13 @@ func WithEndpointMetrics() Option {
 				[]string{"method", "kind", "status"}),
 		}
 
+		return nil
+	}
+}
+
+func WithDiskSizeLimit(diskSizeLimit int64) Option {
+	return func(cc *CacheConfig) error {
+		cc.diskSizeLimit = diskSizeLimit
 		return nil
 	}
 }
