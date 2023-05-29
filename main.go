@@ -141,6 +141,7 @@ func run(ctx *cli.Context) error {
 		disk.WithZstdImplementation(c.ZstdImplementation),
 		disk.WithMaxBlobSize(c.MaxBlobSize),
 		disk.WithProxyMaxBlobSize(c.MaxProxyBlobSize),
+		disk.WithDiskSizeLimit(int64(c.DiskSizeLimit) * 1024 * 1024 * 1024),
 		disk.WithAccessLogger(c.AccessLogger),
 	}
 	if c.ProxyBackend != nil {

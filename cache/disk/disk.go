@@ -106,8 +106,8 @@ func badReqErr(format string, a ...interface{}) *cache.Error {
 }
 
 var ErrOverloaded = &cache.Error{
-	Code: http.StatusServiceUnavailable, // Too many requests/disk overloaded.
-	Text: "Too many requests/disk overloaded (please try again later)",
+	Code: http.StatusInsufficientStorage,
+	Text: "Out of disk space, due to too large or too many concurrent cache requests. Please try again later.",
 }
 
 // Non-test users must call this to expose metrics.
@@ -121,6 +121,21 @@ func (c *diskCache) RegisterMetrics() {
 	// but since the updater func must lock the cache mu, it was deemed
 	// necessary to have greater control of when to get the cache age
 	go c.pollCacheAge()
+
+	go c.shiftMetricPeriodContinuously()
+}
+
+// Shift to new period for metrics every 30 seconds. A period of
+// 30 seconds should give margin to catch all peaks (with for example
+// a 10 second scrape interval) even in cases of delayed or missed
+// scrapes from prometheus.
+func (c *diskCache) shiftMetricPeriodContinuously() {
+	ticker := time.NewTicker(30 * time.Second)
+	for ; true; <-ticker.C {
+		c.mu.Lock()
+		c.lru.shiftToNextMetricPeriod()
+		c.mu.Unlock()
+	}
 }
 
 // Update metric every minute with the idle time of the least recently used item in the cache
@@ -297,11 +312,7 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 		}
 		if !ok {
 			c.mu.Unlock()
-			return &cache.Error{
-				Code: http.StatusInsufficientStorage,
-				Text: fmt.Sprintf("The item (%d) + reserved space is larger than the cache's maximum size (%d).",
-					size, c.lru.MaxSize()),
-			}
+			return ErrOverloaded
 		}
 		c.mu.Unlock()
 		unreserve = true

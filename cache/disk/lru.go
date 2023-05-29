@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -63,10 +64,30 @@ type SizedLRU struct {
 	onEvict EvictCallback
 
 	gaugeCacheSizeBytes     prometheus.Gauge
+	gaugeCacheSizeBytesLimit *prometheus.GaugeVec
 	gaugeCacheLogicalBytes  prometheus.Gauge
 	counterEvictedBytes     prometheus.Counter
 	counterOverwrittenBytes prometheus.Counter
+
 	summaryCacheItemBytes   prometheus.Summary
+
+	// Peak value of: currentSize + currentlyEvictingSize
+	// Type is uint64 instead of int64 in order to allow representing also
+	// large, rejected reservations that would have resulted in values above
+	// the int64 diskSizeLimit.
+	totalDiskSizePeak uint64
+
+	// Configured max allowed bytes on disk for the cache, including files
+	// queued for eviction but not yet removed. Value <= 0 means no
+	// limit. The diskSizeLimit is expected to be configured higher than
+	// maxSize (e.g., 5% higher) to allow the asynchronous removal to catch
+	// up after peaks of file writes.
+	diskSizeLimit int64
+
+	// Number of bytes currently being evicted (removed from lru but not
+	// yet removed from disk). Is allowed to be accessed and changed
+	// without holding the diskCache.mu lock.
+	queuedEvictionsSize atomic.Int64
 }
 
 type entry struct {
@@ -88,8 +109,15 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback, initialCapacity int) Size
 
 		gaugeCacheSizeBytes: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "bazel_remote_disk_cache_size_bytes",
-			Help: "The current number of bytes in the disk backend",
+			Help: "The peak number of bytes in the disk backend for the previous 30 second period.",
 		}),
+		gaugeCacheSizeBytesLimit: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "bazel_remote_disk_cache_size_bytes_limit",
+				Help: "The currently configured limits of different types, e.g. for when disk cache evicts data or rejects requests.",
+			},
+			[]string{"type"},
+		),
 		gaugeCacheLogicalBytes: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "bazel_remote_disk_cache_logical_bytes",
 			Help: "The current number of bytes in the disk backend if they were uncompressed",
@@ -118,10 +146,20 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback, initialCapacity int) Size
 
 func (c *SizedLRU) RegisterMetrics() {
 	prometheus.MustRegister(c.gaugeCacheSizeBytes)
+	prometheus.MustRegister(c.gaugeCacheSizeBytesLimit)
 	prometheus.MustRegister(c.gaugeCacheLogicalBytes)
 	prometheus.MustRegister(c.counterEvictedBytes)
 	prometheus.MustRegister(c.counterOverwrittenBytes)
 	prometheus.MustRegister(c.summaryCacheItemBytes)
+
+	// Set gauges to constant configured values to help visualize configured limits
+	// and in particular help tuning disk_size_limit configuration by comparing it
+	// against peak values of the bazel_remote_disk_cache_size_bytes prometheus gauge
+	// and give awareness about if getting close to rejecting requests.
+	c.gaugeCacheSizeBytesLimit.WithLabelValues("evict").Set(float64(c.maxSize))
+	if c.diskSizeLimit > 0 {
+		c.gaugeCacheSizeBytesLimit.WithLabelValues("reject").Set(float64(c.diskSizeLimit))
+	}
 }
 
 // Add adds a (key, value) to the cache, evicting items as necessary.
@@ -139,6 +177,16 @@ func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
 	if roundedUpSizeOnDisk > c.maxSize {
 		return false
 	}
+
+	// The files are already stored on disk when Add is invoked, therefore
+	// it is not motivated to reject based on diskSizeLimit. The check
+	// against maxSize is considered sufficient. However, invoke
+	// calcTotalDiskSizeAndUpdatePeak to update the peak value. The peak
+	// value is updated BEFORE triggering new evictions, to make the
+	// metrics reflect that both the new file and the files it
+	// evicts/replaces exists at disk at same time for a short period of
+	// time (unless Reserve method was used and evicted them).
+	c.calcTotalDiskSizeAndUpdatePeak(roundedUpSizeOnDisk)
 
 	var sizeDelta, uncompressedSizeDelta int64
 	if ee, ok := c.cache[key]; ok {
@@ -177,7 +225,6 @@ func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
 	c.currentSize += sizeDelta
 	c.uncompressedSize += uncompressedSizeDelta
 
-	c.gaugeCacheSizeBytes.Set(float64(c.currentSize))
 	c.gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
 	c.summaryCacheItemBytes.Observe(float64(sizeDelta))
 
@@ -198,7 +245,6 @@ func (c *SizedLRU) Get(key Key) (value lruItem, ok bool) {
 func (c *SizedLRU) Remove(key Key) {
 	if ele, hit := c.cache[key]; hit {
 		c.removeElement(ele)
-		c.gaugeCacheSizeBytes.Set(float64(c.currentSize))
 		c.gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
 	}
 }
@@ -259,6 +305,35 @@ func (c *SizedLRU) Reserve(size int64) (bool, error) {
 		// then we cannot evict enough items to make enough
 		// space.
 		return false, fmt.Errorf("INTERNAL ERROR: unable to reserve enough space for blob with size %d (undersized cache?)", size)
+	}
+
+	// Note that the calculated value and the potentially updated peak
+	// value, includes the value tried to be reserved. In other words,
+	// the peak value is updated even if the limit is exceeded, and the
+	// reservation rejected. That is on purpose to allow using the
+	// prometheus gague of the peak value to understand why reservations
+	// are rejected. That gauge is an aid for tuning disk size limit,
+	// and it is therefore beneficial that the same calculated
+	// value (returned as totalDiskSizeNow) is used both for the metrics
+	// gauge and the logic for deciding about rejection.
+	totalDiskSizeNow := c.calcTotalDiskSizeAndUpdatePeak(size)
+
+	if c.diskSizeLimit > 0 && totalDiskSizeNow > (uint64(c.diskSizeLimit)) {
+
+		// Reject and let the client decide about retries. E.g., a bazel
+		// client either building locally or with
+		// --remote_local_fallback, can choose to have minimal number
+		// of retries since uploading the build result is not
+		// critical. And a client depending on remote execution
+		// where upload is critical can choose a large number of
+		// retries. Retrying only critical writes increases the chance
+		// for bazel-remote to recover from the overload quicker.
+		// Note that bazel-remote can continue serving reads even when
+		// overloaded by writes, e.g., when SSD's write IOPS capacity
+		// is overloaded but reads can be served from operating
+		// system's file system cache in RAM.
+
+		return false, nil
 	}
 
 	// Evict elements until we are able to reserve enough space.
@@ -330,6 +405,7 @@ func (c *SizedLRU) getTailItem() (Key, lruItem) {
 // it is invoked only when holding the diskCache.mu mutex and no one else tries
 // to send to queuedEvictionsChan concurrently.
 func (c *SizedLRU) appendEvictionToQueue(e *entry) {
+	c.queuedEvictionsSize.Add(e.value.sizeOnDisk)
 	select {
 	case queuedEvictions := <-c.queuedEvictionsChan:
 		c.queuedEvictionsChan <- append(queuedEvictions, e)
@@ -345,6 +421,7 @@ func (c *SizedLRU) appendEvictionToQueue(e *entry) {
 func (c *SizedLRU) performQueuedEvictions() {
 	for _, kv := range <-c.queuedEvictionsChan {
 		c.onEvict(kv.key, kv.value)
+		c.queuedEvictionsSize.Add(-kv.value.sizeOnDisk)
 	}
 }
 
@@ -353,4 +430,21 @@ func (c *SizedLRU) performQueuedEvictionsContinuously() {
 	for {
 		c.performQueuedEvictions()
 	}
+}
+
+// Note that this function only needs to be called when the disk size usage
+// can grow (e.g., from Reserve and Add, but not from Remove).
+// Note that diskCache.mu mutex must be held when invoking this method.
+func (c *SizedLRU) calcTotalDiskSizeAndUpdatePeak(sizeOfNewFile int64) uint64 {
+	totalDiskSizeNow := uint64(c.currentSize) + uint64(c.queuedEvictionsSize.Load()) + uint64(sizeOfNewFile)
+	if totalDiskSizeNow > c.totalDiskSizePeak {
+		c.totalDiskSizePeak = totalDiskSizeNow
+	}
+	return totalDiskSizeNow
+}
+
+// Note that diskCache.mu mutex must be held when invoking this method.
+func (c *SizedLRU) shiftToNextMetricPeriod() {
+	c.gaugeCacheSizeBytes.Set(float64(c.totalDiskSizePeak))
+	c.totalDiskSizePeak = uint64(c.currentSize) + uint64(c.queuedEvictionsSize.Load())
 }

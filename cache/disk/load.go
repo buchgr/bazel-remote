@@ -114,7 +114,7 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Attempting to migrate the old directory structure failed: %w", err)
 	}
-	err = c.loadExistingFiles(maxSizeBytes)
+	err = c.loadExistingFiles(maxSizeBytes, cc)
 	if err != nil {
 		return nil, fmt.Errorf("Loading of existing cache entries failed due to error: %w", err)
 	}
@@ -561,7 +561,7 @@ func (c *diskCache) scanDir() (scanResult, error) {
 // loadExistingFiles lists all files in the cache directory, and adds them to the
 // LRU index so that they can be served. Files are sorted by access time first,
 // so that the eviction behavior is preserved across server restarts.
-func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
+func (c *diskCache) loadExistingFiles(maxSizeBytes int64, cc CacheConfig) error {
 	log.Printf("Loading existing files in %s.\n", c.dir)
 
 	result, err := c.scanDir()
@@ -584,6 +584,15 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
 	log.Println("Building LRU index.")
 
 	c.lru = NewSizedLRU(maxSizeBytes, onEvict, len(result.item))
+
+	log.Printf("Will evict at max_size: %.2f GB", bytesToGigaBytes(maxSizeBytes))
+
+	if cc.diskSizeLimit > 0 {
+		// Only set and print if optional limit is enabled.
+		c.lru.diskSizeLimit = cc.diskSizeLimit
+		log.Printf("Will reject at disk_size_limit: %.2f GB",
+			bytesToGigaBytes(c.lru.diskSizeLimit))
+	}
 
 	// Start one single goroutine running in background, continuously
 	// waiting for files to be removed and removing them. Benchmarks on
@@ -609,7 +618,19 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
 		}
 	}
 
+	// Printing progress gives awareness about slow operations.
+	// And waiting for evictions to complete before accepting client
+	// connection reduce risk for confusing overload errors at runtime.
+	log.Println("Waiting for evictions...")
+	for c.lru.queuedEvictionsSize.Load() > 0 {
+		time.Sleep(200 * time.Millisecond)
+	}
+
 	log.Println("Finished loading disk cache files.")
 
 	return nil
+}
+
+func bytesToGigaBytes(bytes int64) float64 {
+	return float64(bytes) / (1024.0 * 1024.0 * 1024.0)
 }
