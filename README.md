@@ -263,6 +263,10 @@ OPTIONS:
    --s3.bucket value The S3/minio bucket to use when using S3 proxy backend.
       [$BAZEL_REMOTE_S3_BUCKET]
 
+   --s3.bucket_lookup_type value The S3/minio bucket lookup type to use when
+      using S3 proxy backend.  (default: auto, types: auto|dns|path)
+      [$BAZEL_REMOTE_S3_BUCKET_LOOKUP_TYPE]
+
    --s3.prefix value The S3/minio object prefix to use when using S3 proxy
       backend. [$BAZEL_REMOTE_S3_PREFIX]
 

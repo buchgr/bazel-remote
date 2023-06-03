@@ -220,6 +220,12 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_S3_BUCKET"},
 		},
 		&cli.StringFlag{
+			Name:    "s3.bucket_lookup_type",
+			Value:   "auto",
+			Usage:   "The S3/minio bucket lookup type(auto|dns|path) to use when using S3 proxy backend.",
+			EnvVars: []string{"BAZEL_REMOTE_S3_BUCKET_LOOKUP_TYPE"},
+		},
+		&cli.StringFlag{
 			Name:    "s3.prefix",
 			Value:   "",
 			Usage:   "The S3/minio object prefix to use when using S3 proxy backend.",

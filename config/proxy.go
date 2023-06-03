@@ -8,6 +8,7 @@ import (
 	"github.com/buchgr/bazel-remote/v2/cache/gcsproxy"
 	"github.com/buchgr/bazel-remote/v2/cache/httpproxy"
 	"github.com/buchgr/bazel-remote/v2/cache/s3proxy"
+	"github.com/minio/minio-go/v7"
 )
 
 func (c *Config) setProxy() error {
@@ -49,7 +50,7 @@ func (c *Config) setProxy() error {
 		c.ProxyBackend = s3proxy.New(
 			c.S3CloudStorage.Endpoint,
 			c.S3CloudStorage.Bucket,
-			c.S3CloudStorage.BucketLookupType,
+			parseBucketLookupType(c.S3CloudStorage.BucketLookupType),
 			c.S3CloudStorage.Prefix,
 			creds,
 			c.S3CloudStorage.DisableSSL,
@@ -78,4 +79,15 @@ func (c *Config) setProxy() error {
 	}
 
 	return nil
+}
+
+func parseBucketLookupType(typeStr string) minio.BucketLookupType {
+	valMap := map[string]minio.BucketLookupType{
+		"auto": minio.BucketLookupAuto,
+		"dns":  minio.BucketLookupDNS,
+		"path": minio.BucketLookupPath,
+	}
+
+	// also when not found the type, return "auto" type.
+	return valMap[typeStr]
 }

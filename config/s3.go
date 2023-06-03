@@ -6,7 +6,6 @@ import (
 
 	"github.com/buchgr/bazel-remote/v2/cache/s3proxy"
 
-	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
@@ -25,8 +24,7 @@ type S3CloudStorageConfig struct {
 	KeyVersion               *int   `yaml:"key_version"`
 	AWSProfile               string `yaml:"aws_profile"`
 	AWSSharedCredentialsFile string `yaml:"aws_shared_credentials_file"`
-
-	BucketLookupType minio.BucketLookupType `yaml:"bucket_lookup_type"`
+	BucketLookupType         string `yaml:"bucket_lookup_type"`
 }
 
 func (s3c S3CloudStorageConfig) GetCredentials() (*credentials.Credentials, error) {

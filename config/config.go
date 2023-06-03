@@ -447,6 +447,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		s3 = &S3CloudStorageConfig{
 			Endpoint:                 ctx.String("s3.endpoint"),
 			Bucket:                   ctx.String("s3.bucket"),
+			BucketLookupType:         ctx.String("s3.bucket_lookup_type"),
 			Prefix:                   ctx.String("s3.prefix"),
 			AuthMethod:               ctx.String("s3.auth_method"),
 			AccessKeyID:              ctx.String("s3.access_key_id"),
