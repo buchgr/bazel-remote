@@ -256,3 +256,37 @@ func gRPCErrCode(err error, dflt codes.Code) codes.Code {
 
 	return dflt
 }
+
+// Translate error codes, received by server when streaming back to client, into
+// an error code suitable to return as result from the original server invocation
+// that originated the streaming.
+func translateGRPCErrCodeFromClient(err error) codes.Code {
+
+	resultingCode := status.Code(err)
+
+	// Client rejecting the streaming with
+	// "code = Unavailable desc = transport is closing"
+	// indicates that client canceled the call and is closing down. Client
+	// being unavailable should not be confused as server being unavailable,
+	// and is therefore instead mapped to Canceled.
+	if resultingCode == codes.Unavailable {
+		return codes.Canceled
+	}
+
+	// Internal error from client should not be mapped to internal error
+	// in server, and is therefore translated to Unknown.
+	if resultingCode == codes.Internal {
+		return codes.Unknown
+	}
+
+	return resultingCode
+}
+
+func (s *grpcServer) logErrorPrintf(err error, format string, a ...any) {
+       if err == disk.ErrOverloaded {
+               // Using accessLogger to prevent too verbose logging to errorLogger.
+               s.accessLogger.Printf(format, a...)
+       } else {
+               s.errorLogger.Printf(format, a...)
+       }
+}

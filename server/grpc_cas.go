@@ -121,7 +121,7 @@ func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 		err = s.cache.Put(ctx, cache.CAS, req.Digest.Hash,
 			int64(len(req.Data)), bytes.NewReader(req.Data))
 		if err != nil && err != io.EOF {
-			s.errorLogger.Printf("%s %s %s", errorPrefix, req.Digest.Hash, err)
+			s.logErrorPrintf(err, "%s %s %s", errorPrefix, req.Digest.Hash, err)
 			rr.Status.Code = int32(gRPCErrCode(err, codes.Internal))
 			continue
 		}
