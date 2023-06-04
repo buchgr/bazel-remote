@@ -416,10 +416,17 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			if cerr, ok := err.(*cache.Error); ok {
 				http.Error(w, err.Error(), cerr.Code)
+				if err == disk.ErrOverloaded {
+					// Using accessLogger to prevent too verbose logging
+					// to errorLogger.
+					h.logResponse(cerr.Code, r)
+				} else {
+					h.errorLogger.Printf("PUT %s: %s", path(kind, hash), err)
+				}
 			} else {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
+				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), err)
 			}
-			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), err)
 		} else {
 			h.logResponse(http.StatusOK, r)
 		}

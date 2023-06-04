@@ -267,7 +267,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 	err = s.cache.Put(ctx, cache.AC, req.ActionDigest.Hash,
 		int64(len(data)), bytes.NewReader(data))
 	if err != nil && err != io.EOF {
-		s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+		s.logErrorPrintf(err, "%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 		code := gRPCErrCode(err, codes.Internal)
 		return nil, status.Error(code, err.Error())
 	}
@@ -291,7 +291,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 			err = s.cache.Put(ctx, cache.CAS, f.Digest.Hash,
 				f.Digest.SizeBytes, bytes.NewReader(f.Contents))
 			if err != nil && err != io.EOF {
-				s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+				s.logErrorPrintf(err, "%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 				code := gRPCErrCode(err, codes.Internal)
 				return nil, status.Error(code, err.Error())
 			}
@@ -314,7 +314,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 		err = s.cache.Put(ctx, cache.CAS, hash, sizeBytes,
 			bytes.NewReader(req.ActionResult.StdoutRaw))
 		if err != nil && err != io.EOF {
-			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+			s.logErrorPrintf(err, "%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 			code := gRPCErrCode(err, codes.Internal)
 			return nil, status.Error(code, err.Error())
 		}
@@ -336,7 +336,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 		err = s.cache.Put(ctx, cache.CAS, hash, sizeBytes,
 			bytes.NewReader(req.ActionResult.StderrRaw))
 		if err != nil && err != io.EOF {
-			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+			s.logErrorPrintf(err, "%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 			code := gRPCErrCode(err, codes.Internal)
 			return nil, status.Error(code, err.Error())
 		}
