@@ -93,7 +93,7 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 				}
 				if err != nil || actualSize < 0 {
 					s.errorLogger.Printf("failed to get CAS %s from proxy backend size: %d err: %v",
-						actualSize, sha256Str, err)
+						sha256Str, actualSize, err)
 					continue
 				}
 				size = actualSize
