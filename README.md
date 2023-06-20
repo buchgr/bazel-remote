@@ -152,7 +152,7 @@ OPTIONS:
       required. [$BAZEL_REMOTE_DIR]
 
    --max_size value The maximum size of bazel-remote's disk cache in GiB.
-      This flag is required. (default: -1) [$BAZEL_REMOTE_MAX_SIZE]
+      This flag is required. (default: 0) [$BAZEL_REMOTE_MAX_SIZE]
 
    --storage_mode value Which format to store CAS blobs in. Must be one of
       "zstd" or "uncompressed". (default: "zstd") [$BAZEL_REMOTE_STORAGE_MODE]
