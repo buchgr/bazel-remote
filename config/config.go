@@ -19,6 +19,7 @@ import (
 	"github.com/buchgr/bazel-remote/v2/cache/s3proxy"
 
 	"github.com/urfave/cli/v2"
+	"golang.org/x/exp/slices"
 	yaml "gopkg.in/yaml.v3"
 )
 
@@ -348,6 +349,11 @@ func validateConfig(c *Config) error {
 
 		if c.S3CloudStorage.KeyVersion != nil && *c.S3CloudStorage.KeyVersion != 2 {
 			return fmt.Errorf("s3.key_version (deprecated) must be 2, found %d", c.S3CloudStorage.KeyVersion)
+		}
+
+		if c.S3CloudStorage.BucketLookupType != "" && !slices.Contains([]string{"auto", "dns", "path"}, c.S3CloudStorage.BucketLookupType) {
+			return fmt.Errorf("s3.bucket_lookup_type must be one of: [auto,dns,path] or be empty, found %s",
+				c.S3CloudStorage.BucketLookupType)
 		}
 	}
 

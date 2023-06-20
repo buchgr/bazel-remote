@@ -222,7 +222,7 @@ func GetCliFlags() []cli.Flag {
 		&cli.StringFlag{
 			Name:    "s3.bucket_lookup_type",
 			Value:   "auto",
-			Usage:   "The S3/minio bucket lookup type(auto|dns|path) to use when using S3 proxy backend.",
+			Usage:   "The S3/minio bucket lookup type to use when using S3 proxy backend. Allowed values: auto, dns, path.",
 			EnvVars: []string{"BAZEL_REMOTE_S3_BUCKET_LOOKUP_TYPE"},
 		},
 		&cli.StringFlag{

@@ -30,6 +30,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v0.4.1
 	github.com/valyala/gozstd v1.19.1
+	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 )
 
 require (

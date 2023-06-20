@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -47,10 +48,14 @@ func (c *Config) setProxy() error {
 			return err
 		}
 
+		bucketLookupType, err  := parseBucketLookupType(c.S3CloudStorage.BucketLookupType)
+		if err != nil {
+			return err
+		}
 		c.ProxyBackend = s3proxy.New(
 			c.S3CloudStorage.Endpoint,
 			c.S3CloudStorage.Bucket,
-			parseBucketLookupType(c.S3CloudStorage.BucketLookupType),
+			bucketLookupType,
 			c.S3CloudStorage.Prefix,
 			creds,
 			c.S3CloudStorage.DisableSSL,
@@ -81,7 +86,7 @@ func (c *Config) setProxy() error {
 	return nil
 }
 
-func parseBucketLookupType(typeStr string) minio.BucketLookupType {
+func parseBucketLookupType(typeStr string) (minio.BucketLookupType, error) {
 	valMap := map[string]minio.BucketLookupType{
 		"auto": minio.BucketLookupAuto,
 		"dns":  minio.BucketLookupDNS,
@@ -89,5 +94,10 @@ func parseBucketLookupType(typeStr string) minio.BucketLookupType {
 	}
 
 	// also when not found the type, return "auto" type.
-	return valMap[typeStr]
+	val, ok := valMap[typeStr]
+	if !ok {
+		return 0, fmt.Errorf("Unsupported value: %s", typeStr)
+	}
+
+	return val, nil
 }
