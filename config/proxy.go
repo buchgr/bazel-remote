@@ -1,6 +1,7 @@
 package config
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -32,6 +33,24 @@ func (c *Config) setProxy() error {
 		if err != nil {
 			return err
 		}
+
+		if c.HTTPBackend.CertFile != "" && c.HTTPBackend.KeyFile != "" {
+			readCert, err := tls.LoadX509KeyPair(
+				c.HTTPBackend.CertFile,
+				c.HTTPBackend.KeyFile,
+			)
+			if err != nil {
+				return err
+			}
+
+			config := &tls.Config{
+				Certificates: []tls.Certificate{readCert},
+			}
+
+			tr := &http.Transport{TLSClientConfig: config}
+			httpClient = &http.Client{Transport: tr}
+		}
+
 		proxyCache, err := httpproxy.New(baseURL, c.StorageMode,
 			httpClient, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
 		if err != nil {
