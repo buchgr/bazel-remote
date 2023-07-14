@@ -31,7 +31,9 @@ type GoogleCloudStorageConfig struct {
 
 // HTTPBackendConfig stores the configuration for a HTTP proxy backend.
 type HTTPBackendConfig struct {
-	BaseURL string `yaml:"url"`
+	BaseURL  string `yaml:"url"`
+	CertFile string `yaml:"cert_file"`
+	KeyFile  string `yaml:"key_file"`
 }
 
 // Config holds the top-level configuration for bazel-remote.
@@ -339,6 +341,11 @@ func validateConfig(c *Config) error {
 		if c.HTTPBackend.BaseURL == "" {
 			return errors.New("The 'url' field is required for 'http_proxy'")
 		}
+		if c.HTTPBackend.KeyFile != "" || c.HTTPBackend.CertFile != "" {
+			if c.HTTPBackend.KeyFile == "" || c.HTTPBackend.CertFile == "" {
+				return errors.New("To use mTLS with the http proxy, both a key and a certifacte must be provided")
+			}
+		}
 	}
 
 	if c.S3CloudStorage != nil {
@@ -470,7 +477,9 @@ func get(ctx *cli.Context) (*Config, error) {
 	var hc *HTTPBackendConfig
 	if ctx.String("http_proxy.url") != "" {
 		hc = &HTTPBackendConfig{
-			BaseURL: ctx.String("http_proxy.url"),
+			BaseURL:  ctx.String("http_proxy.url"),
+			KeyFile:  ctx.String("http_proxy.key_file"),
+			CertFile: ctx.String("http_proxy.cert_file"),
 		}
 	}
 

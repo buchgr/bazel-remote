@@ -190,6 +190,18 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_HTTP_PROXY_URL"},
 		},
 		&cli.StringFlag{
+			Name:    "http_proxy.key_file",
+			Value:   "",
+			Usage:   "Path to a key used to authenticate with the proxy backend using mTLS. If this flag is provided, then http_proxy.cert_file must also be specified.",
+			EnvVars: []string{"BAZEL_REMOTE_HTTP_PROXY_KEY_FILE"},
+		},
+		&cli.StringFlag{
+			Name:    "http_proxy.cert_file",
+			Value:   "",
+			Usage:   "Path to a certificate used to authenticate with the proxy backend using mTLS. If this flag is provided, then http_proxy.key_file must also be specified.",
+			EnvVars: []string{"BAZEL_REMOTE_HTTP_PROXY_CERT_FILE"},
+		},
+		&cli.StringFlag{
 			Name:    "gcs_proxy.bucket",
 			Value:   "",
 			Usage:   "The bucket to use for the Google Cloud Storage proxy backend.",
