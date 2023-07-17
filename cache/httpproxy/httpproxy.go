@@ -231,7 +231,7 @@ func (r *remoteHTTPProxyCache) Contains(ctx context.Context, kind cache.EntryKin
 
 	rsp, err := r.remote.Do(req)
 	if err == nil && rsp.StatusCode == http.StatusOK {
-		if kind != cache.CAS {
+		if kind != cache.CAS || !r.v2mode {
 			return true, rsp.ContentLength
 		}
 
