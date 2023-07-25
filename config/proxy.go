@@ -48,7 +48,7 @@ func (c *Config) setProxy() error {
 			}
 
 			tr := &http.Transport{TLSClientConfig: config}
-			httpClient = &http.Client{Transport: tr}
+			httpClient.Transport = tr
 		}
 
 		proxyCache, err := httpproxy.New(baseURL, c.StorageMode,

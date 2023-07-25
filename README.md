@@ -246,6 +246,16 @@ OPTIONS:
    --http_proxy.url value The base URL to use for a http proxy backend.
       [$BAZEL_REMOTE_HTTP_PROXY_URL]
 
+   --http_proxy.key_file value Path to the key used to autheticate with the
+      proxy backend. Enables mTLS. If this flag is provided, then
+      http_proxy.cert_file must also be passed.
+      [$BAZEL_REMOTE_HTTP_PROXY_KEY_FILE]
+
+   --http_proxy.cert_file value Path to the certificate used to autheticate
+      with the proxy backend. Enables mTLS. If this flag is provided, then
+      http_proxy.key_file must also be passed.
+      [$BAZEL_REMOTE_HTTP_PROXY_CERT_FILE]
+
    --gcs_proxy.bucket value The bucket to use for the Google Cloud Storage
       proxy backend. [$BAZEL_REMOTE_GCS_BUCKET]
 

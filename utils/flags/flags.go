@@ -192,13 +192,13 @@ func GetCliFlags() []cli.Flag {
 		&cli.StringFlag{
 			Name:    "http_proxy.key_file",
 			Value:   "",
-			Usage:   "Path to the key used to autheticate with the proxy backend. Enables mTLS.",
+			Usage:   "Path to the key used to autheticate with the proxy backend. Enables mTLS. If this flag is provided, then http_proxy.cert_file must also be passed.",
 			EnvVars: []string{"BAZEL_REMOTE_HTTP_PROXY_KEY_FILE"},
 		},
 		&cli.StringFlag{
 			Name:    "http_proxy.cert_file",
 			Value:   "",
-			Usage:   "Path to the certificate used to autheticate with the proxy backend. Enables mTLS.",
+			Usage:   "Path to the certificate used to autheticate with the proxy backend. Enables mTLS. If this flag is provided, then http_proxy.key_file must also be passed.",
 			EnvVars: []string{"BAZEL_REMOTE_HTTP_PROXY_CERT_FILE"},
 		},
 		&cli.StringFlag{
