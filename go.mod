@@ -17,7 +17,7 @@ require (
 	github.com/slok/go-http-metrics v0.10.0
 	github.com/urfave/cli/v2 v2.17.1
 	golang.org/x/oauth2 v0.6.0
-	golang.org/x/sync v0.0.0-20220929204114-8fcdb60fdcc0
+	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.10.0 // indirect
 	google.golang.org/genproto v0.0.0-20230525234025-438c736192d0
 	google.golang.org/grpc v1.55.0
@@ -41,6 +41,7 @@ require (
 	cloud.google.com/go/longrunning v0.4.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.0.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v0.5.1 // indirect
+	github.com/aws/aws-sdk-go v1.44.256 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -48,6 +49,7 @@ require (
 	github.com/golang-jwt/jwt v3.2.1+incompatible // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
+	github.com/johannesboyne/gofakes3 v0.0.0-20230506070712-04da935ef877 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
@@ -62,11 +64,14 @@ require (
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/rs/xid v1.5.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
+	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	golang.org/x/crypto v0.11.0 // indirect
 	golang.org/x/net v0.12.0 // indirect
 	golang.org/x/text v0.11.0 // indirect
+	golang.org/x/tools v0.8.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )

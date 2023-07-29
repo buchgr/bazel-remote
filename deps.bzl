@@ -755,8 +755,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_yuin_goldmark",
         importpath = "github.com/yuin/goldmark",
-        sum = "h1:5tjfNdR2ki3yYQ842+eX2sQHeiwpKJ0RnHO4IYOc4V8=",
-        version = "v1.1.32",
+        sum = "h1:fVcFKWvrslecOb/tg+Cc05dkeYx540o0FuFt3nUVDoE=",
+        version = "v1.4.13",
     )
     go_repository(
         name = "com_google_cloud_go",
@@ -1668,8 +1668,8 @@ def go_dependencies():
     go_repository(
         name = "org_golang_x_mod",
         importpath = "golang.org/x/mod",
-        sum = "h1:KENHtAZL2y3NLMYZeHY9DW8HW8V+kQyJsY/V9JlKvCs=",
-        version = "v0.9.0",
+        sum = "h1:lFO9qtOdlre5W1jxS3r/4szv2/6iXxScdzjoBMXNhYk=",
+        version = "v0.10.0",
     )
     go_repository(
         name = "org_golang_x_net",
@@ -1686,8 +1686,8 @@ def go_dependencies():
     go_repository(
         name = "org_golang_x_sync",
         importpath = "golang.org/x/sync",
-        sum = "h1:cu5kTvlzcw1Q5S9f5ip1/cpiB4nXvw1XYzFPGgzLUOY=",
-        version = "v0.0.0-20220929204114-8fcdb60fdcc0",
+        sum = "h1:wsuoTGHzEhffawBOhz5CYhcrV4IdKZbEyZjBMuTp12o=",
+        version = "v0.1.0",
     )
     go_repository(
         name = "org_golang_x_sys",
@@ -1716,8 +1716,8 @@ def go_dependencies():
     go_repository(
         name = "org_golang_x_tools",
         importpath = "golang.org/x/tools",
-        sum = "h1:BOw41kyTf3PuCW1pVQf8+Cyg8pMlkYB1oo9iJ6D/lKM=",
-        version = "v0.6.0",
+        sum = "h1:vSDcovVPld282ceKgDimkRSC8kpaH1dgyc9UMzlt84Y=",
+        version = "v0.8.0",
     )
     go_repository(
         name = "org_golang_x_xerrors",

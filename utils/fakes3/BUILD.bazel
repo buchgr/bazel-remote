@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["fakes3.go"],
+    importpath = "github.com/buchgr/bazel-remote/v2/utils/fakes3",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_johannesboyne_gofakes3//:go_default_library",
+        "@com_github_johannesboyne_gofakes3//backend/s3mem:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "fakes3",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)

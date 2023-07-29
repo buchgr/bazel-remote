@@ -44,7 +44,70 @@ load("//:deps.bzl", "go_dependencies")
 # gazelle:repository_macro deps.bzl%go_dependencies
 go_dependencies()
 
-load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
+load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies", "go_repository")
+
+go_repository(
+    name = "com_github_aws_aws_sdk_go",
+    importpath = "github.com/aws/aws-sdk-go",
+    sum = "h1:O8VH+bJqgLDguqkH/xQBFz5o/YheeZqgcOYIgsTVWY4=",
+    version = "v1.44.256",
+)
+
+go_repository(
+    name = "com_github_jmespath_go_jmespath",
+    importpath = "github.com/jmespath/go-jmespath",
+    sum = "h1:BEgLn5cpjn8UN1mAw4NjwDrS35OdebyEtFe+9YPoQUg=",
+    version = "v0.4.0",
+)
+
+go_repository(
+    name = "com_github_jmespath_go_jmespath_internal_testify",
+    importpath = "github.com/jmespath/go-jmespath/internal/testify",
+    sum = "h1:shLQSRRSCCPj3f2gpwzGwWFoC7ycTf1rcQZHOlsJ6N8=",
+    version = "v1.5.1",
+)
+
+go_repository(
+    name = "com_github_johannesboyne_gofakes3",
+    importpath = "github.com/johannesboyne/gofakes3",
+    sum = "h1:O7syWuYGzre3s73s+NkgB8e0ZvsIVhT/zxNU7V1gHK8=",
+    version = "v0.0.0-20230506070712-04da935ef877",
+)
+
+go_repository(
+    name = "com_github_ryszard_goskiplist",
+    importpath = "github.com/ryszard/goskiplist",
+    sum = "h1:GHRpF1pTW19a8tTFrMLUcfWwyC0pnifVo2ClaLq+hP8=",
+    version = "v0.0.0-20150312221310-2dfbae5fcf46",
+)
+
+go_repository(
+    name = "com_github_shabbyrobe_gocovmerge",
+    importpath = "github.com/shabbyrobe/gocovmerge",
+    sum = "h1:WnNuhiq+FOY3jNj6JXFT+eLN3CQ/oPIsDPRanvwsmbI=",
+    version = "v0.0.0-20190829150210-3e036491d500",
+)
+
+go_repository(
+    name = "com_github_spf13_afero",
+    importpath = "github.com/spf13/afero",
+    sum = "h1:qgMbHoJbPbw579P+1zVY+6n4nIFuIchaIjzZ/I/Yq8M=",
+    version = "v1.2.1",
+)
+
+go_repository(
+    name = "in_gopkg_mgo_v2",
+    importpath = "gopkg.in/mgo.v2",
+    sum = "h1:xcEWjVhvbDy+nHP67nPDDpbYrY+ILlfndk4bRioVHaU=",
+    version = "v2.0.0-20180705113604-9856a29383ce",
+)
+
+go_repository(
+    name = "io_etcd_go_bbolt",
+    importpath = "go.etcd.io/bbolt",
+    sum = "h1:XAzx9gjCb0Rxj7EoqcClPD1d5ZBxZJk0jbuoPHenBt0=",
+    version = "v1.3.5",
+)
 
 gazelle_dependencies()
 
