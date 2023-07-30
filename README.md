@@ -246,14 +246,14 @@ OPTIONS:
    --grpc_proxy.url value The base URL to use for a grpc proxy backend.
       [$BAZEL_REMOTE_GRPC_PROXY_URL]
 
-   --grpc_proxy.key_file value Path to the key used to autheticate with the
-      proxy backend. Enables mTLS. If this flag is provided also
-      --grpc_proxy.cert_file must be passed
+   --grpc_proxy.key_file value Path to a key used to authenticate with the
+      proxy backend using mTLS. If this flag is provided, then
+      grpc_proxy.cert_file must also be specified.
       [$BAZEL_REMOTE_GRPC_PROXY_KEY_FILE]
 
-   --grpc_proxy.cert_file value Path to the certificate used to autheticate
-      with the proxy backend. Enables mTLS. If this flag is provided also
-      --grpc_proxy.key_file must be passed.",
+   --grpc_proxy.cert_file value Path to a certificate used to authenticate
+      with the proxy backend using mTLS. If this flag is provided, then
+      grpc_proxy.key_file must also be specified.
       [BAZEL_REMOTE_GRPC_PROXY_CERT_FILE]
 
    --http_proxy.url value The base URL to use for a http proxy backend.
