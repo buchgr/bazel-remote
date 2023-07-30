@@ -15,6 +15,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	prom "github.com/prometheus/client_golang/prometheus"
 )
 
 func (c *Config) setProxy() error {
@@ -49,6 +52,15 @@ func (c *Config) setProxy() error {
 		} else {
 			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		}
+		metrics := grpc_prometheus.NewClientMetrics(func(o *prom.CounterOpts) { o.Namespace = "proxy" })
+		metrics.EnableClientHandlingTimeHistogram(func(o *prom.HistogramOpts) { o.Namespace = "proxy" })
+		err := prom.Register(metrics)
+		if err != nil {
+			return err
+		}
+		opts = append(opts, grpc.WithChainStreamInterceptor(metrics.StreamClientInterceptor()))
+		opts = append(opts, grpc.WithChainUnaryInterceptor(metrics.UnaryClientInterceptor()))
+
 		conn, err := grpc.Dial(c.GRPCBackend.BaseUrl, opts...)
 		if err != nil {
 			return err
