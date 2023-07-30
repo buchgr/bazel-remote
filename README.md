@@ -497,6 +497,9 @@ http_address: 0.0.0.0:8080
 #
 #http_proxy:
 #  url: https://remote-cache.com:8080/cache
+# If you want to use mutual TLS with client certificates:
+#  cert_file: path/to/client.cert
+#  key_file:  path/to/client.key
 #
 #azblob_proxy:
 #  tenant_id: TENANT_ID
