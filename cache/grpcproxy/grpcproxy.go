@@ -66,8 +66,12 @@ func logResponse(logger cache.Logger, method string, msg string, resource string
 }
 
 func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
+	defer item.Rc.Close()
+
 	switch item.Kind {
 	case cache.RAW:
+		// RAW cache entries are a special case of AC, used when --disable_http_ac_validation
+		// is enabled. We can treat them as AC in this scope
 		fallthrough
 	case cache.AC:
 		data := make([]byte, item.SizeOnDisk)
@@ -150,6 +154,9 @@ func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
 				return
 			}
 		}
+	default:
+		logResponse(r.errorLogger, "Write", "Unexpected kind", item.Kind.String())
+		return
 	}
 }
 
@@ -178,6 +185,8 @@ func (r *remoteGrpcProxyCache) Put(ctx context.Context, kind cache.EntryKind, ha
 func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 	switch kind {
 	case cache.RAW:
+		// RAW cache entries are a special case of AC, used when --disable_http_ac_validation
+		// is enabled. We can treat them as AC in this scope
 		fallthrough
 	case cache.AC:
 		digest := pb.Digest{

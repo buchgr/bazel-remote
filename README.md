@@ -243,6 +243,19 @@ OPTIONS:
       Goroutines to process parallel uploads to backend. (default: 100)
       [$BAZEL_REMOTE_NUM_UPLOADERS]
 
+   --grpc_proxy.url value The base URL to use for a grpc proxy backend.
+      [$BAZEL_REMOTE_GRPC_PROXY_URL]
+
+   --grpc_proxy.key_file value Path to the key used to autheticate with the
+      proxy backend. Enables mTLS. If this flag is provided also
+      --grpc_proxy.cert_file must be passed
+      [$BAZEL_REMOTE_GRPC_PROXY_KEY_FILE]
+
+   --grpc_proxy.cert_file value Path to the certificate used to autheticate
+      with the proxy backend. Enables mTLS. If this flag is provided also
+      --grpc_proxy.key_file must be passed.",
+      [BAZEL_REMOTE_GRPC_PROXY_CERT_FILE]
+
    --http_proxy.url value The base URL to use for a http proxy backend.
       [$BAZEL_REMOTE_HTTP_PROXY_URL]
 
