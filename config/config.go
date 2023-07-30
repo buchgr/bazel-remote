@@ -22,6 +22,13 @@ import (
 	yaml "gopkg.in/yaml.v3"
 )
 
+// GRPCBackendConfig stores the configuration of a GRPC proxy backend.
+type GRPCBackendConfig struct {
+	BaseUrl  string `yaml:"url"`
+	CertFile string `yaml:"cert_file"`
+	KeyFile  string `yaml:"key_file"`
+}
+
 // GoogleCloudStorageConfig stores the configuration of a GCS proxy backend.
 type GoogleCloudStorageConfig struct {
 	Bucket                string `yaml:"bucket"`
@@ -54,6 +61,7 @@ type Config struct {
 	AzBlobConfig                *AzBlobStorageConfig      `yaml:"azblob_proxy,omitempty"`
 	GoogleCloudStorage          *GoogleCloudStorageConfig `yaml:"gcs_proxy,omitempty"`
 	HTTPBackend                 *HTTPBackendConfig        `yaml:"http_proxy,omitempty"`
+	GRPCBackend                 *GRPCBackendConfig        `yaml:"grpc_proxy,omitempty"`
 	NumUploaders                int                       `yaml:"num_uploaders"`
 	MaxQueuedUploads            int                       `yaml:"max_queued_uploads"`
 	IdleTimeout                 time.Duration             `yaml:"idle_timeout"`
@@ -109,6 +117,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	allowUnauthenticatedReads bool,
 	idleTimeout time.Duration,
 	hc *HTTPBackendConfig,
+	grpcb *GRPCBackendConfig,
 	gcs *GoogleCloudStorageConfig,
 	s3 *S3CloudStorageConfig,
 	azblob *AzBlobStorageConfig,
@@ -143,6 +152,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		AzBlobConfig:                azblob,
 		GoogleCloudStorage:          gcs,
 		HTTPBackend:                 hc,
+		GRPCBackend:                 grpcb,
 		IdleTimeout:                 idleTimeout,
 		DisableHTTPACValidation:     disableHTTPACValidation,
 		DisableGRPCACDepsCheck:      disableGRPCACDepsCheck,
@@ -257,6 +267,9 @@ func validateConfig(c *Config) error {
 	if c.AzBlobConfig != nil {
 		proxyCount++
 	}
+	if c.GRPCBackend != nil {
+		proxyCount++
+	}
 
 	if proxyCount > 1 {
 		return errors.New("At most one of the S3/GCS/HTTP proxy backends is allowed")
@@ -344,6 +357,17 @@ func validateConfig(c *Config) error {
 		if c.HTTPBackend.KeyFile != "" || c.HTTPBackend.CertFile != "" {
 			if c.HTTPBackend.KeyFile == "" || c.HTTPBackend.CertFile == "" {
 				return errors.New("To use mTLS with the http proxy, both a key and a certifacte must be provided")
+			}
+		}
+	}
+
+	if c.GRPCBackend != nil {
+		if c.StorageMode != "uncompressed" {
+			return errors.New("--grpc_proxy does not yet support compressed storage mode")
+		}
+		if c.GRPCBackend.KeyFile != "" || c.GRPCBackend.CertFile != "" {
+			if c.GRPCBackend.KeyFile == "" || c.GRPCBackend.CertFile == "" {
+				return errors.New("To use mTLS with the grpc proxy, both a key and a certifacte must be provided")
 			}
 		}
 	}
@@ -483,6 +507,15 @@ func get(ctx *cli.Context) (*Config, error) {
 		}
 	}
 
+	var grpcb *GRPCBackendConfig
+	if ctx.String("grpc_proxy.url") != "" {
+		grpcb = &GRPCBackendConfig{
+			BaseUrl:  ctx.String("grpc_proxy.url"),
+			KeyFile:  ctx.String("grpc_proxy.key_file"),
+			CertFile: ctx.String("grpc_proxy.cert_file"),
+		}
+	}
+
 	var gcs *GoogleCloudStorageConfig
 	if ctx.String("gcs_proxy.bucket") != "" {
 		gcs = &GoogleCloudStorageConfig{
@@ -525,6 +558,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.Bool("allow_unauthenticated_reads"),
 		ctx.Duration("idle_timeout"),
 		hc,
+		grpcb,
 		gcs,
 		s3,
 		azblob,

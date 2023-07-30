@@ -184,6 +184,24 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_NUM_UPLOADERS"},
 		},
 		&cli.StringFlag{
+			Name:    "grpc_proxy.url",
+			Value:   "",
+			Usage:   "The base URL to use for a grpc proxy backend.",
+			EnvVars: []string{"BAZEL_REMOTE_GRPC_PROXY_URL"},
+		},
+		&cli.StringFlag{
+			Name:    "grpc_proxy.key_file",
+			Value:   "",
+			Usage:   "Path to the key used to autheticate with the proxy backend. Enables mTLS.",
+			EnvVars: []string{"BAZEL_REMOTE_GRPC_PROXY_KEY_FILE"},
+		},
+		&cli.StringFlag{
+			Name:    "grpc_proxy.cert_file",
+			Value:   "",
+			Usage:   "Path to the certificate used to autheticate with the proxy backend. Enables mTLS.",
+			EnvVars: []string{"BAZEL_REMOTE_GRPC_PROXY_CERT_FILE"},
+		},
+		&cli.StringFlag{
 			Name:    "http_proxy.url",
 			Value:   "",
 			Usage:   "The base URL to use for a http proxy backend.",

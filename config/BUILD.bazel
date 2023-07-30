@@ -16,6 +16,7 @@ go_library(
         "//cache:go_default_library",
         "//cache/azblobproxy:go_default_library",
         "//cache/gcsproxy:go_default_library",
+        "//cache/grpcproxy:go_default_library",
         "//cache/httpproxy:go_default_library",
         "//cache/s3proxy:go_default_library",
         "@com_github_azure_azure_sdk_for_go_sdk_azcore//:go_default_library",
@@ -24,6 +25,9 @@ go_library(
         "@com_github_minio_minio_go_v7//pkg/credentials:go_default_library",
         "@com_github_urfave_cli_v2//:go_default_library",
         "@in_gopkg_yaml_v3//:go_default_library",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//credentials:go_default_library",
+        "@org_golang_google_grpc//credentials/insecure:go_default_library",
     ],
 )
 

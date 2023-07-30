@@ -8,9 +8,13 @@ import (
 
 	"github.com/buchgr/bazel-remote/v2/cache/azblobproxy"
 	"github.com/buchgr/bazel-remote/v2/cache/gcsproxy"
+	"github.com/buchgr/bazel-remote/v2/cache/grpcproxy"
 	"github.com/buchgr/bazel-remote/v2/cache/httpproxy"
 	"github.com/buchgr/bazel-remote/v2/cache/s3proxy"
 	"github.com/minio/minio-go/v7"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func (c *Config) setProxy() error {
@@ -24,6 +28,37 @@ func (c *Config) setProxy() error {
 
 		c.ProxyBackend = proxyCache
 		return nil
+	}
+
+	if c.GRPCBackend != nil {
+		var opts []grpc.DialOption
+		if c.GRPCBackend.CertFile != "" && c.GRPCBackend.KeyFile != "" {
+			readCert, err := tls.LoadX509KeyPair(
+				c.GRPCBackend.CertFile,
+				c.GRPCBackend.KeyFile,
+			)
+			if err != nil {
+				return err
+			}
+
+			config := &tls.Config{
+				Certificates: []tls.Certificate{readCert},
+			}
+			creds := credentials.NewTLS(config)
+			opts = append(opts, grpc.WithTransportCredentials(creds))
+		} else {
+			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		}
+		conn, err := grpc.Dial(c.GRPCBackend.BaseUrl, opts...)
+		if err != nil {
+			return err
+		}
+		clients := grpcproxy.NewGrpcClients(conn)
+		proxy, err := grpcproxy.New(clients, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
+		if err != nil {
+			return err
+		}
+		c.ProxyBackend = proxy
 	}
 
 	if c.HTTPBackend != nil {
