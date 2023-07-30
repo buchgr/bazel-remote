@@ -40,7 +40,10 @@ func (s *StreamReadCloser[M]) Read(p []byte) (int, error) {
 	}
 	msg, err := s.Stream.Recv()
 	if err == io.EOF {
-		s.Stream.CloseSend()
+		err := s.Stream.CloseSend()
+		if err != nil {
+			return -1, err
+		}
 	} else if err != nil {
 		return -1, err
 	}
