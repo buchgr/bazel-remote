@@ -77,12 +77,12 @@ type Proxy interface {
 	// `hash` can be read, its logical size, and an error if something went
 	// wrong. The data available from `rc` is in the same format as used by
 	// the disk.Cache instance.
-	Get(ctx context.Context, kind EntryKind, hash string) (rc io.ReadCloser, size int64, err error)
+	Get(ctx context.Context, kind EntryKind, hash string, size int64) (io.ReadCloser, int64, error)
 
 	// Contains returns whether or not the cache item exists on the
 	// remote end, and the size if it exists (and -1 if the size is
 	// unknown).
-	Contains(ctx context.Context, kind EntryKind, hash string) (bool, int64)
+	Contains(ctx context.Context, kind EntryKind, hash string, size int64) (bool, int64)
 }
 
 // TransformActionCacheKey takes an ActionCache key and an instance name

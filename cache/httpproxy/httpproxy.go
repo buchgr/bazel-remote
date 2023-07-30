@@ -157,7 +157,7 @@ func (r *remoteHTTPProxyCache) Put(ctx context.Context, kind cache.EntryKind, ha
 	}
 }
 
-func (r *remoteHTTPProxyCache) Get(ctx context.Context, kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
+func (r *remoteHTTPProxyCache) Get(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (io.ReadCloser, int64, error) {
 	url := r.requestURL(hash, kind)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -220,7 +220,7 @@ func (r *remoteHTTPProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 	return rsp.Body, sizeBytes, nil
 }
 
-func (r *remoteHTTPProxyCache) Contains(ctx context.Context, kind cache.EntryKind, hash string) (bool, int64) {
+func (r *remoteHTTPProxyCache) Contains(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (bool, int64) {
 
 	url := r.requestURL(hash, kind)
 

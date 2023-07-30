@@ -234,7 +234,7 @@ func (d proxyStub) Put(ctx context.Context, kind cache.EntryKind, hash string, l
 	// Not implemented.
 }
 
-func (d proxyStub) Get(ctx context.Context, kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
+func (d proxyStub) Get(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (io.ReadCloser, int64, error) {
 	if hash != contentsHash || kind != cache.CAS {
 		return nil, -1, nil
 	}
@@ -269,7 +269,7 @@ func (d proxyStub) Get(ctx context.Context, kind cache.EntryKind, hash string) (
 	return readme, contentsLength, nil
 }
 
-func (d proxyStub) Contains(ctx context.Context, kind cache.EntryKind, hash string) (bool, int64) {
+func (d proxyStub) Contains(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (bool, int64) {
 	if hash != contentsHash || kind != cache.CAS {
 		return false, -1
 	}

@@ -93,11 +93,11 @@ type testCWProxy struct {
 func (p *testCWProxy) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
 }
 
-func (p *testCWProxy) Get(ctx context.Context, kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
+func (p *testCWProxy) Get(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (io.ReadCloser, int64, error) {
 	return nil, -1, nil
 }
 
-func (p *testCWProxy) Contains(ctx context.Context, kind cache.EntryKind, hash string) (bool, int64) {
+func (p *testCWProxy) Contains(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (bool, int64) {
 	if kind == cache.CAS && hash == p.blob {
 		return true, 42
 	}
@@ -176,11 +176,11 @@ func (p *proxyAdapter) Put(ctx context.Context, kind cache.EntryKind, hash strin
 	}
 }
 
-func (p *proxyAdapter) Get(ctx context.Context, kind cache.EntryKind, hash string) (rc io.ReadCloser, size int64, err error) {
+func (p *proxyAdapter) Get(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (rc io.ReadCloser, size int64, err error) {
 	return p.cache.Get(ctx, kind, hash, size, 0)
 }
 
-func (p *proxyAdapter) Contains(ctx context.Context, kind cache.EntryKind, hash string) (bool, int64) {
+func (p *proxyAdapter) Contains(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (bool, int64) {
 	return p.cache.Contains(ctx, kind, hash, -1)
 }
 

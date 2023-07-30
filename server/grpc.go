@@ -68,10 +68,10 @@ func ListenAndServeGRPC(
 		return err
 	}
 
-	return serveGRPC(listener, srv, validateACDeps, mangleACKeys, enableRemoteAssetAPI, c, a, e)
+	return ServeGRPC(listener, srv, validateACDeps, mangleACKeys, enableRemoteAssetAPI, c, a, e)
 }
 
-func serveGRPC(l net.Listener, srv *grpc.Server,
+func ServeGRPC(l net.Listener, srv *grpc.Server,
 	validateACDepsCheck bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,

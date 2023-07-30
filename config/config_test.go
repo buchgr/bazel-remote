@@ -2,6 +2,7 @@ package config
 
 import (
 	"math"
+	"net/url"
 	"reflect"
 	"regexp"
 	"strings"
@@ -122,6 +123,10 @@ http_proxy:
 		t.Fatal(err)
 	}
 
+	url, err := url.Parse("https://remote-cache.com:8080/cache")
+	if err != nil {
+		t.Fatal(err)
+	}
 	expectedConfig := &Config{
 		HTTPAddress:        "localhost:8080",
 		GRPCAddress:        "localhost:9092",
@@ -129,8 +134,8 @@ http_proxy:
 		MaxSize:            100,
 		StorageMode:        "zstd",
 		ZstdImplementation: "go",
-		HTTPBackend: &HTTPBackendConfig{
-			BaseURL: "https://remote-cache.com:8080/cache",
+		HTTPBackend: &URLBackendConfig{
+			BaseURL: url,
 		},
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
