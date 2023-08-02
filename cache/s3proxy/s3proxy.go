@@ -203,7 +203,7 @@ func (c *s3Cache) UpdateModificationTimestamp(ctx context.Context, bucket string
 	logResponse(c.accessLogger, "COMPOSE", bucket, object, err)
 }
 
-func (c *s3Cache) Get(ctx context.Context, kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
+func (c *s3Cache) Get(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (io.ReadCloser, int64, error) {
 
 	rc, info, _, err := c.mcore.GetObject(
 		ctx,
@@ -236,7 +236,7 @@ func (c *s3Cache) Get(ctx context.Context, kind cache.EntryKind, hash string) (i
 	return rc, info.Size, nil
 }
 
-func (c *s3Cache) Contains(ctx context.Context, kind cache.EntryKind, hash string) (bool, int64) {
+func (c *s3Cache) Contains(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (bool, int64) {
 	size := int64(-1)
 	exists := false
 

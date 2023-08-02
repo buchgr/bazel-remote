@@ -622,7 +622,7 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 		return nil, -1, nil
 	}
 
-	r, foundSize, err := c.proxy.Get(ctx, kind, hash)
+	r, foundSize, err := c.proxy.Get(ctx, kind, hash, size)
 	if r != nil {
 		defer r.Close()
 	}
@@ -731,7 +731,7 @@ func (c *diskCache) Contains(ctx context.Context, kind cache.EntryKind, hash str
 	}
 
 	if c.proxy != nil && size <= c.maxProxyBlobSize {
-		exists, foundSize = c.proxy.Contains(ctx, kind, hash)
+		exists, foundSize = c.proxy.Contains(ctx, kind, hash, size)
 		if exists && foundSize <= c.maxProxyBlobSize && !isSizeMismatch(size, foundSize) {
 			return true, foundSize
 		}

@@ -240,7 +240,7 @@ func (r *remoteGrpcProxyCache) fetchBlobDigest(ctx context.Context, hash string)
 	return res.BlobDigest, nil
 }
 
-func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
+func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, hash string, size int64) (io.ReadCloser, int64, error) {
 	switch kind {
 	case cache.RAW:
 		// RAW cache entries are a special case of AC, used when --disable_http_ac_validation
@@ -274,11 +274,15 @@ func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 		return io.NopCloser(bytes.NewReader(data)), int64(len(data)), nil
 
 	case cache.CAS:
-		digest, err := r.fetchBlobDigest(ctx, hash)
-		if err != nil {
-			logResponse(r.errorLogger, "FetchBlob", err.Error(), hash)
+		if size < 0 {
+			// We don't know the size, so send a FetchBlob request first to get the digest
+			digest, err := r.fetchBlobDigest(ctx, hash)
+			if err != nil {
+				logResponse(r.errorLogger, "FetchBlob", err.Error(), hash)
+				return nil, -1, err
+			}
+			size = digest.SizeBytes
 		}
-		size := digest.SizeBytes
 
 		req := bs.ReadRequest{
 			ResourceName: fmt.Sprintf("blobs/%s/%d", hash, size),
@@ -295,7 +299,7 @@ func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 	}
 }
 
-func (r *remoteGrpcProxyCache) Contains(ctx context.Context, kind cache.EntryKind, hash string) (bool, int64) {
+func (r *remoteGrpcProxyCache) Contains(ctx context.Context, kind cache.EntryKind, hash string, size int64) (bool, int64) {
 	switch kind {
 	case cache.RAW:
 		// RAW cache entries are a special case of AC, used when --disable_http_ac_validation
@@ -305,20 +309,42 @@ func (r *remoteGrpcProxyCache) Contains(ctx context.Context, kind cache.EntryKin
 		// There's not "contains" method for the action cache so the best we can do
 		// is to get the object and discard the result
 		// We don't expect this to ever be called anyways since it is not part of the grpc protocol
-		rc, size, err := r.Get(ctx, kind, hash)
+		rc, size, err := r.Get(ctx, kind, hash, size)
 		rc.Close()
 		if err != nil || size < 0 {
 			return false, -1
 		}
 		return true, size
 	case cache.CAS:
-		digest, err := r.fetchBlobDigest(ctx, hash)
+		if size < 0 {
+			// If don't know the size, use the remote asset api to find the missing blob
+			digest, err := r.fetchBlobDigest(ctx, hash)
+			if err != nil {
+				logResponse(r.errorLogger, "Contains", err.Error(), hash)
+				return false, -1
+			}
+			logResponse(r.accessLogger, "Contains", "Success", hash)
+			return true, digest.SizeBytes
+		}
+
+		// If we know the size, prefer using the remote execution api
+		req := &pb.FindMissingBlobsRequest{
+			BlobDigests: []*pb.Digest{{
+				Hash:      hash,
+				SizeBytes: size,
+			}},
+		}
+		res, err := r.clients.cas.FindMissingBlobs(ctx, req)
 		if err != nil {
 			logResponse(r.errorLogger, "Contains", err.Error(), hash)
 			return false, -1
 		}
-		logResponse(r.accessLogger, "Contains", "Success", hash)
-		return true, digest.SizeBytes
+		for range res.MissingBlobDigests {
+			logResponse(r.accessLogger, "Contains", "Not Found", hash)
+			return false, -1
+		}
+		logResponse(r.errorLogger, "Contains", "Success", hash)
+		return true, size
 	default:
 		logResponse(r.errorLogger, "Contains", "Unexpected kind", kind.String())
 		return false, -1
