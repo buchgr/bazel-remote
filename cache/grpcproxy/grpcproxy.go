@@ -35,13 +35,32 @@ type GrpcClients struct {
 	cas   pb.ContentAddressableStorageClient
 }
 
-func NewGrpcClients(cc *grpc.ClientConn) *GrpcClients {
+func NewGrpcClients(cc *grpc.ClientConn) (*GrpcClients, error) {
+	resp, err := pb.NewCapabilitiesClient(cc).GetCapabilities(context.Background(), &pb.GetCapabilitiesRequest{})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.CacheCapabilities.ActionCacheUpdateCapabilities.UpdateEnabled {
+		return nil, errors.New("Proxy backend does not allow action cache updates")
+	}
+	supportsSha256 := func(r *pb.ServerCapabilities) bool {
+		for _, df := range r.CacheCapabilities.DigestFunctions {
+			if df == pb.DigestFunction_SHA256 {
+				return true
+			}
+		}
+		return false
+	}
+	if !supportsSha256(resp) {
+		return nil, errors.New("Proxy backend does not support sha256")
+	}
+
 	return &GrpcClients{
 		asset: asset.NewFetchClient(cc),
 		bs:    bs.NewByteStreamClient(cc),
 		ac:    pb.NewActionCacheClient(cc),
 		cas:   pb.NewContentAddressableStorageClient(cc),
-	}
+	}, nil
 }
 
 type remoteGrpcProxyCache struct {
@@ -53,7 +72,7 @@ type remoteGrpcProxyCache struct {
 
 func New(clients *GrpcClients,
 	accessLogger cache.Logger, errorLogger cache.Logger,
-	numUploaders, maxQueuedUploads int) (cache.Proxy, error) {
+	numUploaders, maxQueuedUploads int) cache.Proxy {
 
 	proxy := &remoteGrpcProxyCache{
 		clients:      clients,
@@ -63,7 +82,7 @@ func New(clients *GrpcClients,
 
 	proxy.uploadQueue = backendproxy.StartUploaders(proxy, numUploaders, maxQueuedUploads)
 
-	return proxy, nil
+	return proxy
 }
 
 // Helper function for logging responses

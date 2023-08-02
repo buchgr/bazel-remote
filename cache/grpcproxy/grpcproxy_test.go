@@ -64,7 +64,10 @@ func newFixture(t *testing.T, proxy cache.Proxy) *fixture {
 		}
 	}()
 
-	clients := NewGrpcClients(cc)
+	clients, err := NewGrpcClients(cc)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	return &fixture{
 		cache:   diskCache,
@@ -76,10 +79,7 @@ func newFixture(t *testing.T, proxy cache.Proxy) *fixture {
 
 func TestEverything(t *testing.T) {
 	proxyFixture := newFixture(t, nil)
-	proxy, err := New(proxyFixture.clients, logger, logger, 100, 100)
-	if err != nil {
-		t.Fatal(err)
-	}
+	proxy := New(proxyFixture.clients, logger, logger, 100, 100)
 	putFixture := newFixture(t, proxy)
 	getFixture := newFixture(t, proxy)
 	time.Sleep(time.Second)

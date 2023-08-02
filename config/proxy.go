@@ -65,11 +65,11 @@ func (c *Config) setProxy() error {
 		if err != nil {
 			return err
 		}
-		clients := grpcproxy.NewGrpcClients(conn)
-		proxy, err := grpcproxy.New(clients, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
+		clients, err := grpcproxy.NewGrpcClients(conn)
 		if err != nil {
 			return err
 		}
+		proxy := grpcproxy.New(clients, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
 		c.ProxyBackend = proxy
 	}
 
