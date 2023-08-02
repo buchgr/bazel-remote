@@ -212,6 +212,34 @@ func (r *remoteGrpcProxyCache) Put(ctx context.Context, kind cache.EntryKind, ha
 	}
 }
 
+func (r *remoteGrpcProxyCache) fetchBlobDigest(ctx context.Context, hash string) (*pb.Digest, error) {
+	decoded, err := hex.DecodeString(hash)
+	if err != nil {
+		return nil, err
+	}
+	q := asset.Qualifier{
+		Name:  "checksum.sri",
+		Value: fmt.Sprintf("sha256-%s", base64.StdEncoding.EncodeToString(decoded)),
+	}
+	freq := asset.FetchBlobRequest{
+		Uris:       []string{},
+		Qualifiers: []*asset.Qualifier{&q},
+	}
+
+	res, err := r.clients.asset.FetchBlob(ctx, &freq)
+	if err != nil {
+		return nil, err
+	}
+
+	if res.Status.GetCode() == int32(codes.NotFound) {
+		return nil, errors.New("Not Found")
+	}
+	if res.Status.GetCode() != int32(codes.OK) {
+		return nil, errors.New(res.Status.Message)
+	}
+	return res.BlobDigest, nil
+}
+
 func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, hash string) (io.ReadCloser, int64, error) {
 	switch kind {
 	case cache.RAW:
@@ -246,38 +274,14 @@ func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 		return io.NopCloser(bytes.NewReader(data)), int64(len(data)), nil
 
 	case cache.CAS:
-		// We don't know the size, so send a FetchBlob request first to get the digest
-		// TODO: consider passign the expected blob size to the proxy?
-		decoded, err := hex.DecodeString(hash)
-		if err != nil {
-			return nil, -1, err
-		}
-		q := asset.Qualifier{
-			Name:  "checksum.sri",
-			Value: fmt.Sprintf("sha256-%s", base64.StdEncoding.EncodeToString(decoded)),
-		}
-		freq := asset.FetchBlobRequest{
-			Uris:       []string{},
-			Qualifiers: []*asset.Qualifier{&q},
-		}
-
-		res, err := r.clients.asset.FetchBlob(ctx, &freq)
+		digest, err := r.fetchBlobDigest(ctx, hash)
 		if err != nil {
 			logResponse(r.errorLogger, "FetchBlob", err.Error(), hash)
-			return nil, -1, err
 		}
-
-		if res.Status.GetCode() == int32(codes.NotFound) {
-			logResponse(r.accessLogger, "FetchBlob", res.Status.Message, hash)
-			return nil, -1, nil
-		}
-		if res.Status.GetCode() != int32(codes.OK) {
-			logResponse(r.errorLogger, "FetchBlob", res.Status.Message, hash)
-			return nil, -1, errors.New(res.Status.Message)
-		}
+		size := digest.SizeBytes
 
 		req := bs.ReadRequest{
-			ResourceName: fmt.Sprintf("blobs/%s/%d", res.BlobDigest.Hash, res.BlobDigest.SizeBytes),
+			ResourceName: fmt.Sprintf("blobs/%s/%d", hash, size),
 		}
 		stream, err := r.clients.bs.Read(ctx, &req)
 		if err != nil {
@@ -285,7 +289,7 @@ func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 			return nil, -1, err
 		}
 		rc := StreamReadCloser[*bs.ReadResponse]{Stream: stream}
-		return &rc, res.BlobDigest.SizeBytes, nil
+		return &rc, size, nil
 	default:
 		return nil, -1, fmt.Errorf("Unexpected kind %s", kind)
 	}
@@ -308,37 +312,13 @@ func (r *remoteGrpcProxyCache) Contains(ctx context.Context, kind cache.EntryKin
 		}
 		return true, size
 	case cache.CAS:
-		decoded, err := hex.DecodeString(hash)
+		digest, err := r.fetchBlobDigest(ctx, hash)
 		if err != nil {
 			logResponse(r.errorLogger, "Contains", err.Error(), hash)
 			return false, -1
 		}
-		q := asset.Qualifier{
-			Name:  "checksum.sri",
-			Value: fmt.Sprintf("sha256-%s", base64.StdEncoding.EncodeToString(decoded)),
-		}
-		freq := asset.FetchBlobRequest{
-			Uris:       []string{},
-			Qualifiers: []*asset.Qualifier{&q},
-		}
-
-		res, err := r.clients.asset.FetchBlob(ctx, &freq)
-		if err != nil {
-			logResponse(r.errorLogger, "Contains", err.Error(), hash)
-			return false, -1
-		}
-
-		if res.Status.GetCode() == int32(codes.NotFound) {
-			logResponse(r.accessLogger, "Contains", "Not Found", hash)
-			return false, -1
-		}
-		if res.Status.GetCode() != int32(codes.OK) {
-			logResponse(r.errorLogger, "Contains", res.Status.Message, hash)
-			return false, -1
-		}
-
 		logResponse(r.accessLogger, "Contains", "Success", hash)
-		return true, res.BlobDigest.SizeBytes
+		return true, digest.SizeBytes
 	default:
 		logResponse(r.errorLogger, "Contains", "Unexpected kind", kind.String())
 		return false, -1
