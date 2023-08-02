@@ -99,7 +99,7 @@ func grpcTestSetupInternal(t *testing.T, mangleACKeys bool) (tc grpcTestFixture)
 	enableRemoteAssetAPI := true
 
 	go func() {
-		err2 := serveGRPC(
+		err2 := ServeGRPC(
 			listener,
 			grpc.NewServer(),
 			validateAC,

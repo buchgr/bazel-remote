@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math/rand"
+	"net"
 	"testing"
 	"time"
 
@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 
 	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
@@ -26,8 +27,6 @@ import (
 var logger = testutils.NewSilentLogger()
 
 type fixture struct {
-	port    int
-	host    string
 	cc      *grpc.ClientConn
 	server  *grpc.Server
 	clients *GrpcClients
@@ -35,9 +34,16 @@ type fixture struct {
 }
 
 func newFixture(t *testing.T, proxy cache.Proxy) *fixture {
-	port := rand.Intn(65353-1024) + 1024
-	host := fmt.Sprintf("localhost:%d", port)
-	cc, err := grpc.Dial(host, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	listener := bufconn.Listen(1024 * 1024)
+	dialer := func(context.Context, string) (net.Conn, error) {
+		return listener.Dial()
+	}
+
+	cc, err := grpc.Dial(
+		"bufconn",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(dialer),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +58,7 @@ func newFixture(t *testing.T, proxy cache.Proxy) *fixture {
 	}
 	grpcServer := grpc.NewServer()
 	go func() {
-		err := server.ListenAndServeGRPC(grpcServer, "tcp", host, false, false, true, diskCache, logger, logger)
+		err := server.ServeGRPC(listener, grpcServer, false, false, true, diskCache, logger, logger)
 		if err != nil {
 			logger.Printf(err.Error())
 		}
@@ -61,8 +67,6 @@ func newFixture(t *testing.T, proxy cache.Proxy) *fixture {
 	clients := NewGrpcClients(cc)
 
 	return &fixture{
-		port:    port,
-		host:    host,
 		cache:   diskCache,
 		cc:      cc,
 		server:  grpcServer,
