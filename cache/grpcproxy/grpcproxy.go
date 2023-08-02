@@ -22,6 +22,12 @@ import (
 	bs "google.golang.org/genproto/googleapis/bytestream"
 )
 
+const (
+	// The maximum chunk size to write back to the client in Send calls.
+	// Inspired by Goma's FileBlob.FILE_CHUNK maxium size.
+	maxChunkSize = 2 * 1024 * 1024 // 2M
+)
+
 type GrpcClients struct {
 	asset asset.FetchClient
 	bs    bs.ByteStreamClient
@@ -116,8 +122,13 @@ func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
 			return
 		}
 
-		buf := make([]byte, 2*1024*1024)
-		resourceName := fmt.Sprintf("uploads/%s/blobs/%s/%d", uuid.New().String(), item.Hash, item.SizeOnDisk)
+		bufSize := item.SizeOnDisk
+		if bufSize > maxChunkSize {
+			bufSize = maxChunkSize
+		}
+		buf := make([]byte, bufSize)
+
+		resourceName := fmt.Sprintf("uploads/%s/blobs/%s/%d", uuid.New().String(), item.Hash, item.LogicalSize)
 		firstIteration := true
 		for {
 			n, err := item.Rc.Read(buf)

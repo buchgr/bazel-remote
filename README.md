@@ -243,7 +243,8 @@ OPTIONS:
       Goroutines to process parallel uploads to backend. (default: 100)
       [$BAZEL_REMOTE_NUM_UPLOADERS]
 
-   --grpc_proxy.url value The base URL to use for a grpc proxy backend.
+   --grpc_proxy.url value The base URL to use for a grpc proxy backend, e.g.
+      localhost:9090 or example.com:7070.
       [$BAZEL_REMOTE_GRPC_PROXY_URL]
 
    --grpc_proxy.key_file value Path to a key used to authenticate with the

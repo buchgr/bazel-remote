@@ -186,7 +186,7 @@ func GetCliFlags() []cli.Flag {
 		&cli.StringFlag{
 			Name:    "grpc_proxy.url",
 			Value:   "",
-			Usage:   "The base URL to use for a grpc proxy backend.",
+			Usage:   "The base URL to use for a grpc proxy backend, e.g. localhost:9090 or example.com:7070.",
 			EnvVars: []string{"BAZEL_REMOTE_GRPC_PROXY_URL"},
 		},
 		&cli.StringFlag{
