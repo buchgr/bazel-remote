@@ -27,7 +27,7 @@ import (
 	syncpool "github.com/mostynb/zstdpool-syncpool"
 )
 
-var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{64})$")
+var blobNameSHA256 = regexp.MustCompile(`^/?(.*/)?((?:ac|cas(?:\.v2)?)/)([a-f0-9]{64})$`)
 
 var decoder, _ = zstd.NewReader(nil) // TODO: raise WithDecoderConcurrency ?
 
@@ -100,14 +100,14 @@ func parseRequestURL(url string, validateAC bool) (kind cache.EntryKind, hash st
 
 	parts := m[2:]
 	if len(parts) != 2 {
-		err := fmt.Errorf("the path '%s' is invalid. expected (ac/|cas/)sha256",
+		err := fmt.Errorf("the path '%s' is invalid. expected (ac/|cas(.v2)?/)sha256",
 			html.EscapeString(url))
 		return 0, "", "", err
 	}
 
-	// The regex ensures that parts[0] can only be "ac/" or "cas/"
+	// The regex ensures that parts[0] can only be "ac/" or "cas(.v2)?/"
 	hash = parts[1]
-	if parts[0] == "cas/" {
+	if parts[0] == "cas/" || parts[0] == "cas.v2/" {
 		return cache.CAS, hash, instance, nil
 	}
 
