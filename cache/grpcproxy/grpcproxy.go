@@ -33,34 +33,26 @@ type GrpcClients struct {
 	bs    bs.ByteStreamClient
 	ac    pb.ActionCacheClient
 	cas   pb.ContentAddressableStorageClient
+	cap   pb.CapabilitiesClient
 }
 
-func NewGrpcClients(cc *grpc.ClientConn) (*GrpcClients, error) {
-	resp, err := pb.NewCapabilitiesClient(cc).GetCapabilities(context.Background(), &pb.GetCapabilitiesRequest{})
-	if err != nil {
-		return nil, err
-	}
-	if !resp.CacheCapabilities.ActionCacheUpdateCapabilities.UpdateEnabled {
-		return nil, errors.New("Proxy backend does not allow action cache updates")
-	}
-	supportsSha256 := func(r *pb.ServerCapabilities) bool {
-		for _, df := range r.CacheCapabilities.DigestFunctions {
-			if df == pb.DigestFunction_SHA256 {
-				return true
-			}
+func contains[A comparable](arr []A, value A) bool {
+	for _, v := range arr {
+		if v == value {
+			return true
 		}
-		return false
 	}
-	if !supportsSha256(resp) {
-		return nil, errors.New("Proxy backend does not support sha256")
-	}
+	return false
+}
 
+func NewGrpcClients(cc *grpc.ClientConn) *GrpcClients {
 	return &GrpcClients{
 		asset: asset.NewFetchClient(cc),
 		bs:    bs.NewByteStreamClient(cc),
 		ac:    pb.NewActionCacheClient(cc),
 		cas:   pb.NewContentAddressableStorageClient(cc),
-	}, nil
+		cap:   pb.NewCapabilitiesClient(cc),
+	}
 }
 
 type remoteGrpcProxyCache struct {
@@ -68,21 +60,37 @@ type remoteGrpcProxyCache struct {
 	uploadQueue  chan<- backendproxy.UploadReq
 	accessLogger cache.Logger
 	errorLogger  cache.Logger
+	v2mode       bool
 }
 
-func New(clients *GrpcClients,
+func New(clients *GrpcClients, storageMode string,
 	accessLogger cache.Logger, errorLogger cache.Logger,
-	numUploaders, maxQueuedUploads int) cache.Proxy {
+	numUploaders, maxQueuedUploads int) (cache.Proxy, error) {
+
+	resp, err := clients.cap.GetCapabilities(context.Background(), &pb.GetCapabilitiesRequest{})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.CacheCapabilities.ActionCacheUpdateCapabilities.UpdateEnabled {
+		return nil, errors.New("Proxy backend does not allow action cache updates")
+	}
+	if !contains(resp.CacheCapabilities.DigestFunctions, pb.DigestFunction_SHA256) {
+		return nil, errors.New("Proxy backend does not support sha256")
+	}
+	if storageMode == "zstd" && !contains(resp.CacheCapabilities.SupportedCompressors, pb.Compressor_ZSTD) {
+		return nil, errors.New("Compression required but the grpc proxy does not support it.")
+	}
 
 	proxy := &remoteGrpcProxyCache{
 		clients:      clients,
 		accessLogger: accessLogger,
 		errorLogger:  errorLogger,
+		v2mode:       storageMode == "zstd",
 	}
 
 	proxy.uploadQueue = backendproxy.StartUploaders(proxy, numUploaders, maxQueuedUploads)
 
-	return proxy
+	return proxy, nil
 }
 
 // Helper function for logging responses
@@ -147,7 +155,12 @@ func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
 		}
 		buf := make([]byte, bufSize)
 
-		resourceName := fmt.Sprintf("uploads/%s/blobs/%s/%d", uuid.New().String(), item.Hash, item.LogicalSize)
+		template := "uploads/%s/blobs/%s/%d"
+		if r.v2mode {
+			template = "uploads/%s/compressed-blobs/zstd/%s/%d"
+		}
+		resourceName := fmt.Sprintf(template, uuid.New().String(), item.Hash, item.LogicalSize)
+
 		firstIteration := true
 		for {
 			n, err := item.Rc.Read(buf)
@@ -284,8 +297,12 @@ func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 			size = digest.SizeBytes
 		}
 
+		template := "blobs/%s/%d"
+		if r.v2mode {
+			template = "compressed-blobs/zstd/%s/%d"
+		}
 		req := bs.ReadRequest{
-			ResourceName: fmt.Sprintf("blobs/%s/%d", hash, size),
+			ResourceName: fmt.Sprintf(template, hash, size),
 		}
 		stream, err := r.clients.bs.Read(ctx, &req)
 		if err != nil {

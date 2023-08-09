@@ -362,9 +362,6 @@ func validateConfig(c *Config) error {
 	}
 
 	if c.GRPCBackend != nil {
-		if c.StorageMode != "uncompressed" {
-			return errors.New("--grpc_proxy does not yet support compressed storage mode")
-		}
 		if c.GRPCBackend.KeyFile != "" || c.GRPCBackend.CertFile != "" {
 			if c.GRPCBackend.KeyFile == "" || c.GRPCBackend.CertFile == "" {
 				return errors.New("To use mTLS with the grpc proxy, both a key and a certifacte must be provided")
