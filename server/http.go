@@ -91,7 +91,7 @@ func NewHTTPCache(cache disk.Cache, accessLogger cache.Logger, errorLogger cache
 func parseRequestURL(url string, validateAC bool) (kind cache.EntryKind, hash string, instance string, err error) {
 	m := blobNameSHA256.FindStringSubmatch(url)
 	if m == nil {
-		err := fmt.Errorf("resource name must be a SHA256 hash in hex. "+
+		err := fmt.Errorf("resource name must be a SHA256 hash in hex, "+
 			"got '%s'", html.EscapeString(url))
 		return 0, "", "", err
 	}
@@ -100,7 +100,7 @@ func parseRequestURL(url string, validateAC bool) (kind cache.EntryKind, hash st
 
 	parts := m[2:]
 	if len(parts) != 2 {
-		err := fmt.Errorf("the path '%s' is invalid. expected (ac/|cas/)sha256",
+		err := fmt.Errorf("the path '%s' is invalid, expected (ac/|cas/)sha256",
 			html.EscapeString(url))
 		return 0, "", "", err
 	}
