@@ -356,7 +356,7 @@ func validateConfig(c *Config) error {
 		}
 		if c.HTTPBackend.KeyFile != "" || c.HTTPBackend.CertFile != "" {
 			if c.HTTPBackend.KeyFile == "" || c.HTTPBackend.CertFile == "" {
-				return errors.New("To use mTLS with the http proxy, both a key and a certifacte must be provided")
+				return errors.New("To use mTLS with the http proxy, both a key and a certificate must be provided")
 			}
 		}
 	}
@@ -364,7 +364,7 @@ func validateConfig(c *Config) error {
 	if c.GRPCBackend != nil {
 		if c.GRPCBackend.KeyFile != "" || c.GRPCBackend.CertFile != "" {
 			if c.GRPCBackend.KeyFile == "" || c.GRPCBackend.CertFile == "" {
-				return errors.New("To use mTLS with the grpc proxy, both a key and a certifacte must be provided")
+				return errors.New("To use mTLS with the grpc proxy, both a key and a certificate must be provided")
 			}
 		}
 	}
