@@ -84,6 +84,7 @@ echo "Starting bazel-remote, allowing unauthenticated reads..."
 	--tls_cert_file "$tmpdir/server.crt" \
 	--tls_key_file "$tmpdir/server.key" \
 	--tls_ca_file "$tmpdir/ca.crt" \
+	--enable_endpoint_metrics \
 	--allow_unauthenticated_reads > "$tmpdir/bazel-remote.log" 2>&1 &
 server_pid=$!
 
@@ -113,6 +114,13 @@ then
 	kill -9 $server_pid
 	exit 1
 fi
+
+# Check that metrics are working (requires authentication).
+wget --inet4-only -d -O - --ca-certificate=$tmpdir/server.crt \
+	--certificate=$tmpdir/client.crt \
+	--private-key=$tmpdir/client.pem \
+	--timeout=2 \
+	"https://localhost:$HTTP_PORT/metrics"
 
 # Authenticated read.
 wget --inet4-only -d -O - --ca-certificate=$tmpdir/server.crt \

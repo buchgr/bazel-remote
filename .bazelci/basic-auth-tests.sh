@@ -29,6 +29,7 @@ echo 'topsecretusername:$apr1$Ke2kcK4W$EyueqiHyoqhwXcpiEGNyJ1' \
 echo "Starting bazel-remote, allowing unauthenticated reads..."
 ./bazel-remote --dir "$tmpdir/cache" --max_size 1 --http_address "0.0.0.0:$HTTP_PORT" \
 	--htpasswd_file "$tmpdir/htpasswd" \
+	--enable_endpoint_metrics \
 	--allow_unauthenticated_reads > "$tmpdir/bazel-remote.log" 2>&1 &
 server_pid=$!
 
@@ -56,6 +57,11 @@ then
 	kill -9 $server_pid
 	exit 1
 fi
+
+# Check that metrics are working (requires authentication).
+wget --inet4-only -d -O - \
+	--http-user "$USER" --http-password "$PASS" \
+	http://localhost:$HTTP_PORT/metrics
 
 # Authenticated read.
 wget --inet4-only -d -O - \
