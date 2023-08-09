@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/utils/backendproxy"
@@ -94,8 +95,8 @@ func New(clients *GrpcClients, storageMode string,
 }
 
 // Helper function for logging responses
-func logResponse(logger cache.Logger, method string, msg string, resource string) {
-	logger.Printf("GRPC PROXY %s %s: %s", method, msg, resource)
+func logResponse(logger cache.Logger, method string, msg string, kind cache.EntryKind, hash string) {
+	logger.Printf("GRPC PROXY %s %s %s: %s", strings.ToUpper(method), strings.ToUpper(kind.String()), hash, msg)
 }
 
 func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
@@ -119,13 +120,13 @@ func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
 			}
 		}
 		if read != item.SizeOnDisk {
-			logResponse(r.errorLogger, "AC Upload", "Unexpected short read", item.Hash)
+			logResponse(r.errorLogger, "AC Upload", "Unexpected short read", item.Kind, item.Hash)
 			return
 		}
 		ar := &pb.ActionResult{}
 		err := proto.Unmarshal(data, ar)
 		if err != nil {
-			logResponse(r.errorLogger, "AC Upload", err.Error(), item.Hash)
+			logResponse(r.errorLogger, "AC Upload", err.Error(), item.Kind, item.Hash)
 			return
 		}
 		digest := &pb.Digest{
@@ -139,13 +140,13 @@ func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
 		}
 		_, err = r.clients.ac.UpdateActionResult(context.Background(), req)
 		if err != nil {
-			logResponse(r.errorLogger, "AC Upload", err.Error(), item.Hash)
+			logResponse(r.errorLogger, "AC Upload", err.Error(), item.Kind, item.Hash)
 		}
 		return
 	case cache.CAS:
 		stream, err := r.clients.bs.Write(context.Background())
 		if err != nil {
-			logResponse(r.errorLogger, "Write", err.Error(), item.Hash)
+			logResponse(r.errorLogger, "Write", err.Error(), item.Kind, item.Hash)
 			return
 		}
 
@@ -165,10 +166,10 @@ func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
 		for {
 			n, err := item.Rc.Read(buf)
 			if err != nil && err != io.EOF {
-				logResponse(r.errorLogger, "Write", err.Error(), resourceName)
+				logResponse(r.errorLogger, "Write", err.Error(), item.Kind, item.Hash)
 				err := stream.CloseSend()
 				if err != nil {
-					logResponse(r.errorLogger, "Write", err.Error(), resourceName)
+					logResponse(r.errorLogger, "Write", err.Error(), item.Kind, item.Hash)
 				}
 				return
 			}
@@ -184,21 +185,21 @@ func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
 				}
 				err := stream.Send(req)
 				if err != nil {
-					logResponse(r.errorLogger, "Write", err.Error(), resourceName)
+					logResponse(r.errorLogger, "Write", err.Error(), item.Kind, item.Hash)
 					return
 				}
 			} else {
 				_, err = stream.CloseAndRecv()
 				if err != nil {
-					logResponse(r.errorLogger, "Write", err.Error(), resourceName)
+					logResponse(r.errorLogger, "Write", err.Error(), item.Kind, item.Hash)
 					return
 				}
-				logResponse(r.accessLogger, "Write", "Success", resourceName)
+				logResponse(r.accessLogger, "Write", "Success", item.Kind, item.Hash)
 				return
 			}
 		}
 	default:
-		logResponse(r.errorLogger, "Write", "Unexpected kind", item.Kind.String())
+		logResponse(r.errorLogger, "Write", "Unexpected kind", item.Kind, item.Hash)
 		return
 	}
 }
@@ -274,16 +275,16 @@ func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 		}
 
 		if err != nil {
-			logResponse(r.errorLogger, "GetActionResult", err.Error(), digest.Hash)
+			logResponse(r.errorLogger, "Get", err.Error(), kind, hash)
 			return nil, -1, err
 		}
 		data, err := proto.Marshal(res)
 		if err != nil {
-			logResponse(r.errorLogger, "GetActionResult", err.Error(), digest.Hash)
+			logResponse(r.errorLogger, "Get", err.Error(), kind, hash)
 			return nil, -1, err
 		}
 
-		logResponse(r.accessLogger, "GetActionResult", "Success", digest.Hash)
+		logResponse(r.accessLogger, "Get", "Success", kind, hash)
 		return io.NopCloser(bytes.NewReader(data)), int64(len(data)), nil
 
 	case cache.CAS:
@@ -291,7 +292,7 @@ func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 			// We don't know the size, so send a FetchBlob request first to get the digest
 			digest, err := r.fetchBlobDigest(ctx, hash)
 			if err != nil {
-				logResponse(r.errorLogger, "FetchBlob", err.Error(), hash)
+				logResponse(r.errorLogger, "Fetch", err.Error(), kind, hash)
 				return nil, -1, err
 			}
 			size = digest.SizeBytes
@@ -306,9 +307,10 @@ func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 		}
 		stream, err := r.clients.bs.Read(ctx, &req)
 		if err != nil {
-			logResponse(r.errorLogger, "Read", err.Error(), hash)
+			logResponse(r.errorLogger, "Read", err.Error(), kind, hash)
 			return nil, -1, err
 		}
+		logResponse(r.errorLogger, "Read", "Completed", kind, hash)
 		rc := StreamReadCloser[*bs.ReadResponse]{Stream: stream}
 		return &rc, size, nil
 	default:
@@ -337,10 +339,10 @@ func (r *remoteGrpcProxyCache) Contains(ctx context.Context, kind cache.EntryKin
 			// If don't know the size, use the remote asset api to find the missing blob
 			digest, err := r.fetchBlobDigest(ctx, hash)
 			if err != nil {
-				logResponse(r.errorLogger, "Contains", err.Error(), hash)
+				logResponse(r.errorLogger, "Contains", err.Error(), kind, hash)
 				return false, -1
 			}
-			logResponse(r.accessLogger, "Contains", "Success", hash)
+			logResponse(r.accessLogger, "Contains", "Success", kind, hash)
 			return true, digest.SizeBytes
 		}
 
@@ -353,17 +355,17 @@ func (r *remoteGrpcProxyCache) Contains(ctx context.Context, kind cache.EntryKin
 		}
 		res, err := r.clients.cas.FindMissingBlobs(ctx, req)
 		if err != nil {
-			logResponse(r.errorLogger, "Contains", err.Error(), hash)
+			logResponse(r.errorLogger, "Contains", err.Error(), kind, hash)
 			return false, -1
 		}
 		for range res.MissingBlobDigests {
-			logResponse(r.accessLogger, "Contains", "Not Found", hash)
+			logResponse(r.accessLogger, "Contains", "Not Found", kind, hash)
 			return false, -1
 		}
-		logResponse(r.errorLogger, "Contains", "Success", hash)
+		logResponse(r.errorLogger, "Contains", "Success", kind, hash)
 		return true, size
 	default:
-		logResponse(r.errorLogger, "Contains", "Unexpected kind", kind.String())
+		logResponse(r.errorLogger, "Contains", "Unexpected kind", kind, hash)
 		return false, -1
 	}
 }
