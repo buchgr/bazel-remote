@@ -270,6 +270,8 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 	}
 
 	if c.EnableEndpointMetrics {
+		log.Println("Endpoint metrics: enabled")
+
 		metricsMdlw := middleware.New(middleware.Config{
 			Recorder: httpmetrics.NewRecorder(httpmetrics.Config{
 				DurationBuckets: c.MetricsDurationBuckets,
@@ -292,6 +294,12 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 		cacheHandler = func(w http.ResponseWriter, r *http.Request) {
 			middlewarestd.Handler(r.Method, metricsMdlw, http.HandlerFunc(ch)).ServeHTTP(w, r)
 		}
+	} else {
+		log.Println("Endpoint metrics: disabled")
+
+		mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "Endpoint metrics are not enabled on this server.", http.StatusNotFound)
+		})
 	}
 
 	mux.HandleFunc("/status", statusHandler)
