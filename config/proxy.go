@@ -66,11 +66,13 @@ func (c *Config) setProxy() error {
 			return err
 		}
 		clients := grpcproxy.NewGrpcClients(conn)
-		proxy, err := grpcproxy.New(clients, c.StorageMode,
-			c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
+		err = clients.CheckCapabilities(c.StorageMode == "zstd")
 		if err != nil {
 			return err
 		}
+		proxy := grpcproxy.New(clients, c.StorageMode,
+			c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
+
 		c.ProxyBackend = proxy
 	}
 

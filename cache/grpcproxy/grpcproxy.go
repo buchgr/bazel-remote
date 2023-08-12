@@ -56,6 +56,23 @@ func NewGrpcClients(cc *grpc.ClientConn) *GrpcClients {
 	}
 }
 
+func (c *GrpcClients) CheckCapabilities(zstd bool) error {
+	resp, err := c.cap.GetCapabilities(context.Background(), &pb.GetCapabilitiesRequest{})
+	if err != nil {
+		return err
+	}
+	if !resp.CacheCapabilities.ActionCacheUpdateCapabilities.UpdateEnabled {
+		return errors.New("Proxy backend does not allow action cache updates")
+	}
+	if !contains(resp.CacheCapabilities.DigestFunctions, pb.DigestFunction_SHA256) {
+		return errors.New("Proxy backend does not support sha256")
+	}
+	if zstd && !contains(resp.CacheCapabilities.SupportedCompressors, pb.Compressor_ZSTD) {
+		return errors.New("Compression required but the grpc proxy does not support it.")
+	}
+	return nil
+}
+
 type remoteGrpcProxyCache struct {
 	clients      *GrpcClients
 	uploadQueue  chan<- backendproxy.UploadReq
@@ -66,21 +83,7 @@ type remoteGrpcProxyCache struct {
 
 func New(clients *GrpcClients, storageMode string,
 	accessLogger cache.Logger, errorLogger cache.Logger,
-	numUploaders, maxQueuedUploads int) (cache.Proxy, error) {
-
-	resp, err := clients.cap.GetCapabilities(context.Background(), &pb.GetCapabilitiesRequest{})
-	if err != nil {
-		return nil, err
-	}
-	if !resp.CacheCapabilities.ActionCacheUpdateCapabilities.UpdateEnabled {
-		return nil, errors.New("Proxy backend does not allow action cache updates")
-	}
-	if !contains(resp.CacheCapabilities.DigestFunctions, pb.DigestFunction_SHA256) {
-		return nil, errors.New("Proxy backend does not support sha256")
-	}
-	if storageMode == "zstd" && !contains(resp.CacheCapabilities.SupportedCompressors, pb.Compressor_ZSTD) {
-		return nil, errors.New("Compression required but the grpc proxy does not support it.")
-	}
+	numUploaders, maxQueuedUploads int) cache.Proxy {
 
 	proxy := &remoteGrpcProxyCache{
 		clients:      clients,
@@ -91,7 +94,7 @@ func New(clients *GrpcClients, storageMode string,
 
 	proxy.uploadQueue = backendproxy.StartUploaders(proxy, numUploaders, maxQueuedUploads)
 
-	return proxy, nil
+	return proxy
 }
 
 // Helper function for logging responses
@@ -120,13 +123,13 @@ func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
 			}
 		}
 		if read != item.SizeOnDisk {
-			logResponse(r.errorLogger, "AC Upload", "Unexpected short read", item.Kind, item.Hash)
+			logResponse(r.errorLogger, "Update", "Unexpected short read", item.Kind, item.Hash)
 			return
 		}
 		ar := &pb.ActionResult{}
 		err := proto.Unmarshal(data, ar)
 		if err != nil {
-			logResponse(r.errorLogger, "AC Upload", err.Error(), item.Kind, item.Hash)
+			logResponse(r.errorLogger, "Update", err.Error(), item.Kind, item.Hash)
 			return
 		}
 		digest := &pb.Digest{
@@ -140,7 +143,7 @@ func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
 		}
 		_, err = r.clients.ac.UpdateActionResult(context.Background(), req)
 		if err != nil {
-			logResponse(r.errorLogger, "AC Upload", err.Error(), item.Kind, item.Hash)
+			logResponse(r.errorLogger, "Update", err.Error(), item.Kind, item.Hash)
 		}
 		return
 	case cache.CAS:
