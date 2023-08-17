@@ -257,6 +257,10 @@ OPTIONS:
       grpc_proxy.key_file must also be specified.
       [BAZEL_REMOTE_GRPC_PROXY_CERT_FILE]
 
+   --grpc_proxy.ca_file value Path to a certificate autority used to validate
+      the proxy backend certificate.
+      [BAZEL_REMOTE_GRPC_PROXY_CA_FILE]
+
    --http_proxy.url value The base URL to use for a http proxy backend.
       [$BAZEL_REMOTE_HTTP_PROXY_URL]
 
@@ -269,6 +273,10 @@ OPTIONS:
       with the proxy backend using mTLS. If this flag is provided, then
       http_proxy.key_file must also be specified.
       [$BAZEL_REMOTE_HTTP_PROXY_CERT_FILE]
+
+   --http_proxy.ca_file value Path to a certificate autority used to validate
+      the http proxy backend certificate
+      [BAZEL_REMOTE_HTTP_PROXY_CA_FILE]
 
    --gcs_proxy.bucket value The bucket to use for the Google Cloud Storage
       proxy backend. [$BAZEL_REMOTE_GCS_BUCKET]

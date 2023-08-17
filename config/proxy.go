@@ -2,8 +2,10 @@ package config
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/buchgr/bazel-remote/v2/cache/azblobproxy"
 	"github.com/buchgr/bazel-remote/v2/cache/gcsproxy"
@@ -19,7 +21,7 @@ import (
 	prom "github.com/prometheus/client_golang/prometheus"
 )
 
-func getTLSConfig(certFile, keyFile string) (*tls.Config, error) {
+func getTLSConfig(certFile, keyFile, caFile string) (*tls.Config, error) {
 	config := &tls.Config{}
 	if certFile != "" && keyFile != "" {
 		readCert, err := tls.LoadX509KeyPair(certFile, keyFile)
@@ -28,6 +30,17 @@ func getTLSConfig(certFile, keyFile string) (*tls.Config, error) {
 		}
 
 		config.Certificates = []tls.Certificate{readCert}
+	}
+	if caFile != "" {
+		caCert, err := os.ReadFile(caFile)
+		if err != nil {
+			return nil, err
+		}
+		caCertPool := x509.NewCertPool()
+		if added := caCertPool.AppendCertsFromPEM(caCert); !added {
+			return nil, fmt.Errorf("Failed to add ca cert to cert pool.")
+		}
+		config.RootCAs = caCertPool
 	}
 	return config, nil
 }
@@ -48,7 +61,7 @@ func (c *Config) setProxy() error {
 	if c.GRPCBackend != nil {
 		var opts []grpc.DialOption
 		if c.GRPCBackend.BaseURL.Scheme == "grpcs" {
-			config, err := getTLSConfig(c.GRPCBackend.CertFile, c.GRPCBackend.KeyFile)
+			config, err := getTLSConfig(c.GRPCBackend.CertFile, c.GRPCBackend.KeyFile, c.GRPCBackend.CaFile)
 			if err != nil {
 				return err
 			}
@@ -84,7 +97,7 @@ func (c *Config) setProxy() error {
 	if c.HTTPBackend != nil {
 		httpClient := &http.Client{}
 		if c.HTTPBackend.BaseURL.Scheme == "https" {
-			config, err := getTLSConfig(c.HTTPBackend.CertFile, c.HTTPBackend.KeyFile)
+			config, err := getTLSConfig(c.HTTPBackend.CertFile, c.HTTPBackend.KeyFile, c.HTTPBackend.CaFile)
 			if err != nil {
 				return err
 			}

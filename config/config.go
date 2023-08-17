@@ -35,6 +35,7 @@ type URLBackendConfig struct {
 	BaseURL  *url.URL `yaml:"url"`
 	CertFile string   `yaml:"cert_file"`
 	KeyFile  string   `yaml:"key_file"`
+	CaFile   string   `yaml:"ca_file"`
 }
 
 func (c *URLBackendConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -71,6 +72,9 @@ func (c *URLBackendConfig) validate(protocol string) error {
 		if c.BaseURL.Scheme != protocol+"s" {
 			return fmt.Errorf("When mTLS is enabled, the %[1]s proxy backend protocol must be %[1]ss", protocol)
 		}
+	}
+	if c.CaFile != "" && c.BaseURL.Scheme != protocol+"s" {
+		return fmt.Errorf("When TLS is enabled, the %[1]s proxy backend protocol must be %[1]s", protocol)
 	}
 	return nil
 }
@@ -530,6 +534,7 @@ func get(ctx *cli.Context) (*Config, error) {
 			BaseURL:  u,
 			KeyFile:  ctx.String("http_proxy.key_file"),
 			CertFile: ctx.String("http_proxy.cert_file"),
+			CaFile:   ctx.String("http_proxy.ca_file"),
 		}
 	}
 
@@ -544,6 +549,7 @@ func get(ctx *cli.Context) (*Config, error) {
 			BaseURL:  u,
 			KeyFile:  ctx.String("grpc_proxy.key_file"),
 			CertFile: ctx.String("grpc_proxy.cert_file"),
+			CaFile:   ctx.String("grpc_proxy.ca_file"),
 		}
 	}
 
