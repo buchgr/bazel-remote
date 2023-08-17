@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
-	"net/url"
 
 	"github.com/buchgr/bazel-remote/v2/cache/azblobproxy"
 	"github.com/buchgr/bazel-remote/v2/cache/gcsproxy"
@@ -19,6 +18,19 @@ import (
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	prom "github.com/prometheus/client_golang/prometheus"
 )
+
+func getTLSConfig(certFile, keyFile string) (*tls.Config, error) {
+	config := &tls.Config{}
+	if certFile != "" && keyFile != "" {
+		readCert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return nil, err
+		}
+
+		config.Certificates = []tls.Certificate{readCert}
+	}
+	return config, nil
+}
 
 func (c *Config) setProxy() error {
 	if c.GoogleCloudStorage != nil {
@@ -35,17 +47,10 @@ func (c *Config) setProxy() error {
 
 	if c.GRPCBackend != nil {
 		var opts []grpc.DialOption
-		if c.GRPCBackend.CertFile != "" && c.GRPCBackend.KeyFile != "" {
-			readCert, err := tls.LoadX509KeyPair(
-				c.GRPCBackend.CertFile,
-				c.GRPCBackend.KeyFile,
-			)
+		if c.GRPCBackend.BaseURL.Scheme == "grpcs" {
+			config, err := getTLSConfig(c.GRPCBackend.CertFile, c.GRPCBackend.KeyFile)
 			if err != nil {
 				return err
-			}
-
-			config := &tls.Config{
-				Certificates: []tls.Certificate{readCert},
 			}
 			creds := credentials.NewTLS(config)
 			opts = append(opts, grpc.WithTransportCredentials(creds))
@@ -61,7 +66,7 @@ func (c *Config) setProxy() error {
 		opts = append(opts, grpc.WithChainStreamInterceptor(metrics.StreamClientInterceptor()))
 		opts = append(opts, grpc.WithChainUnaryInterceptor(metrics.UnaryClientInterceptor()))
 
-		conn, err := grpc.Dial(c.GRPCBackend.BaseUrl, opts...)
+		conn, err := grpc.Dial(c.GRPCBackend.BaseURL.Host, opts...)
 		if err != nil {
 			return err
 		}
@@ -78,30 +83,16 @@ func (c *Config) setProxy() error {
 
 	if c.HTTPBackend != nil {
 		httpClient := &http.Client{}
-		var baseURL *url.URL
-		baseURL, err := url.Parse(c.HTTPBackend.BaseURL)
-		if err != nil {
-			return err
-		}
-
-		if c.HTTPBackend.CertFile != "" && c.HTTPBackend.KeyFile != "" {
-			readCert, err := tls.LoadX509KeyPair(
-				c.HTTPBackend.CertFile,
-				c.HTTPBackend.KeyFile,
-			)
+		if c.HTTPBackend.BaseURL.Scheme == "https" {
+			config, err := getTLSConfig(c.HTTPBackend.CertFile, c.HTTPBackend.KeyFile)
 			if err != nil {
 				return err
 			}
-
-			config := &tls.Config{
-				Certificates: []tls.Certificate{readCert},
-			}
-
 			tr := &http.Transport{TLSClientConfig: config}
 			httpClient.Transport = tr
 		}
 
-		proxyCache, err := httpproxy.New(baseURL, c.StorageMode,
+		proxyCache, err := httpproxy.New(c.HTTPBackend.BaseURL, c.StorageMode,
 			httpClient, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
 		if err != nil {
 			return err

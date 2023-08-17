@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"net"
+	"net/url"
 	"os"
 	"sort"
 	"strconv"
@@ -22,13 +23,6 @@ import (
 	yaml "gopkg.in/yaml.v3"
 )
 
-// GRPCBackendConfig stores the configuration of a GRPC proxy backend.
-type GRPCBackendConfig struct {
-	BaseUrl  string `yaml:"url"`
-	CertFile string `yaml:"cert_file"`
-	KeyFile  string `yaml:"key_file"`
-}
-
 // GoogleCloudStorageConfig stores the configuration of a GCS proxy backend.
 type GoogleCloudStorageConfig struct {
 	Bucket                string `yaml:"bucket"`
@@ -36,11 +30,49 @@ type GoogleCloudStorageConfig struct {
 	JSONCredentialsFile   string `yaml:"json_credentials_file"`
 }
 
-// HTTPBackendConfig stores the configuration for a HTTP proxy backend.
-type HTTPBackendConfig struct {
-	BaseURL  string `yaml:"url"`
-	CertFile string `yaml:"cert_file"`
-	KeyFile  string `yaml:"key_file"`
+// URLBackendConfig stores the configuration for a HTTP or GRPC proxy backend.
+type URLBackendConfig struct {
+	BaseURL  *url.URL `yaml:"url"`
+	CertFile string   `yaml:"cert_file"`
+	KeyFile  string   `yaml:"key_file"`
+}
+
+func (c *URLBackendConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type Aux URLBackendConfig
+	aux := &struct {
+		URLStr string `yaml:"url"`
+		*Aux
+	}{
+		Aux: (*Aux)(c),
+	}
+
+	if err := unmarshal(aux); err != nil {
+		return err
+	}
+	u, err := url.Parse(aux.URLStr)
+	if err != nil {
+		return err
+	}
+	c.BaseURL = u
+	return nil
+}
+
+func (c *URLBackendConfig) validate(protocol string) error {
+	if c.BaseURL == nil {
+		return fmt.Errorf("The 'url' field is required for '%s_proxy'", protocol)
+	}
+	if c.BaseURL.Scheme != protocol && c.BaseURL.Scheme != protocol+"s" {
+		return fmt.Errorf("The %[1]s proxy backend protocol must be either %[1]s or %[1]ss", protocol)
+	}
+	if c.KeyFile != "" || c.CertFile != "" {
+		if c.KeyFile == "" || c.CertFile == "" {
+			return fmt.Errorf("To use mTLS with the %s proxy, both a key and a certificate must be provided", protocol)
+		}
+		if c.BaseURL.Scheme != protocol+"s" {
+			return fmt.Errorf("When mTLS is enabled, the %[1]s proxy backend protocol must be %[1]ss", protocol)
+		}
+	}
+	return nil
 }
 
 // Config holds the top-level configuration for bazel-remote.
@@ -60,8 +92,8 @@ type Config struct {
 	S3CloudStorage              *S3CloudStorageConfig     `yaml:"s3_proxy,omitempty"`
 	AzBlobConfig                *AzBlobStorageConfig      `yaml:"azblob_proxy,omitempty"`
 	GoogleCloudStorage          *GoogleCloudStorageConfig `yaml:"gcs_proxy,omitempty"`
-	HTTPBackend                 *HTTPBackendConfig        `yaml:"http_proxy,omitempty"`
-	GRPCBackend                 *GRPCBackendConfig        `yaml:"grpc_proxy,omitempty"`
+	HTTPBackend                 *URLBackendConfig         `yaml:"http_proxy,omitempty"`
+	GRPCBackend                 *URLBackendConfig         `yaml:"grpc_proxy,omitempty"`
 	NumUploaders                int                       `yaml:"num_uploaders"`
 	MaxQueuedUploads            int                       `yaml:"max_queued_uploads"`
 	IdleTimeout                 time.Duration             `yaml:"idle_timeout"`
@@ -116,8 +148,8 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	tlsKeyFile string,
 	allowUnauthenticatedReads bool,
 	idleTimeout time.Duration,
-	hc *HTTPBackendConfig,
-	grpcb *GRPCBackendConfig,
+	hc *URLBackendConfig,
+	grpcb *URLBackendConfig,
 	gcs *GoogleCloudStorageConfig,
 	s3 *S3CloudStorageConfig,
 	azblob *AzBlobStorageConfig,
@@ -351,21 +383,14 @@ func validateConfig(c *Config) error {
 	}
 
 	if c.HTTPBackend != nil {
-		if c.HTTPBackend.BaseURL == "" {
-			return errors.New("The 'url' field is required for 'http_proxy'")
-		}
-		if c.HTTPBackend.KeyFile != "" || c.HTTPBackend.CertFile != "" {
-			if c.HTTPBackend.KeyFile == "" || c.HTTPBackend.CertFile == "" {
-				return errors.New("To use mTLS with the http proxy, both a key and a certificate must be provided")
-			}
+		if err := c.HTTPBackend.validate("http"); err != nil {
+			return err
 		}
 	}
 
 	if c.GRPCBackend != nil {
-		if c.GRPCBackend.KeyFile != "" || c.GRPCBackend.CertFile != "" {
-			if c.GRPCBackend.KeyFile == "" || c.GRPCBackend.CertFile == "" {
-				return errors.New("To use mTLS with the grpc proxy, both a key and a certificate must be provided")
-			}
+		if err := c.GRPCBackend.validate("grpc"); err != nil {
+			return err
 		}
 	}
 
@@ -495,19 +520,28 @@ func get(ctx *cli.Context) (*Config, error) {
 		}
 	}
 
-	var hc *HTTPBackendConfig
+	var hc *URLBackendConfig
 	if ctx.String("http_proxy.url") != "" {
-		hc = &HTTPBackendConfig{
-			BaseURL:  ctx.String("http_proxy.url"),
+		u, err := url.Parse(ctx.String("http_proxy.url"))
+		if err != nil {
+			return nil, err
+		}
+		hc = &URLBackendConfig{
+			BaseURL:  u,
 			KeyFile:  ctx.String("http_proxy.key_file"),
 			CertFile: ctx.String("http_proxy.cert_file"),
 		}
 	}
 
-	var grpcb *GRPCBackendConfig
+	var grpcb *URLBackendConfig
 	if ctx.String("grpc_proxy.url") != "" {
-		grpcb = &GRPCBackendConfig{
-			BaseUrl:  ctx.String("grpc_proxy.url"),
+		u, err := url.Parse(ctx.String("grpc_proxy.url"))
+		if err != nil {
+			return nil, err
+		}
+
+		grpcb = &URLBackendConfig{
+			BaseURL:  u,
 			KeyFile:  ctx.String("grpc_proxy.key_file"),
 			CertFile: ctx.String("grpc_proxy.cert_file"),
 		}
