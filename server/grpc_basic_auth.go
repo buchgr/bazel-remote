@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
 	"strings"
 
 	"google.golang.org/grpc"
@@ -120,6 +121,23 @@ func getLogin(ctx context.Context) (username, password string, err error) {
 				continue
 			}
 			password = fields[0]
+
+			return username, password, nil
+		}
+
+		if k == "authorization" && len(v) > 0 && strings.HasPrefix(v[0], "Basic ") {
+			// When bazel-remote is run with --grpc_proxy.url=grpc://user:pass@address/"
+			// the value looks like "Basic <base64(user:pass)>".
+			auth, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(v[0], "Basic "))
+			if err != nil {
+				continue
+			}
+			parts := strings.SplitN(string(auth), ":", 2)
+			if len(parts) < 2 {
+				continue
+			}
+
+			username, password = parts[0], parts[1]
 
 			return username, password, nil
 		}
