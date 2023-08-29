@@ -11,4 +11,9 @@ go_library(
 go_test(
     name = "go_default_test",
     srcs = ["casblob_test.go"],
+    deps = [
+        ":go_default_library",
+        "//cache/disk/zstdimpl:go_default_library",
+        "//utils:go_default_library",
+    ],
 )
