@@ -402,7 +402,7 @@ func GetLegacyZstdReadCloser(zstd zstdimpl.ZstdImpl, f *os.File) (io.ReadCloser,
 
 	pr, pw := io.Pipe()
 
-	enc, err := zstd.GetEncoder(f)
+	enc, err := zstd.GetEncoder(pw)
 	if err != nil {
 		_ = f.Close()
 		return nil, err
@@ -425,7 +425,14 @@ func GetLegacyZstdReadCloser(zstd zstdimpl.ZstdImpl, f *os.File) (io.ReadCloser,
 			log.Println("Error while closing encoder:", err)
 			_ = pw.CloseWithError(err)
 		}
-		_ = f.Close()
+
+		err = f.Close()
+		if err != nil {
+			log.Println("Error while closing file:", err)
+			_ = pw.CloseWithError(err)
+		}
+
+		_ = pw.Close()
 	}()
 
 	return pr, nil
