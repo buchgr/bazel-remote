@@ -85,7 +85,7 @@ go_binary(
     goarch = "amd64",
     goos = "darwin",
     pure = "off",
-    static = "on",
+    #static = "on", # With static enabled, I get the following error: "ld: library not found for -lcrt0.o"
     visibility = ["//visibility:public"],
     x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
 )
@@ -97,7 +97,7 @@ go_binary(
     goarch = "arm64",
     goos = "darwin",
     pure = "off",
-    static = "on",
+    #static = "on", # With static enabled, I get the following error: "ld: library not found for -lcrt0.o"
     visibility = ["//visibility:public"],
     x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
 )
