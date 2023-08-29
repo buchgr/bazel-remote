@@ -407,5 +407,17 @@ func GetCliFlags() []cli.Flag {
 			DefaultText: "UTC, ie use UTC timezone",
 			EnvVars:     []string{"BAZEL_REMOTE_LOG_TIMEZONE"},
 		},
+		&cli.IntFlag{
+			Name:    "max_queued_evictions",
+			Value:   math.MaxInt32,
+			Usage:   "The maximum number of cache evictions to enque before giving up.",
+			EnvVars: []string{"BAZEL_REMOTE_MAX_QUEUED_EVICTIONS"},
+		},
+		&cli.IntFlag{
+			Name:    "max_concurrent_evictions",
+			Value:   5000,
+			Usage:   "The maximum number of cache evictions to run concurrently.",
+			EnvVars: []string{"BAZEL_REMOTE_MAX_CONCURRENT_EVICTIONS"},
+		},
 	}
 }

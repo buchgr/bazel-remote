@@ -116,14 +116,14 @@ func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
 			return false
 		}
 		uncompressedSizeDelta = roundUp4k(value.size) - roundUp4k(ee.Value.(*entry).value.size)
-		c.ll.MoveToFront(ee)
-		c.counterOverwrittenBytes.Add(float64(ee.Value.(*entry).value.sizeOnDisk))
 
 		prevValue := ee.Value.(*entry).value
 		if c.onEvict != nil {
 			c.onEvict(key, prevValue)
 		}
 
+		c.ll.MoveToFront(ee)
+		c.counterOverwrittenBytes.Add(float64(ee.Value.(*entry).value.sizeOnDisk))
 		ee.Value.(*entry).value = value
 	} else {
 		sizeDelta = roundedUpSizeOnDisk

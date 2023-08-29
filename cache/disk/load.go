@@ -25,7 +25,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 const lowercaseDSStoreFile = ".ds_store"
@@ -44,19 +43,6 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 		return nil, err
 	}
 
-	// Go defaults to a limit of 10,000 operating system threads.
-	// We probably don't need half of those for file removals at
-	// any given point in time, unless the disk/fs can't keep up.
-	// I suppose it's better to slow down processing than to crash
-	// when hitting the 10k limit or to run out of disk space.
-	semaphoreWeight := int64(5000)
-
-	if strings.HasPrefix(runtime.GOOS, "darwin") {
-		// Mac seems to fail to create os threads when removing
-		// lots of files, so allow fewer than linux.
-		semaphoreWeight = 3000
-	}
-
 	zi, err := zstdimpl.Get("go")
 	if err != nil {
 		return nil, err
@@ -71,12 +57,28 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 		maxBlobSize:      math.MaxInt64,
 		maxProxyBlobSize: math.MaxInt64,
 
-		fileRemovalSem: semaphore.NewWeighted(semaphoreWeight),
-
 		gaugeCacheAge: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "bazel_remote_disk_cache_longest_item_idle_time_seconds",
 			Help: "The idle time (now - atime) of the last item in the LRU cache, updated once per minute. Depending on filesystem mount options (e.g. relatime), the resolution may be measured in 'days' and not accurate to the second. If using noatime this will be 0.",
 		}),
+		evictionCounter: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "bazel_remote_disk_cache_evictions_total",
+				Help: "The total number of evictions events.",
+			},
+			[]string{"status"},
+		),
+		evictionGauge: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "bazel_remote_disk_cache_evictions_enqueued",
+			Help: "The total number of entries enqueue for evictions.",
+		}),
+		evictionBytesGauge: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "bazel_remote_disk_cache_evictions_bytes_enqueued",
+			Help: "The number of bytes enqueue for evictions.",
+		}),
+
+		maxQueuedEvictions:     1000,
+		maxConcurrentEvictions: 10,
 	}
 
 	cc := CacheConfig{diskCache: &c}
@@ -88,8 +90,6 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 			return nil, err
 		}
 	}
-
-	c.accessLogger.Printf("Limiting concurrent file removals to %d\n", semaphoreWeight)
 
 	// Create the directory structure.
 	hexLetters := []byte("0123456789abcdef")
@@ -574,13 +574,40 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
 	c.accessLogger.Println("Sorting cache files by atime.")
 	sort.Sort(result)
 
+	type EvictionTask struct {
+		Key
+		lruItem
+	}
+	evictionQueue := make(chan EvictionTask, c.maxQueuedEvictions)
+	for i := 0; i < c.maxConcurrentEvictions; i++ {
+		go func() {
+			for pair := range evictionQueue {
+				f := c.getElementPath(pair.Key, pair.lruItem)
+				c.evictionGauge.Dec()
+				c.evictionBytesGauge.Sub(float64(pair.lruItem.sizeOnDisk))
+				err := os.Remove(f)
+				if err != nil {
+					c.evictionCounter.WithLabelValues("fail").Inc()
+					log.Printf("ERROR: failed to remove evicted cache file: %s", f)
+				} else {
+					c.evictionCounter.WithLabelValues("success").Inc()
+				}
+			}
+		}()
+	}
+
 	// The eviction callback deletes the file from disk.
 	// This function is only called while the lock is held
 	// by the current goroutine.
 	onEvict := func(key Key, value lruItem) {
-		f := c.getElementPath(key, value)
-		// Run in a goroutine so we can release the lock sooner.
-		go c.removeFile(f)
+		select {
+		case evictionQueue <- EvictionTask{Key: key, lruItem: value}:
+			c.evictionGauge.Inc()
+			c.evictionBytesGauge.Add(float64(value.sizeOnDisk))
+		default:
+			c.evictionCounter.WithLabelValues("full").Inc()
+			log.Printf("Too many enqueued evictions, could not evict %s", key)
+		}
 	}
 
 	c.accessLogger.Println("Building LRU index.")

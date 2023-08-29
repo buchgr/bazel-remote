@@ -101,3 +101,17 @@ func WithEndpointMetrics() Option {
 		return nil
 	}
 }
+
+func WithMaxConcurrentEvictions(maxConcurrentEvictions int) Option {
+	return func(c *CacheConfig) error {
+		c.diskCache.maxConcurrentEvictions = maxConcurrentEvictions
+		return nil
+	}
+}
+
+func WithMaxQueuedEvictions(maxQueuedEvictions int) Option {
+	return func(c *CacheConfig) error {
+		c.diskCache.maxQueuedEvictions = maxQueuedEvictions
+		return nil
+	}
+}

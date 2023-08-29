@@ -28,8 +28,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/prometheus/client_golang/prometheus"
-
-	"golang.org/x/sync/semaphore"
 )
 
 var tfc = tempfile.NewCreator()
@@ -77,13 +75,16 @@ type diskCache struct {
 	accessLogger     *log.Logger
 	containsQueue    chan proxyCheck
 
-	// Limit the number of simultaneous file removals.
-	fileRemovalSem *semaphore.Weighted
-
 	mu  sync.Mutex
 	lru SizedLRU
 
-	gaugeCacheAge prometheus.Gauge
+	gaugeCacheAge      prometheus.Gauge
+	evictionCounter    *prometheus.CounterVec
+	evictionGauge      prometheus.Gauge
+	evictionBytesGauge prometheus.Gauge
+
+	maxQueuedEvictions     int
+	maxConcurrentEvictions int
 }
 
 const sha256HashStrSize = sha256.Size * 2 // Two hex characters per byte.
@@ -107,7 +108,7 @@ func badReqErr(format string, a ...interface{}) *cache.Error {
 func (c *diskCache) RegisterMetrics() {
 	c.lru.RegisterMetrics()
 
-	prometheus.MustRegister(c.gaugeCacheAge)
+	prometheus.MustRegister(c.gaugeCacheAge, c.evictionCounter, c.evictionGauge, c.evictionBytesGauge)
 
 	// Update the cache age metric on a static interval
 	// Note: this could be modeled as a GuageFunc that updates as needed
@@ -164,19 +165,6 @@ func (c *diskCache) getElementPath(key Key, value lruItem) string {
 	}
 
 	return filepath.Join(c.dir, c.FileLocation(kind, value.legacy, hash, value.size, value.random))
-}
-
-func (c *diskCache) removeFile(f string) {
-	if err := c.fileRemovalSem.Acquire(context.Background(), 1); err != nil {
-		log.Printf("ERROR: failed to aquire semaphore: %v, unable to remove %s", err, f)
-		return
-	}
-	defer c.fileRemovalSem.Release(1)
-
-	err := os.Remove(f)
-	if err != nil {
-		log.Printf("ERROR: failed to remove evicted cache file: %s", f)
-	}
 }
 
 func (c *diskCache) FileLocationBase(kind cache.EntryKind, legacy bool, hash string, size int64) string {

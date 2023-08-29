@@ -69,6 +69,8 @@ type Config struct {
 	LogTimezone                 string                    `yaml:"log_timezone"`
 	MaxBlobSize                 int64                     `yaml:"max_blob_size"`
 	MaxProxyBlobSize            int64                     `yaml:"max_proxy_blob_size"`
+	MaxQueuedEvictions          int                       `yaml:"max_queued_evictions"`
+	MaxConcurrentEvictions      int                       `yaml:"max_concurrent_evictions"`
 
 	// Fields that are created by combinations of the flags above.
 	ProxyBackend cache.Proxy
@@ -122,7 +124,9 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	accessLogLevel string,
 	logTimezone string,
 	maxBlobSize int64,
-	maxProxyBlobSize int64) (*Config, error) {
+	maxProxyBlobSize int64,
+	maxQueuedEvictions int,
+	maxConcurrentEvictions int) (*Config, error) {
 
 	c := Config{
 		HTTPAddress:                 httpAddress,
@@ -156,6 +160,8 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		LogTimezone:                 logTimezone,
 		MaxBlobSize:                 maxBlobSize,
 		MaxProxyBlobSize:            maxProxyBlobSize,
+		MaxQueuedEvictions:          maxQueuedEvictions,
+		MaxConcurrentEvictions:      maxConcurrentEvictions,
 	}
 
 	err := validateConfig(&c)
@@ -539,5 +545,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.String("log_timezone"),
 		ctx.Int64("max_blob_size"),
 		ctx.Int64("max_proxy_blob_size"),
+		ctx.Int("max_queued_evictions"),
+		ctx.Int("max_concurrent_evictions"),
 	)
 }
