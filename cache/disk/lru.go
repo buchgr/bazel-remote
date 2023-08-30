@@ -17,7 +17,7 @@ import (
 type Key interface{}
 
 // EvictCallback is the type of callbacks that are invoked when items are evicted.
-type EvictCallback func(key Key, value lruItem)
+type EvictCallback func(key Key, value lruItem) error
 
 // SizedLRU is an LRU cache that will keep its total size below maxSize by evicting
 // items.
@@ -101,25 +101,27 @@ func (c *SizedLRU) RegisterMetrics() {
 // Note that this function rounds file sizes up to the nearest
 // BlockSize (4096) bytes, as an estimate of actual disk usage since
 // most linux filesystems default to 4kb blocks.
-func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
+func (c *SizedLRU) Add(key Key, value lruItem) error {
 
 	roundedUpSizeOnDisk := roundUp4k(value.sizeOnDisk)
 
 	if roundedUpSizeOnDisk > c.maxSize {
-		return false
+		return fmt.Errorf("Unable to reserve space for blob (size: %d) larger than cache size %d", roundedUpSizeOnDisk, c.maxSize)
 	}
 
 	var sizeDelta, uncompressedSizeDelta int64
 	if ee, ok := c.cache[key]; ok {
 		sizeDelta = roundedUpSizeOnDisk - roundUp4k(ee.Value.(*entry).value.sizeOnDisk)
 		if c.reservedSize+sizeDelta > c.maxSize {
-			return false
+			return fmt.Errorf("INTERNAL ERROR: not enough space for blob with size %d (undersized cache?)", value.size)
 		}
 		uncompressedSizeDelta = roundUp4k(value.size) - roundUp4k(ee.Value.(*entry).value.size)
 
 		prevValue := ee.Value.(*entry).value
 		if c.onEvict != nil {
-			c.onEvict(key, prevValue)
+			if err := c.onEvict(key, prevValue); err != nil {
+				return err
+			}
 		}
 
 		c.ll.MoveToFront(ee)
@@ -128,7 +130,7 @@ func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
 	} else {
 		sizeDelta = roundedUpSizeOnDisk
 		if c.reservedSize+sizeDelta > c.maxSize {
-			return false
+			return fmt.Errorf("INTERNAL ERROR: unable to reclaim enough space for blob with size %d (undersized cache?)", value.size)
 		}
 		uncompressedSizeDelta = roundUp4k(value.size)
 		ele := c.ll.PushFront(&entry{key, value})
@@ -140,7 +142,11 @@ func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
 	for c.currentSize+sizeDelta > c.maxSize {
 		ele := c.ll.Back()
 		if ele != nil {
-			c.removeElement(ele)
+			err := c.removeElement(ele)
+			if err != nil {
+				delete(c.cache, key)
+				return err
+			}
 		}
 	}
 
@@ -150,7 +156,7 @@ func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
 	c.gaugeCacheSizeBytes.Set(float64(c.currentSize))
 	c.gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
 
-	return true
+	return nil
 }
 
 // Get looks up a key in the cache
@@ -164,12 +170,16 @@ func (c *SizedLRU) Get(key Key) (value lruItem, ok bool) {
 }
 
 // Remove removes a (key, value) from the cache
-func (c *SizedLRU) Remove(key Key) {
+func (c *SizedLRU) Remove(key Key) error {
 	if ele, hit := c.cache[key]; hit {
-		c.removeElement(ele)
+		err := c.removeElement(ele)
+		if err != nil {
+			return err
+		}
 		c.gaugeCacheSizeBytes.Set(float64(c.currentSize))
 		c.gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
 	}
+	return nil
 }
 
 // Len returns the number of items in the cache
@@ -234,7 +244,10 @@ func (c *SizedLRU) Reserve(size int64) (bool, error) {
 	for sumLargerThan(size, c.currentSize, c.maxSize) {
 		ele := c.ll.Back()
 		if ele != nil {
-			c.removeElement(ele)
+			err := c.removeElement(ele)
+			if err != nil {
+				return false, err
+			}
 		} else {
 			return false, errReservation // This should have been caught at the start.
 		}
@@ -267,7 +280,7 @@ func (c *SizedLRU) Unreserve(size int64) error {
 	return nil
 }
 
-func (c *SizedLRU) removeElement(e *list.Element) {
+func (c *SizedLRU) removeElement(e *list.Element) error {
 	c.ll.Remove(e)
 	kv := e.Value.(*entry)
 	delete(c.cache, kv.key)
@@ -276,8 +289,12 @@ func (c *SizedLRU) removeElement(e *list.Element) {
 	c.counterEvictedBytes.Add(float64(kv.value.sizeOnDisk))
 
 	if c.onEvict != nil {
-		c.onEvict(kv.key, kv.value)
+		err := c.onEvict(kv.key, kv.value)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // Round n up to the nearest multiple of BlockSize (4096).

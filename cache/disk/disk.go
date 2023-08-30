@@ -393,10 +393,8 @@ func (c *diskCache) commit(key string, legacy bool, tempfile string, reservedSiz
 		random:     random,
 	}
 
-	if !c.lru.Add(key, newItem) {
-		err = fmt.Errorf("INTERNAL ERROR: failed to add: %s, size %d (on disk: %d)",
-			key, logicalSize, sizeOnDisk)
-		log.Println(err.Error())
+	if err := c.lru.Add(key, newItem); err != nil {
+		log.Println(err)
 		return unreserve, removeTempfile, err
 	}
 

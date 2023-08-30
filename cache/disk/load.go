@@ -599,14 +599,15 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
 	// The eviction callback deletes the file from disk.
 	// This function is only called while the lock is held
 	// by the current goroutine.
-	onEvict := func(key Key, value lruItem) {
+	onEvict := func(key Key, value lruItem) error {
 		select {
 		case evictionQueue <- EvictionTask{Key: key, lruItem: value}:
 			c.evictionGauge.Inc()
 			c.evictionBytesGauge.Add(float64(value.sizeOnDisk))
+			return nil
 		default:
 			c.evictionCounter.WithLabelValues("full").Inc()
-			log.Printf("Too many enqueued evictions, could not evict %s", key)
+			return fmt.Errorf("Too many enqueued evictions, could not evict %s", key)
 		}
 	}
 
@@ -615,12 +616,10 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
 	c.lru = NewSizedLRU(maxSizeBytes, onEvict, len(result.item))
 
 	for i := 0; i < len(result.item); i++ {
-		ok := c.lru.Add(result.metadata[i].lookupKey, *result.item[i])
-		if !ok {
-			err = os.Remove(filepath.Join(c.dir, result.metadata[i].lookupKey))
-			if err != nil {
-				return err
-			}
+		err := c.lru.Add(result.metadata[i].lookupKey, *result.item[i])
+		if err != nil {
+			_ = os.Remove(filepath.Join(c.dir, result.metadata[i].lookupKey))
+			return err
 		}
 	}
 

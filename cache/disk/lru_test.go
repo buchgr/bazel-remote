@@ -37,9 +37,9 @@ func TestBasics(t *testing.T) {
 	// Add an item
 	aKey := "akey"
 	anItem := lruItem{size: 5, sizeOnDisk: 5}
-	ok = lru.Add(aKey, anItem)
-	if !ok {
-		t.Fatalf("Add: failed inserting item")
+	err := lru.Add(aKey, anItem)
+	if err != nil {
+		t.Fatalf("Add: failed inserting item: %s", err)
 	}
 
 	getItem, getOk := lru.Get(aKey)
@@ -53,15 +53,19 @@ func TestBasics(t *testing.T) {
 	checkSizeAndNumItems(t, lru, BlockSize, 1)
 
 	// Remove the item
-	lru.Remove(aKey)
+	err = lru.Remove(aKey)
+	if err != nil {
+		t.Fatal(err)
+	}
 	checkSizeAndNumItems(t, lru, 0, 0)
 }
 
 func TestEviction(t *testing.T) {
 	// Keep track of evictions using the callback
 	var evictions []int
-	onEvict := func(key Key, value lruItem) {
+	onEvict := func(key Key, value lruItem) error {
 		evictions = append(evictions, key.(int))
+		return nil
 	}
 
 	lru := NewSizedLRU(10*BlockSize, onEvict, 0)
@@ -85,9 +89,9 @@ func TestEviction(t *testing.T) {
 
 	for i, thisExpected := range expectedSizesNumItems {
 		item := lruItem{size: int64(i) * BlockSize, sizeOnDisk: int64(i) * BlockSize}
-		ok := lru.Add(i, item)
-		if !ok {
-			t.Fatalf("Add: failed adding %d", i)
+		err := lru.Add(i, item)
+		if err != nil {
+			t.Fatalf("Add: failed adding %d: %s", i, err)
 		}
 
 		checkSizeAndNumItems(t, lru, thisExpected.expBlocks*BlockSize, thisExpected.expNumItems)
@@ -103,8 +107,8 @@ func TestRejectBigItem(t *testing.T) {
 	// Bounded caches should reject big items
 	lru := NewSizedLRU(10, nil, 0)
 
-	ok := lru.Add("hello", lruItem{size: 11, sizeOnDisk: 11})
-	if ok {
+	err := lru.Add("hello", lruItem{size: 11, sizeOnDisk: 11})
+	if err == nil {
 		t.Fatalf("Add succeeded, expected it to fail")
 	}
 
@@ -115,7 +119,10 @@ func TestReserveZeroAlwaysPossible(t *testing.T) {
 	largeItem := lruItem{size: math.MaxInt64, sizeOnDisk: math.MaxInt64}
 
 	lru := NewSizedLRU(math.MaxInt64, nil, 0)
-	lru.Add("foo", largeItem)
+	err := lru.Add("foo", largeItem)
+	if err != nil {
+		t.Fatal(err)
+	}
 	ok, err := lru.Reserve(0)
 	if err != nil {
 		t.Fatal(err)
@@ -246,8 +253,8 @@ func TestAddWithSpaceReserved(t *testing.T) {
 		t.Fatalf("Expected to be able to reserve 1")
 	}
 
-	ok = lru.Add("hello", lruItem{size: 2, sizeOnDisk: 2})
-	if ok {
+	err = lru.Add("hello", lruItem{size: 2, sizeOnDisk: 2})
+	if err == nil {
 		t.Fatal("Expected to not be able to add item with size 2")
 	}
 
@@ -256,8 +263,8 @@ func TestAddWithSpaceReserved(t *testing.T) {
 		t.Fatal("Expected to be able to unreserve 1:", err)
 	}
 
-	ok = lru.Add("hello", lruItem{size: 2, sizeOnDisk: 2})
-	if !ok {
-		t.Fatal("Expected to be able to add item with size 2")
+	err = lru.Add("hello", lruItem{size: 2, sizeOnDisk: 2})
+	if err != nil {
+		t.Fatalf("Expected to be able to add item with size 2: %s", err)
 	}
 }
