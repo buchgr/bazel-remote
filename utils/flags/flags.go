@@ -37,9 +37,9 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_DIR"},
 		},
 		&cli.Int64Flag{
-			Name:     "max_size",
-			Usage:    "The maximum size of bazel-remote's disk cache in GiB. This flag is required.",
-			EnvVars:  []string{"BAZEL_REMOTE_MAX_SIZE"},
+			Name:    "max_size",
+			Usage:   "The maximum size of bazel-remote's disk cache in GiB. This flag is required.",
+			EnvVars: []string{"BAZEL_REMOTE_MAX_SIZE"},
 		},
 		&cli.StringFlag{
 			Name:    "storage_mode",
