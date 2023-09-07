@@ -1,9 +1,21 @@
 package disk
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"math"
+	"os"
 	"reflect"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
+	"time"
+
+	testutils "github.com/buchgr/bazel-remote/v2/utils"
+	"github.com/buchgr/bazel-remote/v2/utils/tempfile"
 )
 
 func checkSizeAndNumItems(t *testing.T, lru SizedLRU, expSize int64, expNum int) {
@@ -266,5 +278,126 @@ func TestAddWithSpaceReserved(t *testing.T) {
 	err = lru.Add("hello", lruItem{size: 2, sizeOnDisk: 2})
 	if err != nil {
 		t.Fatalf("Expected to be able to add item with size 2: %s", err)
+	}
+}
+
+func BenchmarkEvictions(b *testing.B) {
+	readSliceFromEnv := func(env string, def []int) []int {
+		if v := os.Getenv(env); v != "" {
+			strs := strings.Split(v, ",")
+			values := make([]int, len(strs))
+			for i, s := range strs {
+				size, err := strconv.Atoi(s)
+				if err != nil {
+					b.Fatal(err)
+				}
+				values[i] = size
+			}
+			return values
+		}
+		return def
+	}
+
+	sizes := readSliceFromEnv("EVICTION_BENCHMARK_SIZE", []int{4 * 1024})
+	concurrencies := readSliceFromEnv("EVICTION_BENCHMARK_CONCURRENCY", []int{1, 2, 4, 8, 10, 100, 1000})
+	filecount := readSliceFromEnv("EVICTION_BENCHMARK_FILECOUNT", []int{1000000})[0]
+
+	creator := tempfile.NewCreator()
+	logger := testutils.NewSilentLogger()
+	basedir := b.TempDir()
+
+	b.Cleanup(func() { os.RemoveAll(basedir) })
+
+	type FileEntry struct {
+		size  int
+		dir   string
+		data  []byte
+		wg    *sync.WaitGroup
+		index int
+	}
+	errCh := make(chan error, filecount)
+	ch := make(chan FileEntry)
+	for i := 0; i < readSliceFromEnv("EVICTION_BENCHMARK_POOL_SIZE", []int{1})[0]; i++ {
+		go func() {
+			for e := range ch {
+				func() {
+					defer e.wg.Done()
+					hash32 := sha256.Sum256([]byte(fmt.Sprintf("%d", e.index)))
+					hash := hex.EncodeToString(hash32[:])
+					prefix := fmt.Sprintf("%s/cas.v2/%s", e.dir, hash[:2])
+					err := os.MkdirAll(prefix, os.ModePerm)
+					if err != nil {
+						errCh <- err
+						return
+					}
+					base := fmt.Sprintf("%s/%s", prefix, hash)
+					f, _, err := creator.Create(base, true)
+					if err != nil {
+						errCh <- err
+						return
+					}
+					defer f.Close()
+					_, err = f.Write(e.data)
+					if err != nil {
+						errCh <- err
+						return
+					}
+					err = f.Close()
+					if err != nil {
+						errCh <- err
+					}
+					if err != nil {
+						errCh <- err
+					}
+				}()
+			}
+		}()
+	}
+
+	for _, size := range sizes {
+		data := make([]byte, size)
+		_, err := rand.Read(data)
+		if err != nil {
+			b.Fatal(err)
+		}
+		for _, concurrency := range concurrencies {
+			maxSize := filecount * size / 10
+			for n := 0; n < b.N; n++ {
+				dir := fmt.Sprintf("%s/%d/%d/%d", basedir, concurrency, size, n)
+				b.Run(fmt.Sprintf("Benchmark %d %d %d %d", concurrency, size, maxSize, n), func(b *testing.B) {
+					b.StopTimer()
+					wg := sync.WaitGroup{}
+					for i := 0; i < filecount; i++ {
+						wg.Add(1)
+						ch <- FileEntry{
+							data:  data,
+							size:  size,
+							wg:    &wg,
+							dir:   dir,
+							index: i,
+						}
+					}
+					wg.Wait()
+					select {
+					case err = <-errCh:
+						b.Fatal(err)
+					default:
+					}
+					time.Sleep(1 * time.Nanosecond)
+
+					b.StartTimer()
+					_, err = New(dir,
+						int64(maxSize),
+						WithAccessLogger(logger),
+						WithMaxQueuedEvictions(filecount),
+						WithMaxConcurrentEvictions(concurrency))
+					b.StopTimer()
+
+					if err != nil {
+						b.Fatal(err)
+					}
+				})
+			}
+		}
 	}
 }

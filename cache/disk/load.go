@@ -588,7 +588,7 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
 				err := os.Remove(f)
 				if err != nil {
 					c.evictionCounter.WithLabelValues("fail").Inc()
-					log.Printf("ERROR: failed to remove evicted cache file: %s", f)
+					log.Printf("ERROR: failed to remove evicted cache file: %s", err)
 				} else {
 					c.evictionCounter.WithLabelValues("success").Inc()
 				}
@@ -619,7 +619,7 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
 		err := c.lru.Add(result.metadata[i].lookupKey, *result.item[i])
 		if err != nil {
 			_ = os.Remove(filepath.Join(c.dir, result.metadata[i].lookupKey))
-			return err
+			println(err)
 		}
 	}
 
