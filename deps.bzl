@@ -575,8 +575,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_mostynb_go_grpc_compression",
         importpath = "github.com/mostynb/go-grpc-compression",
-        sum = "h1:KJzRFSYPXlcoYjG5/xLZB8tpuOyWF2UnlW4tAuaWnfI=",
-        version = "v1.2.0",
+        sum = "h1:16tdYxBZSD8p9AUmvw4F7Nyc2T4/eE7XsIXrgxSEcJI=",
+        version = "v1.2.1",
     )
     go_repository(
         name = "com_github_mostynb_zstdpool_syncpool",

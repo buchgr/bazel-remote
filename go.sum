@@ -218,6 +218,8 @@ github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjY
 github.com/montanaflynn/stats v0.6.6/go.mod h1:etXPPgVO6n31NxCd9KQUMvCM+ve0ruNzt6R8Bnaayow=
 github.com/mostynb/go-grpc-compression v1.2.0 h1:KJzRFSYPXlcoYjG5/xLZB8tpuOyWF2UnlW4tAuaWnfI=
 github.com/mostynb/go-grpc-compression v1.2.0/go.mod h1:oidYvYyefMmhcuvU8fLJ8FfZyTyVzJ6SkmD5fIKgRe8=
+github.com/mostynb/go-grpc-compression v1.2.1 h1:16tdYxBZSD8p9AUmvw4F7Nyc2T4/eE7XsIXrgxSEcJI=
+github.com/mostynb/go-grpc-compression v1.2.1/go.mod h1:oidYvYyefMmhcuvU8fLJ8FfZyTyVzJ6SkmD5fIKgRe8=
 github.com/mostynb/zstdpool-syncpool v0.0.12 h1:vE8zD0+YdQD9Rca0TAGNexUCOCt1IQbdqRUHJoxxERA=
 github.com/mostynb/zstdpool-syncpool v0.0.12/go.mod h1:0YkM6gUZnyeFvLbBRiUYI4PxSiCSI36YNDY/b5iAI04=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
