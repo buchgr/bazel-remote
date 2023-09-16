@@ -135,6 +135,7 @@ container_image(
     name = "bazel-remote-image",
     architecture = "amd64",
     base = ":bazel-remote-base",
+    entrypoint = ["/app/bazel-remote-base.binary"],
     env = {
         "BAZEL_REMOTE_DIR": "/data",
         "BAZEL_REMOTE_HTTP_ADDRESS": ":8080",
@@ -144,7 +145,6 @@ container_image(
         # Specify a port to enable the profiling http server.
         "BAZEL_REMOTE_PROFILE_ADDRESS": ":6060",
     },
-    entrypoint = ["/app/bazel-remote-base.binary"],
     ports = ["8080"],
     tars = [
         "//docker:data_dir_tar",
@@ -157,6 +157,7 @@ container_image(
     name = "bazel-remote-image-arm64",
     architecture = "arm64",
     base = ":bazel-remote-base-arm64",
+    entrypoint = ["/app/bazel-remote-base-arm64.binary"],
     env = {
         "BAZEL_REMOTE_DIR": "/data",
         "BAZEL_REMOTE_HTTP_ADDRESS": ":8080",
@@ -166,7 +167,6 @@ container_image(
         # Specify a port to enable the profiling http server.
         "BAZEL_REMOTE_PROFILE_ADDRESS": ":6060",
     },
-    entrypoint = ["/app/bazel-remote-base-arm64.binary"],
     ports = ["8080"],
     tars = [
         "//docker:data_dir_tar",
