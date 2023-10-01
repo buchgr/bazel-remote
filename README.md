@@ -521,6 +521,18 @@ http_address: 0.0.0.0:8080
 # If you want to use mutual TLS with client certificates:
 #  cert_file: path/to/client.cert
 #  key_file:  path/to/client.key
+# If you want to use a custom CA:
+#  ca_file: path/to/ca.crt
+#
+# Note that the grpc proxy backend requires remote asset API support if
+# you want client -http-> bazel-remote -grpc-> backend requests to work.
+#grpc_proxy:
+#  url: grpc://remote-cache.com:9092
+# If you want to use mutual TLS with client certificates:
+#  cert_file: path/to/client.cert
+#  key_file:  path/to/client.key
+# If you want to use a custom CA:
+#  ca_file: path/to/ca.crt
 #
 #azblob_proxy:
 #  tenant_id: TENANT_ID
