@@ -98,6 +98,13 @@ func WithEndpointMetrics() Option {
 				[]string{"method", "kind", "status"}),
 		}
 
+		c.metrics.counter.WithLabelValues("get", "cas", "hit").Add(0)
+		c.metrics.counter.WithLabelValues("get", "cas", "miss").Add(0)
+		c.metrics.counter.WithLabelValues("contains", "cas", "hit").Add(0)
+		c.metrics.counter.WithLabelValues("contains", "cas", "miss").Add(0)
+		c.metrics.counter.WithLabelValues("get", "ac", "hit").Add(0)
+		c.metrics.counter.WithLabelValues("get", "ac", "miss").Add(0)
+
 		return nil
 	}
 }
