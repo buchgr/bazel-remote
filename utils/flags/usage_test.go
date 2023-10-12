@@ -125,8 +125,7 @@ OPTIONS:
       enough to test the wrapping
       (default: 1) [$BAR]
 
-   --help, -h show help
-      (default: false)
+   --help, -h  show help
 `
 
 	output := new(bytes.Buffer)
