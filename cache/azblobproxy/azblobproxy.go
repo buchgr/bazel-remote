@@ -11,6 +11,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	"github.com/buchgr/bazel-remote/v2/utils/backendproxy"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -40,11 +41,11 @@ type azBlobCache struct {
 	uploadQueue      chan<- backendproxy.UploadReq
 	accessLogger     cache.Logger
 	errorLogger      cache.Logger
-	objectKey        func(hash string, kind cache.EntryKind) string
+	objectKey        func(hasher hashing.Hasher, hash string, kind cache.EntryKind) string
 	updateTimestamps bool
 }
 
-func (c *azBlobCache) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
+func (c *azBlobCache) Put(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
 	if c.uploadQueue == nil {
 		rc.Close()
 		return
@@ -52,6 +53,7 @@ func (c *azBlobCache) Put(ctx context.Context, kind cache.EntryKind, hash string
 
 	select {
 	case c.uploadQueue <- backendproxy.UploadReq{
+		Hasher:      hasher,
 		Hash:        hash,
 		LogicalSize: logicalSize,
 		SizeOnDisk:  sizeOnDisk,
@@ -64,8 +66,8 @@ func (c *azBlobCache) Put(ctx context.Context, kind cache.EntryKind, hash string
 	}
 }
 
-func (c *azBlobCache) Get(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (rc io.ReadCloser, size int64, err error) {
-	key := c.objectKey(hash, kind)
+func (c *azBlobCache) Get(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, _ int64) (rc io.ReadCloser, size int64, err error) {
+	key := c.objectKey(hasher, hash, kind)
 	if c.prefix != "" {
 		key = c.prefix + "/" + key
 	}
@@ -111,8 +113,8 @@ func (c *azBlobCache) Get(ctx context.Context, kind cache.EntryKind, hash string
 
 var errNotFound = errors.New("NOT FOUND")
 
-func (c *azBlobCache) Contains(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (bool, int64) {
-	key := c.objectKey(hash, kind)
+func (c *azBlobCache) Contains(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, _ int64) (bool, int64) {
+	key := c.objectKey(hasher, hash, kind)
 	if c.prefix != "" {
 		key = c.prefix + "/" + key
 	}
@@ -193,12 +195,12 @@ func New(
 	}
 
 	if c.v2mode {
-		c.objectKey = func(hash string, kind cache.EntryKind) string {
-			return objectKeyV2(c.prefix, hash, kind)
+		c.objectKey = func(hasher hashing.Hasher, hash string, kind cache.EntryKind) string {
+			return objectKeyV2(c.prefix, hasher, hash, kind)
 		}
 	} else {
-		c.objectKey = func(hash string, kind cache.EntryKind) string {
-			return objectKeyV1(c.prefix, hash, kind)
+		c.objectKey = func(hasher hashing.Hasher, hash string, kind cache.EntryKind) string {
+			return objectKeyV1(c.prefix, hasher, hash, kind)
 		}
 	}
 
@@ -210,7 +212,7 @@ func New(
 func (c *azBlobCache) UploadFile(item backendproxy.UploadReq) {
 	defer item.Rc.Close()
 
-	key := c.objectKey(item.Hash, item.Kind)
+	key := c.objectKey(item.Hasher, item.Hash, item.Kind)
 	if c.prefix != "" {
 		key = c.prefix + "/" + key
 	}
@@ -237,28 +239,17 @@ func (c *azBlobCache) UpdateModificationTimestamp(ctx context.Context, key strin
 	logResponse(c.accessLogger, "UPDATE_TIMESTAMPS", c.storageAccount, c.container, key, err)
 }
 
-func objectKeyV2(prefix string, hash string, kind cache.EntryKind) string {
-	var baseKey string
+func objectKeyV2(prefix string, hasher hashing.Hasher, hash string, kind cache.EntryKind) string {
+	baseFolder := kind.String()
 	if kind == cache.CAS {
 		// Use "cas.v2" to distinguish new from old format blobs.
-		baseKey = path.Join("cas.v2", hash[:2], hash)
-	} else {
-		baseKey = path.Join(kind.String(), hash[:2], hash)
+		baseFolder = "cas.v2"
 	}
-
-	if prefix == "" {
-		return baseKey
-	}
-
-	return path.Join(prefix, baseKey)
+	return path.Join(prefix, baseFolder, hasher.Dir(), hash[:2], hash)
 }
 
-func objectKeyV1(prefix string, hash string, kind cache.EntryKind) string {
-	if prefix == "" {
-		return path.Join(kind.String(), hash[:2], hash)
-	}
-
-	return path.Join(prefix, kind.String(), hash[:2], hash)
+func objectKeyV1(prefix string, hasher hashing.Hasher, hash string, kind cache.EntryKind) string {
+	return path.Join(prefix, kind.String(), hasher.Dir(), hash[:2], hash)
 }
 
 // Helper function for logging responses

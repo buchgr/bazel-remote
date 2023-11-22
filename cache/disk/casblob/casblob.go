@@ -2,7 +2,6 @@ package casblob
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -12,6 +11,7 @@ import (
 	"os"
 
 	"github.com/buchgr/bazel-remote/v2/cache/disk/zstdimpl"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 )
 
 type CompressionType uint8
@@ -510,7 +510,7 @@ func (b *readCloserWrapper) Close() error {
 
 // Read from r and write to f, using CompressionType t.
 // Return the size on disk or an error if something went wrong.
-func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t CompressionType, hash string, size int64) (int64, error) {
+func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t CompressionType, hh hashing.Hasher, hash string, size int64) (int64, error) {
 	var err error
 	defer f.Close()
 
@@ -550,7 +550,7 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 	var n int64
 
 	if t == Identity {
-		hasher := sha256.New()
+		hasher := hh.New()
 
 		n, err = io.Copy(io.MultiWriter(f, hasher), r)
 		if err != nil {
@@ -579,7 +579,7 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 
 	uncompressedChunk := make([]byte, chunkSize)
 
-	hasher := sha256.New()
+	hasher := hh.New()
 
 	for nextChunk < len(h.chunkOffsets)-1 {
 		h.chunkOffsets[nextChunk] = fileOffset

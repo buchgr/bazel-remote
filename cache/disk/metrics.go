@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 
 	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 
@@ -34,8 +35,8 @@ func (m *metricsDecorator) RegisterMetrics() {
 	m.diskCache.RegisterMetrics()
 }
 
-func (m *metricsDecorator) Get(ctx context.Context, kind cache.EntryKind, hash string, size int64, offset int64) (io.ReadCloser, int64, error) {
-	rc, size, err := m.diskCache.Get(ctx, kind, hash, size, offset)
+func (m *metricsDecorator) Get(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, size int64, offset int64) (io.ReadCloser, int64, error) {
+	rc, size, err := m.diskCache.Get(ctx, kind, hasher, hash, size, offset)
 	if err != nil {
 		return rc, size, err
 	}
@@ -51,8 +52,8 @@ func (m *metricsDecorator) Get(ctx context.Context, kind cache.EntryKind, hash s
 	return rc, size, nil
 }
 
-func (m *metricsDecorator) GetValidatedActionResult(ctx context.Context, hash string) (*pb.ActionResult, []byte, error) {
-	ar, data, err := m.diskCache.GetValidatedActionResult(ctx, hash)
+func (m *metricsDecorator) GetValidatedActionResult(ctx context.Context, hasher hashing.Hasher, hash string) (*pb.ActionResult, []byte, error) {
+	ar, data, err := m.diskCache.GetValidatedActionResult(ctx, hasher, hash)
 	if err != nil {
 		return ar, data, err
 	}
@@ -68,8 +69,8 @@ func (m *metricsDecorator) GetValidatedActionResult(ctx context.Context, hash st
 	return ar, data, err
 }
 
-func (m *metricsDecorator) GetZstd(ctx context.Context, hash string, size int64, offset int64) (io.ReadCloser, int64, error) {
-	rc, size, err := m.diskCache.GetZstd(ctx, hash, size, offset)
+func (m *metricsDecorator) GetZstd(ctx context.Context, hasher hashing.Hasher, hash string, size int64, offset int64) (io.ReadCloser, int64, error) {
+	rc, size, err := m.diskCache.GetZstd(ctx, hasher, hash, size, offset)
 	if err != nil {
 		return rc, size, err
 	}
@@ -88,8 +89,8 @@ func (m *metricsDecorator) GetZstd(ctx context.Context, hash string, size int64,
 	return rc, size, nil
 }
 
-func (m *metricsDecorator) Contains(ctx context.Context, kind cache.EntryKind, hash string, size int64) (bool, int64) {
-	ok, size := m.diskCache.Contains(ctx, kind, hash, size)
+func (m *metricsDecorator) Contains(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, size int64) (bool, int64) {
+	ok, size := m.diskCache.Contains(ctx, kind, hasher, hash, size)
 
 	lbls := prometheus.Labels{"method": containsMethod, "kind": kind.String()}
 	if ok {
@@ -102,9 +103,9 @@ func (m *metricsDecorator) Contains(ctx context.Context, kind cache.EntryKind, h
 	return ok, size
 }
 
-func (m *metricsDecorator) FindMissingCasBlobs(ctx context.Context, blobs []*pb.Digest) ([]*pb.Digest, error) {
+func (m *metricsDecorator) FindMissingCasBlobs(ctx context.Context, hasher hashing.Hasher, blobs []*pb.Digest) ([]*pb.Digest, error) {
 	numLooking := len(blobs)
-	digests, err := m.diskCache.FindMissingCasBlobs(ctx, blobs)
+	digests, err := m.diskCache.FindMissingCasBlobs(ctx, hasher, blobs)
 	if err != nil {
 		return digests, err
 	}

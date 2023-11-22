@@ -4,9 +4,11 @@ import (
 	"io"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 )
 
 type UploadReq struct {
+	Hasher      hashing.Hasher
 	Hash        string
 	LogicalSize int64
 	SizeOnDisk  int64

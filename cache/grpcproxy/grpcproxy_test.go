@@ -70,8 +70,7 @@ func newProxy(t *testing.T, dir string, storageMode string) *testProxy {
 	if err != nil {
 		t.Fatal(err)
 	}
-	clients := NewGrpcClients(cc)
-	err = clients.CheckCapabilities(storageMode == "zstd")
+	clients, err := NewGrpcClients(cc, storageMode == "zstd")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +245,10 @@ func newFixture(t *testing.T, proxy cache.Proxy, storageMode string) *fixture {
 		}
 	}()
 
-	clients := NewGrpcClients(cc)
+	clients, err := NewGrpcClients(cc, storageMode == "zstd")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	return &fixture{
 		cache:   diskCache,

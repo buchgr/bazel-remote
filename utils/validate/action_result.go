@@ -2,9 +2,9 @@ package validate
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 )
 
@@ -30,12 +30,9 @@ var (
 	errEmptyOutputDirSymlinksTarget = fmt.Errorf("empty target in OutputDirectorySymlinks")
 )
 
-// Cache keys must be lower case asciified SHA256 sums.
-var HashKeyRegex = regexp.MustCompile("^[a-f0-9]{64}$")
-
 // Validate the immediate fields in ar, but don't verify ar's
 // dependent blobs.
-func ActionResult(ar *pb.ActionResult) error {
+func ActionResult(ar *pb.ActionResult, hasher hashing.Hasher) error {
 	if ar == nil {
 		return errNilActionResult
 	}
@@ -55,7 +52,7 @@ func ActionResult(ar *pb.ActionResult) error {
 		if f.Digest == nil {
 			return fmt.Errorf("nil Digest for path %q", f.Path)
 		}
-		err = maybeNilDigest(f.Digest) // No need to re-check for nil.
+		err = maybeNilDigest(f.Digest, hasher) // No need to re-check for nil.
 		if err != nil {
 			return fmt.Errorf("invalid Digest for path %q: %w", f.Path, err)
 		}
@@ -71,7 +68,7 @@ func ActionResult(ar *pb.ActionResult) error {
 		if d.TreeDigest == nil {
 			return fmt.Errorf("nil tree digest pointer for output directory: %q", d.Path)
 		}
-		err = maybeNilDigest(d.TreeDigest) // No need to re-check for nil.
+		err = maybeNilDigest(d.TreeDigest, hasher) // No need to re-check for nil.
 		if err != nil {
 			return fmt.Errorf("Invalid TreeDigest for path %q: %w", d.Path, err)
 		}
@@ -122,11 +119,11 @@ func ActionResult(ar *pb.ActionResult) error {
 		}
 	}
 
-	err = maybeNilDigest(ar.StdoutDigest)
+	err = maybeNilDigest(ar.StdoutDigest, hasher)
 	if err != nil {
 		return fmt.Errorf("invalid StdoutDigest: %w", err)
 	}
-	err = maybeNilDigest(ar.StderrDigest)
+	err = maybeNilDigest(ar.StderrDigest, hasher)
 	if err != nil {
 		return fmt.Errorf("invalid StderrDigest: %w", err)
 	}
@@ -135,7 +132,7 @@ func ActionResult(ar *pb.ActionResult) error {
 }
 
 // Verify that The digest hash and size are valid, if it is non-nil.
-func maybeNilDigest(d *pb.Digest) error {
+func maybeNilDigest(d *pb.Digest, hasher hashing.Hasher) error {
 	if d == nil {
 		return nil
 	}
@@ -143,8 +140,8 @@ func maybeNilDigest(d *pb.Digest) error {
 	if d.SizeBytes < 0 {
 		return errNegativeDigest
 	}
-	if !HashKeyRegex.MatchString(d.Hash) {
-		return fmt.Errorf("Invalid hash: %q", d.Hash)
+	if err := hasher.Validate(d.Hash); err != nil {
+		return fmt.Errorf("Invalid hash: %q", err.Error())
 	}
 
 	return nil

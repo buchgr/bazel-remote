@@ -10,6 +10,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	"github.com/buchgr/bazel-remote/v2/utils/backendproxy"
 
 	"github.com/minio/minio-go/v7"
@@ -27,7 +28,7 @@ type s3Cache struct {
 	errorLogger      cache.Logger
 	v2mode           bool
 	updateTimestamps bool
-	objectKey        func(hash string, kind cache.EntryKind) string
+	objectKey        func(hasher hashing.Hasher, hash string, kind cache.EntryKind) string
 }
 
 var (
@@ -97,12 +98,12 @@ func New(
 	}
 
 	if c.v2mode {
-		c.objectKey = func(hash string, kind cache.EntryKind) string {
-			return objectKeyV2(c.prefix, hash, kind)
+		c.objectKey = func(hasher hashing.Hasher, hash string, kind cache.EntryKind) string {
+			return objectKeyV2(c.prefix, hasher, hash, kind)
 		}
 	} else {
-		c.objectKey = func(hash string, kind cache.EntryKind) string {
-			return objectKeyV1(c.prefix, hash, kind)
+		c.objectKey = func(hasher hashing.Hasher, hash string, kind cache.EntryKind) string {
+			return objectKeyV1(c.prefix, hasher, hash, kind)
 		}
 	}
 
@@ -111,13 +112,13 @@ func New(
 	return c
 }
 
-func objectKeyV2(prefix string, hash string, kind cache.EntryKind) string {
+func objectKeyV2(prefix string, hasher hashing.Hasher, hash string, kind cache.EntryKind) string {
 	var baseKey string
 	if kind == cache.CAS {
 		// Use "cas.v2" to distinguish new from old format blobs.
-		baseKey = path.Join("cas.v2", hash[:2], hash)
+		baseKey = path.Join("cas.v2", hasher.Dir(), hash[:2], hash)
 	} else {
-		baseKey = path.Join(kind.String(), hash[:2], hash)
+		baseKey = path.Join(kind.String(), hasher.Dir(), hash[:2], hash)
 	}
 
 	if prefix == "" {
@@ -127,12 +128,12 @@ func objectKeyV2(prefix string, hash string, kind cache.EntryKind) string {
 	return path.Join(prefix, baseKey)
 }
 
-func objectKeyV1(prefix string, hash string, kind cache.EntryKind) string {
+func objectKeyV1(prefix string, hasher hashing.Hasher, hash string, kind cache.EntryKind) string {
 	if prefix == "" {
-		return path.Join(kind.String(), hash[:2], hash)
+		return path.Join(kind.String(), hasher.Dir(), hash[:2], hash)
 	}
 
-	return path.Join(prefix, kind.String(), hash[:2], hash)
+	return path.Join(prefix, kind.String(), hasher.Dir(), hash[:2], hash)
 }
 
 // Helper function for logging responses
@@ -148,12 +149,12 @@ func logResponse(log cache.Logger, method, bucket, key string, err error) {
 func (c *s3Cache) UploadFile(item backendproxy.UploadReq) {
 	_, err := c.mcore.PutObject(
 		context.Background(),
-		c.bucket,                          // bucketName
-		c.objectKey(item.Hash, item.Kind), // objectName
-		item.Rc,                           // reader
-		item.SizeOnDisk,                   // objectSize
-		"",                                // md5base64
-		"",                                // sha256
+		c.bucket, // bucketName
+		c.objectKey(item.Hasher, item.Hash, item.Kind), // objectName
+		item.Rc,         // reader
+		item.SizeOnDisk, // objectSize
+		"",              // md5base64
+		"",              // sha256
 		minio.PutObjectOptions{
 			UserMetadata: map[string]string{
 				"Content-Type": "application/octet-stream",
@@ -161,12 +162,12 @@ func (c *s3Cache) UploadFile(item backendproxy.UploadReq) {
 		}, // metadata
 	)
 
-	logResponse(c.accessLogger, "UPLOAD", c.bucket, c.objectKey(item.Hash, item.Kind), err)
+	logResponse(c.accessLogger, "UPLOAD", c.bucket, c.objectKey(item.Hasher, item.Hash, item.Kind), err)
 
 	item.Rc.Close()
 }
 
-func (c *s3Cache) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
+func (c *s3Cache) Put(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
 	if c.uploadQueue == nil {
 		rc.Close()
 		return
@@ -175,6 +176,7 @@ func (c *s3Cache) Put(ctx context.Context, kind cache.EntryKind, hash string, lo
 	select {
 	case c.uploadQueue <- backendproxy.UploadReq{
 		Hash:        hash,
+		Hasher:      hasher,
 		LogicalSize: logicalSize,
 		SizeOnDisk:  sizeOnDisk,
 		Kind:        kind,
@@ -203,31 +205,31 @@ func (c *s3Cache) UpdateModificationTimestamp(ctx context.Context, bucket string
 	logResponse(c.accessLogger, "COMPOSE", bucket, object, err)
 }
 
-func (c *s3Cache) Get(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (io.ReadCloser, int64, error) {
+func (c *s3Cache) Get(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, _ int64) (io.ReadCloser, int64, error) {
 
 	rc, info, _, err := c.mcore.GetObject(
 		ctx,
-		c.bucket,                 // bucketName
-		c.objectKey(hash, kind),  // objectName
-		minio.GetObjectOptions{}, // opts
+		c.bucket,                        // bucketName
+		c.objectKey(hasher, hash, kind), // objectName
+		minio.GetObjectOptions{},        // opts
 	)
 	if err != nil {
 		if minio.ToErrorResponse(err).Code == "NoSuchKey" {
 			cacheMisses.Inc()
-			logResponse(c.accessLogger, "DOWNLOAD", c.bucket, c.objectKey(hash, kind), errNotFound)
+			logResponse(c.accessLogger, "DOWNLOAD", c.bucket, c.objectKey(hasher, hash, kind), errNotFound)
 			return nil, -1, nil
 		}
 		cacheMisses.Inc()
-		logResponse(c.accessLogger, "DOWNLOAD", c.bucket, c.objectKey(hash, kind), err)
+		logResponse(c.accessLogger, "DOWNLOAD", c.bucket, c.objectKey(hasher, hash, kind), err)
 		return nil, -1, err
 	}
 	cacheHits.Inc()
 
 	if c.updateTimestamps {
-		c.UpdateModificationTimestamp(ctx, c.bucket, c.objectKey(hash, kind))
+		c.UpdateModificationTimestamp(ctx, c.bucket, c.objectKey(hasher, hash, kind))
 	}
 
-	logResponse(c.accessLogger, "DOWNLOAD", c.bucket, c.objectKey(hash, kind), nil)
+	logResponse(c.accessLogger, "DOWNLOAD", c.bucket, c.objectKey(hasher, hash, kind), nil)
 
 	if kind == cache.CAS && c.v2mode {
 		return casblob.ExtractLogicalSize(rc)
@@ -236,15 +238,15 @@ func (c *s3Cache) Get(ctx context.Context, kind cache.EntryKind, hash string, _ 
 	return rc, info.Size, nil
 }
 
-func (c *s3Cache) Contains(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (bool, int64) {
+func (c *s3Cache) Contains(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, _ int64) (bool, int64) {
 	size := int64(-1)
 	exists := false
 
 	s, err := c.mcore.StatObject(
 		ctx,
-		c.bucket,                  // bucketName
-		c.objectKey(hash, kind),   // objectName
-		minio.StatObjectOptions{}, // opts
+		c.bucket,                        // bucketName
+		c.objectKey(hasher, hash, kind), // objectName
+		minio.StatObjectOptions{},       // opts
 	)
 
 	exists = (err == nil)
@@ -254,7 +256,7 @@ func (c *s3Cache) Contains(ctx context.Context, kind cache.EntryKind, hash strin
 		size = s.Size
 	}
 
-	logResponse(c.accessLogger, "CONTAINS", c.bucket, c.objectKey(hash, kind), err)
+	logResponse(c.accessLogger, "CONTAINS", c.bucket, c.objectKey(hasher, hash, kind), err)
 
 	return exists, size
 }

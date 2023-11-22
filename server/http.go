@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	"github.com/buchgr/bazel-remote/v2/utils/validate"
 
 	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
@@ -27,7 +27,7 @@ import (
 	syncpool "github.com/mostynb/zstdpool-syncpool"
 )
 
-var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{64})$")
+const invalidUrlErr = "the path '%s' is invalid, expected (ac/|cas/)sha256"
 
 var decoder, _ = zstd.NewReader(nil) // TODO: raise WithDecoderConcurrency ?
 
@@ -88,37 +88,38 @@ func NewHTTPCache(cache disk.Cache, accessLogger cache.Logger, errorLogger cache
 }
 
 // Parse cache artifact information from the request URL
-func parseRequestURL(url string, validateAC bool) (kind cache.EntryKind, hash string, instance string, err error) {
-	m := blobNameSHA256.FindStringSubmatch(url)
-	if m == nil {
-		err := fmt.Errorf("resource name must be a SHA256 hash in hex, "+
-			"got '%s'", html.EscapeString(url))
+func parseRequestURL(url string, validateAC bool, hasher hashing.Hasher) (kind cache.EntryKind, hash string, instance string, err error) {
+	var i, j int
+	i = strings.LastIndex(url, "/")
+	if i < 0 || i >= len(url)-1 {
+		return 0, "", "", fmt.Errorf(invalidUrlErr, html.EscapeString(url))
+	}
+	j = strings.LastIndex(url[:i], "/")
+	instance = ""
+	if j > 0 {
+		instance = strings.TrimSuffix(url[:j], "/")
+	}
+
+	hash = url[i+1:]
+
+	if err := hasher.Validate(hash); err != nil {
 		return 0, "", "", err
 	}
 
-	instance = strings.TrimSuffix(m[1], "/")
-
-	parts := m[2:]
-	if len(parts) != 2 {
-		err := fmt.Errorf("the path '%s' is invalid, expected (ac/|cas/)sha256",
-			html.EscapeString(url))
-		return 0, "", "", err
-	}
-
-	// The regex ensures that parts[0] can only be "ac/" or "cas/"
-	hash = parts[1]
-	if parts[0] == "cas/" {
+	switch url[j+1 : i] {
+	case "cas":
 		return cache.CAS, hash, instance, nil
+	case "ac":
+		if validateAC {
+			return cache.AC, hash, instance, nil
+		}
+		return cache.RAW, hash, instance, nil
+	default:
+		return 0, "", "", fmt.Errorf(invalidUrlErr, html.EscapeString(url))
 	}
-
-	if validateAC {
-		return cache.AC, hash, instance, nil
-	}
-
-	return cache.RAW, hash, instance, nil
 }
-func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request, hash string) {
-	_, data, err := h.cache.GetValidatedActionResult(r.Context(), hash)
+func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request, hasher hashing.Hasher, hash string) {
+	_, data, err := h.cache.GetValidatedActionResult(r.Context(), hasher, hash)
 	if err != nil {
 		http.Error(w, "Not found", http.StatusNotFound)
 		h.logResponse(http.StatusNotFound, r)
@@ -136,8 +137,8 @@ func (h *httpCache) handleContainsValidAC(w http.ResponseWriter, r *http.Request
 	h.logResponse(http.StatusOK, r)
 }
 
-func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, hash string) {
-	_, data, err := h.cache.GetValidatedActionResult(r.Context(), hash)
+func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, hasher hashing.Hasher, hash string) {
+	_, data, err := h.cache.GetValidatedActionResult(r.Context(), hasher, hash)
 	if err != nil {
 		http.Error(w, "Not found", http.StatusNotFound)
 		h.logResponse(http.StatusNotFound, r)
@@ -205,7 +206,18 @@ func (h *httpCache) logResponse(code int, r *http.Request) {
 func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	kind, hash, instance, err := parseRequestURL(r.URL.Path, h.validateAC)
+	var err error
+	hasher := hashing.DefaultHasher
+	if dfn := r.Header.Get("X-Digest-Function"); dfn != "" {
+		hasher, err = hashing.Get(hashing.DigestFunction(dfn))
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Unsupported digest function %s", dfn), http.StatusInternalServerError)
+			h.logResponse(http.StatusInternalServerError, r)
+			return
+		}
+	}
+
+	kind, hash, instance, err := parseRequestURL(r.URL.Path, h.validateAC, hasher)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		h.logResponse(http.StatusBadRequest, r)
@@ -213,7 +225,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.mangleACKeys && kind == cache.AC {
-		hash = cache.TransformActionCacheKey(hash, instance, h.accessLogger)
+		hash = cache.TransformActionCacheKey(hasher, hash, instance, h.accessLogger)
 	}
 
 	switch m := r.Method; m {
@@ -225,7 +237,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if h.validateAC && kind == cache.AC {
-			h.handleGetValidAC(w, r, hash)
+			h.handleGetValidAC(w, r, hasher, hash)
 			return
 		}
 
@@ -234,10 +246,10 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 		zstdCompressed := false
 		if kind == cache.CAS && strings.Contains(r.Header.Get("Accept-Encoding"), "zstd") {
-			rdr, sizeBytes, err = h.cache.GetZstd(r.Context(), hash, -1, 0)
+			rdr, sizeBytes, err = h.cache.GetZstd(r.Context(), hasher, hash, -1, 0)
 			zstdCompressed = true
 		} else {
-			rdr, sizeBytes, err = h.cache.Get(r.Context(), kind, hash, -1, 0)
+			rdr, sizeBytes, err = h.cache.Get(r.Context(), kind, hasher, hash, -1, 0)
 		}
 		if err != nil {
 			if e, ok := err.(*cache.Error); ok {
@@ -308,7 +320,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if contentLength == 0 && kind == cache.CAS && hash != emptySha256 {
+		if contentLength == 0 && kind == cache.CAS && hash != hasher.Empty() {
 			msg := fmt.Sprintf("Invalid empty blob hash: \"%s\"", hash)
 			http.Error(w, msg, http.StatusBadRequest)
 			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
@@ -371,7 +383,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Note: we do not currently verify that the blobs exist in the CAS.
-			err = validate.ActionResult(ar)
+			err = validate.ActionResult(ar, hasher)
 			if err != nil {
 				msg := "Failed to marshal ActionResult: " + err.Error()
 				http.Error(w, msg, http.StatusBadRequest)
@@ -414,7 +426,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			rdr = rc
 		}
 
-		err := h.cache.Put(r.Context(), kind, hash, contentLength, rdr)
+		err := h.cache.Put(r.Context(), kind, hasher, hash, contentLength, rdr)
 		if err != nil {
 			var msg string
 			if cerr, ok := err.(*cache.Error); ok {
@@ -437,13 +449,13 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if h.validateAC && kind == cache.AC {
-			h.handleContainsValidAC(w, r, hash)
+			h.handleContainsValidAC(w, r, hasher, hash)
 			return
 		}
 
 		// Unvalidated path:
 
-		ok, size := h.cache.Contains(r.Context(), kind, hash, -1)
+		ok, size := h.cache.Contains(r.Context(), kind, hasher, hash, -1)
 		if !ok {
 			http.Error(w, "Not found", http.StatusNotFound)
 			h.logResponse(http.StatusNotFound, r)

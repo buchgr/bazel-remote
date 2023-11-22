@@ -11,8 +11,9 @@ import (
 	"strings"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	"github.com/buchgr/bazel-remote/v2/utils/backendproxy"
-	"github.com/google/uuid"
+	"github.com/buchgr/bazel-remote/v2/utils/resourcename"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -35,6 +36,7 @@ type GrpcClients struct {
 	ac    pb.ActionCacheClient
 	cas   pb.ContentAddressableStorageClient
 	cap   pb.CapabilitiesClient
+	dfs   map[pb.DigestFunction_Value]bool
 }
 
 func contains[A comparable](arr []A, value A) bool {
@@ -46,31 +48,29 @@ func contains[A comparable](arr []A, value A) bool {
 	return false
 }
 
-func NewGrpcClients(cc *grpc.ClientConn) *GrpcClients {
-	return &GrpcClients{
+func NewGrpcClients(cc *grpc.ClientConn, zstd bool) (*GrpcClients, error) {
+	c := &GrpcClients{
 		asset: asset.NewFetchClient(cc),
 		bs:    bs.NewByteStreamClient(cc),
 		ac:    pb.NewActionCacheClient(cc),
 		cas:   pb.NewContentAddressableStorageClient(cc),
 		cap:   pb.NewCapabilitiesClient(cc),
+		dfs:   make(map[pb.DigestFunction_Value]bool),
 	}
-}
-
-func (c *GrpcClients) CheckCapabilities(zstd bool) error {
 	resp, err := c.cap.GetCapabilities(context.Background(), &pb.GetCapabilitiesRequest{})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !resp.CacheCapabilities.ActionCacheUpdateCapabilities.UpdateEnabled {
-		return errors.New("Proxy backend does not allow action cache updates")
+		return nil, errors.New("Proxy backend does not allow action cache updates")
 	}
-	if !contains(resp.CacheCapabilities.DigestFunctions, pb.DigestFunction_SHA256) {
-		return errors.New("Proxy backend does not support sha256")
+	for _, fn := range resp.CacheCapabilities.DigestFunctions {
+		c.dfs[fn] = true
 	}
 	if zstd && !contains(resp.CacheCapabilities.SupportedCompressors, pb.Compressor_ZSTD) {
-		return errors.New("Compression required but the grpc proxy does not support it.")
+		return nil, errors.New("Compression required but the grpc proxy does not support it.")
 	}
-	return nil
+	return c, nil
 }
 
 type remoteGrpcProxyCache struct {
@@ -138,8 +138,9 @@ func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
 		}
 
 		req := &pb.UpdateActionResultRequest{
-			ActionDigest: digest,
-			ActionResult: ar,
+			ActionDigest:   digest,
+			ActionResult:   ar,
+			DigestFunction: item.Hasher.DigestFunction(),
 		}
 		_, err = r.clients.ac.UpdateActionResult(context.Background(), req)
 		if err != nil {
@@ -159,11 +160,7 @@ func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
 		}
 		buf := make([]byte, bufSize)
 
-		template := "uploads/%s/blobs/%s/%d"
-		if r.v2mode {
-			template = "uploads/%s/compressed-blobs/zstd/%s/%d"
-		}
-		resourceName := fmt.Sprintf(template, uuid.New().String(), item.Hash, item.LogicalSize)
+		resourceName := resourcename.GetWriteResourceName("", r.v2mode, item.Hasher, item.Hash, item.LogicalSize, "")
 
 		firstIteration := true
 		for {
@@ -207,7 +204,7 @@ func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
 	}
 }
 
-func (r *remoteGrpcProxyCache) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
+func (r *remoteGrpcProxyCache) Put(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
 	if r.uploadQueue == nil {
 		rc.Close()
 		return
@@ -215,6 +212,7 @@ func (r *remoteGrpcProxyCache) Put(ctx context.Context, kind cache.EntryKind, ha
 
 	item := backendproxy.UploadReq{
 		Hash:        hash,
+		Hasher:      hasher,
 		LogicalSize: logicalSize,
 		SizeOnDisk:  sizeOnDisk,
 		Kind:        kind,
@@ -229,14 +227,14 @@ func (r *remoteGrpcProxyCache) Put(ctx context.Context, kind cache.EntryKind, ha
 	}
 }
 
-func (r *remoteGrpcProxyCache) fetchBlobDigest(ctx context.Context, hash string) (*pb.Digest, error) {
+func (r *remoteGrpcProxyCache) fetchBlobDigest(ctx context.Context, hasher hashing.Hasher, hash string) (*pb.Digest, error) {
 	decoded, err := hex.DecodeString(hash)
 	if err != nil {
 		return nil, err
 	}
 	q := asset.Qualifier{
 		Name:  "checksum.sri",
-		Value: fmt.Sprintf("sha256-%s", base64.StdEncoding.EncodeToString(decoded)),
+		Value: fmt.Sprintf("%s-%s", strings.ToLower(hasher.DigestFunction().String()), base64.StdEncoding.EncodeToString(decoded)),
 	}
 	freq := asset.FetchBlobRequest{
 		Uris:       []string{},
@@ -257,7 +255,7 @@ func (r *remoteGrpcProxyCache) fetchBlobDigest(ctx context.Context, hash string)
 	return res.BlobDigest, nil
 }
 
-func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, hash string, size int64) (io.ReadCloser, int64, error) {
+func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, size int64) (io.ReadCloser, int64, error) {
 	switch kind {
 	case cache.RAW:
 		// RAW cache entries are a special case of AC, used when --disable_http_ac_validation
@@ -269,7 +267,10 @@ func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 			SizeBytes: -1,
 		}
 
-		req := &pb.GetActionResultRequest{ActionDigest: &digest}
+		req := &pb.GetActionResultRequest{
+			ActionDigest:   &digest,
+			DigestFunction: hasher.DigestFunction(),
+		}
 
 		res, err := r.clients.ac.GetActionResult(ctx, req)
 		status, ok := status.FromError(err)
@@ -293,7 +294,7 @@ func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 	case cache.CAS:
 		if size < 0 {
 			// We don't know the size, so send a FetchBlob request first to get the digest
-			digest, err := r.fetchBlobDigest(ctx, hash)
+			digest, err := r.fetchBlobDigest(ctx, hasher, hash)
 			if err != nil {
 				logResponse(r.errorLogger, "Fetch", err.Error(), kind, hash)
 				return nil, -1, err
@@ -301,12 +302,10 @@ func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 			size = digest.SizeBytes
 		}
 
-		template := "blobs/%s/%d"
-		if r.v2mode {
-			template = "compressed-blobs/zstd/%s/%d"
-		}
+		resourceName := resourcename.GetReadResourceName("", r.v2mode, hasher, hash, size)
+
 		req := bs.ReadRequest{
-			ResourceName: fmt.Sprintf(template, hash, size),
+			ResourceName: resourceName,
 		}
 		stream, err := r.clients.bs.Read(ctx, &req)
 		if err != nil {
@@ -321,7 +320,7 @@ func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 	}
 }
 
-func (r *remoteGrpcProxyCache) Contains(ctx context.Context, kind cache.EntryKind, hash string, size int64) (bool, int64) {
+func (r *remoteGrpcProxyCache) Contains(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, size int64) (bool, int64) {
 	switch kind {
 	case cache.RAW:
 		// RAW cache entries are a special case of AC, used when --disable_http_ac_validation
@@ -331,7 +330,7 @@ func (r *remoteGrpcProxyCache) Contains(ctx context.Context, kind cache.EntryKin
 		// There's not "contains" method for the action cache so the best we can do
 		// is to get the object and discard the result
 		// We don't expect this to ever be called anyways since it is not part of the grpc protocol
-		rc, size, err := r.Get(ctx, kind, hash, size)
+		rc, size, err := r.Get(ctx, kind, hasher, hash, size)
 		rc.Close()
 		if err != nil || size < 0 {
 			return false, -1
@@ -340,7 +339,7 @@ func (r *remoteGrpcProxyCache) Contains(ctx context.Context, kind cache.EntryKin
 	case cache.CAS:
 		if size < 0 {
 			// If don't know the size, use the remote asset api to find the missing blob
-			digest, err := r.fetchBlobDigest(ctx, hash)
+			digest, err := r.fetchBlobDigest(ctx, hasher, hash)
 			if err != nil {
 				logResponse(r.errorLogger, "Contains", err.Error(), kind, hash)
 				return false, -1
@@ -355,6 +354,7 @@ func (r *remoteGrpcProxyCache) Contains(ctx context.Context, kind cache.EntryKin
 				Hash:      hash,
 				SizeBytes: size,
 			}},
+			DigestFunction: hasher.DigestFunction(),
 		}
 		res, err := r.clients.cas.FindMissingBlobs(ctx, req)
 		if err != nil {

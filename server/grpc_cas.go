@@ -12,6 +12,7 @@ import (
 	grpc_status "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
@@ -44,6 +45,11 @@ func (s *grpcServer) FindMissingBlobs(ctx context.Context,
 		return nil, errNilFindMissingBlobsRequest
 	}
 
+	hasher, err := s.getHasher(req.DigestFunction)
+	if err != nil {
+		return nil, err
+	}
+
 	errorPrefix := "GRPC CAS HEAD"
 	for _, digest := range req.BlobDigests {
 
@@ -51,13 +57,13 @@ func (s *grpcServer) FindMissingBlobs(ctx context.Context,
 			return nil, errNilDigest
 		}
 
-		err := s.validateHash(digest.Hash, digest.SizeBytes, errorPrefix)
+		err := s.validateHash(hasher, digest.Hash, digest.SizeBytes, errorPrefix)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	missingBlobs, err := s.cache.FindMissingCasBlobs(ctx, req.BlobDigests)
+	missingBlobs, err := s.cache.FindMissingCasBlobs(ctx, hasher, req.BlobDigests)
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +76,11 @@ func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 
 	if in == nil {
 		return nil, errNilBatchUpdateBlobsRequest
+	}
+
+	hasher, err := s.getHasher(in.DigestFunction)
+	if err != nil {
+		return nil, err
 	}
 
 	resp := pb.BatchUpdateBlobsResponse{
@@ -89,7 +100,7 @@ func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 			return nil, errNilDigest
 		}
 
-		err := s.validateHash(req.Digest.Hash, req.Digest.SizeBytes, errorPrefix)
+		err := s.validateHash(hasher, req.Digest.Hash, req.Digest.SizeBytes, errorPrefix)
 		if err != nil {
 			return nil, err
 		}
@@ -118,7 +129,7 @@ func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 			}
 		}
 
-		err = s.cache.Put(ctx, cache.CAS, req.Digest.Hash,
+		err = s.cache.Put(ctx, cache.CAS, hasher, req.Digest.Hash,
 			int64(len(req.Data)), bytes.NewReader(req.Data))
 		if err != nil && err != io.EOF {
 			s.errorLogger.Printf("%s %s %s", errorPrefix, req.Digest.Hash, err)
@@ -135,7 +146,7 @@ func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 // Return the data for a blob, or an error.  If the blob was not
 // found, the returned error is errBlobNotFound. Only use this
 // function when it's OK to buffer the entire blob in memory.
-func (s *grpcServer) getBlobData(ctx context.Context, hash string, size int64) ([]byte, error) {
+func (s *grpcServer) getBlobData(ctx context.Context, hasher hashing.Hasher, hash string, size int64) ([]byte, error) {
 	if size < 0 {
 		return []byte{}, errBadSize
 	}
@@ -144,7 +155,7 @@ func (s *grpcServer) getBlobData(ctx context.Context, hash string, size int64) (
 		return []byte{}, nil
 	}
 
-	rdr, sizeBytes, err := s.cache.Get(ctx, cache.CAS, hash, size, 0)
+	rdr, sizeBytes, err := s.cache.Get(ctx, cache.CAS, hasher, hash, size, 0)
 	if err != nil {
 		if rdr != nil {
 			rdr.Close()
@@ -170,14 +181,14 @@ func (s *grpcServer) getBlobData(ctx context.Context, hash string, size int64) (
 	return data, rdr.Close()
 }
 
-func (s *grpcServer) getBlobResponse(ctx context.Context, digest *pb.Digest, allowZstd bool) *pb.BatchReadBlobsResponse_Response {
+func (s *grpcServer) getBlobResponse(ctx context.Context, hasher hashing.Hasher, digest *pb.Digest, allowZstd bool) *pb.BatchReadBlobsResponse_Response {
 	r := pb.BatchReadBlobsResponse_Response{Digest: digest}
 
 	var data []byte
 	var err error
 
 	if allowZstd {
-		rc, foundSize, err := s.cache.GetZstd(ctx, digest.Hash, digest.SizeBytes, 0)
+		rc, foundSize, err := s.cache.GetZstd(ctx, hasher, digest.Hash, digest.SizeBytes, 0)
 		if rc != nil {
 			defer rc.Close()
 		}
@@ -206,7 +217,7 @@ func (s *grpcServer) getBlobResponse(ctx context.Context, digest *pb.Digest, all
 		return &r
 	}
 
-	data, err = s.getBlobData(ctx, digest.Hash, digest.SizeBytes)
+	data, err = s.getBlobData(ctx, hasher, digest.Hash, digest.SizeBytes)
 	if err == errBlobNotFound {
 		s.accessLogger.Printf("GRPC CAS GET %s NOT FOUND", digest.Hash)
 		r.Status = &status.Status{Code: int32(code.Code_NOT_FOUND)}
@@ -235,6 +246,11 @@ func (s *grpcServer) BatchReadBlobs(ctx context.Context,
 		return nil, errNilBatchReadBlobsRequest
 	}
 
+	hasher, err := s.getHasher(in.DigestFunction)
+	if err != nil {
+		return nil, err
+	}
+
 	resp := pb.BatchReadBlobsResponse{
 		Responses: make([]*pb.BatchReadBlobsResponse_Response,
 			0, len(in.Digests)),
@@ -256,11 +272,11 @@ func (s *grpcServer) BatchReadBlobs(ctx context.Context,
 			return nil, errNilDigest
 		}
 
-		err := s.validateHash(digest.Hash, digest.SizeBytes, errorPrefix)
+		err := s.validateHash(hasher, digest.Hash, digest.SizeBytes, errorPrefix)
 		if err != nil {
 			return nil, err
 		}
-		resp.Responses = append(resp.Responses, s.getBlobResponse(ctx, digest, allowZstd))
+		resp.Responses = append(resp.Responses, s.getBlobResponse(ctx, hasher, digest, allowZstd))
 	}
 
 	return &resp, nil
@@ -268,6 +284,11 @@ func (s *grpcServer) BatchReadBlobs(ctx context.Context,
 
 func (s *grpcServer) GetTree(in *pb.GetTreeRequest,
 	stream pb.ContentAddressableStorage_GetTreeServer) error {
+
+	hasher, err := s.getHasher(in.DigestFunction)
+	if err != nil {
+		return err
+	}
 
 	resp := pb.GetTreeResponse{
 		Directories: make([]*pb.Directory, 0),
@@ -282,12 +303,12 @@ func (s *grpcServer) GetTree(in *pb.GetTreeRequest,
 		return errNilDigest
 	}
 
-	err := s.validateHash(in.RootDigest.Hash, in.RootDigest.SizeBytes, errorPrefix)
+	err = s.validateHash(hasher, in.RootDigest.Hash, in.RootDigest.SizeBytes, errorPrefix)
 	if err != nil {
 		return err
 	}
 
-	data, err := s.getBlobData(stream.Context(), in.RootDigest.Hash, in.RootDigest.SizeBytes)
+	data, err := s.getBlobData(stream.Context(), hasher, in.RootDigest.Hash, in.RootDigest.SizeBytes)
 	if err == errBlobNotFound {
 		s.accessLogger.Printf("GRPC CAS GETTREEREQUEST %s NOT FOUND",
 			in.RootDigest.Hash)
@@ -305,7 +326,7 @@ func (s *grpcServer) GetTree(in *pb.GetTreeRequest,
 		return grpc_status.Error(codes.DataLoss, err.Error())
 	}
 
-	err = s.fillDirectories(stream.Context(), &resp, &dir, errorPrefix)
+	err = s.fillDirectories(stream.Context(), hasher, &resp, &dir, errorPrefix)
 	if err != nil {
 		return err
 	}
@@ -323,7 +344,7 @@ func (s *grpcServer) GetTree(in *pb.GetTreeRequest,
 
 // Attempt to populate `resp`. Return errors for invalid requests, but
 // otherwise attempt to return as many blobs as possible.
-func (s *grpcServer) fillDirectories(ctx context.Context, resp *pb.GetTreeResponse, dir *pb.Directory, errorPrefix string) error {
+func (s *grpcServer) fillDirectories(ctx context.Context, hasher hashing.Hasher, resp *pb.GetTreeResponse, dir *pb.Directory, errorPrefix string) error {
 
 	// Add this dir.
 	resp.Directories = append(resp.Directories, dir)
@@ -331,12 +352,12 @@ func (s *grpcServer) fillDirectories(ctx context.Context, resp *pb.GetTreeRespon
 	// Recursively append all the child dirs.
 	for _, dirNode := range dir.Directories {
 
-		err := s.validateHash(dirNode.Digest.Hash, dirNode.Digest.SizeBytes, errorPrefix)
+		err := s.validateHash(hasher, dirNode.Digest.Hash, dirNode.Digest.SizeBytes, errorPrefix)
 		if err != nil {
 			return err
 		}
 
-		data, err := s.getBlobData(ctx, dirNode.Digest.Hash, dirNode.Digest.SizeBytes)
+		data, err := s.getBlobData(ctx, hasher, dirNode.Digest.Hash, dirNode.Digest.SizeBytes)
 		if err == errBlobNotFound {
 			s.accessLogger.Printf("GRPC GETTREEREQUEST BLOB %s NOT FOUND",
 				dirNode.Digest.Hash)
@@ -357,7 +378,7 @@ func (s *grpcServer) fillDirectories(ctx context.Context, resp *pb.GetTreeRespon
 		s.accessLogger.Printf("GRPC GETTREEREQUEST BLOB %s ADDED OK",
 			dirNode.Digest.Hash)
 
-		err = s.fillDirectories(ctx, resp, &dirMsg, errorPrefix)
+		err = s.fillDirectories(ctx, hasher, resp, &dirMsg, errorPrefix)
 		if err != nil {
 			return err
 		}

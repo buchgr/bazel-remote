@@ -3,14 +3,13 @@ package server
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
 	"strings"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	"github.com/buchgr/bazel-remote/v2/utils/validate"
 
 	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
@@ -57,11 +56,16 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 		return nil, errNilActionDigest
 	}
 
-	if s.mangleACKeys {
-		req.ActionDigest.Hash = cache.TransformActionCacheKey(req.ActionDigest.Hash, req.InstanceName, s.accessLogger)
+	hasher, err := s.getHasher(req.DigestFunction)
+	if err != nil {
+		return nil, err
 	}
 
-	err := s.validateHash(req.ActionDigest.Hash, req.ActionDigest.SizeBytes, logPrefix)
+	if s.mangleACKeys {
+		req.ActionDigest.Hash = cache.TransformActionCacheKey(hasher, req.ActionDigest.Hash, req.InstanceName, s.accessLogger)
+	}
+
+	err = s.validateHash(hasher, req.ActionDigest.Hash, req.ActionDigest.SizeBytes, logPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +77,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 	if !s.depsCheck {
 		logPrefix = "GRPC AC GET NODEPSCHECK"
 
-		rdr, sizeBytes, err := s.cache.Get(ctx, cache.AC, req.ActionDigest.Hash, unknownActionResultSize, 0)
+		rdr, sizeBytes, err := s.cache.Get(ctx, cache.AC, hasher, req.ActionDigest.Hash, unknownActionResultSize, 0)
 		if err != nil {
 			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 			return nil, status.Error(codes.Unknown, err.Error())
@@ -99,7 +103,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 		}
 
 		// This doesn't check deps, but does check for invalid fields.
-		err = validate.ActionResult(result)
+		err = validate.ActionResult(result, hasher)
 		if err != nil {
 			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 			return nil, status.Error(codes.Internal, err.Error())
@@ -109,7 +113,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 		return result, nil
 	}
 
-	result, _, err := s.cache.GetValidatedActionResult(ctx, req.ActionDigest.Hash)
+	result, _, err := s.cache.GetValidatedActionResult(ctx, hasher, req.ActionDigest.Hash)
 	if err != nil {
 		s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 		return nil, status.Error(codes.Unknown, err.Error())
@@ -125,14 +129,14 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 
 	var inlinedSoFar int64
 
-	err = s.maybeInline(ctx, req.InlineStdout,
+	err = s.maybeInline(ctx, hasher, req.InlineStdout,
 		&result.StdoutRaw, &result.StdoutDigest, &inlinedSoFar)
 	if err != nil {
 		s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
 
-	err = s.maybeInline(ctx, req.InlineStderr,
+	err = s.maybeInline(ctx, hasher, req.InlineStderr,
 		&result.StderrRaw, &result.StderrDigest, &inlinedSoFar)
 	if err != nil {
 		s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
@@ -145,7 +149,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 	}
 	for _, of := range result.GetOutputFiles() {
 		_, ok := inlinableFiles[of.Path]
-		err = s.maybeInline(ctx, ok, &of.Contents, &of.Digest, &inlinedSoFar)
+		err = s.maybeInline(ctx, hasher, ok, &of.Contents, &of.Digest, &inlinedSoFar)
 		if err != nil {
 			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 			return nil, status.Error(codes.Unknown, err.Error())
@@ -157,7 +161,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 	return result, nil
 }
 
-func (s *grpcServer) maybeInline(ctx context.Context, inline bool, slice *[]byte, digest **pb.Digest, inlinedSoFar *int64) error {
+func (s *grpcServer) maybeInline(ctx context.Context, hasher hashing.Hasher, inline bool, slice *[]byte, digest **pb.Digest, inlinedSoFar *int64) error {
 
 	if (*inlinedSoFar + int64(len(*slice))) > maxInlineSize {
 		inline = false
@@ -172,16 +176,16 @@ func (s *grpcServer) maybeInline(ctx context.Context, inline bool, slice *[]byte
 		}
 
 		if *digest == nil {
-			hash := sha256.Sum256(*slice)
+			hash := hasher.Hash(*slice)
 			*digest = &pb.Digest{
-				Hash:      hex.EncodeToString(hash[:]),
+				Hash:      hash,
 				SizeBytes: int64(len(*slice)),
 			}
 		}
 
-		found, _ := s.cache.Contains(ctx, cache.CAS, (*digest).Hash, (*digest).SizeBytes)
+		found, _ := s.cache.Contains(ctx, cache.CAS, hasher, (*digest).Hash, (*digest).SizeBytes)
 		if !found {
-			err := s.cache.Put(ctx, cache.CAS, (*digest).Hash, (*digest).SizeBytes,
+			err := s.cache.Put(ctx, cache.CAS, hasher, (*digest).Hash, (*digest).SizeBytes,
 				bytes.NewReader(*slice))
 			if err != nil && err != io.EOF {
 				return err
@@ -204,7 +208,7 @@ func (s *grpcServer) maybeInline(ctx context.Context, inline bool, slice *[]byte
 
 	// Otherwise, attempt to inline.
 	if (*digest).SizeBytes > 0 {
-		data, err := s.getBlobData(ctx, (*digest).Hash, (*digest).SizeBytes)
+		data, err := s.getBlobData(ctx, hasher, (*digest).Hash, (*digest).SizeBytes)
 		if err != nil {
 			return err
 		}
@@ -228,17 +232,22 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 		return nil, errNilActionDigest
 	}
 
-	if s.mangleACKeys {
-		req.ActionDigest.Hash = cache.TransformActionCacheKey(req.ActionDigest.Hash, req.InstanceName, s.accessLogger)
+	hasher, err := s.getHasher(req.DigestFunction)
+	if err != nil {
+		return nil, err
 	}
 
-	err := s.validateHash(req.ActionDigest.Hash, req.ActionDigest.SizeBytes, logPrefix)
+	if s.mangleACKeys {
+		req.ActionDigest.Hash = cache.TransformActionCacheKey(hasher, req.ActionDigest.Hash, req.InstanceName, s.accessLogger)
+	}
+
+	err = s.validateHash(hasher, req.ActionDigest.Hash, req.ActionDigest.SizeBytes, logPrefix)
 	if err != nil {
 		return nil, err
 	}
 
 	// Validate the ActionResult's immediate fields, but don't check for dependent blobs.
-	err = validate.ActionResult(req.ActionResult)
+	err = validate.ActionResult(req.ActionResult, hasher)
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +267,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 		return nil, errEmptyActionResult
 	}
 
-	err = s.cache.Put(ctx, cache.AC, req.ActionDigest.Hash,
+	err = s.cache.Put(ctx, cache.AC, hasher, req.ActionDigest.Hash,
 		int64(len(data)), bytes.NewReader(data))
 	if err != nil && err != io.EOF {
 		s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
@@ -275,14 +284,14 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 		if f != nil && len(f.Contents) > 0 {
 
 			if f.Digest == nil {
-				hashData := sha256.Sum256(f.Contents)
+				hash := hasher.Hash(f.Contents)
 				f.Digest = &pb.Digest{
-					Hash:      hex.EncodeToString(hashData[:]),
+					Hash:      hash,
 					SizeBytes: int64(len(f.Contents)),
 				}
 			}
 
-			err = s.cache.Put(ctx, cache.CAS, f.Digest.Hash,
+			err = s.cache.Put(ctx, cache.CAS, hasher, f.Digest.Hash,
 				f.Digest.SizeBytes, bytes.NewReader(f.Contents))
 			if err != nil && err != io.EOF {
 				s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
@@ -300,12 +309,11 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 			hash = req.ActionResult.StdoutDigest.Hash
 			sizeBytes = req.ActionResult.StdoutDigest.SizeBytes
 		} else {
-			hashData := sha256.Sum256(req.ActionResult.StdoutRaw)
-			hash = hex.EncodeToString(hashData[:])
+			hash = hasher.Hash(req.ActionResult.StdoutRaw)
 			sizeBytes = int64(len(req.ActionResult.StdoutRaw))
 		}
 
-		err = s.cache.Put(ctx, cache.CAS, hash, sizeBytes,
+		err = s.cache.Put(ctx, cache.CAS, hasher, hash, sizeBytes,
 			bytes.NewReader(req.ActionResult.StdoutRaw))
 		if err != nil && err != io.EOF {
 			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
@@ -322,12 +330,11 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 			hash = req.ActionResult.StderrDigest.Hash
 			sizeBytes = req.ActionResult.StderrDigest.SizeBytes
 		} else {
-			hashData := sha256.Sum256(req.ActionResult.StderrRaw)
-			hash = hex.EncodeToString(hashData[:])
+			hash = hasher.Hash(req.ActionResult.StderrRaw)
 			sizeBytes = int64(len(req.ActionResult.StderrRaw))
 		}
 
-		err = s.cache.Put(ctx, cache.CAS, hash, sizeBytes,
+		err = s.cache.Put(ctx, cache.CAS, hasher, hash, sizeBytes,
 			bytes.NewReader(req.ActionResult.StderrRaw))
 		if err != nil && err != io.EOF {
 			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)

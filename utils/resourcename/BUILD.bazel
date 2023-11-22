@@ -1,0 +1,16 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["resourcename.go"],
+    importpath = "github.com/buchgr/bazel-remote/v2/utils/resourcename",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cache/disk/casblob:go_default_library",
+        "//cache/hashing:go_default_library",
+        "//genproto/build/bazel/remote/execution/v2:go_default_library",
+        "@com_github_google_uuid//:go_default_library",
+        "@org_golang_google_grpc//codes:go_default_library",
+        "@org_golang_google_grpc//status:go_default_library",
+    ],
+)

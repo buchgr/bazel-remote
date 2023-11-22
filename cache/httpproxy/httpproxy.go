@@ -14,6 +14,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	"github.com/buchgr/bazel-remote/v2/utils/backendproxy"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -78,6 +79,8 @@ func (r *remoteHTTPProxyCache) UploadFile(item backendproxy.UploadReq) {
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.ContentLength = item.SizeOnDisk
 
+	req.Header.Set("X-Digest-Function", item.Hasher.DigestFunction().String())
+
 	rsp, err = r.remote.Do(req)
 	if err != nil {
 		r.errorLogger.Printf("HTTP %s UPLOAD: %s", url, err.Error())
@@ -135,13 +138,14 @@ func logResponse(logger cache.Logger, method string, code int, url string) {
 	logger.Printf("HTTP %s %d %s", method, code, url)
 }
 
-func (r *remoteHTTPProxyCache) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
+func (r *remoteHTTPProxyCache) Put(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
 	if r.uploadQueue == nil {
 		rc.Close()
 		return
 	}
 
 	item := backendproxy.UploadReq{
+		Hasher:      hasher,
 		Hash:        hash,
 		LogicalSize: logicalSize,
 		SizeOnDisk:  sizeOnDisk,
@@ -157,7 +161,7 @@ func (r *remoteHTTPProxyCache) Put(ctx context.Context, kind cache.EntryKind, ha
 	}
 }
 
-func (r *remoteHTTPProxyCache) Get(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (io.ReadCloser, int64, error) {
+func (r *remoteHTTPProxyCache) Get(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, _ int64) (io.ReadCloser, int64, error) {
 	url := r.requestURL(hash, kind)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -165,6 +169,8 @@ func (r *remoteHTTPProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 		cacheMisses.Inc()
 		return nil, -1, err
 	}
+
+	req.Header.Set("X-Digest-Function", hasher.DigestFunction().String())
 
 	rsp, err := r.remote.Do(req)
 	if err != nil {
@@ -220,7 +226,7 @@ func (r *remoteHTTPProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 	return rsp.Body, sizeBytes, nil
 }
 
-func (r *remoteHTTPProxyCache) Contains(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (bool, int64) {
+func (r *remoteHTTPProxyCache) Contains(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, _ int64) (bool, int64) {
 
 	url := r.requestURL(hash, kind)
 
@@ -228,6 +234,8 @@ func (r *remoteHTTPProxyCache) Contains(ctx context.Context, kind cache.EntryKin
 	if err != nil {
 		return false, -1
 	}
+
+	req.Header.Set("X-Digest-Function", hasher.DigestFunction().String())
 
 	rsp, err := r.remote.Do(req)
 	if err == nil && rsp.StatusCode == http.StatusOK {

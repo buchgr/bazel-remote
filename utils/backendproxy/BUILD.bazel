@@ -5,5 +5,8 @@ go_library(
     srcs = ["backendproxy.go"],
     importpath = "github.com/buchgr/bazel-remote/v2/utils/backendproxy",
     visibility = ["//visibility:public"],
-    deps = ["//cache:go_default_library"],
+    deps = [
+        "//cache:go_default_library",
+        "//cache/hashing:go_default_library",
+    ],
 )

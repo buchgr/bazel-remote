@@ -3,7 +3,6 @@ package disk
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +18,7 @@ import (
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/zstdimpl"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	"github.com/buchgr/bazel-remote/v2/utils/annotate"
 	"github.com/buchgr/bazel-remote/v2/utils/tempfile"
 	"github.com/buchgr/bazel-remote/v2/utils/validate"
@@ -38,12 +38,12 @@ var tfc = tempfile.NewCreator()
 var emptyZstdBlob = []byte{40, 181, 47, 253, 32, 0, 1, 0, 0}
 
 type Cache interface {
-	Get(ctx context.Context, kind cache.EntryKind, hash string, size int64, offset int64) (io.ReadCloser, int64, error)
-	GetValidatedActionResult(ctx context.Context, hash string) (*pb.ActionResult, []byte, error)
-	GetZstd(ctx context.Context, hash string, size int64, offset int64) (io.ReadCloser, int64, error)
-	Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, r io.Reader) error
-	Contains(ctx context.Context, kind cache.EntryKind, hash string, size int64) (bool, int64)
-	FindMissingCasBlobs(ctx context.Context, blobs []*pb.Digest) ([]*pb.Digest, error)
+	Get(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, size int64, offset int64) (io.ReadCloser, int64, error)
+	GetValidatedActionResult(ctx context.Context, hasher hashing.Hasher, hash string) (*pb.ActionResult, []byte, error)
+	GetZstd(ctx context.Context, hasher hashing.Hasher, hash string, size int64, offset int64) (io.ReadCloser, int64, error)
+	Put(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, size int64, r io.Reader) error
+	Contains(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, size int64) (bool, int64)
+	FindMissingCasBlobs(ctx context.Context, hasher hashing.Hasher, blobs []*pb.Digest) ([]*pb.Digest, error)
 
 	MaxSize() int64
 	Stats() (totalSize int64, reservedSize int64, numItems int, uncompressedSize int64)
@@ -86,9 +86,6 @@ type diskCache struct {
 
 	gaugeCacheAge prometheus.Gauge
 }
-
-const sha256HashStrSize = sha256.Size * 2 // Two hex characters per byte.
-const emptySha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 func internalErr(err error) *cache.Error {
 	return &cache.Error{
@@ -154,7 +151,20 @@ func (c *diskCache) updateCacheAgeMetric() {
 
 func (c *diskCache) getElementPath(key Key, value lruItem) string {
 	ks := key.(string)
-	hash := ks[len(ks)-sha256.Size*2:]
+
+	parts := strings.Split(ks, "/")
+
+	digestFn := hashing.DigestFunction(parts[1])
+	if len(parts) == 2 {
+		digestFn = hashing.DefaultFn
+	}
+	hasher, err := hashing.Get(digestFn)
+	if err != nil {
+		return ""
+	}
+
+	hash := parts[len(parts)-1]
+
 	var kind cache.EntryKind = cache.AC
 	if strings.HasPrefix(ks, "cas") {
 		kind = cache.CAS
@@ -164,7 +174,7 @@ func (c *diskCache) getElementPath(key Key, value lruItem) string {
 		kind = cache.RAW
 	}
 
-	return filepath.Join(c.dir, c.FileLocation(kind, value.legacy, hash, value.size, value.random))
+	return filepath.Join(c.dir, c.FileLocation(kind, value.legacy, hasher, hash, value.size, value.random))
 }
 
 func (c *diskCache) removeFile(f string) {
@@ -180,43 +190,43 @@ func (c *diskCache) removeFile(f string) {
 	}
 }
 
-func (c *diskCache) FileLocationBase(kind cache.EntryKind, legacy bool, hash string, size int64) string {
+func (c *diskCache) FileLocationBase(kind cache.EntryKind, legacy bool, hasher hashing.Hasher, hash string, size int64) string {
 	if kind == cache.RAW {
-		return path.Join("raw.v2", hash[:2], hash)
+		return path.Join("raw.v2", hasher.Dir(), hash[:2], hash)
 	}
 
 	if kind == cache.AC {
-		return path.Join("ac.v2", hash[:2], hash)
+		return path.Join("ac.v2", hasher.Dir(), hash[:2], hash)
 	}
 
 	if legacy {
-		return path.Join("cas.v2", hash[:2], hash)
+		return path.Join("cas.v2", hasher.Dir(), hash[:2], hash)
 	}
 
-	return fmt.Sprintf("cas.v2/%s/%s-%d", hash[:2], hash, size)
+	return path.Join("cas.v2", hasher.Dir(), hash[:2], fmt.Sprintf("%s-%d", hash, size))
 }
 
-func (c *diskCache) FileLocation(kind cache.EntryKind, legacy bool, hash string, size int64, random string) string {
+func (c *diskCache) FileLocation(kind cache.EntryKind, legacy bool, hasher hashing.Hasher, hash string, size int64, random string) string {
 	if kind == cache.RAW {
-		return path.Join("raw.v2", hash[:2], hash+"-"+random)
+		return path.Join("raw.v2", hasher.Dir(), hash[:2], hash+"-"+random)
 	}
 
 	if kind == cache.AC {
-		return path.Join("ac.v2", hash[:2], hash+"-"+random)
+		return path.Join("ac.v2", hasher.Dir(), hash[:2], hash+"-"+random)
 	}
 
 	if legacy {
-		return fmt.Sprintf("cas.v2/%s/%s-%s.v1", hash[:2], hash, random)
+		return path.Join("cas.v2", hasher.Dir(), hash[:2], fmt.Sprintf("%s-%s.v1", hash, random))
 	}
 
-	return fmt.Sprintf("cas.v2/%s/%s-%d-%s", hash[:2], hash, size, random)
+	return path.Join("cas.v2", hasher.Dir(), hash[:2], fmt.Sprintf("%s-%d-%s", hash, size, random))
 }
 
 // Put stores a stream of `size` bytes from `r` into the cache.
 // If `hash` is not the empty string, and the contents don't match it,
 // a non-nil error is returned. All data will be read from `r` before
 // this function returns.
-func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, r io.Reader) (rErr error) {
+func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, size int64, r io.Reader) (rErr error) {
 	defer func() {
 		if r != nil {
 			_, _ = io.Copy(io.Discard, r)
@@ -233,15 +243,15 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
-	if len(hash) != sha256HashStrSize {
-		return badReqErr("Invalid hash size: %d, expected: %d", len(hash), sha256.Size)
+	if len(hash) != hasher.Size()*2 {
+		return badReqErr("Invalid hash size: %d, expected: %d", len(hash), hasher.Size()*2)
 	}
 
-	if kind == cache.CAS && size == 0 && hash == emptySha256 {
+	if kind == cache.CAS && size == 0 && hash == hasher.Empty() {
 		return nil
 	}
 
-	key := cache.LookupKey(kind, hash)
+	key := cache.LookupKey(kind, hasher, hash)
 
 	var tf *os.File // Tempfile.
 	var blobFile string
@@ -299,7 +309,7 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 	legacy := kind == cache.CAS && c.storageMode == casblob.Identity
 
 	// Final destination, if all goes well.
-	filePath := path.Join(c.dir, c.FileLocationBase(kind, legacy, hash, size))
+	filePath := path.Join(c.dir, c.FileLocationBase(kind, legacy, hasher, hash, size))
 
 	// We will download to this temporary file.
 	tf, random, err := tfc.Create(filePath, legacy)
@@ -316,7 +326,7 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 	removeTempfile = true
 
 	var sizeOnDisk int64
-	sizeOnDisk, err = c.writeAndCloseFile(ctx, r, kind, hash, size, tf)
+	sizeOnDisk, err = c.writeAndCloseFile(ctx, r, kind, hasher, hash, size, tf)
 	if err != nil {
 		return internalErr(err)
 	}
@@ -329,7 +339,7 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 			log.Println("Failed to proxy Put:", err)
 		} else {
 			// Doesn't block, should be fast.
-			c.proxy.Put(ctx, kind, hash, size, sizeOnDisk, rc)
+			c.proxy.Put(ctx, kind, hasher, hash, size, sizeOnDisk, rc)
 		}
 	}
 
@@ -341,7 +351,7 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 	return nil
 }
 
-func (c *diskCache) writeAndCloseFile(ctx context.Context, r io.Reader, kind cache.EntryKind, hash string, size int64, f *os.File) (int64, error) {
+func (c *diskCache) writeAndCloseFile(ctx context.Context, r io.Reader, kind cache.EntryKind, hasher hashing.Hasher, hash string, size int64, f *os.File) (int64, error) {
 	closeFile := true
 	defer func() {
 		if closeFile {
@@ -353,7 +363,7 @@ func (c *diskCache) writeAndCloseFile(ctx context.Context, r io.Reader, kind cac
 	var sizeOnDisk int64
 
 	if kind == cache.CAS && c.storageMode != casblob.Identity {
-		sizeOnDisk, err = casblob.WriteAndClose(c.zstd, r, f, c.storageMode, hash, size)
+		sizeOnDisk, err = casblob.WriteAndClose(c.zstd, r, f, c.storageMode, hasher, hash, size)
 		if err != nil {
 			return -1, annotate.Err(ctx, "Failed to write compressed CAS blob to disk", err)
 		}
@@ -424,18 +434,18 @@ func (c *diskCache) commit(key string, legacy bool, tempfile string, reservedSiz
 // but that we can try the proxy backend.
 //
 // This function assumes that only CAS blobs are requested in zstd form.
-func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size int64, offset int64, zstd bool) (io.ReadCloser, int64, bool, error) {
+func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hasher hashing.Hasher, hash string, size int64, offset int64, zstd bool) (io.ReadCloser, int64, bool, error) {
 	locked := true
 	var err error
 	c.mu.Lock()
 
-	key := cache.LookupKey(kind, hash)
+	key := cache.LookupKey(kind, hasher, hash)
 	item, available := c.lru.Get(key)
 	if available {
 		c.mu.Unlock() // We expect a cache hit below.
 		locked = false
 
-		blobPath := path.Join(c.dir, c.FileLocation(kind, item.legacy, hash, item.size, item.random))
+		blobPath := path.Join(c.dir, c.FileLocation(kind, item.legacy, hasher, hash, item.size, item.random))
 
 		if !isSizeMismatch(size, item.size) {
 			var f *os.File
@@ -447,7 +457,7 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 				c.mu.Lock()
 				item, available = c.lru.Get(key)
 				if available {
-					blobPath = path.Join(c.dir, c.FileLocation(kind, item.legacy, hash, item.size, item.random))
+					blobPath = path.Join(c.dir, c.FileLocation(kind, item.legacy, hasher, hash, item.size, item.random))
 					f, err = os.Open(blobPath)
 				}
 				c.mu.Unlock()
@@ -537,25 +547,25 @@ var errOnlyCompressedCAS = &cache.Error{
 // item is not found, the io.ReadCloser will be nil. If some error occurred
 // when processing the request, then it is returned. Callers should provide
 // the `size` of the item to be retrieved, or -1 if unknown.
-func (c *diskCache) Get(ctx context.Context, kind cache.EntryKind, hash string, size int64, offset int64) (rc io.ReadCloser, s int64, rErr error) {
-	return c.get(ctx, kind, hash, size, offset, false)
+func (c *diskCache) Get(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, size int64, offset int64) (rc io.ReadCloser, s int64, rErr error) {
+	return c.get(ctx, kind, hasher, hash, size, offset, false)
 }
 
 // GetZstd is just like Get, except the data available from rc is zstandard
 // compressed. Note that the returned `s` value still refers to the amount
 // of data once it has been decompressed.
-func (c *diskCache) GetZstd(ctx context.Context, hash string, size int64, offset int64) (rc io.ReadCloser, s int64, rErr error) {
-	return c.get(ctx, cache.CAS, hash, size, offset, true)
+func (c *diskCache) GetZstd(ctx context.Context, hasher hashing.Hasher, hash string, size int64, offset int64) (rc io.ReadCloser, s int64, rErr error) {
+	return c.get(ctx, cache.CAS, hasher, hash, size, offset, true)
 }
 
-func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, size int64, offset int64, zstd bool) (rc io.ReadCloser, s int64, rErr error) {
+func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, size int64, offset int64, zstd bool) (rc io.ReadCloser, s int64, rErr error) {
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
-	if len(hash) != sha256HashStrSize {
-		return nil, -1, badReqErr("Invalid hash size: %d, expected: %d", len(hash), sha256.Size)
+	if len(hash) != hasher.Size()*2 {
+		return nil, -1, badReqErr("Invalid hash size: %d, expected: %d", len(hash), hasher.Size()*2)
 	}
 
-	if kind == cache.CAS && size <= 0 && hash == emptySha256 {
+	if kind == cache.CAS && size <= 0 && hash == hasher.Empty() {
 		if zstd {
 			return io.NopCloser(bytes.NewReader(emptyZstdBlob)), 0, nil
 		}
@@ -575,7 +585,7 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 	}
 
 	var err error
-	key := cache.LookupKey(kind, hash)
+	key := cache.LookupKey(kind, hasher, hash)
 
 	var tf *os.File // Tempfile we will write to.
 	var blobFile string
@@ -608,7 +618,7 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 		}
 	}()
 
-	f, foundSize, tryProxy, err := c.availableOrTryProxy(kind, hash, size, offset, zstd)
+	f, foundSize, tryProxy, err := c.availableOrTryProxy(kind, hasher, hash, size, offset, zstd)
 	if err != nil {
 		return nil, -1, internalErr(err)
 	}
@@ -623,7 +633,7 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 		return nil, -1, nil
 	}
 
-	r, foundSize, err := c.proxy.Get(ctx, kind, hash, size)
+	r, foundSize, err := c.proxy.Get(ctx, kind, hasher, hash, size)
 	if r != nil {
 		defer r.Close()
 	}
@@ -644,7 +654,7 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 
 	legacy := kind == cache.CAS && c.storageMode == casblob.Identity
 
-	blobPathBase := path.Join(c.dir, c.FileLocationBase(kind, legacy, hash, foundSize))
+	blobPathBase := path.Join(c.dir, c.FileLocationBase(kind, legacy, hasher, hash, foundSize))
 	tf, random, err := tfc.Create(blobPathBase, legacy)
 	if err != nil {
 		return nil, -1, internalErr(err)
@@ -706,19 +716,19 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 // one) will be checked.
 //
 // Callers should provide the `size` of the item, or -1 if unknown.
-func (c *diskCache) Contains(ctx context.Context, kind cache.EntryKind, hash string, size int64) (bool, int64) {
+func (c *diskCache) Contains(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, size int64) (bool, int64) {
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
-	if len(hash) != sha256HashStrSize {
+	if len(hash) != hasher.Size()*2 {
 		return false, -1
 	}
 
-	if kind == cache.CAS && size <= 0 && hash == emptySha256 {
+	if kind == cache.CAS && size <= 0 && hash == hasher.Empty() {
 		return true, 0
 	}
 
 	foundSize := int64(-1)
-	key := cache.LookupKey(kind, hash)
+	key := cache.LookupKey(kind, hasher, hash)
 
 	c.mu.Lock()
 	item, exists := c.lru.Get(key)
@@ -732,7 +742,7 @@ func (c *diskCache) Contains(ctx context.Context, kind cache.EntryKind, hash str
 	}
 
 	if c.proxy != nil && size <= c.maxProxyBlobSize {
-		exists, foundSize = c.proxy.Contains(ctx, kind, hash, size)
+		exists, foundSize = c.proxy.Contains(ctx, kind, hasher, hash, size)
 		if exists && foundSize <= c.maxProxyBlobSize && !isSizeMismatch(size, foundSize) {
 			return true, foundSize
 		}
@@ -764,8 +774,8 @@ func isSizeMismatch(requestedSize int64, foundSize int64) bool {
 // value from the CAS if it and all its dependencies are also available. If
 // not, nil values are returned. If something unexpected went wrong, return
 // an error.
-func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (*pb.ActionResult, []byte, error) {
-	rc, sizeBytes, err := c.Get(ctx, cache.AC, hash, -1, 0)
+func (c *diskCache) GetValidatedActionResult(ctx context.Context, hasher hashing.Hasher, hash string) (*pb.ActionResult, []byte, error) {
+	rc, sizeBytes, err := c.Get(ctx, cache.AC, hasher, hash, -1, 0)
 	if rc != nil {
 		defer rc.Close()
 	}
@@ -789,7 +799,7 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 	}
 
 	// Validate the ActionResult's immediate fields, but don't check for dependent blobs.
-	err = validate.ActionResult(result)
+	err = validate.ActionResult(result, hasher)
 	if err != nil {
 		return nil, nil, err // Should we return "not found" instead of an error?
 	}
@@ -805,7 +815,7 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 
 	for _, d := range result.OutputDirectories {
 		// d was validated in validate.ActionResult but blobs were not checked for existence
-		r, size, err := c.Get(ctx, cache.CAS, d.TreeDigest.Hash, d.TreeDigest.SizeBytes, 0)
+		r, size, err := c.Get(ctx, cache.CAS, hasher, d.TreeDigest.Hash, d.TreeDigest.SizeBytes, 0)
 		if r == nil {
 			return nil, nil, err // aka "not found", or an err if non-nil
 		}
@@ -855,7 +865,7 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 		pendingValidations = append(pendingValidations, result.StderrDigest)
 	}
 
-	err = c.findMissingCasBlobsInternal(ctx, pendingValidations, true)
+	err = c.findMissingCasBlobsInternal(ctx, hasher, pendingValidations, true)
 	if errors.Is(err, errMissingBlob) {
 		return nil, nil, nil // aka "not found"
 	}

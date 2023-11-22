@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 
 	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 
@@ -16,6 +17,7 @@ import (
 type proxyCheck struct {
 	wg          *sync.WaitGroup
 	digest      **pb.Digest
+	hasher      hashing.Hasher
 	ctx         context.Context
 	onProxyMiss func()
 }
@@ -29,8 +31,8 @@ var errRequestCancelled = status.Error(codes.Canceled, "Request was cancelled")
 // Returns a slice with the blobs that are missing from the cache.
 //
 // Note that this modifies the input slice and returns a subset of it.
-func (c *diskCache) FindMissingCasBlobs(ctx context.Context, blobs []*pb.Digest) ([]*pb.Digest, error) {
-	err := c.findMissingCasBlobsInternal(ctx, blobs, false)
+func (c *diskCache) FindMissingCasBlobs(ctx context.Context, hasher hashing.Hasher, blobs []*pb.Digest) ([]*pb.Digest, error) {
+	err := c.findMissingCasBlobsInternal(ctx, hasher, blobs, false)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +45,7 @@ func (c *diskCache) FindMissingCasBlobs(ctx context.Context, blobs []*pb.Digest)
 // When failFast is true and a blob could not be found in the local cache nor in the
 // proxy back end, the search will immediately terminate and errMissingBlob will be returned. Given that the
 // search is terminated early, the contents of blobs will only have partially been updated.
-func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb.Digest, failFast bool) error {
+func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, hasher hashing.Hasher, blobs []*pb.Digest, failFast bool) error {
 	// batchSize moderates how long the cache lock is held by findMissingLocalCAS.
 	const batchSize = 20
 
@@ -85,7 +87,7 @@ func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb
 			remaining = remaining[batchSize:]
 		}
 
-		numMissing := c.findMissingLocalCAS(chunk)
+		numMissing := c.findMissingLocalCAS(chunk, hasher)
 		if numMissing == 0 {
 			continue
 		}
@@ -124,6 +126,7 @@ func (c *diskCache) findMissingCasBlobsInternal(ctx context.Context, blobs []*pb
 				c.containsQueue <- proxyCheck{
 					wg:     &wg,
 					digest: &chunk[i],
+					hasher: hasher,
 					ctx:    ctx,
 					// When failFast is true, onProxyMiss will have been set to a function that
 					// will cancel the context, causing the remaining proxyChecks to short-circuit.
@@ -171,7 +174,7 @@ func filterNonNil(blobs []*pb.Digest) []*pb.Digest {
 
 // Set blobs that exist in the disk cache to nil, and return the number
 // of missing blobs.
-func (c *diskCache) findMissingLocalCAS(blobs []*pb.Digest) int {
+func (c *diskCache) findMissingLocalCAS(blobs []*pb.Digest, hasher hashing.Hasher) int {
 	var exists bool
 	var item lruItem
 	var key string
@@ -180,14 +183,14 @@ func (c *diskCache) findMissingLocalCAS(blobs []*pb.Digest) int {
 	c.mu.Lock()
 
 	for i := range blobs {
-		if blobs[i].SizeBytes == 0 && blobs[i].Hash == emptySha256 {
+		if blobs[i].SizeBytes == 0 && blobs[i].Hash == hasher.Empty() {
 			c.accessLogger.Printf("GRPC CAS HEAD %s OK", blobs[i].Hash)
 			blobs[i] = nil
 			continue
 		}
 
 		foundSize := int64(-1)
-		key = cache.LookupKey(cache.CAS, blobs[i].Hash)
+		key = cache.LookupKey(cache.CAS, hasher, blobs[i].Hash)
 		item, exists = c.lru.Get(key)
 		if exists {
 			foundSize = item.size
@@ -220,7 +223,7 @@ func (c *diskCache) containsWorker() {
 			}
 		}
 
-		ok, _ = c.proxy.Contains(req.ctx, cache.CAS, (*req.digest).Hash, (*req.digest).SizeBytes)
+		ok, _ = c.proxy.Contains(req.ctx, cache.CAS, req.hasher, (*req.digest).Hash, (*req.digest).SizeBytes)
 		if ok {
 			c.accessLogger.Printf("GRPC CAS HEAD %s OK", (*req.digest).Hash)
 			// The blob exists on the proxy, remove it from the

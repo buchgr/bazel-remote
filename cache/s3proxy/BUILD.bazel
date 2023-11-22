@@ -11,6 +11,7 @@ go_library(
     deps = [
         "//cache:go_default_library",
         "//cache/disk/casblob:go_default_library",
+        "//cache/hashing:go_default_library",
         "//utils/backendproxy:go_default_library",
         "@com_github_minio_minio_go_v7//:go_default_library",
         "@com_github_minio_minio_go_v7//pkg/credentials:go_default_library",
