@@ -43,6 +43,7 @@ go_test(
         "//cache:go_default_library",
         "//cache/disk/casblob:go_default_library",
         "//cache/disk/zstdimpl:go_default_library",
+        "//cache/hashing:go_default_library",
         "//cache/httpproxy:go_default_library",
         "//genproto/build/bazel/remote/execution/v2:go_default_library",
         "//utils:go_default_library",

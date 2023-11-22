@@ -331,10 +331,10 @@ func (r *remoteGrpcProxyCache) Contains(ctx context.Context, kind cache.EntryKin
 		// is to get the object and discard the result
 		// We don't expect this to ever be called anyways since it is not part of the grpc protocol
 		rc, size, err := r.Get(ctx, kind, hasher, hash, size)
-		rc.Close()
 		if err != nil || size < 0 {
 			return false, -1
 		}
+		rc.Close()
 		return true, size
 	case cache.CAS:
 		if size < 0 {

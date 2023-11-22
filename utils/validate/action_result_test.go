@@ -3,6 +3,7 @@ package validate
 import (
 	"testing"
 
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 )
 
@@ -53,7 +54,7 @@ func TestValidateNilPointers(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		err := ActionResult(tc.actionResult)
+		err := ActionResult(tc.actionResult, hashing.DefaultHasher)
 		if err != tc.expected {
 			t.Error("invalid ActionResult accepted:", tc.description)
 		}

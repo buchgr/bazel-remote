@@ -2,13 +2,12 @@ package testutils
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"io"
 	"log"
 	"os"
 	"testing"
 
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 )
 
@@ -24,7 +23,7 @@ func TempDir(t *testing.T) string {
 
 // RandomDataAndHash creates a random blob of the specified size, and
 // returns that blob along with its sha256 hash.
-func RandomDataAndHash(size int64) ([]byte, string) {
+func RandomDataAndHash(size int64, hasher hashing.Hasher) ([]byte, string) {
 	data := make([]byte, size)
 
 	for i := 0; i < 3; i++ {
@@ -36,13 +35,12 @@ func RandomDataAndHash(size int64) ([]byte, string) {
 		}
 	}
 
-	hash := sha256.Sum256(data)
-	hashStr := hex.EncodeToString(hash[:])
+	hashStr := hasher.Hash(data)
 	return data, hashStr
 }
 
 func RandomDataAndDigest(size int64) ([]byte, pb.Digest) {
-	data, hash := RandomDataAndHash(size)
+	data, hash := RandomDataAndHash(size, hashing.DefaultHasher)
 	return data, pb.Digest{
 		Hash:      hash,
 		SizeBytes: size,

@@ -3,9 +3,6 @@ package grpcproxy
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
 	"io"
 	"net"
 	"os"
@@ -16,8 +13,9 @@ import (
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	"github.com/buchgr/bazel-remote/v2/server"
-	"github.com/google/uuid"
+	"github.com/buchgr/bazel-remote/v2/utils/resourcename"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -83,7 +81,7 @@ func newProxy(t *testing.T, dir string, storageMode string) *testProxy {
 func (p *testProxy) GetCapabilities(ctx context.Context, req *pb.GetCapabilitiesRequest) (*pb.ServerCapabilities, error) {
 	return &pb.ServerCapabilities{
 		CacheCapabilities: &pb.CacheCapabilities{
-			DigestFunctions:               []pb.DigestFunction_Value{pb.DigestFunction_SHA256},
+			DigestFunctions:               []pb.DigestFunction_Value{hashing.DefaultFn},
 			ActionCacheUpdateCapabilities: &pb.ActionCacheUpdateCapabilities{UpdateEnabled: true},
 			SupportedCompressors: []pb.Compressor_Value{
 				pb.Compressor_IDENTITY,
@@ -267,7 +265,7 @@ func runTest(t *testing.T, storageMode string) {
 	data, digest := testutils.RandomDataAndDigest(3 * 1024 * 1024)
 
 	putCasReq := &bs.WriteRequest{
-		ResourceName: fmt.Sprintf("uploads/%s/blobs/%s/%d", uuid.New().String(), digest.Hash, digest.SizeBytes),
+		ResourceName: resourcename.GetWriteResourceName("", false, hashing.DefaultHasher, digest.Hash, digest.SizeBytes, ""),
 		Data:         data,
 	}
 	putClient, err := putFixture.clients.bs.Write(context.Background())
@@ -296,14 +294,14 @@ func runTest(t *testing.T, storageMode string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	arSum := sha256.Sum256(arData)
 	arDigest := pb.Digest{
-		Hash:      hex.EncodeToString(arSum[:]),
+		Hash:      hashing.DefaultHasher.Hash(arData),
 		SizeBytes: int64(len(arData)),
 	}
 	putAcReq := pb.UpdateActionResultRequest{
-		ActionDigest: &arDigest,
-		ActionResult: &ar,
+		ActionDigest:   &arDigest,
+		ActionResult:   &ar,
+		DigestFunction: hashing.DefaultFn,
 	}
 	_, err = putFixture.clients.ac.UpdateActionResult(context.Background(), &putAcReq)
 	if err != nil {
@@ -311,11 +309,11 @@ func runTest(t *testing.T, storageMode string) {
 	}
 	time.Sleep(time.Second)
 
-	ok, size := putFixture.cache.Contains(context.Background(), cache.AC, arDigest.Hash, arDigest.SizeBytes)
+	ok, size := putFixture.cache.Contains(context.Background(), cache.AC, hashing.DefaultHasher, arDigest.Hash, arDigest.SizeBytes)
 	if !ok || size != arDigest.SizeBytes {
 		t.Fatal("Cound not find action result in first server")
 	}
-	ok, size = putFixture.cache.Contains(context.Background(), cache.CAS, digest.Hash, digest.SizeBytes)
+	ok, size = putFixture.cache.Contains(context.Background(), cache.CAS, hashing.DefaultHasher, digest.Hash, digest.SizeBytes)
 	if !ok || size != digest.SizeBytes {
 		t.Fatal("Cound not find blob in first server")
 	}
@@ -326,17 +324,18 @@ func runTest(t *testing.T, storageMode string) {
 		t.Fatal("Cound not find blob in proxy")
 	}
 
-	ok, size = getFixture.cache.Contains(context.Background(), cache.AC, arDigest.Hash, arDigest.SizeBytes)
+	ok, size = getFixture.cache.Contains(context.Background(), cache.AC, hashing.DefaultHasher, arDigest.Hash, arDigest.SizeBytes)
 	if !ok || size != arDigest.SizeBytes {
 		t.Fatal("Second server could not find action result")
 	}
-	ok, size = getFixture.cache.Contains(context.Background(), cache.CAS, digest.Hash, digest.SizeBytes)
+	ok, size = getFixture.cache.Contains(context.Background(), cache.CAS, hashing.DefaultHasher, digest.Hash, digest.SizeBytes)
 	if !ok || size != digest.SizeBytes {
 		t.Fatal("Second server could not find blob")
 	}
 
 	fmReq := pb.FindMissingBlobsRequest{
-		BlobDigests: []*pb.Digest{&digest},
+		BlobDigests:    []*pb.Digest{&digest},
+		DigestFunction: hashing.DefaultFn,
 	}
 	fmRes, err := getFixture.clients.cas.FindMissingBlobs(context.Background(), &fmReq)
 	if err != nil {
@@ -347,7 +346,8 @@ func runTest(t *testing.T, storageMode string) {
 	}
 
 	getAcReq := pb.GetActionResultRequest{
-		ActionDigest: &arDigest,
+		ActionDigest:   &arDigest,
+		DigestFunction: hashing.DefaultFn,
 	}
 	getAcRes, err := getFixture.clients.ac.GetActionResult(context.Background(), &getAcReq)
 	if err != nil {
@@ -361,7 +361,7 @@ func runTest(t *testing.T, storageMode string) {
 	}
 
 	getCasRequest := &bs.ReadRequest{
-		ResourceName: fmt.Sprintf("blobs/%s/%d", digest.Hash, digest.SizeBytes),
+		ResourceName: resourcename.GetReadResourceName("", false, hashing.DefaultHasher, digest.Hash, digest.SizeBytes),
 	}
 	getClient, err := getFixture.clients.bs.Read(context.Background(), getCasRequest)
 	if err != nil {

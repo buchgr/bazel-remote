@@ -24,6 +24,7 @@ go_test(
         "//cache/disk:go_default_library",
         "//cache/disk/casblob:go_default_library",
         "//cache/disk/zstdimpl:go_default_library",
+        "//cache/hashing:go_default_library",
         "//utils:go_default_library",
     ],
 )

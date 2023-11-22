@@ -3,18 +3,18 @@ package server
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
+	pathlib "path"
 	"testing"
 	"time"
 
 	asset "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/asset/v1"
 	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
+	"github.com/buchgr/bazel-remote/v2/utils/resourcename"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/google/uuid"
@@ -29,7 +29,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk"
-	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	testutils "github.com/buchgr/bazel-remote/v2/utils"
 
 	"github.com/klauspost/compress/zstd"
@@ -168,8 +168,7 @@ func TestGrpcAc(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sum := sha256.Sum256(data)
-	hash := hex.EncodeToString(sum[:])
+	hash := hashing.DefaultHasher.Hash(data)
 
 	digest := pb.Digest{
 		Hash:      hash,
@@ -179,6 +178,7 @@ func TestGrpcAc(t *testing.T) {
 	// GetActionResultRequest, expect cache miss.
 
 	getReq := pb.GetActionResultRequest{
+		DigestFunction:    hashing.DefaultHasher.DigestFunction(),
 		ActionDigest:      &digest,
 		InlineStdout:      true,
 		InlineStderr:      true,
@@ -206,8 +206,9 @@ func TestGrpcAc(t *testing.T) {
 	// UpdateActionResultRequest.
 
 	upACReq := pb.UpdateActionResultRequest{
-		ActionDigest: &digest,
-		ActionResult: &ar,
+		DigestFunction: hashing.DefaultHasher.DigestFunction(),
+		ActionDigest:   &digest,
+		ActionResult:   &ar,
 	}
 
 	upACResp, err := fixture.acClient.UpdateActionResult(ctx, &upACReq)
@@ -245,14 +246,15 @@ func TestGrpcAc(t *testing.T) {
 	if len(zeroData) != 0 {
 		t.Fatal("expected a zero-sized test blob")
 	}
-	_, zeroHash := testutils.RandomDataAndHash(0)
+	_, zeroHash := testutils.RandomDataAndHash(0, hashing.DefaultHasher)
 	zeroDigest := pb.Digest{
 		Hash:      zeroHash,
 		SizeBytes: 0,
 	}
 	zeroReq := pb.UpdateActionResultRequest{
-		ActionDigest: &zeroDigest,
-		ActionResult: &zeroActionResult,
+		ActionDigest:   &zeroDigest,
+		ActionResult:   &zeroActionResult,
+		DigestFunction: hashing.DefaultFn,
 	}
 	zeroResp, err := fixture.acClient.UpdateActionResult(ctx, &zeroReq)
 	if proto.Equal(&zeroReq, zeroResp) {
@@ -315,8 +317,7 @@ func TestAcKeyMangling(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sum := sha256.Sum256(data)
-	hash := hex.EncodeToString(sum[:])
+	hash := hashing.DefaultHasher.Hash(data)
 
 	digest := pb.Digest{
 		Hash:      hash,
@@ -375,15 +376,14 @@ func TestGrpcCasEmptySha256(t *testing.T) {
 
 	// Check that we can "download" an empty blob, even if it hasn't
 	// been uploaded.
-
-	emptySum := sha256.Sum256([]byte{})
 	emptyDigest := pb.Digest{
-		Hash:      hex.EncodeToString(emptySum[:]),
+		Hash:      hashing.DefaultHasher.Hash([]byte{}),
 		SizeBytes: 0,
 	}
 
 	downReq := pb.BatchReadBlobsRequest{
-		Digests: []*pb.Digest{&emptyDigest},
+		Digests:        []*pb.Digest{&emptyDigest},
+		DigestFunction: hashing.DefaultFn,
 	}
 
 	downResp, err := fixture.casClient.BatchReadBlobs(ctx, &downReq)
@@ -406,25 +406,25 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 
 	testBlobSize := int64(128)
 
-	outputFile, outputFileHash := testutils.RandomDataAndHash(testBlobSize)
+	outputFile, outputFileHash := testutils.RandomDataAndHash(testBlobSize, hashing.DefaultHasher)
 	outputFileDigest := pb.Digest{
 		Hash:      outputFileHash,
 		SizeBytes: testBlobSize,
 	}
 
-	_, emptyFileHash := testutils.RandomDataAndHash(int64(0))
+	_, emptyFileHash := testutils.RandomDataAndHash(int64(0), hashing.DefaultHasher)
 	emptyFileDigest := pb.Digest{
 		Hash:      emptyFileHash,
 		SizeBytes: 0,
 	}
 
-	stdoutRaw, stdoutHash := testutils.RandomDataAndHash(testBlobSize)
+	stdoutRaw, stdoutHash := testutils.RandomDataAndHash(testBlobSize, hashing.DefaultHasher)
 	stdoutDigest := pb.Digest{
 		Hash:      stdoutHash,
 		SizeBytes: int64(len(stdoutRaw)),
 	}
 
-	stderrRaw, stderrHash := testutils.RandomDataAndHash(testBlobSize)
+	stderrRaw, stderrHash := testutils.RandomDataAndHash(testBlobSize, hashing.DefaultHasher)
 	stderrDigest := pb.Digest{
 		Hash:      stderrHash,
 		SizeBytes: int64(len(stderrRaw)),
@@ -436,7 +436,7 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 				{
 					Name: "emptyfile",
 					Digest: &pb.Digest{
-						Hash: emptySha256,
+						Hash: hashing.DefaultHasher.Empty(),
 					},
 				},
 			},
@@ -447,7 +447,7 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 					{
 						Name: "emptyfile",
 						Digest: &pb.Digest{
-							Hash: emptySha256,
+							Hash: hashing.DefaultHasher.Empty(),
 						},
 					},
 				},
@@ -459,16 +459,17 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	treeHash := sha256.Sum256(treeWithEmptyFileData)
+	treeHash := hashing.DefaultHasher.Hash(treeWithEmptyFileData)
 
 	treeWithEmptyFileDigest := pb.Digest{
-		Hash:      hex.EncodeToString(treeHash[:]),
+		Hash:      treeHash,
 		SizeBytes: int64(len(treeWithEmptyFileData)),
 	}
 
 	// Note that we're uploading the tree data, but not the empty file blob.
 	treeUpReq := pb.BatchUpdateBlobsRequest{
-		InstanceName: "foo",
+		InstanceName:   "foo",
+		DigestFunction: hashing.DefaultFn,
 		Requests: []*pb.BatchUpdateBlobsRequest_Request{
 			{
 				Digest: &treeWithEmptyFileDigest,
@@ -516,16 +517,16 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	arSum := sha256.Sum256(arData)
-	arHash := hex.EncodeToString(arSum[:])
+	arHash := hashing.DefaultHasher.Hash(arData)
 	arDigest := pb.Digest{
 		Hash:      arHash,
 		SizeBytes: int64(len(arData)),
 	}
 
 	_, err = fixture.acClient.UpdateActionResult(ctx, &pb.UpdateActionResultRequest{
-		ActionDigest: &arDigest,
-		ActionResult: &ar,
+		ActionDigest:   &arDigest,
+		ActionResult:   &ar,
+		DigestFunction: hashing.DefaultFn,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -534,6 +535,7 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 	// Check that the blobs exist.
 
 	missingReq := pb.FindMissingBlobsRequest{
+		DigestFunction: hashing.DefaultFn,
 		BlobDigests: []*pb.Digest{
 			&outputFileDigest,
 			&emptyFileDigest,
@@ -557,6 +559,7 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 	// Double-check that we can actually download the blobs individually.
 
 	downReq := pb.BatchReadBlobsRequest{
+		DigestFunction: hashing.DefaultFn,
 		Digests: []*pb.Digest{
 			&outputFileDigest,
 			&emptyFileDigest,
@@ -591,6 +594,7 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 
 	// Triple-check that we can get the inlined results.
 	getAcReq := pb.GetActionResultRequest{
+		DigestFunction:    hashing.DefaultFn,
 		ActionDigest:      &arDigest,
 		InlineStdout:      true,
 		InlineStderr:      true,
@@ -613,7 +617,7 @@ func TestGrpcByteStreamDeadline(t *testing.T) {
 	defer cancel()
 
 	testBlobSize := int64(16)
-	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize)
+	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize, hashing.DefaultHasher)
 	testBlobDigest := pb.Digest{
 		Hash:      testBlobHash,
 		SizeBytes: int64(len(testBlob)),
@@ -636,13 +640,8 @@ func TestGrpcByteStreamDeadline(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resourceName := fmt.Sprintf(
-		"%s/uploads/%s/blobs/%s/%d/deadline/metadata/here",
-		instance,
-		uuid.New().String(),
-		testBlobDigest.Hash,
-		len(testBlob),
-	)
+	resourceName := resourcename.GetWriteResourceName(
+		instance, false, hashing.DefaultHasher, testBlobDigest.Hash, int64(len(testBlob)), "deadline/metadata/here")
 
 	for i := 0; i < len(testBlob); i++ {
 		bswReq := bytestream.WriteRequest{
@@ -697,7 +696,7 @@ func TestGrpcByteStreamDeadline(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, sz, err := fixture.diskCache.Get(testCtx, cache.CAS, testBlobHash, testBlobSize, 0)
+	_, sz, err := fixture.diskCache.Get(testCtx, cache.CAS, hashing.DefaultHasher, testBlobHash, testBlobSize, 0)
 	if err != nil {
 		t.Fatalf("get error: %v\n", err)
 	}
@@ -715,7 +714,7 @@ func TestGrpcByteStreamEmptySha256(t *testing.T) {
 
 	// We should always be able to read the empty blob.
 
-	resource := fmt.Sprintf("emptyRead/blobs/%s/0", emptySha256)
+	resource := pathlib.Join("emptyRead/blobs", hashing.DefaultHasher.Dir(), hashing.DefaultHasher.Empty(), "0")
 	bsrReq := bytestream.ReadRequest{ResourceName: resource}
 
 	bsrc, err := fixture.bsClient.Read(ctx, &bsrReq)
@@ -746,7 +745,8 @@ func TestGrpcByteStreamEmptySha256(t *testing.T) {
 	// Also test that we can get the "compressed empty blob".
 	// Clients shouldn't do this, but it should be possible.
 
-	resource = fmt.Sprintf("emptyRead/compressed-blobs/zstd/%s/0", emptySha256)
+	resource = pathlib.Join("emptyRead/compressed-blobs/zstd",
+		hashing.DefaultHasher.Dir(), hashing.DefaultHasher.Empty(), "0")
 	bsrReq = bytestream.ReadRequest{ResourceName: resource}
 
 	bsrc, err = fixture.bsClient.Read(ctx, &bsrReq)
@@ -790,7 +790,7 @@ func TestGrpcByteStream(t *testing.T) {
 	// Must be large enough to test multiple iterations of the
 	// bytestream Read Recv loop.
 	testBlobSize := int64(maxChunkSize * 3 / 2)
-	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize)
+	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize, hashing.DefaultHasher)
 	testBlobDigest := pb.Digest{
 		Hash:      testBlobHash,
 		SizeBytes: int64(len(testBlob)),
@@ -799,8 +799,8 @@ func TestGrpcByteStream(t *testing.T) {
 	// Read, expect cache miss.
 
 	instance := "ignoredByteStreamInstance"
-	resourceName := fmt.Sprintf("%s/blobs/%s/%d",
-		instance, testBlobDigest.Hash, len(testBlob))
+	resourceName := resourcename.GetReadResourceName(
+		instance, false, hashing.DefaultHasher, testBlobDigest.Hash, int64(len(testBlob)))
 	bsrReq := bytestream.ReadRequest{
 		ResourceName: resourceName,
 	}
@@ -833,8 +833,8 @@ func TestGrpcByteStream(t *testing.T) {
 	blobPart := testBlob[:cutoff]
 
 	bswReq := bytestream.WriteRequest{
-		ResourceName: fmt.Sprintf("%s/uploads/%s/blobs/%s/%d/ignored/metadata/here",
-			instance, uuid.New().String(), testBlobDigest.Hash, len(testBlob)),
+		ResourceName: resourcename.GetWriteResourceName(
+			instance, false, hashing.DefaultHasher, testBlobHash, int64(len(testBlob)), "ignored/metadata/here"),
 		FinishWrite: false,
 		Data:        blobPart,
 	}
@@ -867,8 +867,8 @@ func TestGrpcByteStream(t *testing.T) {
 	instance = "thirdIgnoredInstance"
 
 	bsrReq = bytestream.ReadRequest{
-		ResourceName: fmt.Sprintf("%s/blobs/%s/%d",
-			instance, testBlobDigest.Hash, len(testBlob)),
+		ResourceName: resourcename.GetReadResourceName(
+			instance, false, hashing.DefaultHasher, testBlobDigest.Hash, int64(len(testBlob))),
 	}
 
 	bsrc, err = fixture.bsClient.Read(ctx, &bsrReq)
@@ -904,8 +904,8 @@ func TestGrpcByteStream(t *testing.T) {
 	// Read again, in zstd form this time.
 
 	bsrReq = bytestream.ReadRequest{
-		ResourceName: fmt.Sprintf("%s/compressed-blobs/zstd/%s/%d",
-			instance, testBlobDigest.Hash, len(testBlob)),
+		ResourceName: resourcename.GetReadResourceName(
+			instance, true, hashing.DefaultHasher, testBlobDigest.Hash, int64(len(testBlob))),
 	}
 
 	bsrc, err = fixture.bsClient.Read(ctx, &bsrReq)
@@ -981,8 +981,8 @@ func TestGrpcByteStream(t *testing.T) {
 			t.Fatal(err)
 		}
 		r := bytestream.WriteRequest{
-			ResourceName: fmt.Sprintf("%s/uploads/%s/blobs/%s/%d/ignored/metadata/here",
-				instance, uuid.New().String(), tc.digest.Hash, tc.digest.SizeBytes),
+			ResourceName: resourcename.GetWriteResourceName(
+				instance, false, hashing.DefaultHasher, tc.digest.Hash, tc.digest.SizeBytes, "ignored/metadata/here"),
 			FinishWrite: false,
 			Data:        blobPart,
 		}
@@ -1007,11 +1007,10 @@ func TestGrpcByteStreamEmptyLastWrite(t *testing.T) {
 	defer os.Remove(fixture.tempdir)
 
 	instance := "ignoredByteStreamInstance"
-	testBlob, testBlobHash := testutils.RandomDataAndHash(7)
+	testBlob, testBlobHash := testutils.RandomDataAndHash(7, hashing.DefaultHasher)
 	req1 := bytestream.WriteRequest{
-		ResourceName: fmt.Sprintf(
-			"%s/uploads/%s/blobs/%s/%d",
-			instance, uuid.New().String(), testBlobHash, len(testBlob)),
+		ResourceName: resourcename.GetWriteResourceName(
+			instance, false, hashing.DefaultHasher, testBlobHash, int64(len(testBlob)), ""),
 		Data: testBlob,
 	}
 	req2 := bytestream.WriteRequest{
@@ -1050,7 +1049,7 @@ func TestGrpcByteStreamZstdWrite(t *testing.T) {
 	// Must be large enough to test multiple iterations of the
 	// bytestream Read Recv loop.
 	testBlobSize := int64(maxChunkSize * 3 / 2)
-	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize)
+	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize, hashing.DefaultHasher)
 	testBlobDigest := pb.Digest{
 		Hash:      testBlobHash,
 		SizeBytes: int64(len(testBlob)),
@@ -1074,8 +1073,8 @@ func TestGrpcByteStreamZstdWrite(t *testing.T) {
 	blobPart := compressedBlob[:cutoff]
 
 	bswReq := bytestream.WriteRequest{
-		ResourceName: fmt.Sprintf("%s/uploads/%s/compressed-blobs/zstd/%s/%d",
-			instance, uuid.New().String(), testBlobDigest.Hash, len(testBlob)),
+		ResourceName: resourcename.GetWriteResourceName(
+			instance, true, hashing.DefaultHasher, testBlobDigest.Hash, int64(len(testBlob)), ""),
 		FinishWrite: false,
 		Data:        blobPart,
 	}
@@ -1106,8 +1105,8 @@ func TestGrpcByteStreamZstdWrite(t *testing.T) {
 	// Read back.
 
 	bsrReq := bytestream.ReadRequest{
-		ResourceName: fmt.Sprintf("%s/blobs/%s/%d",
-			instance, testBlobDigest.Hash, len(testBlob)),
+		ResourceName: resourcename.GetReadResourceName(
+			instance, false, hashing.DefaultHasher, testBlobDigest.Hash, int64(len(testBlob))),
 	}
 
 	bsrc, err := fixture.bsClient.Read(ctx, &bsrReq)
@@ -1148,7 +1147,7 @@ func TestGrpcByteStreamInvalidReadLimit(t *testing.T) {
 	defer os.Remove(fixture.tempdir)
 
 	testBlobSize := int64(maxChunkSize)
-	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize)
+	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize, hashing.DefaultHasher)
 	testBlobDigest := pb.Digest{
 		Hash:      testBlobHash,
 		SizeBytes: int64(len(testBlob)),
@@ -1157,8 +1156,8 @@ func TestGrpcByteStreamInvalidReadLimit(t *testing.T) {
 	// Check that non-zero ReadLimit for compressed-blobs returns
 	// InvalidArgument.
 	bsrReq := bytestream.ReadRequest{
-		ResourceName: fmt.Sprintf("ignoredinstance/compressed-blobs/zstd/%s/%d",
-			testBlobDigest.Hash, len(testBlob)),
+		ResourceName: resourcename.GetWriteResourceName(
+			"ignoredinstance", true, hashing.DefaultHasher, testBlobDigest.Hash, int64(len(testBlob)), ""),
 		ReadLimit: 1024,
 	}
 
@@ -1191,7 +1190,7 @@ func TestGrpcByteStreamSkippedWrite(t *testing.T) {
 	// Must be large enough to test multiple iterations of the
 	// bytestream Read Recv loop.
 	testBlobSize := int64(maxChunkSize * 3 / 2)
-	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize)
+	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize, hashing.DefaultHasher)
 	testBlobDigest := pb.Digest{
 		Hash:      testBlobHash,
 		SizeBytes: int64(len(testBlob)),
@@ -1209,8 +1208,8 @@ func TestGrpcByteStreamSkippedWrite(t *testing.T) {
 	secondBlobPart := testBlob[cutoff:]
 
 	bswReq := bytestream.WriteRequest{
-		ResourceName: fmt.Sprintf("someInstance/uploads/%s/blobs/%s/%d",
-			uuid.New().String(), testBlobDigest.Hash, len(testBlob)),
+		ResourceName: resourcename.GetWriteResourceName(
+			"someInstance", false, hashing.DefaultHasher, testBlobDigest.Hash, int64(len(testBlob)), ""),
 		FinishWrite: false,
 		Data:        firstBlobPart,
 	}
@@ -1270,7 +1269,7 @@ func TestGrpcByteStreamQueryWriteStatus(t *testing.T) {
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
-	testBlob, testBlobHash := testutils.RandomDataAndHash(123)
+	testBlob, testBlobHash := testutils.RandomDataAndHash(123, hashing.DefaultHasher)
 	testBlobDigest := pb.Digest{
 		Hash:      testBlobHash,
 		SizeBytes: int64(len(testBlob)),
@@ -1278,13 +1277,8 @@ func TestGrpcByteStreamQueryWriteStatus(t *testing.T) {
 
 	instance := "unusedInstance"
 
-	resourceName := fmt.Sprintf(
-		"%s/uploads/%s/blobs/%s/%d",
-		instance,
-		uuid.New().String(),
-		testBlobDigest.Hash,
-		len(testBlob),
-	)
+	resourceName := resourcename.GetWriteResourceName(
+		instance, false, hashing.DefaultHasher, testBlobDigest.Hash, int64(len(testBlob)), "")
 
 	req := &bytestream.QueryWriteStatusRequest{ResourceName: resourceName}
 
@@ -1344,13 +1338,9 @@ func TestGrpcByteStreamQueryWriteStatus(t *testing.T) {
 	}
 
 	// Check the empty blob special case, which should always exist.
-
-	resourceName = fmt.Sprintf(
-		"%s/uploads/%s/blobs/%s/0",
-		instance,
-		uuid.New().String(),
-		emptySha256,
-	)
+	resourceName = pathlib.Join(
+		instance, "uploads", uuid.New().String(), "blobs",
+		hashing.DefaultHasher.Dir(), hashing.DefaultHasher.Empty(), "0")
 
 	req = &bytestream.QueryWriteStatusRequest{ResourceName: resourceName}
 
@@ -1376,14 +1366,15 @@ func TestGrpcCasBasics(t *testing.T) {
 	fixture := grpcTestSetup(t)
 	defer os.Remove(fixture.tempdir)
 
-	testBlob, testBlobHash := testutils.RandomDataAndHash(256)
+	testBlob, testBlobHash := testutils.RandomDataAndHash(256, hashing.DefaultHasher)
 	testBlobDigest := pb.Digest{
 		Hash:      testBlobHash,
 		SizeBytes: int64(len(testBlob)),
 	}
 
 	missingReq := pb.FindMissingBlobsRequest{
-		BlobDigests: []*pb.Digest{&testBlobDigest},
+		BlobDigests:    []*pb.Digest{&testBlobDigest},
+		DigestFunction: hashing.DefaultFn,
 	}
 
 	// FindMissingBlobs, expect cache miss.
@@ -1399,7 +1390,9 @@ func TestGrpcCasBasics(t *testing.T) {
 
 	// BatchUpdateBlobs.
 
-	upReq := pb.BatchUpdateBlobsRequest{}
+	upReq := pb.BatchUpdateBlobsRequest{
+		DigestFunction: hashing.DefaultFn,
+	}
 	r := pb.BatchUpdateBlobsRequest_Request{
 		Digest: &testBlobDigest,
 		Data:   testBlob,
@@ -1433,7 +1426,8 @@ func TestGrpcCasBasics(t *testing.T) {
 	// BatchReadBlobsRequest, expect cache hit.
 
 	downReq := pb.BatchReadBlobsRequest{
-		Digests: []*pb.Digest{&testBlobDigest},
+		DigestFunction: hashing.DefaultHasher.DigestFunction(),
+		Digests:        []*pb.Digest{&testBlobDigest},
 	}
 	downResp, err := fixture.casClient.BatchReadBlobs(ctx, &downReq)
 	if err != nil {
@@ -1460,7 +1454,7 @@ func TestGrpcCasTreeRequest(t *testing.T) {
 
 	// Create a test tree, which does not yet exist in the CAS.
 
-	testBlob1, testBlob1Hash := testutils.RandomDataAndHash(64)
+	testBlob1, testBlob1Hash := testutils.RandomDataAndHash(64, hashing.DefaultHasher)
 	testFile1Digest := pb.Digest{
 		Hash:      testBlob1Hash,
 		SizeBytes: int64(len(testBlob1)),
@@ -1471,7 +1465,7 @@ func TestGrpcCasTreeRequest(t *testing.T) {
 		Digest: &testFile1Digest,
 	}
 
-	testBlob2, testBlob2Hash := testutils.RandomDataAndHash(128)
+	testBlob2, testBlob2Hash := testutils.RandomDataAndHash(128, hashing.DefaultHasher)
 	testFile2Digest := pb.Digest{
 		Hash:      testBlob2Hash,
 		SizeBytes: int64(len(testBlob2)),
@@ -1482,7 +1476,7 @@ func TestGrpcCasTreeRequest(t *testing.T) {
 		Digest: &testFile2Digest,
 	}
 
-	testBlob3, testBlob3Hash := testutils.RandomDataAndHash(512)
+	testBlob3, testBlob3Hash := testutils.RandomDataAndHash(512, hashing.DefaultHasher)
 	testFile3Digest := pb.Digest{
 		Hash:      testBlob3Hash,
 		SizeBytes: int64(len(testBlob3)),
@@ -1504,8 +1498,7 @@ func TestGrpcCasTreeRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	subDirDataHash := sha256.Sum256(subDirData)
-	subDirDataHashStr := hex.EncodeToString(subDirDataHash[:])
+	subDirDataHashStr := hashing.DefaultHasher.Hash(subDirData)
 	subDirDigest := pb.Digest{
 		Hash:      subDirDataHashStr,
 		SizeBytes: int64(len(subDirData)),
@@ -1525,8 +1518,7 @@ func TestGrpcCasTreeRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	treeHash := sha256.Sum256(treeData)
-	treeHashStr := hex.EncodeToString(treeHash[:])
+	treeHashStr := hashing.DefaultHasher.Hash(treeData)
 	treeDigest := pb.Digest{
 		Hash:      treeHashStr,
 		SizeBytes: int64(len(treeData)),
@@ -1536,7 +1528,10 @@ func TestGrpcCasTreeRequest(t *testing.T) {
 
 	// GetTreeRequest, expect cache miss.
 
-	req := pb.GetTreeRequest{RootDigest: &treeDigest}
+	req := pb.GetTreeRequest{
+		RootDigest:     &treeDigest,
+		DigestFunction: hashing.DefaultFn,
+	}
 
 	resp, err := fixture.casClient.GetTree(ctx, &req)
 	if err != nil {
@@ -1558,7 +1553,8 @@ func TestGrpcCasTreeRequest(t *testing.T) {
 	// Upload all the blobs...
 
 	upReq := pb.BatchUpdateBlobsRequest{
-		InstanceName: "foo",
+		DigestFunction: hashing.DefaultFn,
+		InstanceName:   "foo",
 		Requests: []*pb.BatchUpdateBlobsRequest_Request{
 			{
 				Digest: &testFile1Digest,
@@ -2016,419 +2012,6 @@ func TestBadUpdateActionResultRequest(t *testing.T) {
 	}
 }
 
-func TestParseReadResource(t *testing.T) {
-	t.Parallel()
-
-	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
-
-	// Format: [{instance_name}]/blobs/{hash}/{size}
-
-	s := &grpcServer{
-		accessLogger: testutils.NewSilentLogger(),
-		errorLogger:  testutils.NewSilentLogger(),
-	}
-
-	tcs := []struct {
-		resourceName        string
-		expectedHash        string
-		expectedSize        int64
-		expectedCompression casblob.CompressionType
-		expectError         bool
-	}{
-		{
-			// No instance specified.
-			"blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
-			"0123456789012345678901234567890123456789012345678901234567890123",
-			42,
-			casblob.Identity,
-			false,
-		},
-		{
-			// No instance specified.
-			"compressed-blobs/zstd/0123456789012345678901234567890123456789012345678901234567890123/42",
-			"0123456789012345678901234567890123456789012345678901234567890123",
-			42,
-			casblob.Zstandard,
-			false,
-		},
-		{
-			// Instance specified.
-			"foo/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
-			"0123456789012345678901234567890123456789012345678901234567890123",
-			42,
-			casblob.Identity,
-			false,
-		},
-		{
-			// Instance specified.
-			"foo/compressed-blobs/zstd/0123456789012345678901234567890123456789012345678901234567890123/42",
-			"0123456789012345678901234567890123456789012345678901234567890123",
-			42,
-			casblob.Zstandard,
-			false,
-		},
-		{
-			// Instance specified, containing '/'.
-			"foo/bar/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
-			"0123456789012345678901234567890123456789012345678901234567890123",
-			42,
-			casblob.Identity,
-			false,
-		},
-		{
-			// Instance specified, containing '/'.
-			"foo/bar/compressed-blobs/zstd/0123456789012345678901234567890123456789012345678901234567890123/42",
-			"0123456789012345678901234567890123456789012345678901234567890123",
-			42,
-			casblob.Zstandard,
-			false,
-		},
-		{
-			// Missing "/blobs/" or "/compressed-blobs/".
-			resourceName: "foo/bar/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-
-		// Instance names cannot contain the following path segments: blobs,
-		// uploads, actions, actionResults, operations or `capabilities. We
-		// only care about "blobs".
-		{
-			resourceName: "blobs/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "blobs/foo/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "foo/blobs/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-
-		// Invalid hashes (we only support lowercase SHA256).
-		{
-			resourceName: "foo/blobs/blobs/01234567890123456789012345678901234567890123456789012345678901234/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "foo/blobs/012345678901234567890123456789012345678901234567890123456789012/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "foo/blobs/g123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "foo/blobs/A123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true, // Must be lowercase.
-		},
-		{
-			resourceName: "foo/blobs//42",
-			expectError:  true,
-		},
-
-		// Invalid sizes (must be valid non-negative int64).
-		{
-			resourceName: "foo/blobs/0123456789012345678901234567890123456789012345678901234567890123/-0",
-			expectError:  true,
-		},
-		{
-			// We use -1 as a placeholder for "size unknown" when validating AC digests, but it's invalid here.
-			resourceName: "foo/blobs/0123456789012345678901234567890123456789012345678901234567890123/-1",
-			expectError:  true,
-		},
-		{
-			resourceName: "foo/blobs/0123456789012345678901234567890123456789012345678901234567890123/3.14",
-			expectError:  true,
-		},
-		{
-			// Size: max(int64) + 1
-			resourceName: "foo/blobs/0123456789012345678901234567890123456789012345678901234567890123/9223372036854775808",
-			expectError:  true,
-		},
-
-		// Trailing garbage.
-		{
-			resourceName: "blobs/0123456789012345678901234567890123456789012345678901234567890123/42abc",
-			expectError:  true,
-		},
-		{
-			resourceName: "blobs/0123456789012345678901234567890123456789012345678901234567890123/42/abc",
-			expectError:  true,
-		},
-
-		// Misc.
-		{
-			resourceName: "foo/blobs/a",
-			expectError:  true,
-		},
-		{
-			resourceName: "foo/blobs//42",
-			expectError:  true,
-		},
-
-		// Unsupported/unrecognised compression types.
-		{
-			resourceName: "pretenduuid/compressed-blobs/zstandard/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "pretenduuid/compressed-blobs/Zstd/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "pretenduuid/compressed-blobs/ZSTD/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "pretenduuid/compressed-blobs/identity/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "pretenduuid/compressed-blobs/Identity/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "pretenduuid/compressed-blobs/IDENTITY/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-	}
-
-	for _, tc := range tcs {
-		hash, size, cmp, err := s.parseReadResource(tc.resourceName)
-
-		if tc.expectError {
-			if err == nil {
-				t.Fatalf("Expected an error for %q, got nil and hash: %q size: %d", tc.resourceName, hash, size)
-			}
-
-			continue
-		}
-
-		if !tc.expectError && (err != nil) {
-			t.Fatalf("Expected an success for %q, got error %q", tc.resourceName, err)
-		}
-
-		if hash != tc.expectedHash {
-			t.Fatalf("Expected hash: %q did not match actual hash: %q in %q", tc.expectedHash, hash, tc.resourceName)
-		}
-
-		if size != tc.expectedSize {
-			t.Fatalf("Expected size: %d did not match actual size: %d in %q", tc.expectedSize, size, tc.resourceName)
-		}
-
-		if cmp != tc.expectedCompression {
-			t.Fatalf("Expected compressor: %d did not match actual compressor: %d in %q", tc.expectedCompression, cmp, tc.resourceName)
-		}
-	}
-}
-
-func TestParseWriteResource(t *testing.T) {
-	t.Parallel()
-
-	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
-
-	// Format: [{instance_name}/]uploads/{uuid}/blobs/{hash}/{size}[/{optionalmetadata}]
-	// Or: [{instance_name}/]uploads/{uuid}/compressed-blobs/{compressor}/{uncompressed_hash}/{uncompressed_size}[{/optional_metadata}]
-
-	// We ignore instance_name and metadata, and we don't verify that the
-	// uuid is valid- it just needs to exist (or be empty) and not contain '/'.
-
-	s := &grpcServer{
-		accessLogger: testutils.NewSilentLogger(),
-		errorLogger:  testutils.NewSilentLogger(),
-	}
-
-	tcs := []struct {
-		resourceName        string
-		expectedHash        string
-		expectedSize        int64
-		expectedCompression casblob.CompressionType
-		expectError         bool
-	}{
-		{
-			"foo/uploads/pretenduuid/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
-			"0123456789012345678901234567890123456789012345678901234567890123",
-			42,
-			casblob.Identity,
-			false,
-		},
-		{
-			"foo/uploads/pretenduuid/compressed-blobs/zstd/0123456789012345678901234567890123456789012345678901234567890123/42",
-			"0123456789012345678901234567890123456789012345678901234567890123",
-			42,
-			casblob.Zstandard,
-			false,
-		},
-		{
-			"uploads/pretenduuid/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
-			"0123456789012345678901234567890123456789012345678901234567890123",
-			42,
-			casblob.Identity,
-			false,
-		},
-		{
-			"uploads/pretenduuid/compressed-blobs/zstd/0123456789012345678901234567890123456789012345678901234567890123/42",
-			"0123456789012345678901234567890123456789012345678901234567890123",
-			42,
-			casblob.Zstandard,
-			false,
-		},
-		{
-			// max(int64)
-			"uploads/pretenduuid/blobs/0123456789012345678901234567890123456789012345678901234567890123/9223372036854775807",
-			"0123456789012345678901234567890123456789012345678901234567890123",
-			9223372036854775807,
-			casblob.Identity,
-			false,
-		},
-		{
-			// max(int64)
-			"uploads/pretenduuid/compressed-blobs/zstd/0123456789012345678901234567890123456789012345678901234567890123/9223372036854775807",
-			"0123456789012345678901234567890123456789012345678901234567890123",
-			9223372036854775807,
-			casblob.Zstandard,
-			false,
-		},
-		{
-			"foo/uploads/pretenduuid/blobs/0123456789012345678901234567890123456789012345678901234567890123/42/some/meta/data",
-			"0123456789012345678901234567890123456789012345678901234567890123",
-			42,
-			casblob.Identity,
-			false,
-		},
-		{
-			"foo/uploads/pretenduuid/compressed-blobs/zstd/0123456789012345678901234567890123456789012345678901234567890123/42/some/meta/data",
-			"0123456789012345678901234567890123456789012345678901234567890123",
-			42,
-			casblob.Zstandard,
-			false,
-		},
-
-		// Missing "uploads"
-		{
-			resourceName: "/pretenduuid/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "pretenduuid/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-
-		{
-			// Missing uuid.
-			resourceName: "uploads/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-		{
-			// Multiple segments in place of uuid.
-			resourceName: "uploads/uuid/with/segments/blobs/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-
-		// Invalid hashes.
-		{
-			// Too long.
-			resourceName: "uploads/pretenduuid/blobs/01234567890123456789012345678901234567890123456789012345678901234/42",
-			expectError:  true,
-		},
-		{
-			// Too short.
-			resourceName: "uploads/pretenduuid/blobs/012345678901234567890123456789012345678901234567890123456789012/42",
-			expectError:  true,
-		},
-		{
-			// Not lowercase.
-			resourceName: "uploads/pretenduuid/blobs/A123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "uploads/pretenduuid/blobs//42", // Missing entirely.
-			expectError:  true,
-		},
-		{
-			resourceName: "uploads/pretenduuid/blobs/42", // Missing entirely.
-			expectError:  true,
-		},
-
-		// Invalid sizes (must be valid non-negative int64).
-		{
-			resourceName: "uploads/pretenduuid/blobs/0123456789012345678901234567890123456789012345678901234567890123/-0",
-			expectError:  true,
-		},
-		{
-			// We use -1 as a placeholder for "size unknown" when validating AC digests, but it's invalid here.
-			resourceName: "uploads/pretenduuid/blobs/0123456789012345678901234567890123456789012345678901234567890123/-1",
-			expectError:  true,
-		},
-		{
-			resourceName: "uploads/pretenduuid/blobs/0123456789012345678901234567890123456789012345678901234567890123/2.71828",
-			expectError:  true,
-		},
-		{
-			// Size: max(int64) + 1
-			resourceName: "foo/blobs/0123456789012345678901234567890123456789012345678901234567890123/9223372036854775808",
-			expectError:  true,
-		},
-
-		// Unsupported/unrecognised compression types.
-		{
-			resourceName: "uploads/pretenduuid/compressed-blobs/zstandard/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "uploads/pretenduuid/compressed-blobs/Zstd/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "uploads/pretenduuid/compressed-blobs/ZSTD/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "uploads/pretenduuid/compressed-blobs/identity/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "uploads/pretenduuid/compressed-blobs/Identity/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-		{
-			resourceName: "uploads/pretenduuid/compressed-blobs/IDENTITY/0123456789012345678901234567890123456789012345678901234567890123/42",
-			expectError:  true,
-		},
-	}
-
-	for _, tc := range tcs {
-		hash, size, cmp, err := s.parseWriteResource(tc.resourceName)
-
-		if tc.expectError {
-			if err == nil {
-				t.Fatalf("Expected an error for %q, got nil and hash: %q size: %d", tc.resourceName, hash, size)
-			}
-
-			continue
-		}
-
-		if !tc.expectError && (err != nil) {
-			t.Fatalf("Expected an success for %q, got error %q", tc.resourceName, err)
-		}
-
-		if hash != tc.expectedHash {
-			t.Fatalf("Expected hash: %q did not match actual hash: %q in %q", tc.expectedHash, hash, tc.resourceName)
-		}
-
-		if size != tc.expectedSize {
-			t.Fatalf("Expected size: %d did not match actual size: %d in %q", tc.expectedSize, size, tc.resourceName)
-		}
-
-		if cmp != tc.expectedCompression {
-			t.Fatalf("Expected compression: %d did not match actual compression: %d in %q", tc.expectedCompression, cmp, tc.resourceName)
-		}
-	}
-}
-
 func TestCompressedBatchReadsAndWrites(t *testing.T) {
 	t.Parallel()
 
@@ -2446,15 +2029,16 @@ func TestCompressedBatchReadsAndWrites(t *testing.T) {
 	}
 	compressedBlob := enc.EncodeAll(blob, nil)
 
-	blobHash := sha256.Sum256(blob)
+	blobHash := hashing.DefaultHasher.Hash(blob)
 
 	digest := pb.Digest{
-		Hash:      hex.EncodeToString(blobHash[:]),
+		Hash:      blobHash,
 		SizeBytes: int64(len(blob)),
 	}
 
 	// Upload compressed data.
 	upReq := pb.BatchUpdateBlobsRequest{
+		DigestFunction: hashing.DefaultFn,
 		Requests: []*pb.BatchUpdateBlobsRequest_Request{
 			{
 				Digest:     &digest,
@@ -2471,6 +2055,7 @@ func TestCompressedBatchReadsAndWrites(t *testing.T) {
 
 	// Download potentially compressed data.
 	downReq := pb.BatchReadBlobsRequest{
+		DigestFunction:        hashing.DefaultFn,
 		AcceptableCompressors: []pb.Compressor_Value{pb.Compressor_ZSTD},
 		Digests:               []*pb.Digest{&digest},
 	}

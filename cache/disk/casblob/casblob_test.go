@@ -2,8 +2,6 @@ package casblob_test
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +10,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/zstdimpl"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	testutils "github.com/buchgr/bazel-remote/v2/utils"
 )
 
@@ -35,7 +34,7 @@ func TestZstdFromLegacy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, hash := testutils.RandomDataAndHash(int64(size))
+	data, hash := testutils.RandomDataAndHash(int64(size), hashing.DefaultHasher)
 	dir := testutils.TempDir(t)
 	filename := fmt.Sprintf("%s/%s", dir, hash)
 	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0664)
@@ -73,8 +72,7 @@ func TestZstdFromLegacy(t *testing.T) {
 		t.Fatalf("Unexpected buf size %d, expected %d", buf.Len(), size)
 	}
 
-	h := sha256.Sum256(data)
-	hs := hex.EncodeToString(h[:])
+	hs := hashing.DefaultHasher.Hash(data)
 	if hs != hash {
 		t.Fatalf("Unexpected content sha %s, expected %s", hs, hash)
 	}

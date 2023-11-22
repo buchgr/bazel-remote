@@ -20,6 +20,7 @@ import (
 	"github.com/buchgr/bazel-remote/v2/cache/disk"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/zstdimpl"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	testutils "github.com/buchgr/bazel-remote/v2/utils"
 )
 
@@ -112,7 +113,7 @@ func TestEverything(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	casData, hash := testutils.RandomDataAndHash(1024)
+	casData, hash := testutils.RandomDataAndHash(1024, hashing.DefaultHasher)
 	t.Log("cas HASH:", hash)
 	acData := []byte{1, 2, 3, 4}
 
@@ -129,7 +130,7 @@ func TestEverything(t *testing.T) {
 
 	// PUT two different values with the same key in ac and cas.
 
-	err = diskCache.Put(ctx, cache.AC, hash, int64(len(acData)), bytes.NewReader(acData))
+	err = diskCache.Put(ctx, cache.AC, hashing.DefaultHasher, hash, int64(len(acData)), bytes.NewReader(acData))
 	if err != nil {
 		t.Error(err)
 	}
@@ -146,7 +147,7 @@ func TestEverything(t *testing.T) {
 	}
 	s.mu.Unlock()
 
-	err = diskCache.Put(ctx, cache.CAS, hash, int64(len(casData)), bytes.NewReader(casData))
+	err = diskCache.Put(ctx, cache.CAS, hashing.DefaultHasher, hash, int64(len(casData)), bytes.NewReader(casData))
 	if err != nil {
 		t.Error(err)
 	}
@@ -218,7 +219,7 @@ func TestEverything(t *testing.T) {
 	var found bool
 	var size int64
 
-	found, size = diskCache.Contains(ctx, cache.AC, hash, int64(len(acData)))
+	found, size = diskCache.Contains(ctx, cache.AC, hashing.DefaultHasher, hash, int64(len(acData)))
 	if !found {
 		t.Fatalf("Expected to find AC item %s", hash)
 	}
@@ -227,7 +228,7 @@ func TestEverything(t *testing.T) {
 			len(acData), size)
 	}
 
-	found, size = diskCache.Contains(ctx, cache.CAS, hash, int64(len(casData)))
+	found, size = diskCache.Contains(ctx, cache.CAS, hashing.DefaultHasher, hash, int64(len(casData)))
 	if !found {
 		t.Fatalf("Expected to find CAS item %s", hash)
 	}
@@ -241,7 +242,7 @@ func TestEverything(t *testing.T) {
 	var data []byte
 	var rc io.ReadCloser
 
-	rc, size, err = diskCache.Get(ctx, cache.AC, hash, int64(len(acData)), 0)
+	rc, size, err = diskCache.Get(ctx, cache.AC, hashing.DefaultHasher, hash, int64(len(acData)), 0)
 	if err != nil {
 		t.Error(err)
 	}
@@ -261,7 +262,7 @@ func TestEverything(t *testing.T) {
 	}
 	rc.Close()
 
-	rc, size, err = diskCache.Get(ctx, cache.CAS, hash, int64(len(casData)), 0)
+	rc, size, err = diskCache.Get(ctx, cache.CAS, hashing.DefaultHasher, hash, int64(len(casData)), 0)
 	if err != nil {
 		t.Error(err)
 	}
@@ -299,7 +300,7 @@ func TestEverything(t *testing.T) {
 
 	// Confirm that we can HEAD both values successfully.
 
-	found, size = diskCache.Contains(ctx, cache.AC, hash, int64(len(acData)))
+	found, size = diskCache.Contains(ctx, cache.AC, hashing.DefaultHasher, hash, int64(len(acData)))
 	if !found {
 		t.Fatalf("Expected to find AC item %s", hash)
 	}
@@ -308,7 +309,7 @@ func TestEverything(t *testing.T) {
 			len(acData), size)
 	}
 
-	found, size = diskCache.Contains(ctx, cache.CAS, hash, int64(len(casData)))
+	found, size = diskCache.Contains(ctx, cache.CAS, hashing.DefaultHasher, hash, int64(len(casData)))
 	if !found {
 		t.Fatalf("Expected to find CAS item %s", hash)
 	}
@@ -319,7 +320,7 @@ func TestEverything(t *testing.T) {
 
 	// Confirm that we can GET both values successfully.
 
-	rc, size, err = diskCache.Get(ctx, cache.AC, hash, int64(len(acData)), 0)
+	rc, size, err = diskCache.Get(ctx, cache.AC, hashing.DefaultHasher, hash, int64(len(acData)), 0)
 	if err != nil {
 		t.Error(err)
 	}
@@ -339,7 +340,7 @@ func TestEverything(t *testing.T) {
 	}
 	rc.Close()
 
-	rc, size, err = diskCache.Get(ctx, cache.CAS, hash, int64(len(casData)), 0)
+	rc, size, err = diskCache.Get(ctx, cache.CAS, hashing.DefaultHasher, hash, int64(len(casData)), 0)
 	if err != nil {
 		t.Error(err)
 	}
