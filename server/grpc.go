@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 
@@ -22,15 +21,10 @@ import (
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk"
-	"github.com/buchgr/bazel-remote/v2/utils/validate"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 
 	_ "github.com/mostynb/go-grpc-compression/snappy" // Register snappy
 	_ "github.com/mostynb/go-grpc-compression/zstd"   // and zstd support.
-)
-
-const (
-	hashKeyLength = 64
-	emptySha256   = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 )
 
 const grpcHealthServiceName = "/grpc.health.v1.Health/Check"
@@ -106,7 +100,7 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 
 	resp := pb.ServerCapabilities{
 		CacheCapabilities: &pb.CacheCapabilities{
-			DigestFunctions: []pb.DigestFunction_Value{pb.DigestFunction_SHA256},
+			DigestFunctions: hashing.DigestFunctions(),
 			ActionCacheUpdateCapabilities: &pb.ActionCacheUpdateCapabilities{
 				UpdateEnabled: true,
 			},
@@ -132,31 +126,28 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 	return &resp, nil
 }
 
+func (s *grpcServer) getHasher(df pb.DigestFunction_Value) (hashing.Hasher, error) {
+	var err error
+	var hasher hashing.Hasher
+	switch df {
+	case pb.DigestFunction_UNKNOWN:
+		hasher, err = hashing.Get(hashing.LegacyFn)
+	default:
+		hasher, err = hashing.Get(df)
+	}
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	return hasher, nil
+}
+
 // Return an error if `hash` is not a valid cache key.
-func (s *grpcServer) validateHash(hash string, size int64, logPrefix string) error {
-	if size == int64(0) {
-		if hash == emptySha256 {
-			return nil
-		}
-
-		msg := "Invalid zero-length SHA256 hash"
-		s.accessLogger.Printf("%s %s: %s", logPrefix, hash, msg)
-		return status.Error(codes.InvalidArgument, msg)
+func (s *grpcServer) validateHash(hasher hashing.Hasher, hash string, size int64, logPrefix string) error {
+	err := hasher.ValidateDigest(hash, size)
+	if err != nil {
+		err = status.Error(codes.InvalidArgument, err.Error())
 	}
-
-	if len(hash) != hashKeyLength {
-		msg := fmt.Sprintf("Hash length must be length %d", hashKeyLength)
-		s.accessLogger.Printf("%s %s: %s", logPrefix, hash, msg)
-		return status.Error(codes.InvalidArgument, msg)
-	}
-
-	if !validate.HashKeyRegex.MatchString(hash) {
-		msg := "Malformed hash"
-		s.accessLogger.Printf("%s %s: %s", logPrefix, hash, msg)
-		return status.Error(codes.InvalidArgument, msg)
-	}
-
-	return nil
+	return err
 }
 
 // Return a grpc.StreamServerInterceptor that checks for mTLS/client cert

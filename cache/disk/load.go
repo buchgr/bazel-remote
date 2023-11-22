@@ -18,7 +18,7 @@ import (
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/zstdimpl"
-	"github.com/buchgr/bazel-remote/v2/utils/validate"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 
 	"github.com/djherbis/atime"
 
@@ -29,6 +29,21 @@ import (
 )
 
 const lowercaseDSStoreFile = ".ds_store"
+
+// Ignore lost+found dirs, which are automatically created in the
+// root dir of some unix style filesystems.
+const lostAndFound = "lost+found"
+
+var dre = regexp.MustCompile(`^[a-f0-9]{2}$`)
+
+func isDigestDir(name string) bool {
+	for _, h := range hashing.Hashers() {
+		if name == h.Dir() {
+			return true
+		}
+	}
+	return false
+}
 
 // New returns a new instance of a filesystem-based cache rooted at `dir`,
 // with a maximum size of `maxSizeBytes` bytes and `opts` Options set.
@@ -92,20 +107,24 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 
 	// Create the directory structure.
 	hexLetters := []byte("0123456789abcdef")
-	for _, c1 := range hexLetters {
-		for _, c2 := range hexLetters {
-			subDir := string(c1) + string(c2)
-			err := os.MkdirAll(filepath.Join(dir, cache.CAS.DirName(), subDir), os.ModePerm)
-			if err != nil {
-				return nil, err
-			}
-			err = os.MkdirAll(filepath.Join(dir, cache.AC.DirName(), subDir), os.ModePerm)
-			if err != nil {
-				return nil, err
-			}
-			err = os.MkdirAll(filepath.Join(dir, cache.RAW.DirName(), subDir), os.ModePerm)
-			if err != nil {
-				return nil, err
+
+	for _, hasher := range hashing.Hashers() {
+		dd := hasher.Dir()
+		for _, c1 := range hexLetters {
+			for _, c2 := range hexLetters {
+				subDir := string(c1) + string(c2)
+				err := os.MkdirAll(filepath.Join(dir, cache.CAS.DirName(), dd, subDir), os.ModePerm)
+				if err != nil {
+					return nil, err
+				}
+				err = os.MkdirAll(filepath.Join(dir, cache.AC.DirName(), dd, subDir), os.ModePerm)
+				if err != nil {
+					return nil, err
+				}
+				err = os.MkdirAll(filepath.Join(dir, cache.RAW.DirName(), dd, subDir), os.ModePerm)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -189,7 +208,7 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 					}
 
 					destDir := filepath.Join(targetDir, oldName[:2])
-					err := migrateV1Subdir(oldNamePath, destDir, kind)
+					err := migrateV1Subdir(oldNamePath, destDir, kind, hashing.LegacyHasher)
 					if err != nil {
 						log.Printf("Warning: failed to read subdir %q: %s",
 							oldNamePath, err)
@@ -204,7 +223,7 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 					continue
 				}
 
-				if !validate.HashKeyRegex.MatchString(oldName) {
+				if err := hashing.LegacyHasher.Validate(oldName); err != nil {
 					log.Println("Warning: skipping unexpected file:", oldNamePath)
 					continue
 				}
@@ -252,7 +271,7 @@ func migrateDirectory(baseDir string, kind cache.EntryKind) error {
 	return os.RemoveAll(sourceDir)
 }
 
-func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error {
+func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind, hasher hashing.Hasher) error {
 	listing, err := os.ReadDir(oldDir)
 	if err != nil {
 		return err
@@ -265,7 +284,7 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 
 			oldPath := path.Join(oldDir, name)
 
-			if !validate.HashKeyRegex.MatchString(name) {
+			if err := hasher.Validate(name); err != nil {
 				if strings.ToLower(name) == lowercaseDSStoreFile {
 					os.Remove(oldPath)
 					continue
@@ -290,7 +309,7 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 
 		oldPath := path.Join(oldDir, name)
 
-		if !validate.HashKeyRegex.MatchString(name) {
+		if err := hasher.Validate(name); err != nil {
 			if strings.ToLower(name) == lowercaseDSStoreFile {
 				os.Remove(oldPath)
 				continue
@@ -390,24 +409,31 @@ func (c *diskCache) scanDir() (scanResult, error) {
 	// compressed CAS items: <hash>-<logical size>-<random digits/ascii letters>
 	// uncompressed CAS items: <hash>-<logical size>-<random digits/ascii letters>.v1
 	// AC and RAW items: <hash>-<random digits/ascii letters>
-	re := regexp.MustCompile(`^([a-f0-9]{64})(?:-([1-9][0-9]*))?-([0-9a-zA-Z]+)(\.v1)?$`)
-
-	// Ignore lost+found dirs, which are automatically created in the
-	// root dir of some unix style filesystems.
-	const lostAndFound = "lost+found"
+	min, max := hashing.DefaultHasher.Size()*2, hashing.DefaultHasher.Size()*2
+	for _, h := range hashing.Hashers() {
+		if h.Size()*2 < min {
+			min = h.Size() * 2
+		}
+		if h.Size()*2 > max {
+			max = h.Size() * 2
+		}
+	}
+	re := regexp.MustCompile(fmt.Sprintf(`^([a-f0-9]{%d,%d})(?:-([1-9][0-9]*))?-([0-9a-zA-Z]+)(\.v1)?$`, min, max))
 
 	for i := 0; i < numWorkers; i++ {
 		dirListers.Go(func() error {
 			for d := range dc {
 				dirName := path.Join(c.dir, d)
 
+				digestFnIndex := strings.Index(d, "/")
+				suffixIndex := strings.LastIndex(d, "/")
 				var lookupKeyPrefix string
 				if strings.HasPrefix(d, "cas.v2/") {
-					lookupKeyPrefix = "cas/"
+					lookupKeyPrefix = path.Join("cas", d[digestFnIndex:suffixIndex]) + "/"
 				} else if strings.HasPrefix(d, "ac.v2/") {
-					lookupKeyPrefix = "ac/"
+					lookupKeyPrefix = path.Join("ac", d[digestFnIndex:suffixIndex]) + "/"
 				} else if strings.HasPrefix(d, "raw.v2/") {
-					lookupKeyPrefix = "raw/"
+					lookupKeyPrefix = path.Join("raw", d[digestFnIndex:suffixIndex]) + "/"
 				} else {
 					return fmt.Errorf("Unrecognised directory in cache dir: %q", dirName)
 				}
@@ -491,8 +517,6 @@ func (c *diskCache) scanDir() (scanResult, error) {
 		return scanResult{}, fmt.Errorf("Failed to read cache dir %q: %w", c.dir, err)
 	}
 
-	dre := regexp.MustCompile(`^[a-f0-9]{2}$`)
-
 	for _, de := range des {
 		name := de.Name()
 
@@ -513,33 +537,8 @@ func (c *diskCache) scanDir() (scanResult, error) {
 		}
 
 		dir := path.Join(c.dir, name)
-		des2, err := os.ReadDir(dir)
-		if err != nil {
+		if err := c.loadKindDir(dir, name, dc); err != nil {
 			return scanResult{}, err
-		}
-
-		for _, de2 := range des2 {
-			name2 := de2.Name()
-
-			dirPath := path.Join(name, name2)
-
-			if !de2.IsDir() {
-				if strings.ToLower(name) == lowercaseDSStoreFile {
-					continue
-				}
-
-				return scanResult{}, fmt.Errorf("Unexpected file: %s", dirPath)
-			}
-
-			if name2 == lostAndFound {
-				continue
-			}
-
-			if !dre.MatchString(name2) {
-				return scanResult{}, fmt.Errorf("Unexpected dir: %s", dirPath)
-			}
-
-			dc <- dirPath
 		}
 	}
 
@@ -556,6 +555,44 @@ func (c *diskCache) scanDir() (scanResult, error) {
 	<-received
 
 	return finalScanResult, nil
+}
+
+func (c *diskCache) loadKindDir(dir string, name string, dc chan string) error {
+	des2, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	for _, de2 := range des2 {
+		name2 := de2.Name()
+
+		dirPath := path.Join(name, name2)
+
+		if !de2.IsDir() {
+			if strings.ToLower(name2) == lowercaseDSStoreFile {
+				continue
+			}
+
+			return fmt.Errorf("Unexpected file: %s", dirPath)
+		}
+
+		if name2 == lostAndFound {
+			continue
+		}
+
+		if !dre.MatchString(name2) {
+			if isDigestDir(name2) {
+				if err := c.loadKindDir(path.Join(dir, name2), dirPath, dc); err != nil {
+					return err
+				}
+				continue
+			}
+			return fmt.Errorf("Unexpected dir: %s", dirPath)
+		}
+
+		dc <- dirPath
+	}
+	return nil
 }
 
 // loadExistingFiles lists all files in the cache directory, and adds them to the
@@ -579,7 +616,9 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
 	onEvict := func(key Key, value lruItem) {
 		f := c.getElementPath(key, value)
 		// Run in a goroutine so we can release the lock sooner.
-		go c.removeFile(f)
+		if f != "" {
+			go c.removeFile(f)
+		}
 	}
 
 	log.Println("Building LRU index.")

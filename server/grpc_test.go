@@ -2029,8 +2029,6 @@ func TestParseReadResource(t *testing.T) {
 		errorLogger:  testutils.NewSilentLogger(),
 	}
 
-	unusedLogPrefix := "foo"
-
 	tcs := []struct {
 		resourceName        string
 		expectedHash        string
@@ -2198,7 +2196,7 @@ func TestParseReadResource(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		hash, size, cmp, err := s.parseReadResource(tc.resourceName, unusedLogPrefix)
+		hash, size, cmp, err := s.parseReadResource(tc.resourceName)
 
 		if tc.expectError {
 			if err == nil {
