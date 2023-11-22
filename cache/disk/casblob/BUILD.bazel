@@ -17,6 +17,7 @@ go_test(
     deps = [
         ":go_default_library",
         "//cache/disk/zstdimpl:go_default_library",
+        "//cache/hashing:go_default_library",
         "//utils:go_default_library",
     ],
 )

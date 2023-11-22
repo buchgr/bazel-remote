@@ -470,6 +470,10 @@ func (c *diskCache) scanDir() (scanResult, error) {
 
 					sm := re.FindStringSubmatch(file)
 					if len(sm) != 5 {
+						if strings.ToLower(name) == lowercaseDSStoreFile {
+							continue
+						}
+
 						return fmt.Errorf("Unrecognized file: %q", path.Join(dirName, name))
 					}
 

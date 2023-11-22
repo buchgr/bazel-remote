@@ -28,7 +28,7 @@ var errNilFetchBlobRequest = grpc_status.Error(codes.InvalidArgument,
 
 func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest) (*asset.FetchBlobResponse, error) {
 	var hash string
-	var hasher hashing.Hasher
+	hasher := hashing.DefaultHasher
 
 	// Q: which combinations of qualifiers to support?
 	// * simple file, identified by sha256 SRI AND/OR recognisable URL

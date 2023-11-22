@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -16,7 +15,8 @@ import (
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk"
-	"github.com/buchgr/bazel-remote/v2/utils"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
+	testutils "github.com/buchgr/bazel-remote/v2/utils"
 
 	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 	"google.golang.org/protobuf/proto"
@@ -28,7 +28,7 @@ func TestDownloadFile(t *testing.T) {
 
 	blobSize := int64(1024)
 
-	data, hash := testutils.RandomDataAndHash(blobSize)
+	data, hash := testutils.RandomDataAndHash(blobSize, hashing.DefaultHasher)
 
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := blobSize*2 + disk.BlockSize
@@ -62,7 +62,7 @@ func TestDownloadFile(t *testing.T) {
 			"got", contentLen)
 	}
 
-	hasher := sha256.New()
+	hasher := hashing.DefaultHasher.New()
 	_, err = io.Copy(hasher, rsp.Body)
 	if err != nil {
 		t.Fatal(err)
@@ -93,7 +93,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 
 	var requests [NumUploads]*http.Request
 	for i := 0; i < NumUploads; i++ {
-		data, hash := testutils.RandomDataAndHash(blobSize)
+		data, hash := testutils.RandomDataAndHash(blobSize, hashing.DefaultHasher)
 		r := httptest.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(data))
 		requests[i] = r
 	}
@@ -158,7 +158,7 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	data, hash := testutils.RandomDataAndHash(1024)
+	data, hash := testutils.RandomDataAndHash(1024, hashing.DefaultHasher)
 
 	numWorkers := 100
 
@@ -201,7 +201,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	data, hash := testutils.RandomDataAndHash(1024)
+	data, hash := testutils.RandomDataAndHash(1024, hashing.DefaultHasher)
 	corruptedData := data[:999]
 
 	r := httptest.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(corruptedData))
@@ -242,7 +242,7 @@ func TestUploadEmptyActionResult(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	data, hash := testutils.RandomDataAndHash(0)
+	data, hash := testutils.RandomDataAndHash(0, hashing.DefaultHasher)
 
 	r := httptest.NewRequest("PUT", "/ac/"+hash, bytes.NewReader(data))
 
@@ -305,7 +305,7 @@ func testEmptyBlobAvailable(t *testing.T, method string) {
 	cacheDir := testutils.TempDir(t)
 	defer os.RemoveAll(cacheDir)
 
-	data, hash := testutils.RandomDataAndHash(0)
+	data, hash := testutils.RandomDataAndHash(0, hashing.DefaultHasher)
 	r := httptest.NewRequest(method, "/cas/"+hash, bytes.NewReader(data))
 
 	c, err := disk.New(cacheDir, 2048, disk.WithAccessLogger(testutils.NewSilentLogger()))
@@ -365,16 +365,16 @@ func TestStatusPage(t *testing.T) {
 
 func TestParseRequestURL(t *testing.T) {
 	{
-		_, _, _, err := parseRequestURL("invalid/url", true)
+		_, _, _, err := parseRequestURL("invalid/url", true, hashing.DefaultHasher)
 		if err == nil {
 			t.Error("Failed to reject an invalid URL")
 		}
 	}
 
-	const aSha256sum = "fec3be77b8aa0d307ed840581ded3d114c86f36d4914c81e33a72877020c0603"
+	aSha256sum := hashing.DefaultHasher.Hash([]byte("Hello"))
 
 	{
-		kind, hash, instance, err := parseRequestURL("cas/"+aSha256sum, true)
+		kind, hash, instance, err := parseRequestURL("cas/"+aSha256sum, true, hashing.DefaultHasher)
 		if err != nil {
 			t.Error("Failed to parse a valid CAS URL")
 		}
@@ -390,7 +390,7 @@ func TestParseRequestURL(t *testing.T) {
 	}
 
 	{
-		kind, hash, instance, err := parseRequestURL("ac/"+aSha256sum, true)
+		kind, hash, instance, err := parseRequestURL("ac/"+aSha256sum, true, hashing.DefaultHasher)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL")
 		}
@@ -406,7 +406,7 @@ func TestParseRequestURL(t *testing.T) {
 	}
 
 	{
-		kind, hash, instance, err := parseRequestURL("prefix/ac/"+aSha256sum, true)
+		kind, hash, instance, err := parseRequestURL("prefix/ac/"+aSha256sum, true, hashing.DefaultHasher)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL with prefix")
 		}
@@ -422,7 +422,7 @@ func TestParseRequestURL(t *testing.T) {
 	}
 
 	{
-		kind, hash, instance, err := parseRequestURL("prefix/ac/"+aSha256sum, false)
+		kind, hash, instance, err := parseRequestURL("prefix/ac/"+aSha256sum, false, hashing.DefaultHasher)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL with prefix")
 		}
@@ -438,7 +438,7 @@ func TestParseRequestURL(t *testing.T) {
 	}
 
 	{
-		kind, hash, instance, err := parseRequestURL("prefix/with/slashes/ac/"+aSha256sum, false)
+		kind, hash, instance, err := parseRequestURL("prefix/with/slashes/ac/"+aSha256sum, false, hashing.DefaultHasher)
 		if err != nil {
 			t.Error("Failed to parse a valid AC URL with prefix containing slashes")
 		}
@@ -485,7 +485,7 @@ func TestRemoteReturnsNotFound(t *testing.T) {
 
 	h := NewHTTPCache(emptyCache, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, false, false, false, "")
 	// create a fake http.Request
-	_, hash := testutils.RandomDataAndHash(1024)
+	_, hash := testutils.RandomDataAndHash(1024, hashing.DefaultHasher)
 	url, _ := url.Parse(fmt.Sprintf("http://localhost:8080/ac/%s", hash))
 	reader := bytes.NewReader([]byte{})
 	body := io.NopCloser(reader)

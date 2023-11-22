@@ -24,5 +24,8 @@ go_test(
     name = "go_default_test",
     srcs = ["s3proxy_test.go"],
     embed = [":go_default_library"],
-    deps = ["//cache:go_default_library"],
+    deps = [
+        "//cache:go_default_library",
+        "//cache/hashing:go_default_library",
+    ],
 )
