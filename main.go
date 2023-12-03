@@ -329,6 +329,7 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 		}
 
 		log.Printf("Starting HTTPS server on address %s", c.HTTPAddress)
+		log.Println("Minimum supported TLS version:", c.MinTLSVersion)
 		err = (*httpServer).ServeTLS(ln, c.TLSCertFile, c.TLSKeyFile)
 		if err == http.ErrServerClosed {
 			log.Println("HTTPS server stopped")
