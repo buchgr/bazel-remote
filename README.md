@@ -205,6 +205,10 @@ OPTIONS:
       Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.
       [$BAZEL_REMOTE_HTPASSWD_FILE]
 
+   --min_tls_version value The minimum TLS version that is acceptable for
+      incoming requests (does not apply to proxy backends). Allowed values: 1.0,
+      1.1, 1.2, 1.3. (default: "1.0") [$BAZEL_REMOTE_MIN_TLS_VERSION]
+
    --tls_ca_file value Optional. Enables mTLS (authenticating client
       certificates), should be the certificate authority that signed the client
       certificates. [$BAZEL_REMOTE_TLS_CA_FILE]
@@ -411,7 +415,7 @@ OPTIONS:
       must be one of "UTC", "local" or "none" for no timestamps. (default: UTC,
       ie use UTC timezone) [$BAZEL_REMOTE_LOG_TIMEZONE]
 
-   --help, -h  show help (default: false)
+   --help, -h  show help
 ```
 
 ### Example configuration file
@@ -447,14 +451,20 @@ http_address: 0.0.0.0:8080
 #http_read_timeout: 15s
 #http_write_timeout: 20s
 
-# Specify a certificate if you want to use HTTPS:
+# Specify a certificate if you want to use HTTPS and gRPCs:
 #tls_cert_file: path/to/tls.cert
 #tls_key_file:  path/to/tls.key
 # If you want to use mutual TLS with client certificates:
 #tls_ca_file: path/to/ca/cert.pem
 
+# Optionally specify the minimum supported TLS version for the
+# HTTPS/gRPCs servers (must be one of 1.0, 1.1, 1.2, 1.3):
+#min_tls_version: "1.0"
+
 # Alternatively, you can use simple authentication:
 #htpasswd_file: path/to/.htpasswd
+
+
 
 # If tls_ca_file or htpasswd_file are specified, you can choose
 # whether or not to allow unauthenticated read access:
