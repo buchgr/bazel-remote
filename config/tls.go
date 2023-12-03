@@ -3,11 +3,25 @@ package config
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"os"
 )
 
 func (c *Config) setTLSConfig() error {
+
+	supportedTLSServerVersions := map[string]uint16{
+		"1.0": tls.VersionTLS10,
+		"1.1": tls.VersionTLS11,
+		"1.2": tls.VersionTLS12,
+		"1.3": tls.VersionTLS13,
+	}
+
+	minTLSVersion, ok := supportedTLSServerVersions[c.MinTLSVersion]
+	if !ok {
+		return errors.New("Unsupported min_tls_version: \"" + c.MinTLSVersion + "\", must be one of 1.0, 1.1, 1.2, 1.3.")
+	}
+
 	if len(c.TLSCaFile) != 0 {
 		caCertPool := x509.NewCertPool()
 		caCert, err := os.ReadFile(c.TLSCaFile)
@@ -37,6 +51,8 @@ func (c *Config) setTLSConfig() error {
 			// we require auth for.
 			// See server.checkGRPCClientCert and httpCache.hasValidClientCert.
 			ClientAuth: tls.VerifyClientCertIfGiven,
+
+			MinVersion: minTLSVersion,
 		}
 
 		return nil
@@ -53,6 +69,7 @@ func (c *Config) setTLSConfig() error {
 
 		c.TLSConfig = &tls.Config{
 			Certificates: []tls.Certificate{readCert},
+			MinVersion:   minTLSVersion,
 		}
 
 		return nil

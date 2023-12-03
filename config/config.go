@@ -89,6 +89,7 @@ type Config struct {
 	StorageMode                 string                    `yaml:"storage_mode"`
 	ZstdImplementation          string                    `yaml:"zstd_implementation"`
 	HtpasswdFile                string                    `yaml:"htpasswd_file"`
+	MinTLSVersion               string                    `yaml:"min_tls_version"`
 	TLSCaFile                   string                    `yaml:"tls_ca_file"`
 	TLSCertFile                 string                    `yaml:"tls_cert_file"`
 	TLSKeyFile                  string                    `yaml:"tls_key_file"`
@@ -147,6 +148,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	htpasswdFile string,
 	maxQueuedUploads int,
 	numUploaders int,
+	minTLSVersion string,
 	tlsCaFile string,
 	tlsCertFile string,
 	tlsKeyFile string,
@@ -180,6 +182,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		HtpasswdFile:                htpasswdFile,
 		MaxQueuedUploads:            maxQueuedUploads,
 		NumUploaders:                numUploaders,
+		MinTLSVersion:               minTLSVersion,
 		TLSCaFile:                   tlsCaFile,
 		TLSCertFile:                 tlsCertFile,
 		TLSKeyFile:                  tlsKeyFile,
@@ -235,6 +238,7 @@ func newFromYaml(data []byte) (*Config, error) {
 			StorageMode:            "zstd",
 			ZstdImplementation:     "go",
 			NumUploaders:           100,
+			MinTLSVersion:          "1.0",
 			MaxQueuedUploads:       1000000,
 			MaxBlobSize:            math.MaxInt64,
 			MaxProxyBlobSize:       math.MaxInt64,
@@ -589,6 +593,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.String("htpasswd_file"),
 		ctx.Int("max_queued_uploads"),
 		ctx.Int("num_uploaders"),
+		ctx.String("min_tls_version"),
 		ctx.String("tls_ca_file"),
 		ctx.String("tls_cert_file"),
 		ctx.String("tls_key_file"),

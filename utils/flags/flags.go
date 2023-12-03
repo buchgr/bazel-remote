@@ -125,6 +125,12 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_HTPASSWD_FILE"},
 		},
 		&cli.StringFlag{
+			Name:    "min_tls_version",
+			Value:   "1.0",
+			Usage:   "The minimum TLS version that is acceptable for incoming requests (does not apply to proxy backends). Allowed values: 1.0, 1.1, 1.2, 1.3.",
+			EnvVars: []string{"BAZEL_REMOTE_MIN_TLS_VERSION"},
+		},
+		&cli.StringFlag{
 			Name:    "tls_ca_file",
 			Value:   "",
 			Usage:   "Optional. Enables mTLS (authenticating client certificates), should be the certificate authority that signed the client certificates.",
