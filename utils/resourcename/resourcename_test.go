@@ -183,6 +183,24 @@ func TestParseReadResource(t *testing.T) {
 			resourceName: "pretenduuid/compressed-blobs/IDENTITY/0123456789012345678901234567890123456789012345678901234567890123/42",
 			expectError:  true,
 		},
+
+		// Contains digest function
+		{
+			"blobs/blake3/0123456789012345678901234567890123456789012345678901234567890123/42",
+			"0123456789012345678901234567890123456789012345678901234567890123",
+			42,
+			casblob.Identity,
+			pb.DigestFunction_BLAKE3,
+			false,
+		},
+		{
+			"compressed-blobs/zstd/blake3/0123456789012345678901234567890123456789012345678901234567890123/42",
+			"0123456789012345678901234567890123456789012345678901234567890123",
+			42,
+			casblob.Zstandard,
+			pb.DigestFunction_BLAKE3,
+			false,
+		},
 	}
 
 	for _, tc := range tcs {
@@ -395,6 +413,38 @@ func TestParseWriteResource(t *testing.T) {
 		},
 
 		// Contains digest function
+		{
+			"uploads/pretenduuid/blobs/blake3/0123456789012345678901234567890123456789012345678901234567890123/42",
+			"0123456789012345678901234567890123456789012345678901234567890123",
+			42,
+			casblob.Identity,
+			pb.DigestFunction_BLAKE3,
+			false,
+		},
+		{
+			"uploads/pretenduuid/compressed-blobs/zstd/blake3/0123456789012345678901234567890123456789012345678901234567890123/42",
+			"0123456789012345678901234567890123456789012345678901234567890123",
+			42,
+			casblob.Zstandard,
+			pb.DigestFunction_BLAKE3,
+			false,
+		},
+		{
+			"uploads/pretenduuid/blobs/blake3/0123456789012345678901234567890123456789012345678901234567890123/42/metadata",
+			"0123456789012345678901234567890123456789012345678901234567890123",
+			42,
+			casblob.Identity,
+			pb.DigestFunction_BLAKE3,
+			false,
+		},
+		{
+			"uploads/pretenduuid/compressed-blobs/zstd/blake3/0123456789012345678901234567890123456789012345678901234567890123/42/metadata",
+			"0123456789012345678901234567890123456789012345678901234567890123",
+			42,
+			casblob.Zstandard,
+			pb.DigestFunction_BLAKE3,
+			false,
+		},
 		{
 			resourceName: "uploads/pretenduuid/blobs/foo/0123456789012345678901234567890123456789012345678901234567890123/42",
 			expectError:  true,

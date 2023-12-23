@@ -416,6 +416,35 @@ func TestCacheExistingFiles(t *testing.T) {
 			"raw/733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54",
 			"raw.v2/73/733e21b37cef883579a88183eed0d00cdeea0b59e1bcd77db6957f881c3a6b54-123456789",
 		},
+
+		{
+			pb.DigestFunction_BLAKE3,
+			"hej",
+			"70514ff271364b5a63dc74edd2860b0bc54bdc3cc6b95bf4ea95554fdd08ba16",
+			"cas/blake3/70514ff271364b5a63dc74edd2860b0bc54bdc3cc6b95bf4ea95554fdd08ba16",
+			"cas.v2/blake3/79/70514ff271364b5a63dc74edd2860b0bc54bdc3cc6b95bf4ea95554fdd08ba16-3-123456789",
+		},
+		{
+			pb.DigestFunction_BLAKE3,
+			"världen",
+			"a01628acbe112a59c4312ba1bcd8628170fe90284a84848da598ffdf9ca04d17",
+			"cas/blake3/a01628acbe112a59c4312ba1bcd8628170fe90284a84848da598ffdf9ca04d17",
+			"cas.v2/blake3/a0/a01628acbe112a59c4312ba1bcd8628170fe90284a84848da598ffdf9ca04d17-8-123456789",
+		},
+		{
+			pb.DigestFunction_BLAKE3,
+			"foo",
+			"04e0bb39f30b1a3feb89f536c93be15055482df748674b00d26e5a75777702e9",
+			"ac/blake3/04e0bb39f30b1a3feb89f536c93be15055482df748674b00d26e5a75777702e9",
+			"ac.v2/blake3/04/04e0bb39f30b1a3feb89f536c93be15055482df748674b00d26e5a75777702e9-123456789",
+		},
+		{
+			pb.DigestFunction_BLAKE3,
+			"bar",
+			"f2e897eed7d206cd855d441598fa521abc75aa96953e97c030c9612c30c1293d",
+			"raw/blake3/f2e897eed7d206cd855d441598fa521abc75aa96953e97c030c9612c30c1293d",
+			"raw.v2/blake3/f2/f2e897eed7d206cd855d441598fa521abc75aa96953e97c030c9612c30c1293d-123456789",
+		},
 	}
 
 	var err error
@@ -468,8 +497,8 @@ func TestCacheExistingFiles(t *testing.T) {
 		origOnEvict(key, value)
 	}
 
-	if testCache.lru.Len() != 4 {
-		t.Fatal("expected four items in the cache, found", testCache.lru.Len())
+	if testCache.lru.Len() != len(items) {
+		t.Fatalf("expected %d items in the cache, found %d", len(items), testCache.lru.Len())
 	}
 
 	// Adding new blobs should eventually evict the oldest (items[0]).
