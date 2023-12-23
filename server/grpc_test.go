@@ -105,7 +105,7 @@ func grpcTestSetupInternal(t *testing.T, mangleACKeys bool) (tc grpcTestFixture)
 			validateAC,
 			mangleACKeys,
 			enableRemoteAssetAPI,
-			diskCache, accessLogger, errorLogger)
+			diskCache, accessLogger, errorLogger, hashing.DigestFunctions())
 		if err2 != nil {
 			fmt.Println(err2)
 			os.Exit(1)

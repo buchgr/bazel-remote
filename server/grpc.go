@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 
@@ -30,11 +31,12 @@ import (
 const grpcHealthServiceName = "/grpc.health.v1.Health/Check"
 
 type grpcServer struct {
-	cache        disk.Cache
-	accessLogger cache.Logger
-	errorLogger  cache.Logger
-	depsCheck    bool
-	mangleACKeys bool
+	cache           disk.Cache
+	accessLogger    cache.Logger
+	errorLogger     cache.Logger
+	depsCheck       bool
+	mangleACKeys    bool
+	digestFunctions map[pb.DigestFunction_Value]bool
 }
 
 var readOnlyMethods = map[string]struct{}{
@@ -55,26 +57,33 @@ func ListenAndServeGRPC(
 	validateACDeps bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
-	c disk.Cache, a cache.Logger, e cache.Logger) error {
+	c disk.Cache, a cache.Logger, e cache.Logger,
+	digestFunctions []pb.DigestFunction_Value) error {
 
 	listener, err := net.Listen(network, addr)
 	if err != nil {
 		return err
 	}
 
-	return ServeGRPC(listener, srv, validateACDeps, mangleACKeys, enableRemoteAssetAPI, c, a, e)
+	return ServeGRPC(listener, srv, validateACDeps, mangleACKeys, enableRemoteAssetAPI, c, a, e, digestFunctions)
 }
 
 func ServeGRPC(l net.Listener, srv *grpc.Server,
 	validateACDepsCheck bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
-	c disk.Cache, a cache.Logger, e cache.Logger) error {
+	c disk.Cache, a cache.Logger, e cache.Logger,
+	digestFunctions []pb.DigestFunction_Value) error {
 
+	dfs := make(map[pb.DigestFunction_Value]bool)
+	for _, df := range digestFunctions {
+		dfs[df] = true
+	}
 	s := &grpcServer{
 		cache: c, accessLogger: a, errorLogger: e,
-		depsCheck:    validateACDepsCheck,
-		mangleACKeys: mangleACKeys,
+		depsCheck:       validateACDepsCheck,
+		mangleACKeys:    mangleACKeys,
+		digestFunctions: dfs,
 	}
 	pb.RegisterActionCacheServer(srv, s)
 	pb.RegisterCapabilitiesServer(srv, s)
@@ -129,10 +138,14 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 func (s *grpcServer) getHasher(df pb.DigestFunction_Value) (hashing.Hasher, error) {
 	var err error
 	var hasher hashing.Hasher
+
 	switch df {
 	case pb.DigestFunction_UNKNOWN:
 		hasher, err = hashing.Get(hashing.LegacyFn)
 	default:
+		if _, ok := s.digestFunctions[df]; !ok {
+			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("unsupported digest function %s", df))
+		}
 		hasher, err = hashing.Get(df)
 	}
 	if err != nil {

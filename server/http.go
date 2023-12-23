@@ -47,6 +47,7 @@ type httpCache struct {
 	gitCommit                string
 	checkClientCertForReads  bool
 	checkClientCertForWrites bool
+	dfs                      map[pb.DigestFunction_Value]bool
 }
 
 type statusPageData struct {
@@ -64,12 +65,16 @@ type statusPageData struct {
 // accessLogger will print one line for each HTTP request to stdout.
 // errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
 // be reported.
-func NewHTTPCache(cache disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, mangleACKeys bool, checkClientCertForReads bool, checkClientCertForWrites bool, commit string) HTTPCache {
+func NewHTTPCache(cache disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, mangleACKeys bool, checkClientCertForReads bool, checkClientCertForWrites bool, commit string, digestFunctions []pb.DigestFunction_Value) HTTPCache {
 
 	_, _, numItems, _ := cache.Stats()
 
 	errorLogger.Printf("Loaded %d existing disk cache items.", numItems)
 
+	dfs := make(map[pb.DigestFunction_Value]bool)
+	for _, df := range digestFunctions {
+		dfs[df] = true
+	}
 	hc := &httpCache{
 		cache:                    cache,
 		accessLogger:             accessLogger,
@@ -78,6 +83,7 @@ func NewHTTPCache(cache disk.Cache, accessLogger cache.Logger, errorLogger cache
 		mangleACKeys:             mangleACKeys,
 		checkClientCertForReads:  checkClientCertForReads,
 		checkClientCertForWrites: checkClientCertForWrites,
+		dfs:                      dfs,
 	}
 
 	if commit != "{STABLE_GIT_COMMIT}" {
@@ -209,9 +215,16 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	hasher := hashing.DefaultHasher
 	if dfn := r.Header.Get("X-Digest-Function"); dfn != "" {
-		hasher, err = hashing.Get(hashing.DigestFunction(dfn))
-		if err != nil {
+		df := hashing.DigestFunction(dfn)
+		if _, ok := h.dfs[df]; !ok {
 			http.Error(w, fmt.Sprintf("Unsupported digest function %s", dfn), http.StatusInternalServerError)
+			h.logResponse(http.StatusInternalServerError, r)
+			return
+		}
+
+		hasher, err = hashing.Get(df)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			h.logResponse(http.StatusInternalServerError, r)
 			return
 		}
