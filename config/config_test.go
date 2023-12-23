@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
+
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -60,6 +62,7 @@ log_timezone: local
 		MetricsDurationBuckets:      []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:              "none",
 		LogTimezone:                 "local",
+		DigestFunctions:             []pb.DigestFunction_Value{pb.DigestFunction_SHA256},
 	}
 
 	if !reflect.DeepEqual(config, expectedConfig) {
@@ -103,6 +106,7 @@ gcs_proxy:
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
+		DigestFunctions:        []pb.DigestFunction_Value{pb.DigestFunction_SHA256},
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -147,6 +151,7 @@ http_proxy:
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
+		DigestFunctions:        []pb.DigestFunction_Value{pb.DigestFunction_SHA256},
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -224,6 +229,7 @@ s3_proxy:
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
+		DigestFunctions:        []pb.DigestFunction_Value{pb.DigestFunction_SHA256},
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -258,6 +264,7 @@ profile_address: :7070
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
+		DigestFunctions:        []pb.DigestFunction_Value{pb.DigestFunction_SHA256},
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -306,6 +313,7 @@ endpoint_metrics_duration_buckets: [.005, .1, 5]
 		MetricsDurationBuckets: []float64{0.005, 0.1, 5},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
+		DigestFunctions:        []pb.DigestFunction_Value{pb.DigestFunction_SHA256},
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -438,6 +446,7 @@ storage_mode: zstd
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
+		DigestFunctions:        []pb.DigestFunction_Value{pb.DigestFunction_SHA256},
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -472,6 +481,7 @@ storage_mode: zstd
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
+		DigestFunctions:        []pb.DigestFunction_Value{pb.DigestFunction_SHA256},
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -494,4 +504,75 @@ func TestSocketPathMissing(t *testing.T) {
 	if !strings.Contains(err.Error(), "'http_address'") {
 		t.Fatal("Expected the error message to mention the missing 'http_address' key/flag")
 	}
+}
+
+func TestDigestFunctions(t *testing.T) {
+	t.Run("Default", func(t *testing.T) {
+		yaml := `dir: /opt/cache-dir
+max_size: 42
+`
+		config, err := newFromYaml([]byte(yaml))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(config.DigestFunctions) != 1 {
+			t.Fatal("Expected exactly one digest function")
+		}
+		if config.DigestFunctions[0] != pb.DigestFunction_SHA256 {
+			t.Fatal("Expected sha256 digest function")
+		}
+		err = validateConfig(config)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		yaml := `dir: /opt/cache-dir
+max_size: 42
+digest_functions: [sha256]
+`
+		config, err := newFromYaml([]byte(yaml))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(config.DigestFunctions) != 1 {
+			t.Fatal("Expected exactly one digest function")
+		}
+		if config.DigestFunctions[0] != pb.DigestFunction_SHA256 {
+			t.Fatal("Expected sha256 digest function")
+		}
+		err = validateConfig(config)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("UnknownFunction", func(t *testing.T) {
+		yaml := `dir: /opt/cache-dir
+max_size: 42
+digest_functions: [sha256, foo]
+`
+		_, err := newFromYaml([]byte(yaml))
+		if err == nil {
+			t.Fatal("Expected error")
+		}
+		if !strings.Contains(err.Error(), "unknown") {
+			t.Fatalf("Unexpected error: %s", err.Error())
+		}
+	})
+
+	t.Run("UnsupportedFunction", func(t *testing.T) {
+		yaml := `dir: /opt/cache-dir
+max_size: 42
+digest_functions: [md5]
+`
+		_, err := newFromYaml([]byte(yaml))
+		if err == nil {
+			t.Fatal("Expected error")
+		}
+		if !strings.Contains(err.Error(), "unsupported") {
+			t.Fatalf("Unexpected error: %s", err.Error())
+		}
+	})
 }
