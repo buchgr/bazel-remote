@@ -127,30 +127,52 @@ go_repository(
 gazelle_dependencies()
 
 http_archive(
-    name = "io_bazel_rules_docker",
-    # Waiting for the next release after v0.25.0 ...
-    sha256 = "9cdc7ac9f19fa3ad49cf9ba9f50652f0067df5c347dafdbdfe84c6c37a8ed62b",
-    strip_prefix = "rules_docker-48ad6d6df43d1e4b9feeec961995aef01dd72080",
-    urls = ["https://github.com/bazelbuild/rules_docker/archive/48ad6d6df43d1e4b9feeec961995aef01dd72080.tar.gz"],
+    name = "rules_pkg",
+    sha256 = "8f9ee2dc10c1ae514ee599a8b42ed99fa262b757058f65ad3c384289ff70c4b8",
+    urls = [
+        "https://mirror.bazel.build/github.com/bazelbuild/rules_pkg/releases/download/0.9.1/rules_pkg-0.9.1.tar.gz",
+        "https://github.com/bazelbuild/rules_pkg/releases/download/0.9.1/rules_pkg-0.9.1.tar.gz",
+    ],
 )
 
-load(
-    "@io_bazel_rules_docker//repositories:repositories.bzl",
-    container_repositories = "repositories",
+load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
+
+rules_pkg_dependencies()
+
+# Use a new-enough aspect-build/bazel-lib to avoid "Error validating output TreeArtifact
+# File when building an oci_image" errors.
+# See https://github.com/bazel-contrib/rules_oci/issues/425#issuecomment-1860211483
+http_archive(
+    name = "aspect_bazel_lib",
+    sha256 = "fc8bd670380eaba5314769abbe9fee21d641e3da06d9d26b8073a301f6d62332",
+    strip_prefix = "bazel-lib-2.1.0",
+    url = "https://github.com/aspect-build/bazel-lib/releases/download/v2.1.0/bazel-lib-v2.1.0.tar.gz",
 )
 
-container_repositories()
-
-load("@io_bazel_rules_docker//repositories:deps.bzl", container_deps = "deps")
-
-container_deps()
-
-load(
-    "@io_bazel_rules_docker//container:container.bzl",
-    "container_pull",
+http_archive(
+    name = "rules_oci",
+    sha256 = "686f871f9697e08877b85ea6c16c8d48f911bf466c3aeaf108ca0ab2603c7306",
+    strip_prefix = "rules_oci-1.5.1",
+    url = "https://github.com/bazel-contrib/rules_oci/releases/download/v1.5.1/rules_oci-v1.5.1.tar.gz",
 )
 
-container_pull(
+load("@rules_oci//oci:dependencies.bzl", "rules_oci_dependencies")
+
+rules_oci_dependencies()
+
+load("@rules_oci//oci:repositories.bzl", "LATEST_CRANE_VERSION", "oci_register_toolchains")
+
+oci_register_toolchains(
+    name = "oci",
+    crane_version = LATEST_CRANE_VERSION,
+    # Uncommenting the zot toolchain will cause it to be used instead of crane for some tasks.
+    # Note that it does not support docker-format images.
+    # zot_version = LATEST_ZOT_VERSION,
+)
+
+load("@rules_oci//oci:pull.bzl", "oci_pull")
+
+oci_pull(
     name = "cgo_amd64_base",
     registry = "gcr.io",
     repository = "distroless/base-nossl-debian11",
@@ -159,16 +181,9 @@ container_pull(
     tag = "nonroot-amd64",
 )
 
-container_pull(
+oci_pull(
     name = "cgo_arm64_base",
     registry = "gcr.io",
     repository = "distroless/base-nossl-debian11",
     tag = "nonroot-arm64",
 )
-
-load(
-    "@io_bazel_rules_docker//go:image.bzl",
-    _go_image_repos = "repositories",
-)
-
-_go_image_repos()

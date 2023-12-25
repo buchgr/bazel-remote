@@ -1,7 +1,7 @@
 load("@bazel_gazelle//:def.bzl", "gazelle")
-load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_push")
-load("@io_bazel_rules_docker//go:image.bzl", "go_image")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 gazelle(
     name = "gazelle",
@@ -105,36 +105,14 @@ go_binary(
 # The distroless static container image's nonroot user id.
 BAZEL_REMOTE_USER_ID = 65532
 
-go_image(
-    name = "bazel-remote-base",
-    base = "@cgo_amd64_base//image",  # Does not include openssl.
-    cgo = True,
-    embed = [":go_default_library"],
-    goarch = "amd64",
-    goos = "linux",
-    pure = "off",
-    static = "on",
-    visibility = ["//visibility:private"],
-    x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
+pkg_tar(
+    name = "bazel-remote_tar",
+    srcs = [":bazel-remote"],
 )
 
-go_image(
-    name = "bazel-remote-base-arm64",
-    base = "@cgo_arm64_base//image",  # Does not include openssl.
-    cgo = True,
-    embed = [":go_default_library"],
-    goarch = "arm64",
-    goos = "linux",
-    pure = "off",
-    static = "on",
-    visibility = ["//visibility:private"],
-    x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
-)
-
-container_image(
+oci_image(
     name = "bazel-remote-image",
-    architecture = "amd64",
-    base = ":bazel-remote-base",
+    base = "@cgo_amd64_base",  # Does not include openssl.
     entrypoint = [
         "/app/bazel-remote-base.binary",
         "--http_address=:8080",
@@ -145,20 +123,25 @@ container_image(
         # Specify a port to enable the profiling http server.
         "--profile_address=:6060",
     ],
-    ports = ["8080"],
+    exposed_ports = ["8080"],
     tars = [
-        "//docker:data_dir_tar",
+        "data.tar",
+        ":bazel-remote_tar",
     ],
     user = str(BAZEL_REMOTE_USER_ID),
     visibility = ["//visibility:public"],
 )
 
-container_image(
+pkg_tar(
+    name = "bazel-remote-linux-arm64_tar",
+    srcs = [":bazel-remote-linux-arm64"],
+)
+
+oci_image(
     name = "bazel-remote-image-arm64",
-    architecture = "arm64",
-    base = ":bazel-remote-base-arm64",
+    base = "@cgo_arm64_base",  # Does not include openssl.
     entrypoint = [
-        "/app/bazel-remote-base-arm64.binary",
+        "/app/bazel-remote-base.binary",
         "--http_address=:8080",
         "--dir=/data",
 
@@ -167,12 +150,13 @@ container_image(
         # Specify a port to enable the profiling http server.
         "--profile_address=:6060",
     ],
-    ports = ["8080"],
+    exposed_ports = ["8080"],
     tars = [
-        "//docker:data_dir_tar",
+        "data.tar",
+        ":bazel-remote-linux-arm64_tar",
     ],
     user = str(BAZEL_REMOTE_USER_ID),
-    visibility = ["//visibility:public"],
+    visibility = ["//visibility:private"],
 )
 
 # The following container_push targets push to "tmp-amd64" and "tmp-arm64"
@@ -184,22 +168,18 @@ container_image(
 # Background:
 # https://github.com/bazelbuild/rules_docker/issues/1599
 
-container_push(
+oci_push(
     name = "push_to_dockerhub_amd64",
-    format = "Docker",
     image = ":bazel-remote-image",
-    registry = "index.docker.io",
     repository = "buchgr/bazel-remote-cache",
-    tag = "tmp-amd64",
+    tags = ["tmp-amd64"],
     visibility = ["//visibility:public"],
 )
 
-container_push(
+oci_push(
     name = "push_to_dockerhub_arm64",
-    format = "Docker",
     image = ":bazel-remote-image-arm64",
-    registry = "index.docker.io",
     repository = "buchgr/bazel-remote-cache",
-    tag = "tmp-arm64",
+    tags = ["tmp-arm64"],
     visibility = ["//visibility:public"],
 )
