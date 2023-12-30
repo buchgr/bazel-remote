@@ -171,15 +171,15 @@ oci_image(
 oci_push(
     name = "push_to_dockerhub_amd64",
     image = ":bazel-remote-image",
+    remote_tags = ["tmp-amd64"],
     repository = "buchgr/bazel-remote-cache",
-    tags = ["tmp-amd64"],
     visibility = ["//visibility:public"],
 )
 
 oci_push(
     name = "push_to_dockerhub_arm64",
     image = ":bazel-remote-image-arm64",
+    remote_tags = ["tmp-arm64"],
     repository = "buchgr/bazel-remote-cache",
-    tags = ["tmp-arm64"],
     visibility = ["//visibility:public"],
 )
