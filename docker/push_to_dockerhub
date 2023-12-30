@@ -32,6 +32,10 @@ then
 fi
 bazel run //:push_to_dockerhub_amd64
 
+# Check that the image works, at least well enough to print help.
+docker pull docker.io/buchgr/bazel-remote-cache:tmp-amd64
+docker run docker.io/buchgr/bazel-remote-cache:tmp-amd64 -h
+
 # Create the multiarch manifest.
 docker manifest rm buchgr/bazel-remote-cache:$tag || true
 docker manifest create buchgr/bazel-remote-cache:$tag \
