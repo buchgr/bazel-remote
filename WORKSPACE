@@ -175,7 +175,7 @@ load("@rules_oci//oci:pull.bzl", "oci_pull")
 oci_pull(
     name = "cgo_amd64_base",
     registry = "gcr.io",
-    repository = "distroless/base-nossl-debian11",
+    repository = "distroless/base-nossl-debian12",
     # See https://github.com/buchgr/bazel-remote/issues/605 and https://github.com/GoogleContainerTools/distroless/issues/1098
     # TODO: specify this by digest instead? Where can I find that?
     tag = "nonroot-amd64",
@@ -184,6 +184,6 @@ oci_pull(
 oci_pull(
     name = "cgo_arm64_base",
     registry = "gcr.io",
-    repository = "distroless/base-nossl-debian11",
+    repository = "distroless/base-nossl-debian12",
     tag = "nonroot-arm64",
 )
