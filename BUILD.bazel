@@ -141,7 +141,7 @@ oci_image(
     name = "bazel-remote-image-arm64",
     base = "@cgo_arm64_base",  # Does not include openssl.
     entrypoint = [
-        "/bazel-remote",
+        "/bazel-remote-linux-arm64",
         "--http_address=:8080",
         "--dir=/data",
 
