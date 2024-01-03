@@ -416,6 +416,13 @@ func validateConfig(c *Config) error {
 			return fmt.Errorf("s3.bucket_lookup_type must be one of: \"auto\", \"dns\", \"path\" or empty/unspecified, found: \"%s\"",
 				c.S3CloudStorage.BucketLookupType)
 		}
+
+		if c.S3CloudStorage.SignatureType != "" && c.S3CloudStorage.SignatureType != "s3v2" &&
+			c.S3CloudStorage.SignatureType != "s3v4" && c.S3CloudStorage.SignatureType != "s3v4streaming" &&
+			c.S3CloudStorage.SignatureType != "anonymous" {
+			return fmt.Errorf("s3.signature_type must be one of: \"s3v2\", \"s3v4\", \"s3v4streaming\", \"anonymous\" or empty/unspecified, found: \"%s\"",
+				c.S3CloudStorage.SignatureType)
+		}
 	}
 
 	if c.AzBlobConfig != nil {
@@ -519,6 +526,7 @@ func get(ctx *cli.Context) (*Config, error) {
 			AuthMethod:               ctx.String("s3.auth_method"),
 			AccessKeyID:              ctx.String("s3.access_key_id"),
 			SecretAccessKey:          ctx.String("s3.secret_access_key"),
+			SignatureType:            ctx.String("s3.signature_type"),
 			DisableSSL:               ctx.Bool("s3.disable_ssl"),
 			UpdateTimestamps:         ctx.Bool("s3.update_timestamps"),
 			IAMRoleEndpoint:          ctx.String("s3.iam_role_endpoint"),
