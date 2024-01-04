@@ -253,9 +253,10 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 	}
 
 	if c.IdleTimeout > 0 {
+		ch := cacheHandler // Avoid an infinite loop in the closure below.
 		cacheHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			idleTimer.ResetTimer()
-			cacheHandler(w, r)
+			ch(w, r)
 		})
 	}
 
