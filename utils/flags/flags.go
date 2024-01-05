@@ -296,11 +296,11 @@ func GetCliFlags() []cli.Flag {
 			Usage:   "The S3/minio secret access key to use when using S3 proxy backend. " + s3AuthMsg(s3proxy.AuthMethodAccessKey),
 			EnvVars: []string{"BAZEL_REMOTE_S3_SECRET_ACCESS_KEY"},
 		},
-		&cli.BoolFlag{
-			Name:        "s3.disable_v4_sign",
-			Usage:       "Whether to disable v4 sign and enable v2 sign when using the S3 proxy backend. Only effect when use access_key as auth_method",
-			DefaultText: "false, is enable v4 sign",
-			EnvVars:     []string{"BAZEL_REMOTE_S3_DISABLE_V4_SIGN"},
+		&cli.StringFlag{
+			Name:        "s3.signature_type",
+			Usage:       "Which type of s3/minio signature will be used when using S3 proxy backend. Applies to s3 auth method(s): access_key. Allowed values: s3v2, s3v4, s3v4streaming, anonymous.",
+			DefaultText: "s3v4, is using v4 sign",
+			EnvVars:     []string{"BAZEL_REMOTE_S3_SIGNATURE_TYPE"},
 		},
 		&cli.StringFlag{
 			Name:    "s3.aws_shared_credentials_file",

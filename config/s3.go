@@ -17,7 +17,7 @@ type S3CloudStorageConfig struct {
 	AuthMethod               string `yaml:"auth_method"`
 	AccessKeyID              string `yaml:"access_key_id"`
 	SecretAccessKey          string `yaml:"secret_access_key"`
-	DisableV4Sign            bool   `yaml:"disable_v4_sign"`
+	SignatureType            string `yaml:"signature_type"`
 	DisableSSL               bool   `yaml:"disable_ssl"`
 	UpdateTimestamps         bool   `yaml:"update_timestamps"`
 	IAMRoleEndpoint          string `yaml:"iam_role_endpoint"`
@@ -40,12 +40,9 @@ func (s3c S3CloudStorageConfig) GetCredentials() (*credentials.Credentials, erro
 			return nil, fmt.Errorf("missing s3.secret_access_key for s3.auth_method = '%s'", s3proxy.AuthMethodAccessKey)
 		}
 		log.Println("S3 Credentials: using access/secret access key.")
-		if s3c.DisableV4Sign {
-			log.Println("S3 Sign: using v2 sign")
-			return credentials.NewStaticV2(s3c.AccessKeyID, s3c.SecretAccessKey, ""), nil
-		}
-		log.Println("S3 Sign: using v4 sign")
-		return credentials.NewStaticV4(s3c.AccessKeyID, s3c.SecretAccessKey, ""), nil
+		signatureType := parseSignatureType(s3c.SignatureType)
+		log.Printf("S3 Sign: using %s sign\n", signatureType.String())
+		return credentials.NewStatic(s3c.AccessKeyID, s3c.SecretAccessKey, "", signatureType), nil
 	} else if s3c.AuthMethod == s3proxy.AuthMethodIAMRole {
 		// Fall back to getting credentials from IAM
 		log.Println("S3 Credentials: using IAM.")
@@ -53,4 +50,16 @@ func (s3c S3CloudStorageConfig) GetCredentials() (*credentials.Credentials, erro
 	}
 
 	return nil, fmt.Errorf("invalid s3.auth_method: %s", s3c.AuthMethod)
+}
+
+func parseSignatureType(str string) credentials.SignatureType {
+	// str has been verified in config.go/validateConfig, must be one of these keys
+	valMap := map[string]credentials.SignatureType{
+		"":              credentials.SignatureV4,
+		"s3v2":          credentials.SignatureV2,
+		"s3v4":          credentials.SignatureV4,
+		"s3v4streaming": credentials.SignatureV4Streaming,
+		"anonymous":     credentials.SignatureAnonymous,
+	}
+	return valMap[str]
 }
