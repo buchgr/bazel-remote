@@ -33,6 +33,12 @@ func getSupportedZstdImplsString() string {
 // GetCliFlags returns a slice of cli.Flag's that bazel-remote accepts.
 func GetCliFlags() []cli.Flag {
 	return []cli.Flag{
+		&cli.IntFlag{
+			Name:    "max_os_threads",
+			Value:   10000,
+			Usage:   "Set the maximum number of operating system threads that the Go program can use.",
+			EnvVars: []string{"BAZEL_REMOTE_MAX_OS_THREADS"},
+		},
 		&cli.StringFlag{
 			Name:  "config_file",
 			Value: "",
