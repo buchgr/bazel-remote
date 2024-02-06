@@ -39,7 +39,7 @@ load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies", "go_repository")
 
 go_rules_dependencies()
 
-go_register_toolchains(version = "1.21.5")
+go_register_toolchains(version = "1.21.7")
 
 http_archive(
     name = "rules_proto",
