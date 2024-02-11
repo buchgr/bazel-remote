@@ -417,10 +417,10 @@ func validateConfig(c *Config) error {
 				c.S3CloudStorage.BucketLookupType)
 		}
 
-		if c.S3CloudStorage.SignatureType != "" && c.S3CloudStorage.SignatureType != "s3v2" &&
-			c.S3CloudStorage.SignatureType != "s3v4" && c.S3CloudStorage.SignatureType != "s3v4streaming" &&
+		if c.S3CloudStorage.SignatureType != "" && c.S3CloudStorage.SignatureType != "v2" &&
+			c.S3CloudStorage.SignatureType != "v4" && c.S3CloudStorage.SignatureType != "v4streaming" &&
 			c.S3CloudStorage.SignatureType != "anonymous" {
-			return fmt.Errorf("s3.signature_type must be one of: \"s3v2\", \"s3v4\", \"s3v4streaming\", \"anonymous\" or empty/unspecified, found: \"%s\"",
+			return fmt.Errorf("s3.signature_type must be one of: \"v2\", \"v4\", \"v4streaming\", \"anonymous\" or empty/unspecified, found: \"%s\"",
 				c.S3CloudStorage.SignatureType)
 		}
 	}

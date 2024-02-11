@@ -316,10 +316,10 @@ OPTIONS:
    --s3.secret_access_key value The S3/minio secret access key to use when
       using S3 proxy backend. Applies to s3 auth method(s): access_key.
       [$BAZEL_REMOTE_S3_SECRET_ACCESS_KEY]
-      
-   --s3.signature_type value Which type of aws signature will be used when 
-      using S3 proxy backend. Applies to s3 auth method(s): access_key. 
-      Allowed values: s3v2, s3v4, s3v4streaming, anonymous. (default: s3v4) 
+
+   --s3.signature_type value Which type of s3 signature to use when using S3
+      proxy backend. Only applies when using the s3 access_key auth method.
+      Allowed values: v2, v4, v4streaming, anonymous. (default: v4)
       [$BAZEL_REMOTE_S3_SIGNATURE_TYPE]
 
    --s3.aws_shared_credentials_file value Path to the AWS credentials file.
@@ -520,6 +520,7 @@ http_address: 0.0.0.0:8080
 #  auth_method: access_key
 #  access_key_id: EXAMPLE_ACCESS_KEY
 #  secret_access_key: EXAMPLE_SECRET_KEY
+#  signature_type: v4
 #
 # IAM Role authentication.
 #  auth_method: iam_role

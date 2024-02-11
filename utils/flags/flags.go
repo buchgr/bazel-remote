@@ -298,8 +298,8 @@ func GetCliFlags() []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:        "s3.signature_type",
-			Usage:       "Which type of s3/minio signature will be used when using S3 proxy backend. Applies to s3 auth method(s): access_key. Allowed values: s3v2, s3v4, s3v4streaming, anonymous.",
-			DefaultText: "s3v4, is using v4 sign",
+			Usage:       "Which type of s3 signature to use when using S3 proxy backend. Only applies when using the s3 access_key auth method. Allowed values: v2, v4, v4streaming, anonymous.",
+			DefaultText: "v4",
 			EnvVars:     []string{"BAZEL_REMOTE_S3_SIGNATURE_TYPE"},
 		},
 		&cli.StringFlag{

@@ -55,11 +55,11 @@ func (s3c S3CloudStorageConfig) GetCredentials() (*credentials.Credentials, erro
 func parseSignatureType(str string) credentials.SignatureType {
 	// str has been verified in config.go/validateConfig, must be one of these keys
 	valMap := map[string]credentials.SignatureType{
-		"":              credentials.SignatureV4,
-		"s3v2":          credentials.SignatureV2,
-		"s3v4":          credentials.SignatureV4,
-		"s3v4streaming": credentials.SignatureV4Streaming,
-		"anonymous":     credentials.SignatureAnonymous,
+		"":            credentials.SignatureV4,
+		"v2":          credentials.SignatureV2,
+		"v4":          credentials.SignatureV4,
+		"v4streaming": credentials.SignatureV4Streaming,
+		"anonymous":   credentials.SignatureAnonymous,
 	}
 	return valMap[str]
 }
