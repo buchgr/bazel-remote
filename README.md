@@ -625,6 +625,13 @@ If you want the docker container to run in the background pass the `-d` flag rig
 You can adjust the maximum cache size by appending `--max_size N`, where N is
 the maximum size in Gibibytes.
 
+### Docker Compose notes
+
+* See [examples/docker-compose.yml](examples/docker-compose.yml) for an example configuration.
+
+* To overwrite the default maximum cache size of the prebuilt image use the `command` or
+  build your own image as described below
+
 ### Kubernetes notes
 
 * See [examples/kubernetes.yml](examples/kubernetes.yml) for an example
@@ -647,7 +654,6 @@ the maximum size in Gibibytes.
   alb.ingress.kubernetes.io/success-codes: 0
   alb.ingress.kubernetes.io/target-type: ip
   ```
-
 
 ### Build your own
 
