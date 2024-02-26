@@ -627,10 +627,7 @@ the maximum size in Gibibytes.
 
 ### Docker Compose notes
 
-* See [examples/docker-compose.yml](examples/docker-compose.yml) for an example configuration.
-
-* To overwrite the default maximum cache size of the prebuilt image use the `command` or
-  build your own image as described below
+See [examples/docker-compose.yml](examples/docker-compose.yml) for an example configuration (modify the `--max_size` flag in there to suit your needs).
 
 ### Kubernetes notes
 
