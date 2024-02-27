@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	asset "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/asset/v1"
 	//pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 
@@ -94,7 +95,7 @@ func (s *testGetServer) handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func newTestGetServer() *testGetServer {
-	blob, hash := testutils.RandomDataAndHash(256)
+	blob, hash := testutils.RandomDataAndHash(256, hashing.DefaultHasher)
 
 	ts := testGetServer{
 		blob: blob,

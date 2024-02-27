@@ -75,6 +75,7 @@ require (
 	golang.org/x/tools v0.8.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
+	lukechampine.com/blake3 v1.2.1
 )
 
 go 1.21

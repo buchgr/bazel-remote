@@ -11,6 +11,7 @@ go_library(
     deps = [
         "//cache:go_default_library",
         "//cache/disk/casblob:go_default_library",
+        "//cache/hashing:go_default_library",
         "//utils/backendproxy:go_default_library",
         "@com_github_azure_azure_sdk_for_go_sdk_azcore//:go_default_library",
         "@com_github_azure_azure_sdk_for_go_sdk_storage_azblob//:go_default_library",
