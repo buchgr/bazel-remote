@@ -44,6 +44,7 @@ type SizedLRU struct {
 
 	onEvict EvictCallback
 
+	gaugeCacheMaxSizeBytes  prometheus.Gauge
 	gaugeCacheSizeBytes     prometheus.Gauge
 	gaugeCacheLogicalBytes  prometheus.Gauge
 	counterEvictedBytes     prometheus.Counter
@@ -67,6 +68,10 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback, initialCapacity int) Size
 		cache:   make(map[interface{}]*list.Element, initialCapacity),
 		onEvict: onEvict,
 
+		gaugeCacheMaxSizeBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "bazel_remote_disk_cache_max_size_bytes",
+			Help: "The maximum number of bytes in the disk backend",
+		}),
 		gaugeCacheSizeBytes: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "bazel_remote_disk_cache_size_bytes",
 			Help: "The current number of bytes in the disk backend",
@@ -87,10 +92,14 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback, initialCapacity int) Size
 }
 
 func (c *SizedLRU) RegisterMetrics() {
+	prometheus.MustRegister(c.gaugeCacheMaxSizeBytes)
 	prometheus.MustRegister(c.gaugeCacheSizeBytes)
 	prometheus.MustRegister(c.gaugeCacheLogicalBytes)
 	prometheus.MustRegister(c.counterEvictedBytes)
 	prometheus.MustRegister(c.counterOverwrittenBytes)
+
+	// This value never changes, set it now
+	c.gaugeCacheMaxSizeBytes.Set(float64(c.maxSize))
 }
 
 // Add adds a (key, value) to the cache, evicting items as necessary.
