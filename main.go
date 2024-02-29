@@ -141,6 +141,8 @@ func run(ctx *cli.Context) error {
 		disk.WithMaxBlobSize(c.MaxBlobSize),
 		disk.WithProxyMaxBlobSize(c.MaxProxyBlobSize),
 		disk.WithAccessLogger(c.AccessLogger),
+		disk.WithMaxConcurrentEvictions(c.MaxConcurrentEvictions),
+		disk.WithMaxQueuedEvictions(c.MaxQueuedEvictions),
 	}
 	if c.ProxyBackend != nil {
 		opts = append(opts, disk.WithProxyBackend(c.ProxyBackend))
