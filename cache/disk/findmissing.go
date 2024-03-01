@@ -220,7 +220,7 @@ func (c *diskCache) containsWorker() {
 			}
 		}
 
-		ok, _ = c.proxy.Contains(req.ctx, cache.CAS, (*req.digest).Hash)
+		ok, _ = c.proxy.Contains(req.ctx, cache.CAS, (*req.digest).Hash, (*req.digest).SizeBytes)
 		if ok {
 			c.accessLogger.Printf("GRPC CAS HEAD %s OK", (*req.digest).Hash)
 			// The blob exists on the proxy, remove it from the

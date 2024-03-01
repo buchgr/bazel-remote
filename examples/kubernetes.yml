@@ -3,25 +3,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx-deployment
+  name: bazelremote
   labels:
-    app: nginx
+    app: bazelremote
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: nginx
+      app: bazelremote
   template:
     metadata:
       labels:
-        app: nginx
+        app: bazelremote
     spec:
       containers:
       - name: bazel-remote-cache
         image: buchgr/bazel-remote-cache:latest
         ports:
           - containerPort: 9092
-            name: http
+            name: grpc
             protocol: TCP
           - containerPort: 8080
             name: http-default
@@ -44,6 +44,8 @@ spec:
             successThreshold: 1
             timeoutSeconds: 10
         env:
-          # Set bazel-remote configuration value here...
-          BAZEL_REMOTE_DIR: /data
-          BAZEL_REMOTE_MAX_SIZE: 1000
+        # Set bazel-remote configuration value here...
+        - name: BAZEL_REMOTE_DIR
+          value: /data
+        - name: BAZEL_REMOTE_MAX_SIZE
+          value: "1000"

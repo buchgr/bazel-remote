@@ -29,6 +29,11 @@ Restart=on-failure
 # If you want to log GC events.
 Environment=GODEBUG=gctrace=1
 
+# Set a soft memory limit, after which the garbage collector becomes more
+# aggressive. Choose a suitable value for the amount of available RAM- it
+# should be low enough to kick in before the kernel's OOM killer wakes up.
+#Environment=GOMEMLIMIT=25GiB
+
 # If you want bazel-remote to listen on ports < 1024 make sure to run
 # setcap cap_net_bind_service+eip /absolute/path/to/bazel-remote
 # (as root) to allow the executable to have this capability without

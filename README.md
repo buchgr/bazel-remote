@@ -205,6 +205,10 @@ OPTIONS:
       Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.
       [$BAZEL_REMOTE_HTPASSWD_FILE]
 
+   --min_tls_version value The minimum TLS version that is acceptable for
+      incoming requests (does not apply to proxy backends). Allowed values: 1.0,
+      1.1, 1.2, 1.3. (default: "1.0") [$BAZEL_REMOTE_MIN_TLS_VERSION]
+
    --tls_ca_file value Optional. Enables mTLS (authenticating client
       certificates), should be the certificate authority that signed the client
       certificates. [$BAZEL_REMOTE_TLS_CA_FILE]
@@ -243,6 +247,24 @@ OPTIONS:
       Goroutines to process parallel uploads to backend. (default: 100)
       [$BAZEL_REMOTE_NUM_UPLOADERS]
 
+   --grpc_proxy.url value The base URL to use for the experimental grpc proxy
+      backend, e.g. grpc://localhost:9090 or grpcs://example.com:7070. Note that
+      this requires a backend with remote asset API support if you want http
+      client requests to work. [$BAZEL_REMOTE_GRPC_PROXY_URL]
+
+   --grpc_proxy.key_file value Path to a key used to authenticate with the
+      proxy backend using mTLS. If this flag is provided, then
+      grpc_proxy.cert_file must also be specified.
+      [$BAZEL_REMOTE_GRPC_PROXY_KEY_FILE]
+
+   --grpc_proxy.cert_file value Path to a certificate used to authenticate
+      with the proxy backend using mTLS. If this flag is provided, then
+      grpc_proxy.key_file must also be specified.
+      [$BAZEL_REMOTE_GRPC_PROXY_CERT_FILE]
+
+   --grpc_proxy.ca_file value Path to a certificate autority used to validate
+      the grpc proxy backend certificate. [$BAZEL_REMOTE_GRPC_PROXY_CA_FILE]
+
    --http_proxy.url value The base URL to use for a http proxy backend.
       [$BAZEL_REMOTE_HTTP_PROXY_URL]
 
@@ -255,6 +277,9 @@ OPTIONS:
       with the proxy backend using mTLS. If this flag is provided, then
       http_proxy.key_file must also be specified.
       [$BAZEL_REMOTE_HTTP_PROXY_CERT_FILE]
+
+   --http_proxy.ca_file value Path to a certificate autority used to validate
+      the http proxy backend certificate. [$BAZEL_REMOTE_HTTP_PROXY_CA_FILE]
 
    --gcs_proxy.bucket value The bucket to use for the Google Cloud Storage
       proxy backend. [$BAZEL_REMOTE_GCS_BUCKET]
@@ -291,6 +316,11 @@ OPTIONS:
    --s3.secret_access_key value The S3/minio secret access key to use when
       using S3 proxy backend. Applies to s3 auth method(s): access_key.
       [$BAZEL_REMOTE_S3_SECRET_ACCESS_KEY]
+
+   --s3.signature_type value Which type of s3 signature to use when using S3
+      proxy backend. Only applies when using the s3 access_key auth method.
+      Allowed values: v2, v4, v4streaming, anonymous. (default: v4)
+      [$BAZEL_REMOTE_S3_SIGNATURE_TYPE]
 
    --s3.aws_shared_credentials_file value Path to the AWS credentials file.
       If not specified, the minio client will default to '~/.aws/credentials'.
@@ -390,7 +420,7 @@ OPTIONS:
       must be one of "UTC", "local" or "none" for no timestamps. (default: UTC,
       ie use UTC timezone) [$BAZEL_REMOTE_LOG_TIMEZONE]
 
-   --help, -h  show help (default: false)
+   --help, -h  show help
 ```
 
 ### Example configuration file
@@ -426,14 +456,20 @@ http_address: 0.0.0.0:8080
 #http_read_timeout: 15s
 #http_write_timeout: 20s
 
-# Specify a certificate if you want to use HTTPS:
+# Specify a certificate if you want to use HTTPS and gRPCs:
 #tls_cert_file: path/to/tls.cert
 #tls_key_file:  path/to/tls.key
 # If you want to use mutual TLS with client certificates:
 #tls_ca_file: path/to/ca/cert.pem
 
+# Optionally specify the minimum supported TLS version for the
+# HTTPS/gRPCs servers (must be one of 1.0, 1.1, 1.2, 1.3):
+#min_tls_version: "1.0"
+
 # Alternatively, you can use simple authentication:
 #htpasswd_file: path/to/.htpasswd
+
+
 
 # If tls_ca_file or htpasswd_file are specified, you can choose
 # whether or not to allow unauthenticated read access:
@@ -484,6 +520,7 @@ http_address: 0.0.0.0:8080
 #  auth_method: access_key
 #  access_key_id: EXAMPLE_ACCESS_KEY
 #  secret_access_key: EXAMPLE_SECRET_KEY
+#  signature_type: v4
 #
 # IAM Role authentication.
 #  auth_method: iam_role
@@ -500,6 +537,18 @@ http_address: 0.0.0.0:8080
 # If you want to use mutual TLS with client certificates:
 #  cert_file: path/to/client.cert
 #  key_file:  path/to/client.key
+# If you want to use a custom CA:
+#  ca_file: path/to/ca.crt
+#
+# Note that the grpc proxy backend requires remote asset API support if
+# you want client -http-> bazel-remote -grpc-> backend requests to work.
+#grpc_proxy:
+#  url: grpc://remote-cache.com:9092
+# If you want to use mutual TLS with client certificates:
+#  cert_file: path/to/client.cert
+#  key_file:  path/to/client.key
+# If you want to use a custom CA:
+#  ca_file: path/to/ca.crt
 #
 #azblob_proxy:
 #  tenant_id: TENANT_ID
@@ -576,6 +625,10 @@ If you want the docker container to run in the background pass the `-d` flag rig
 You can adjust the maximum cache size by appending `--max_size N`, where N is
 the maximum size in Gibibytes.
 
+### Docker Compose notes
+
+See [examples/docker-compose.yml](examples/docker-compose.yml) for an example configuration (modify the `--max_size` flag in there to suit your needs).
+
 ### Kubernetes notes
 
 * See [examples/kubernetes.yml](examples/kubernetes.yml) for an example
@@ -598,7 +651,6 @@ the maximum size in Gibibytes.
   alb.ingress.kubernetes.io/success-codes: 0
   alb.ingress.kubernetes.io/target-type: ip
   ```
-
 
 ### Build your own
 

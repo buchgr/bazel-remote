@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"net"
+	"net/url"
 	"os"
 	"sort"
 	"strconv"
@@ -29,11 +30,53 @@ type GoogleCloudStorageConfig struct {
 	JSONCredentialsFile   string `yaml:"json_credentials_file"`
 }
 
-// HTTPBackendConfig stores the configuration for a HTTP proxy backend.
-type HTTPBackendConfig struct {
-	BaseURL  string `yaml:"url"`
-	CertFile string `yaml:"cert_file"`
-	KeyFile  string `yaml:"key_file"`
+// URLBackendConfig stores the configuration for a HTTP or GRPC proxy backend.
+type URLBackendConfig struct {
+	BaseURL  *url.URL `yaml:"url"`
+	CertFile string   `yaml:"cert_file"`
+	KeyFile  string   `yaml:"key_file"`
+	CaFile   string   `yaml:"ca_file"`
+}
+
+func (c *URLBackendConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type Aux URLBackendConfig
+	aux := &struct {
+		URLStr string `yaml:"url"`
+		*Aux
+	}{
+		Aux: (*Aux)(c),
+	}
+
+	if err := unmarshal(aux); err != nil {
+		return err
+	}
+	u, err := url.Parse(aux.URLStr)
+	if err != nil {
+		return err
+	}
+	c.BaseURL = u
+	return nil
+}
+
+func (c *URLBackendConfig) validate(protocol string) error {
+	if c.BaseURL == nil {
+		return fmt.Errorf("The 'url' field is required for '%s_proxy'", protocol)
+	}
+	if c.BaseURL.Scheme != protocol && c.BaseURL.Scheme != protocol+"s" {
+		return fmt.Errorf("The %[1]s proxy backend protocol must be either %[1]s or %[1]ss", protocol)
+	}
+	if c.KeyFile != "" || c.CertFile != "" {
+		if c.KeyFile == "" || c.CertFile == "" {
+			return fmt.Errorf("To use mTLS with the %s proxy, both a key and a certificate must be provided", protocol)
+		}
+		if c.BaseURL.Scheme != protocol+"s" {
+			return fmt.Errorf("When mTLS is enabled, the %[1]s proxy backend protocol must be %[1]ss", protocol)
+		}
+	}
+	if c.CaFile != "" && c.BaseURL.Scheme != protocol+"s" {
+		return fmt.Errorf("When TLS is enabled, the %[1]s proxy backend protocol must be %[1]s", protocol)
+	}
+	return nil
 }
 
 // Config holds the top-level configuration for bazel-remote.
@@ -46,6 +89,7 @@ type Config struct {
 	StorageMode                 string                    `yaml:"storage_mode"`
 	ZstdImplementation          string                    `yaml:"zstd_implementation"`
 	HtpasswdFile                string                    `yaml:"htpasswd_file"`
+	MinTLSVersion               string                    `yaml:"min_tls_version"`
 	TLSCaFile                   string                    `yaml:"tls_ca_file"`
 	TLSCertFile                 string                    `yaml:"tls_cert_file"`
 	TLSKeyFile                  string                    `yaml:"tls_key_file"`
@@ -53,7 +97,8 @@ type Config struct {
 	S3CloudStorage              *S3CloudStorageConfig     `yaml:"s3_proxy,omitempty"`
 	AzBlobConfig                *AzBlobStorageConfig      `yaml:"azblob_proxy,omitempty"`
 	GoogleCloudStorage          *GoogleCloudStorageConfig `yaml:"gcs_proxy,omitempty"`
-	HTTPBackend                 *HTTPBackendConfig        `yaml:"http_proxy,omitempty"`
+	HTTPBackend                 *URLBackendConfig         `yaml:"http_proxy,omitempty"`
+	GRPCBackend                 *URLBackendConfig         `yaml:"grpc_proxy,omitempty"`
 	NumUploaders                int                       `yaml:"num_uploaders"`
 	MaxQueuedUploads            int                       `yaml:"max_queued_uploads"`
 	IdleTimeout                 time.Duration             `yaml:"idle_timeout"`
@@ -103,12 +148,14 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	htpasswdFile string,
 	maxQueuedUploads int,
 	numUploaders int,
+	minTLSVersion string,
 	tlsCaFile string,
 	tlsCertFile string,
 	tlsKeyFile string,
 	allowUnauthenticatedReads bool,
 	idleTimeout time.Duration,
-	hc *HTTPBackendConfig,
+	hc *URLBackendConfig,
+	grpcb *URLBackendConfig,
 	gcs *GoogleCloudStorageConfig,
 	s3 *S3CloudStorageConfig,
 	azblob *AzBlobStorageConfig,
@@ -135,6 +182,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		HtpasswdFile:                htpasswdFile,
 		MaxQueuedUploads:            maxQueuedUploads,
 		NumUploaders:                numUploaders,
+		MinTLSVersion:               minTLSVersion,
 		TLSCaFile:                   tlsCaFile,
 		TLSCertFile:                 tlsCertFile,
 		TLSKeyFile:                  tlsKeyFile,
@@ -143,6 +191,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		AzBlobConfig:                azblob,
 		GoogleCloudStorage:          gcs,
 		HTTPBackend:                 hc,
+		GRPCBackend:                 grpcb,
 		IdleTimeout:                 idleTimeout,
 		DisableHTTPACValidation:     disableHTTPACValidation,
 		DisableGRPCACDepsCheck:      disableGRPCACDepsCheck,
@@ -189,6 +238,7 @@ func newFromYaml(data []byte) (*Config, error) {
 			StorageMode:            "zstd",
 			ZstdImplementation:     "go",
 			NumUploaders:           100,
+			MinTLSVersion:          "1.0",
 			MaxQueuedUploads:       1000000,
 			MaxBlobSize:            math.MaxInt64,
 			MaxProxyBlobSize:       math.MaxInt64,
@@ -255,6 +305,9 @@ func validateConfig(c *Config) error {
 		proxyCount++
 	}
 	if c.AzBlobConfig != nil {
+		proxyCount++
+	}
+	if c.GRPCBackend != nil {
 		proxyCount++
 	}
 
@@ -338,13 +391,14 @@ func validateConfig(c *Config) error {
 	}
 
 	if c.HTTPBackend != nil {
-		if c.HTTPBackend.BaseURL == "" {
-			return errors.New("The 'url' field is required for 'http_proxy'")
+		if err := c.HTTPBackend.validate("http"); err != nil {
+			return err
 		}
-		if c.HTTPBackend.KeyFile != "" || c.HTTPBackend.CertFile != "" {
-			if c.HTTPBackend.KeyFile == "" || c.HTTPBackend.CertFile == "" {
-				return errors.New("To use mTLS with the http proxy, both a key and a certifacte must be provided")
-			}
+	}
+
+	if c.GRPCBackend != nil {
+		if err := c.GRPCBackend.validate("grpc"); err != nil {
+			return err
 		}
 	}
 
@@ -361,6 +415,13 @@ func validateConfig(c *Config) error {
 			c.S3CloudStorage.BucketLookupType != "dns" && c.S3CloudStorage.BucketLookupType != "path" {
 			return fmt.Errorf("s3.bucket_lookup_type must be one of: \"auto\", \"dns\", \"path\" or empty/unspecified, found: \"%s\"",
 				c.S3CloudStorage.BucketLookupType)
+		}
+
+		if c.S3CloudStorage.SignatureType != "" && c.S3CloudStorage.SignatureType != "v2" &&
+			c.S3CloudStorage.SignatureType != "v4" && c.S3CloudStorage.SignatureType != "v4streaming" &&
+			c.S3CloudStorage.SignatureType != "anonymous" {
+			return fmt.Errorf("s3.signature_type must be one of: \"v2\", \"v4\", \"v4streaming\", \"anonymous\" or empty/unspecified, found: \"%s\"",
+				c.S3CloudStorage.SignatureType)
 		}
 	}
 
@@ -465,6 +526,7 @@ func get(ctx *cli.Context) (*Config, error) {
 			AuthMethod:               ctx.String("s3.auth_method"),
 			AccessKeyID:              ctx.String("s3.access_key_id"),
 			SecretAccessKey:          ctx.String("s3.secret_access_key"),
+			SignatureType:            ctx.String("s3.signature_type"),
 			DisableSSL:               ctx.Bool("s3.disable_ssl"),
 			UpdateTimestamps:         ctx.Bool("s3.update_timestamps"),
 			IAMRoleEndpoint:          ctx.String("s3.iam_role_endpoint"),
@@ -474,12 +536,32 @@ func get(ctx *cli.Context) (*Config, error) {
 		}
 	}
 
-	var hc *HTTPBackendConfig
+	var hc *URLBackendConfig
 	if ctx.String("http_proxy.url") != "" {
-		hc = &HTTPBackendConfig{
-			BaseURL:  ctx.String("http_proxy.url"),
+		u, err := url.Parse(ctx.String("http_proxy.url"))
+		if err != nil {
+			return nil, err
+		}
+		hc = &URLBackendConfig{
+			BaseURL:  u,
 			KeyFile:  ctx.String("http_proxy.key_file"),
 			CertFile: ctx.String("http_proxy.cert_file"),
+			CaFile:   ctx.String("http_proxy.ca_file"),
+		}
+	}
+
+	var grpcb *URLBackendConfig
+	if ctx.String("grpc_proxy.url") != "" {
+		u, err := url.Parse(ctx.String("grpc_proxy.url"))
+		if err != nil {
+			return nil, err
+		}
+
+		grpcb = &URLBackendConfig{
+			BaseURL:  u,
+			KeyFile:  ctx.String("grpc_proxy.key_file"),
+			CertFile: ctx.String("grpc_proxy.cert_file"),
+			CaFile:   ctx.String("grpc_proxy.ca_file"),
 		}
 	}
 
@@ -519,12 +601,14 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.String("htpasswd_file"),
 		ctx.Int("max_queued_uploads"),
 		ctx.Int("num_uploaders"),
+		ctx.String("min_tls_version"),
 		ctx.String("tls_ca_file"),
 		ctx.String("tls_cert_file"),
 		ctx.String("tls_key_file"),
 		ctx.Bool("allow_unauthenticated_reads"),
 		ctx.Duration("idle_timeout"),
 		hc,
+		grpcb,
 		gcs,
 		s3,
 		azblob,

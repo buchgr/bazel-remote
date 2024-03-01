@@ -2,6 +2,7 @@ package config
 
 import (
 	"math"
+	"net/url"
 	"reflect"
 	"regexp"
 	"strings"
@@ -43,6 +44,7 @@ log_timezone: local
 		StorageMode:                 "zstd",
 		ZstdImplementation:          "go",
 		HtpasswdFile:                "/opt/.htpasswd",
+		MinTLSVersion:               "1.0",
 		TLSCertFile:                 "/opt/tls.cert",
 		TLSKeyFile:                  "/opt/tls.key",
 		DisableHTTPACValidation:     true,
@@ -94,6 +96,7 @@ gcs_proxy:
 			JSONCredentialsFile:   "/opt/creds.json",
 		},
 		NumUploaders:           100,
+		MinTLSVersion:          "1.0",
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
 		MaxProxyBlobSize:       math.MaxInt64,
@@ -122,6 +125,10 @@ http_proxy:
 		t.Fatal(err)
 	}
 
+	url, err := url.Parse("https://remote-cache.com:8080/cache")
+	if err != nil {
+		t.Fatal(err)
+	}
 	expectedConfig := &Config{
 		HTTPAddress:        "localhost:8080",
 		GRPCAddress:        "localhost:9092",
@@ -129,10 +136,11 @@ http_proxy:
 		MaxSize:            100,
 		StorageMode:        "zstd",
 		ZstdImplementation: "go",
-		HTTPBackend: &HTTPBackendConfig{
-			BaseURL: "https://remote-cache.com:8080/cache",
+		HTTPBackend: &URLBackendConfig{
+			BaseURL: url,
 		},
 		NumUploaders:           100,
+		MinTLSVersion:          "1.0",
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
 		MaxProxyBlobSize:       math.MaxInt64,
@@ -209,6 +217,7 @@ s3_proxy:
 			SecretAccessKey: "EXAMPLE_SECRET_KEY",
 		},
 		NumUploaders:           100,
+		MinTLSVersion:          "1.0",
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
 		MaxProxyBlobSize:       math.MaxInt64,
@@ -242,6 +251,7 @@ profile_address: :7070
 		ZstdImplementation:     "go",
 		ProfileAddress:         ":7070",
 		NumUploaders:           100,
+		MinTLSVersion:          "1.0",
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
 		MaxProxyBlobSize:       math.MaxInt64,
@@ -288,6 +298,7 @@ endpoint_metrics_duration_buckets: [.005, .1, 5]
 		MaxSize:                42,
 		StorageMode:            "zstd",
 		ZstdImplementation:     "go",
+		MinTLSVersion:          "1.0",
 		NumUploaders:           100,
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
@@ -420,6 +431,7 @@ storage_mode: zstd
 		StorageMode:            "zstd",
 		ZstdImplementation:     "go",
 		NumUploaders:           100,
+		MinTLSVersion:          "1.0",
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
 		MaxProxyBlobSize:       math.MaxInt64,
@@ -453,6 +465,7 @@ storage_mode: zstd
 		StorageMode:            "zstd",
 		ZstdImplementation:     "go",
 		NumUploaders:           100,
+		MinTLSVersion:          "1.0",
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
 		MaxProxyBlobSize:       math.MaxInt64,

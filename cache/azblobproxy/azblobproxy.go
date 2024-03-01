@@ -64,7 +64,7 @@ func (c *azBlobCache) Put(ctx context.Context, kind cache.EntryKind, hash string
 	}
 }
 
-func (c *azBlobCache) Get(ctx context.Context, kind cache.EntryKind, hash string) (rc io.ReadCloser, size int64, err error) {
+func (c *azBlobCache) Get(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (rc io.ReadCloser, size int64, err error) {
 	key := c.objectKey(hash, kind)
 	if c.prefix != "" {
 		key = c.prefix + "/" + key
@@ -111,7 +111,7 @@ func (c *azBlobCache) Get(ctx context.Context, kind cache.EntryKind, hash string
 
 var errNotFound = errors.New("NOT FOUND")
 
-func (c *azBlobCache) Contains(ctx context.Context, kind cache.EntryKind, hash string) (bool, int64) {
+func (c *azBlobCache) Contains(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (bool, int64) {
 	key := c.objectKey(hash, kind)
 	if c.prefix != "" {
 		key = c.prefix + "/" + key

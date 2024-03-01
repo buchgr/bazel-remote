@@ -125,6 +125,12 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_HTPASSWD_FILE"},
 		},
 		&cli.StringFlag{
+			Name:    "min_tls_version",
+			Value:   "1.0",
+			Usage:   "The minimum TLS version that is acceptable for incoming requests (does not apply to proxy backends). Allowed values: 1.0, 1.1, 1.2, 1.3.",
+			EnvVars: []string{"BAZEL_REMOTE_MIN_TLS_VERSION"},
+		},
+		&cli.StringFlag{
 			Name:    "tls_ca_file",
 			Value:   "",
 			Usage:   "Optional. Enables mTLS (authenticating client certificates), should be the certificate authority that signed the client certificates.",
@@ -183,6 +189,30 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_NUM_UPLOADERS"},
 		},
 		&cli.StringFlag{
+			Name:    "grpc_proxy.url",
+			Value:   "",
+			Usage:   "The base URL to use for the experimental grpc proxy backend, e.g. grpc://localhost:9090 or grpcs://example.com:7070. Note that this requires a backend with remote asset API support if you want http client requests to work.",
+			EnvVars: []string{"BAZEL_REMOTE_GRPC_PROXY_URL"},
+		},
+		&cli.StringFlag{
+			Name:    "grpc_proxy.key_file",
+			Value:   "",
+			Usage:   "Path to a key used to authenticate with the proxy backend using mTLS. If this flag is provided, then grpc_proxy.cert_file must also be specified.",
+			EnvVars: []string{"BAZEL_REMOTE_GRPC_PROXY_KEY_FILE"},
+		},
+		&cli.StringFlag{
+			Name:    "grpc_proxy.cert_file",
+			Value:   "",
+			Usage:   "Path to a certificate used to authenticate with the proxy backend using mTLS. If this flag is provided, then grpc_proxy.key_file must also be specified.",
+			EnvVars: []string{"BAZEL_REMOTE_GRPC_PROXY_CERT_FILE"},
+		},
+		&cli.StringFlag{
+			Name:    "grpc_proxy.ca_file",
+			Value:   "",
+			Usage:   "Path to a certificate autority used to validate the grpc proxy backend certificate.",
+			EnvVars: []string{"BAZEL_REMOTE_GRPC_PROXY_CA_FILE"},
+		},
+		&cli.StringFlag{
 			Name:    "http_proxy.url",
 			Value:   "",
 			Usage:   "The base URL to use for a http proxy backend.",
@@ -199,6 +229,12 @@ func GetCliFlags() []cli.Flag {
 			Value:   "",
 			Usage:   "Path to a certificate used to authenticate with the proxy backend using mTLS. If this flag is provided, then http_proxy.key_file must also be specified.",
 			EnvVars: []string{"BAZEL_REMOTE_HTTP_PROXY_CERT_FILE"},
+		},
+		&cli.StringFlag{
+			Name:    "http_proxy.ca_file",
+			Value:   "",
+			Usage:   "Path to a certificate autority used to validate the http proxy backend certificate.",
+			EnvVars: []string{"BAZEL_REMOTE_HTTP_PROXY_CA_FILE"},
 		},
 		&cli.StringFlag{
 			Name:    "gcs_proxy.bucket",
@@ -259,6 +295,12 @@ func GetCliFlags() []cli.Flag {
 			Value:   "",
 			Usage:   "The S3/minio secret access key to use when using S3 proxy backend. " + s3AuthMsg(s3proxy.AuthMethodAccessKey),
 			EnvVars: []string{"BAZEL_REMOTE_S3_SECRET_ACCESS_KEY"},
+		},
+		&cli.StringFlag{
+			Name:        "s3.signature_type",
+			Usage:       "Which type of s3 signature to use when using S3 proxy backend. Only applies when using the s3 access_key auth method. Allowed values: v2, v4, v4streaming, anonymous.",
+			DefaultText: "v4",
+			EnvVars:     []string{"BAZEL_REMOTE_S3_SIGNATURE_TYPE"},
 		},
 		&cli.StringFlag{
 			Name:    "s3.aws_shared_credentials_file",

@@ -1,0 +1,22 @@
+name: idle-timer
+on:
+  push:
+    tags:
+      - v*
+    branches:
+      - master
+  pull_request:
+jobs:
+  idletimer:
+    name: idle-timer
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '1.21.5'
+      - uses: actions/checkout@v3
+      - name: build bazel-remote
+        run: ./linux-build.sh
+      - name: run with idle-timeout 1m
+        run: for i in {1..20}; do sleep 1 ; curl --head --fail http://127.0.0.1:8080/cas/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 ; done & ./bazel-remote --dir DATA --max_size 1 --idle_timeout 20s
