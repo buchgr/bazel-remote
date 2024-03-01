@@ -122,7 +122,7 @@ oci_image(
         # Specify a port to enable the profiling http server.
         "BAZEL_REMOTE_PROFILE_ADDRESS": ":6060",
     },
-    ports = ["8080"],
+    exposed_ports = ["8080"],
     tars = [
         "data.tar",
         ":bazel-remote_tar",
@@ -148,7 +148,7 @@ oci_image(
         # Specify a port to enable the profiling http server.
         "BAZEL_REMOTE_PROFILE_ADDRESS": ":6060",
     },
-    ports = ["8080"],
+    exposed_ports = ["8080"],
     tars = [
         "data.tar",
         ":bazel-remote-linux-arm64_tar",
