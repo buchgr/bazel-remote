@@ -393,6 +393,8 @@ func startGrpcServer(c *config.Config, grpcServer **grpc.Server,
 
 	opts = append(opts, grpc.ChainStreamInterceptor(streamInterceptors...))
 	opts = append(opts, grpc.ChainUnaryInterceptor(unaryInterceptors...))
+	log.Println("Setting gRPC Max Receive Message Size to:", c.GrpcMaxRecvMsgSize)
+	opts = append(opts, grpc.MaxRecvMsgSize(c.GrpcMaxRecvMsgSize))
 
 	validateAC := !c.DisableGRPCACDepsCheck
 	validateStatus := "disabled"
