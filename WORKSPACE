@@ -124,6 +124,18 @@ go_repository(
     version = "v1.3.5",
 )
 
+go_repository(
+    name = "in_gopkg_asn1_ber_v1",
+    commit = "f715ec2f112d1e4195b827ad68cf44017a3ef2b1",
+    importpath = "gopkg.in/asn1-ber.v1",
+)
+
+go_repository(
+    name = "in_gopkg_ldap_v3",
+    commit = "9f0d712775a0973b7824a1585a86a4ea1d5263d9",
+    importpath = "gopkg.in/ldap.v3",
+)
+
 gazelle_dependencies()
 
 http_archive(

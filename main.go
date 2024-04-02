@@ -18,6 +18,7 @@ import (
 	"github.com/buchgr/bazel-remote/v2/cache/disk"
 
 	"github.com/buchgr/bazel-remote/v2/config"
+	"github.com/buchgr/bazel-remote/v2/ldap"
 	"github.com/buchgr/bazel-remote/v2/server"
 	"github.com/buchgr/bazel-remote/v2/utils/flags"
 	"github.com/buchgr/bazel-remote/v2/utils/idle"
@@ -48,6 +49,8 @@ func main() {
 	cli.HelpPrinterCustom = flags.HelpPrinter
 	// Force the use of cli.HelpPrinterCustom.
 	app.ExtraInfo = func() map[string]string { return map[string]string{} }
+	// ldap groups could contain "," and would be splitted
+	app.SliceFlagSeparator = ";"
 
 	app.Flags = flags.GetCliFlags()
 	app.Action = run
@@ -242,6 +245,7 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 		c.EnableACKeyInstanceMangling, checkClientCertForReads, checkClientCertForWrites, gitCommit)
 
 	cacheHandler := h.CacheHandler
+	var ldapAuthenticator auth.AuthenticatorInterface
 	var basicAuthenticator auth.BasicAuth
 	if c.HtpasswdFile != "" {
 		if c.AllowUnauthenticatedReads {
@@ -250,6 +254,18 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 			basicAuthenticator = auth.BasicAuth{Realm: c.HTTPAddress, Secrets: htpasswdSecrets}
 			cacheHandler = basicAuthWrapper(cacheHandler, &basicAuthenticator)
 		}
+	} else if c.LDAP.BaseURL != "" {
+		if c.AllowUnauthenticatedReads {
+			cacheHandler = unauthenticatedReadWrapper(cacheHandler, htpasswdSecrets, c.HTTPAddress)
+		} else {
+			var ldap_err error
+			if ldapAuthenticator, ldap_err = ldap.New(c.LDAP); ldap_err != nil {
+				log.Fatal("Failed to create LDAP connection: ", ldap_err)
+			}
+			cacheHandler = ldapAuthWrapper(cacheHandler, ldapAuthenticator)
+		}
+	} else {
+		log.Println("Neither HTTP_PASSWD nor LDAP used")
 	}
 
 	if c.IdleTimeout > 0 {
@@ -267,6 +283,8 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 			statusHandler = h.VerifyClientCertHandler(statusHandler).ServeHTTP
 		} else if c.HtpasswdFile != "" {
 			statusHandler = basicAuthWrapper(statusHandler, &basicAuthenticator)
+		} else if c.LDAP.BaseURL != "" {
+			statusHandler = ldapAuthWrapper(statusHandler, ldapAuthenticator)
 		}
 	}
 
@@ -285,6 +303,8 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 				middlewareHandler = h.VerifyClientCertHandler(middlewareHandler)
 			} else if c.HtpasswdFile != "" {
 				middlewareHandler = basicAuthWrapper(middlewareHandler.ServeHTTP, &basicAuthenticator)
+			} else if c.LDAP.BaseURL != "" {
+				middlewareHandler = ldapAuthWrapper(middlewareHandler.ServeHTTP, ldapAuthenticator)
 			}
 		}
 		mux.Handle("/metrics", middlewareHandler)
@@ -435,6 +455,10 @@ func startGrpcServer(c *config.Config, grpcServer **grpc.Server,
 // A http.HandlerFunc wrapper which requires successful basic
 // authentication for all requests.
 func basicAuthWrapper(handler http.HandlerFunc, authenticator *auth.BasicAuth) http.HandlerFunc {
+	return auth.JustCheck(authenticator, handler)
+}
+
+func ldapAuthWrapper(handler http.HandlerFunc, authenticator auth.AuthenticatorInterface) http.HandlerFunc {
 	return auth.JustCheck(authenticator, handler)
 }
 

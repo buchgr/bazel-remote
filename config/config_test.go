@@ -231,6 +231,57 @@ s3_proxy:
 	}
 }
 
+func TestValidLDAPConfig(t *testing.T) {
+	yaml := `host: localhost
+port: 8080
+dir: /opt/cache-dir
+max_size: 100
+ldap:
+  url: ldap://ldap.example.com
+  base_dn: OU=My Users,DC=example,DC=com
+  username_attribute: sAMAccountName
+  bind_user: ldapuser
+  bind_password: ldappassword
+  cache_time: 3600s
+  groups:
+   - CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com
+   - CN=other-users,OU=Groups2,OU=Alien Users,DC=foo,DC=org
+`
+	config, err := newFromYaml([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedConfig := &Config{
+		HTTPAddress:        "localhost:8080",
+		Dir:                "/opt/cache-dir",
+		MaxSize:            100,
+		StorageMode:        "zstd",
+		ZstdImplementation: "go",
+		LDAP: &LDAPConfig{
+			BaseURL:           "ldap://ldap.example.com",
+			BaseDN:            "OU=My Users,DC=example,DC=com",
+			BindUser:          "ldapuser",
+			BindPassword:      "ldappassword",
+			UsernameAttribute: "sAMAccountName",
+			Groups:            []string{"CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com", "CN=other-users,OU=Groups2,OU=Alien Users,DC=foo,DC=org"},
+			CacheTime:         3600 * time.Second,
+		},
+		NumUploaders:           100,
+		MinTLSVersion:          "1.0",
+		MaxQueuedUploads:       1000000,
+		MaxBlobSize:            math.MaxInt64,
+		MaxProxyBlobSize:       math.MaxInt64,
+		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
+		AccessLogLevel:         "all",
+		LogTimezone:            "UTC",
+	}
+
+	if !cmp.Equal(config, expectedConfig) {
+		t.Fatalf("Expected '%+v' but got '%+v'", expectedConfig, config)
+	}
+}
+
 func TestValidProfiling(t *testing.T) {
 	yaml := `host: localhost
 port: 1234

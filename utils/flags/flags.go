@@ -255,6 +255,50 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_GCS_JSON_CREDENTIALS_FILE"},
 		},
 		&cli.StringFlag{
+			Name:    "ldap.url",
+			Value:   "",
+			Usage:   "The LDAP URL which may include a port. LDAP over SSL (LDAPs) is supported.",
+			EnvVars: []string{"BAZEL_REMOTE_LDAP_URL"},
+		},
+		&cli.StringFlag{
+			Name:    "ldap.base_dn",
+			Value:   "",
+			Usage:   "The distinguished name of the search base.",
+			EnvVars: []string{"BAZEL_REMOTE_LDAP_BASE_DN"},
+		},
+		&cli.StringFlag{
+			Name:    "ldap.bind_user",
+			Value:   "",
+			Usage:   "The user who is allowed to perform a search within the base DN. If none is specified the connection and the search is performed without an authentication. It is recommended to use a read-only account.",
+			EnvVars: []string{"BAZEL_REMOTE_LDAP_BIND_USER"},
+		},
+		&cli.StringFlag{
+			Name:    "ldap.bind_password",
+			Value:   "",
+			Usage:   "The password of the bind user.",
+			EnvVars: []string{"BAZEL_REMOTE_LDAP_BIND_PASSWORD"},
+		},
+		&cli.StringFlag{
+			Name:    "ldap.username_attribute",
+			Value:   "uid",
+			Usage:   "The user attribute of a connecting user.",
+			EnvVars: []string{"BAZEL_REMOTE_LDAP_USER_ATTRIBUTE"},
+		},
+		// https://cli.urfave.org/v2/examples/flags/#multiple-values-per-single-flag
+		&cli.StringSliceFlag{
+			Name: "ldap.groups",
+			// setting a "Value" will no longer respect the "SliceFlagSeparator"
+			// https://github.com/urfave/cli/issues/1878
+			Usage:   "Filter clause for searching groups. This option can be given multiple times and the groups are OR connected in the search query.",
+			EnvVars: []string{"BAZEL_REMOTE_LDAP_GROUPS"},
+		},
+		&cli.IntFlag{
+			Name:    "ldap.cache_time",
+			Value:   3600,
+			Usage:   "The amount of time to cache a successful authentication in seconds.",
+			EnvVars: []string{"BAZEL_REMOTE_LDAP_CACHE_TIME"},
+		},
+		&cli.StringFlag{
 			Name:    "s3.endpoint",
 			Value:   "",
 			Usage:   "The S3/minio endpoint to use when using S3 proxy backend.",

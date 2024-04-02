@@ -220,9 +220,10 @@ OPTIONS:
       [$BAZEL_REMOTE_TLS_KEY_FILE]
 
    --allow_unauthenticated_reads If authentication is enabled
-      (--htpasswd_file or --tls_ca_file), allow unauthenticated clients read
-      access. (default: false, ie if authentication is required, read-only
-      requests must also be authenticated) [$BAZEL_REMOTE_UNAUTHENTICATED_READS]
+      (--htpasswd_file, --tls_ca_file or --ldap.url), allow unauthenticated
+      clients read access. (default: false, i.e. if authentication is required,
+      read-only requests must also be authenticated)
+      [$BAZEL_REMOTE_UNAUTHENTICATED_READS]
 
    --idle_timeout value The maximum period of having received no request
       after which the server will shut itself down. (default: 0s, ie disabled)
@@ -291,6 +292,34 @@ OPTIONS:
    --gcs_proxy.json_credentials_file value Path to a JSON file that contains
       Google credentials for the Google Cloud Storage proxy backend.
       [$BAZEL_REMOTE_GCS_JSON_CREDENTIALS_FILE]
+
+   --ldap.url value The LDAP URL which may include a port. LDAP over SSL
+      (LDAPs) is supported.
+      [$BAZEL_REMOTE_LDAP_URL]
+
+   --ldap.base_dn value The distinguished name of the search base.
+      [$BAZEL_REMOTE_LDAP_BASE_DN]
+
+   --ldap.bind_user value The user who is allowed to perform a search within
+      the base DN. If none is specified the connection and the search is
+      performed without an authentication. It is recommended to use a read-only
+      account.
+      [$BAZEL_REMOTE_LDAP_BIND_USER]
+
+   --ldap.bind_password value The password of the bind user.
+      [$BAZEL_REMOTE_LDAP_BIND_PASSWORD]
+
+   --ldap.username_attribute value The user attribute of a connecting user.
+      (default: "uid")
+      [$BAZEL_REMOTE_LDAP_USER_ATTRIBUTE]
+
+   --ldap.groups value Filter clause for searching groups. This option can be
+      given multiple times and the groups are OR connected in the search query.
+      [$BAZEL_REMOTE_LDAP_GROUPS]
+
+   --ldap.cache_time value The amount of time to cache a successful
+      authentication in seconds. (default 3600)
+      [$BAZEL_REMOTE_LDAP_CACHE_TIME]
 
    --s3.endpoint value The S3/minio endpoint to use when using S3 proxy
       backend. [$BAZEL_REMOTE_S3_ENDPOINT]
@@ -674,6 +703,7 @@ $ bazel build :bazel-remote
 ```
 
 ### Authentication
+#### htpasswd
 
 bazel-remote defaults to allow unauthenticated access, but basic `.htpasswd`
 style authentication and mutual TLS authentication are also supported.
@@ -711,6 +741,22 @@ $ docker run -v /path/to/cache/dir:/data \
 	--tls_cert_file=/etc/bazel-remote/server_cert \
 	--tls_key_file=/etc/bazel-remote/server_key \
 	--max_size 5
+```
+
+#### LDAP
+
+Supported via a config file, env variables or command line args, see above.
+
+```yaml
+ldap:
+  url: ldap://ldap.example.com           # ldaps and custom port also supported
+  base_dn: OU=My Users,DC=example,DC=com # root of the tree to scope queries
+  username_attribute: sAMAccountName     # defaults to "uid"
+  bind_user: ldapuser                    # (read-only) account for user lookup
+  bind_password: ldappassword
+  cache_time: 3600                       # how long to cache a successful authentication for (default 1 hour)
+  groups:                                # if specified, user must be in one of these to access the cache
+   - CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com
 ```
 
 ### Using bazel-remote with AWS Credential file authentication for S3 inside a docker container

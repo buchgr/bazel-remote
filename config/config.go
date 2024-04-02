@@ -38,6 +38,16 @@ type URLBackendConfig struct {
 	CaFile   string   `yaml:"ca_file"`
 }
 
+type LDAPConfig struct {
+	BaseURL           string        `yaml:"url"`
+	BaseDN            string        `yaml:"base_dn"`
+	BindUser          string        `yaml:"bind_user"`
+	BindPassword      string        `yaml:"bind_password"`
+	UsernameAttribute string        `yaml:"username_attribute"`
+	Groups            []string      `yaml:"groups,flow"`
+	CacheTime         time.Duration `yaml:"cache_time"`
+}
+
 func (c *URLBackendConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type Aux URLBackendConfig
 	aux := &struct {
@@ -99,6 +109,7 @@ type Config struct {
 	GoogleCloudStorage          *GoogleCloudStorageConfig `yaml:"gcs_proxy,omitempty"`
 	HTTPBackend                 *URLBackendConfig         `yaml:"http_proxy,omitempty"`
 	GRPCBackend                 *URLBackendConfig         `yaml:"grpc_proxy,omitempty"`
+	LDAP                        *LDAPConfig               `yaml:"ldap,omitempty"`
 	NumUploaders                int                       `yaml:"num_uploaders"`
 	MaxQueuedUploads            int                       `yaml:"max_queued_uploads"`
 	IdleTimeout                 time.Duration             `yaml:"idle_timeout"`
@@ -157,6 +168,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	hc *URLBackendConfig,
 	grpcb *URLBackendConfig,
 	gcs *GoogleCloudStorageConfig,
+	ldap *LDAPConfig,
 	s3 *S3CloudStorageConfig,
 	azblob *AzBlobStorageConfig,
 	disableHTTPACValidation bool,
@@ -192,6 +204,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		GoogleCloudStorage:          gcs,
 		HTTPBackend:                 hc,
 		GRPCBackend:                 grpcb,
+		LDAP:                        ldap,
 		IdleTimeout:                 idleTimeout,
 		DisableHTTPACValidation:     disableHTTPACValidation,
 		DisableGRPCACDepsCheck:      disableGRPCACDepsCheck,
@@ -368,7 +381,7 @@ func validateConfig(c *Config) error {
 			"and 'tls_cert_file' specified.")
 	}
 
-	if c.AllowUnauthenticatedReads && c.TLSCaFile == "" && c.HtpasswdFile == "" {
+	if c.AllowUnauthenticatedReads && c.TLSCaFile == "" && c.HtpasswdFile == "" && c.LDAP.BaseURL == "" {
 		return errors.New("AllowUnauthenticatedReads setting is only available when authentication is enabled")
 	}
 
@@ -447,6 +460,26 @@ func validateConfig(c *Config) error {
 				return errors.New("'endpoint_metrics_duration_buckets' must not contain duplicate buckets")
 			}
 			duplicates[bucket] = true
+		}
+	}
+
+	if c.HtpasswdFile != "" && c.LDAP != nil {
+		return errors.New("One can specify at most one authentication mechanism")
+	}
+
+	if c.LDAP != nil {
+		// to allow anonymous access do not require BindUser or BindPassword
+		if c.LDAP.BaseURL == "" {
+			return errors.New("The 'url' field is required for 'ldap'")
+		}
+		if c.LDAP.BaseDN == "" {
+			return errors.New("The 'base_dn' field is required for 'ldap'")
+		}
+		if c.LDAP.UsernameAttribute == "" {
+			c.LDAP.UsernameAttribute = "uid"
+		}
+		if c.LDAP.CacheTime <= 0 {
+			c.LDAP.CacheTime = 3600
 		}
 	}
 
@@ -590,6 +623,19 @@ func get(ctx *cli.Context) (*Config, error) {
 		}
 	}
 
+	var ldap *LDAPConfig
+	if ctx.String("ldap.url") != "" {
+		ldap = &LDAPConfig{
+			BaseURL:           ctx.String("ldap.url"),
+			BaseDN:            ctx.String("ldap.base_dn"),
+			BindUser:          ctx.String("ldap.bind_user"),
+			BindPassword:      ctx.String("ldap.bind_password"),
+			UsernameAttribute: ctx.String("ldap.username_attribute"),
+			Groups:            ctx.StringSlice("ldap.groups"),
+			CacheTime:         ctx.Duration("ldap.cache_time"),
+		}
+	}
+
 	return newFromArgs(
 		ctx.String("dir"),
 		ctx.Int("max_size"),
@@ -610,6 +656,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		hc,
 		grpcb,
 		gcs,
+		ldap,
 		s3,
 		azblob,
 		ctx.Bool("disable_http_ac_validation"),
