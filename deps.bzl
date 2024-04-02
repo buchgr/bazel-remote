@@ -29,6 +29,13 @@ def go_dependencies():
         version = "v0.0.0-20211218093645-b94a6e3cc137",
     )
     go_repository(
+        name = "com_github_alexbrainman_sspi",
+        importpath = "github.com/alexbrainman/sspi",
+        sum = "h1:LHTHcTQiSGT7VVbI0o4wBRNQIgn917usHWOd6VAffYI=",
+        version = "v0.0.0-20231016080023-1a75b4708caa",
+    )
+
+    go_repository(
         name = "com_github_andybalholm_brotli",
         importpath = "github.com/andybalholm/brotli",
         sum = "h1:Yf9fFpf49Zrxb9NlQaluyE92/+X7UVHlhMNJN2sxfOI=",
@@ -65,6 +72,13 @@ def go_dependencies():
         sum = "h1:QSdcrd/UFJv6Bp/CfoVf2SrENpFn9P6Yh8yb+xNhYMM=",
         version = "v0.4.1",
     )
+    go_repository(
+        name = "com_github_azure_go_ntlmssp",
+        importpath = "github.com/Azure/go-ntlmssp",
+        sum = "h1:mFRzDkZVAjdal+s7s0MwaRv9igoPqLRdzOLzw/8Xvq8=",
+        version = "v0.0.0-20221128193559-754e69321358",
+    )
+
     go_repository(
         name = "com_github_azuread_microsoft_authentication_library_for_go",
         importpath = "github.com/AzureAD/microsoft-authentication-library-for-go",
@@ -232,6 +246,13 @@ def go_dependencies():
         version = "v1.9.1",
     )
     go_repository(
+        name = "com_github_go_asn1_ber_asn1_ber",
+        importpath = "github.com/go-asn1-ber/asn1-ber",
+        sum = "h1:MNHlNMBDgEKD4TcKr36vQN68BA00aDfjIt3/bD50WnA=",
+        version = "v1.5.5",
+    )
+
+    go_repository(
         name = "com_github_go_chi_chi_v4",
         importpath = "github.com/go-chi/chi/v4",
         sum = "h1:GYPlsuhAJUD3r74ZcpY48lS9Phvb+T97BSMaySI3O/o=",
@@ -243,6 +264,12 @@ def go_dependencies():
         importpath = "github.com/go-kit/log",
         sum = "h1:MRVx0/zhvdseW+Gza6N9rVzU/IVzaeE1SFI4raAhmBU=",
         version = "v0.2.1",
+    )
+    go_repository(
+        name = "com_github_go_ldap_ldap_v3",
+        importpath = "github.com/go-ldap/ldap/v3",
+        sum = "h1:loKJyspcRezt2Q3ZRMq2p/0v8iOurlmeXDPw6fikSvQ=",
+        version = "v3.4.8",
     )
 
     go_repository(
@@ -384,6 +411,18 @@ def go_dependencies():
         sum = "h1:i40aqfkR1h2SlN9hojwV5ZA91wcXFOvkdNIeFDP5koI=",
         version = "v1.8.0",
     )
+    go_repository(
+        name = "com_github_gorilla_securecookie",
+        importpath = "github.com/gorilla/securecookie",
+        sum = "h1:miw7JPhV+b/lAHSXz4qd/nN9jRiAFV5FwjeKyCS8BvQ=",
+        version = "v1.1.1",
+    )
+    go_repository(
+        name = "com_github_gorilla_sessions",
+        importpath = "github.com/gorilla/sessions",
+        sum = "h1:DHd3rPN5lE3Ts3D8rKkQ8x/0kqfeNmBAaiSi+o7FsgI=",
+        version = "v1.2.1",
+    )
 
     go_repository(
         name = "com_github_grpc_ecosystem_go_grpc_prometheus",
@@ -392,17 +431,68 @@ def go_dependencies():
         version = "v1.2.0",
     )
     go_repository(
+        name = "com_github_hashicorp_go_uuid",
+        importpath = "github.com/hashicorp/go-uuid",
+        sum = "h1:2gKiV6YVmrJ1i2CKKa9obLvRieoRGviZFL26PcT/Co8=",
+        version = "v1.0.3",
+    )
+
+    go_repository(
         name = "com_github_iris_contrib_schema",
         importpath = "github.com/iris-contrib/schema",
         sum = "h1:CPSBLyx2e91H2yJzPuhGuifVRnZBBJ3pCOMbOvPZaTw=",
         version = "v0.0.6",
     )
     go_repository(
+        name = "com_github_jcmturner_aescts_v2",
+        importpath = "github.com/jcmturner/aescts/v2",
+        sum = "h1:9YKLH6ey7H4eDBXW8khjYslgyqG2xZikXP0EQFKrle8=",
+        version = "v2.0.0",
+    )
+    go_repository(
+        name = "com_github_jcmturner_dnsutils_v2",
+        importpath = "github.com/jcmturner/dnsutils/v2",
+        sum = "h1:lltnkeZGL0wILNvrNiVCR6Ro5PGU/SeBvVO/8c/iPbo=",
+        version = "v2.0.0",
+    )
+    go_repository(
+        name = "com_github_jcmturner_gofork",
+        importpath = "github.com/jcmturner/gofork",
+        sum = "h1:QH0l3hzAU1tfT3rZCnW5zXl+orbkNMMRGJfdJjHVETg=",
+        version = "v1.7.6",
+    )
+    go_repository(
+        name = "com_github_jcmturner_goidentity_v6",
+        importpath = "github.com/jcmturner/goidentity/v6",
+        sum = "h1:VKnZd2oEIMorCTsFBnJWbExfNN7yZr3EhJAxwOkZg6o=",
+        version = "v6.0.1",
+    )
+    go_repository(
+        name = "com_github_jcmturner_gokrb5_v8",
+        importpath = "github.com/jcmturner/gokrb5/v8",
+        sum = "h1:x1Sv4HaTpepFkXbt2IkL29DXRf8sOfZXo8eRKh687T8=",
+        version = "v8.4.4",
+    )
+    go_repository(
+        name = "com_github_jcmturner_rpc_v2",
+        importpath = "github.com/jcmturner/rpc/v2",
+        sum = "h1:7FXXj8Ti1IaVFpSAziCZWNzbNuZmnvw/i6CqLNdWfZY=",
+        version = "v2.0.3",
+    )
+
+    go_repository(
         name = "com_github_joker_jade",
         importpath = "github.com/Joker/jade",
         sum = "h1:Qbeh12Vq6BxURXT1qZBRHsDxeURB8ztcL6f3EXSGeHk=",
         version = "v1.1.3",
     )
+    go_repository(
+        name = "com_github_jonasscharpf_godap",
+        importpath = "github.com/JonasScharpf/godap",
+        sum = "h1:7L5zT1awL4RZeLtT4vp+BlRoTrFBbRtMFOZMQCqub7I=",
+        version = "v0.0.0-20240417153024-2d460c2776c0",
+    )
+
     go_repository(
         name = "com_github_josharian_intern",
         importpath = "github.com/josharian/intern",
