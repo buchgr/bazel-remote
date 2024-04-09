@@ -354,27 +354,27 @@ func (c *diskCache) writeAndCloseFile(r io.Reader, kind cache.EntryKind, hash st
 	if kind == cache.CAS && c.storageMode != casblob.Identity {
 		sizeOnDisk, err = casblob.WriteAndClose(c.zstd, r, f, c.storageMode, hash, size)
 		if err != nil {
-			return -1, err
+			return -1, fmt.Errorf("Failed to write compressed CAS blob to disk: %w", err)
 		}
 		closeFile = false
 		return sizeOnDisk, nil
 	}
 
 	if sizeOnDisk, err = io.Copy(f, r); err != nil {
-		return -1, err
+		return -1, fmt.Errorf("Failed to copy data to disk: %w", err)
 	}
 
 	if isSizeMismatch(sizeOnDisk, size) {
 		return -1, fmt.Errorf(
-			"sizes don't match. Expected %d, found %d", size, sizeOnDisk)
+			"Sizes don't match. Expected %d, found %d", size, sizeOnDisk)
 	}
 
 	if err = f.Sync(); err != nil {
-		return -1, err
+		return -1, fmt.Errorf("Failed to sync file to disk: %w", err)
 	}
 
 	if err = f.Close(); err != nil {
-		return -1, err
+		return -1, fmt.Errorf("Failed to close file: %w", err)
 	}
 	closeFile = false
 
