@@ -561,6 +561,7 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 
 	nextChunk := 0 // Index in h.chunkOffsets.
 	remainingRawData := size
+	var numRead int
 
 	uncompressedChunk := make([]byte, chunkSize)
 
@@ -576,9 +577,9 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 		}
 		remainingRawData -= chunkEnd
 
-		_, err = io.ReadFull(r, uncompressedChunk[0:chunkEnd])
+		numRead, err = io.ReadFull(r, uncompressedChunk[0:chunkEnd])
 		if err != nil {
-			return -1, fmt.Errorf("Failed to read %d bytes: %w", chunkEnd+1, err)
+			return -1, fmt.Errorf("Only managed to read %d of %d bytes: %w", numRead, chunkEnd, err)
 		}
 
 		compressedChunk := zstd.EncodeAll(uncompressedChunk[0:chunkEnd])
