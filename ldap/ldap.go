@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -30,7 +31,7 @@ type cacheEntry struct {
 }
 
 func New(config *config.LDAPConfig) (*Cache, error) {
-	conn, err := ldap.DialURL(config.BaseURL)
+	conn, err := ldap.DialURL(config.URL)
 	if err != nil {
 		return nil, err
 	}
@@ -78,14 +79,14 @@ func (c *Cache) checkLdap(user, password string) bool {
 
 func (c *Cache) query(user, password string) bool {
 	// This should always succeed since it was tested at instantiation
-	conn, err := ldap.DialURL(c.config.BaseURL)
+	conn, err := ldap.DialURL(c.config.URL)
 	if err != nil {
-		panic(err)
+		log.Fatal("No valid LDAP connection could be established:", err)
 	}
 	defer conn.Close()
 
 	if err = conn.Bind(c.config.BindUser, c.config.BindPassword); err != nil {
-		panic(err)
+		log.Fatal("LDAP connection with username and password failed:", err)
 	}
 
 	var groupsQuery strings.Builder

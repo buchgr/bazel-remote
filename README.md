@@ -498,6 +498,17 @@ http_address: 0.0.0.0:8080
 # Alternatively, you can use simple authentication:
 #htpasswd_file: path/to/.htpasswd
 
+# At most one authentication mechanism can be used
+#ldap:
+#  url: ldaps://ldap.example.com:636
+#  base_dn: OU=My Users,DC=example,DC=com
+#  username_attribute: sAMAccountName      # defaults to "uid"
+#  bind_user: ldapuser
+#  bind_password: ldappassword
+#  cache_time: 3600                        # in seconds (default 1 hour)
+#  groups:
+#   - CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com
+
 
 
 # If tls_ca_file or htpasswd_file are specified, you can choose
@@ -703,10 +714,12 @@ $ bazel build :bazel-remote
 ```
 
 ### Authentication
-#### htpasswd
 
 bazel-remote defaults to allow unauthenticated access, but basic `.htpasswd`
-style authentication and mutual TLS authentication are also supported.
+style authentication, mutual TLS authentication and LDAP are also supported.
+Please note that only one authentication mechanism can be used at a time.
+
+#### htpasswd
 
 In order to pass a `.htpasswd` and/or server key file(s) to the cache
 inside a docker container, you first need to mount the file in the
@@ -724,6 +737,8 @@ $ docker run -v /path/to/cache/dir:/data \
 	--tls_key_file=/etc/bazel-remote/server_key \
 	--htpasswd_file /etc/bazel-remote/htpasswd --max_size 5
 ```
+
+#### mTLS
 
 If you prefer not using `.htpasswd` files it is also possible to
 authenticate with mTLS (also can be known as "authenticating client
@@ -745,18 +760,20 @@ $ docker run -v /path/to/cache/dir:/data \
 
 #### LDAP
 
-Supported via a config file, env variables or command line args, see above.
+LDAP is an additional authentication method for the cache. It can be used via
+command line args, the config file or env variables.
 
-```yaml
-ldap:
-  url: ldap://ldap.example.com           # ldaps and custom port also supported
-  base_dn: OU=My Users,DC=example,DC=com # root of the tree to scope queries
-  username_attribute: sAMAccountName     # defaults to "uid"
-  bind_user: ldapuser                    # (read-only) account for user lookup
-  bind_password: ldappassword
-  cache_time: 3600                       # how long to cache a successful authentication for (default 1 hour)
-  groups:                                # if specified, user must be in one of these to access the cache
-   - CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com
+```bash
+$ docker run -v /path/to/cache/dir:/data \
+   -p 9090:8080 -p 9092:9092 buchgr/bazel-remote-cache \
+   --ldap.url="ldaps://ldap.example.com:636" \
+   --ldap.base_dn="OU=My Users,DC=example,DC=com" \
+   --ldap.groups="CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com" \
+   --ldap.groups="CN=bazel-testers,OU=Groups,OU=My Users,DC=example,DC=com" \
+   --ldap.cache_time=100 \
+   --ldap.bind_user="cn=readonly.username,ou=readonly,OU=Other Users,DC=example,DC=com" \
+   --ldap.bind_password="secret4Sure" \
+   --max_size 5
 ```
 
 ### Using bazel-remote with AWS Credential file authentication for S3 inside a docker container

@@ -39,7 +39,7 @@ type URLBackendConfig struct {
 }
 
 type LDAPConfig struct {
-	BaseURL           string        `yaml:"url"`
+	URL               string        `yaml:"url"`
 	BaseDN            string        `yaml:"base_dn"`
 	BindUser          string        `yaml:"bind_user"`
 	BindPassword      string        `yaml:"bind_password"`
@@ -99,6 +99,7 @@ type Config struct {
 	StorageMode                 string                    `yaml:"storage_mode"`
 	ZstdImplementation          string                    `yaml:"zstd_implementation"`
 	HtpasswdFile                string                    `yaml:"htpasswd_file"`
+	LDAP                        *LDAPConfig               `yaml:"ldap,omitempty"`
 	MinTLSVersion               string                    `yaml:"min_tls_version"`
 	TLSCaFile                   string                    `yaml:"tls_ca_file"`
 	TLSCertFile                 string                    `yaml:"tls_cert_file"`
@@ -109,7 +110,6 @@ type Config struct {
 	GoogleCloudStorage          *GoogleCloudStorageConfig `yaml:"gcs_proxy,omitempty"`
 	HTTPBackend                 *URLBackendConfig         `yaml:"http_proxy,omitempty"`
 	GRPCBackend                 *URLBackendConfig         `yaml:"grpc_proxy,omitempty"`
-	LDAP                        *LDAPConfig               `yaml:"ldap,omitempty"`
 	NumUploaders                int                       `yaml:"num_uploaders"`
 	MaxQueuedUploads            int                       `yaml:"max_queued_uploads"`
 	IdleTimeout                 time.Duration             `yaml:"idle_timeout"`
@@ -381,7 +381,7 @@ func validateConfig(c *Config) error {
 			"and 'tls_cert_file' specified.")
 	}
 
-	if c.AllowUnauthenticatedReads && c.TLSCaFile == "" && c.HtpasswdFile == "" && c.LDAP.BaseURL == "" {
+	if c.AllowUnauthenticatedReads && c.TLSCaFile == "" && c.HtpasswdFile == "" && c.LDAP.URL == "" {
 		return errors.New("AllowUnauthenticatedReads setting is only available when authentication is enabled")
 	}
 
@@ -463,13 +463,12 @@ func validateConfig(c *Config) error {
 		}
 	}
 
-	if c.HtpasswdFile != "" && c.LDAP != nil {
+	if c.HtpasswdFile != "" && c.TLSCaFile != "" && c.LDAP != nil {
 		return errors.New("One can specify at most one authentication mechanism")
 	}
 
 	if c.LDAP != nil {
-		// to allow anonymous access do not require BindUser or BindPassword
-		if c.LDAP.BaseURL == "" {
+		if c.LDAP.URL == "" {
 			return errors.New("The 'url' field is required for 'ldap'")
 		}
 		if c.LDAP.BaseDN == "" {
@@ -626,7 +625,7 @@ func get(ctx *cli.Context) (*Config, error) {
 	var ldap *LDAPConfig
 	if ctx.String("ldap.url") != "" {
 		ldap = &LDAPConfig{
-			BaseURL:           ctx.String("ldap.url"),
+			URL:               ctx.String("ldap.url"),
 			BaseDN:            ctx.String("ldap.base_dn"),
 			BindUser:          ctx.String("ldap.bind_user"),
 			BindPassword:      ctx.String("ldap.bind_password"),

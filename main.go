@@ -49,7 +49,7 @@ func main() {
 	cli.HelpPrinterCustom = flags.HelpPrinter
 	// Force the use of cli.HelpPrinterCustom.
 	app.ExtraInfo = func() map[string]string { return map[string]string{} }
-	// ldap groups could contain "," and would be splitted
+	// ldap groups could contain "," and would be split
 	app.SliceFlagSeparator = ";"
 
 	app.Flags = flags.GetCliFlags()
@@ -254,7 +254,7 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 			basicAuthenticator = auth.BasicAuth{Realm: c.HTTPAddress, Secrets: htpasswdSecrets}
 			cacheHandler = basicAuthWrapper(cacheHandler, &basicAuthenticator)
 		}
-	} else if c.LDAP.BaseURL != "" {
+	} else if c.LDAP != nil {
 		if c.AllowUnauthenticatedReads {
 			cacheHandler = unauthenticatedReadWrapper(cacheHandler, htpasswdSecrets, c.HTTPAddress)
 		} else {
@@ -283,7 +283,7 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 			statusHandler = h.VerifyClientCertHandler(statusHandler).ServeHTTP
 		} else if c.HtpasswdFile != "" {
 			statusHandler = basicAuthWrapper(statusHandler, &basicAuthenticator)
-		} else if c.LDAP.BaseURL != "" {
+		} else if c.LDAP.URL != "" {
 			statusHandler = ldapAuthWrapper(statusHandler, ldapAuthenticator)
 		}
 	}
@@ -303,7 +303,7 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 				middlewareHandler = h.VerifyClientCertHandler(middlewareHandler)
 			} else if c.HtpasswdFile != "" {
 				middlewareHandler = basicAuthWrapper(middlewareHandler.ServeHTTP, &basicAuthenticator)
-			} else if c.LDAP.BaseURL != "" {
+			} else if c.LDAP.URL != "" {
 				middlewareHandler = ldapAuthWrapper(middlewareHandler.ServeHTTP, ldapAuthenticator)
 			}
 		}

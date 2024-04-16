@@ -259,7 +259,7 @@ ldap:
 		StorageMode:        "zstd",
 		ZstdImplementation: "go",
 		LDAP: &LDAPConfig{
-			BaseURL:           "ldap://ldap.example.com",
+			URL:               "ldap://ldap.example.com",
 			BaseDN:            "OU=My Users,DC=example,DC=com",
 			BindUser:          "ldapuser",
 			BindPassword:      "ldappassword",

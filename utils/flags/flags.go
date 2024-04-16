@@ -266,6 +266,7 @@ func GetCliFlags() []cli.Flag {
 			Usage:   "The distinguished name of the search base.",
 			EnvVars: []string{"BAZEL_REMOTE_LDAP_BASE_DN"},
 		},
+		// to allow anonymous access do not require BindUser or BindPassword
 		&cli.StringFlag{
 			Name:    "ldap.bind_user",
 			Value:   "",
