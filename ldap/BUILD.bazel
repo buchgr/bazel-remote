@@ -1,4 +1,4 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "go_default_library",
@@ -8,6 +8,16 @@ go_library(
     deps = [
         "//config:go_default_library",
         "@com_github_abbot_go_http_auth//:go_default_library",
-        "@in_gopkg_ldap_v3//:go_default_library",
+        "@com_github_go_ldap_ldap_v3//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = ["ldap_test.go"],
+    embed = [":go_default_library"],
+    deps = [
+        "//config:go_default_library",
+        "@com_github_jonasscharpf_godap//godap:go_default_library",
     ],
 )

@@ -13,7 +13,7 @@ import (
 	"github.com/buchgr/bazel-remote/v2/config"
 
 	auth "github.com/abbot/go-http-auth"
-	ldap "gopkg.in/ldap.v3"
+	ldap "github.com/go-ldap/ldap/v3"
 )
 
 // Cache represents a cache of LDAP query results so that many concurrent

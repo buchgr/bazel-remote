@@ -291,6 +291,10 @@ func newFromYaml(data []byte) (*Config, error) {
 	return &c, nil
 }
 
+func NewConfigFromYaml(data []byte) (*Config, error) {
+	return newFromYaml(data)
+}
+
 func validateConfig(c *Config) error {
 	if c.Dir == "" {
 		return errors.New("The 'dir' flag/key is required")
