@@ -385,7 +385,7 @@ func validateConfig(c *Config) error {
 			"and 'tls_cert_file' specified.")
 	}
 
-	if c.AllowUnauthenticatedReads && c.TLSCaFile == "" && c.HtpasswdFile == "" && c.LDAP.URL == "" {
+	if c.AllowUnauthenticatedReads && c.TLSCaFile == "" && c.HtpasswdFile == "" && c.LDAP == nil {
 		return errors.New("AllowUnauthenticatedReads setting is only available when authentication is enabled")
 	}
 

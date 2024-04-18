@@ -283,7 +283,7 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 			statusHandler = h.VerifyClientCertHandler(statusHandler).ServeHTTP
 		} else if c.HtpasswdFile != "" {
 			statusHandler = basicAuthWrapper(statusHandler, &basicAuthenticator)
-		} else if c.LDAP.URL != "" {
+		} else if c.LDAP != nil {
 			statusHandler = ldapAuthWrapper(statusHandler, ldapAuthenticator)
 		}
 	}
@@ -303,7 +303,7 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 				middlewareHandler = h.VerifyClientCertHandler(middlewareHandler)
 			} else if c.HtpasswdFile != "" {
 				middlewareHandler = basicAuthWrapper(middlewareHandler.ServeHTTP, &basicAuthenticator)
-			} else if c.LDAP.URL != "" {
+			} else if c.LDAP != nil {
 				middlewareHandler = ldapAuthWrapper(middlewareHandler.ServeHTTP, ldapAuthenticator)
 			}
 		}
