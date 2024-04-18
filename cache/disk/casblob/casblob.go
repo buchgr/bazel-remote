@@ -561,6 +561,7 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 
 	nextChunk := 0 // Index in h.chunkOffsets.
 	remainingRawData := size
+	var numRead int
 
 	uncompressedChunk := make([]byte, chunkSize)
 
@@ -576,9 +577,9 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 		}
 		remainingRawData -= chunkEnd
 
-		_, err = io.ReadFull(r, uncompressedChunk[0:chunkEnd])
+		numRead, err = io.ReadFull(r, uncompressedChunk[0:chunkEnd])
 		if err != nil {
-			return -1, err
+			return -1, fmt.Errorf("Only managed to read %d of %d bytes: %w", numRead, chunkEnd, err)
 		}
 
 		compressedChunk := zstd.EncodeAll(uncompressedChunk[0:chunkEnd])
@@ -587,7 +588,7 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 
 		written, err := f.Write(compressedChunk)
 		if err != nil {
-			return -1, err
+			return -1, fmt.Errorf("Failed to write compressed chunk to disk: %w", err)
 		}
 
 		fileOffset += int64(written)
@@ -599,7 +600,7 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 	if err == nil {
 		return -1, fmt.Errorf("expected %d bytes but got at least %d more", size, bytesAfter)
 	} else if err != io.EOF {
-		return -1, err
+		return -1, fmt.Errorf("Failed to read chunk of size %d: %w", len(uncompressedChunk), err)
 	}
 
 	actualHash := hex.EncodeToString(hasher.Sum(nil))
@@ -611,18 +612,23 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 	// We know all the chunk offsets now, go back and fill those in.
 	_, err = f.Seek(chunkTableOffset, io.SeekStart)
 	if err != nil {
-		return -1, err
+		return -1, fmt.Errorf("Failed to seek to offset %d: %w", chunkTableOffset, err)
 	}
 
 	err = binary.Write(f, binary.LittleEndian, h.chunkOffsets)
 	if err != nil {
-		return -1, err
+		return -1, fmt.Errorf("Failed to write chunk offsets: %w", err)
 	}
 
 	err = f.Sync()
 	if err != nil {
-		return -1, err
+		return -1, fmt.Errorf("Failed to sync file: %w", err)
 	}
 
-	return fileOffset, f.Close()
+	err = f.Close()
+	if err != nil {
+		return -1, fmt.Errorf("Failed to close file: %w", err)
+	}
+
+	return fileOffset, nil
 }

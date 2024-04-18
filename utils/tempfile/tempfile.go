@@ -2,6 +2,7 @@ package tempfile
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"sync"
@@ -78,7 +79,8 @@ func (c *Creator) Create(base string, legacy bool) (*os.File, string, error) {
 		}
 
 		// Unexpected error.
-		return nil, "", err
+		return nil, "", fmt.Errorf("Unexpected error opening temp file: %w", err)
 	}
+
 	return nil, "", errNoTempfile
 }

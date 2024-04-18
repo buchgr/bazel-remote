@@ -19,6 +19,7 @@ import (
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/zstdimpl"
+	"github.com/buchgr/bazel-remote/v2/utils/annotate"
 	"github.com/buchgr/bazel-remote/v2/utils/tempfile"
 	"github.com/buchgr/bazel-remote/v2/utils/validate"
 
@@ -315,7 +316,7 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 	removeTempfile = true
 
 	var sizeOnDisk int64
-	sizeOnDisk, err = c.writeAndCloseFile(r, kind, hash, size, tf)
+	sizeOnDisk, err = c.writeAndCloseFile(ctx, r, kind, hash, size, tf)
 	if err != nil {
 		return internalErr(err)
 	}
@@ -340,7 +341,7 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 	return nil
 }
 
-func (c *diskCache) writeAndCloseFile(r io.Reader, kind cache.EntryKind, hash string, size int64, f *os.File) (int64, error) {
+func (c *diskCache) writeAndCloseFile(ctx context.Context, r io.Reader, kind cache.EntryKind, hash string, size int64, f *os.File) (int64, error) {
 	closeFile := true
 	defer func() {
 		if closeFile {
@@ -354,27 +355,27 @@ func (c *diskCache) writeAndCloseFile(r io.Reader, kind cache.EntryKind, hash st
 	if kind == cache.CAS && c.storageMode != casblob.Identity {
 		sizeOnDisk, err = casblob.WriteAndClose(c.zstd, r, f, c.storageMode, hash, size)
 		if err != nil {
-			return -1, err
+			return -1, annotate.Err(ctx, "Failed to write compressed CAS blob to disk", err)
 		}
 		closeFile = false
 		return sizeOnDisk, nil
 	}
 
 	if sizeOnDisk, err = io.Copy(f, r); err != nil {
-		return -1, err
+		return -1, annotate.Err(ctx, "Failed to copy data to disk", err)
 	}
 
 	if isSizeMismatch(sizeOnDisk, size) {
 		return -1, fmt.Errorf(
-			"sizes don't match. Expected %d, found %d", size, sizeOnDisk)
+			"Sizes don't match. Expected %d, found %d", size, sizeOnDisk)
 	}
 
 	if err = f.Sync(); err != nil {
-		return -1, err
+		return -1, fmt.Errorf("Failed to sync file to disk: %w", err)
 	}
 
 	if err = f.Close(); err != nil {
-		return -1, err
+		return -1, fmt.Errorf("Failed to close file: %w", err)
 	}
 	closeFile = false
 

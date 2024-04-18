@@ -17,6 +17,7 @@ go_library(
         "//cache/disk/casblob:go_default_library",
         "//cache/disk/zstdimpl:go_default_library",
         "//genproto/build/bazel/remote/execution/v2:go_default_library",
+        "//utils/annotate:go_default_library",
         "//utils/tempfile:go_default_library",
         "//utils/validate:go_default_library",
         "@com_github_djherbis_atime//:go_default_library",

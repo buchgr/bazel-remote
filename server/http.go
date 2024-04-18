@@ -364,16 +364,18 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			// Ensure that the serialized ActionResult has non-zero length.
 			ar, code, err := addWorkerMetadataHTTP(r.RemoteAddr, r.Header.Get("Content-Type"), data)
 			if err != nil {
-				http.Error(w, err.Error(), code)
-				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), err.Error())
+				msg := "Failed to add worker metadata: " + err.Error()
+				http.Error(w, msg, code)
+				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
 				return
 			}
 
 			// Note: we do not currently verify that the blobs exist in the CAS.
 			err = validate.ActionResult(ar)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), err.Error())
+				msg := "Failed to marshal ActionResult: " + err.Error()
+				http.Error(w, msg, http.StatusBadRequest)
+				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
 				return
 			}
 
@@ -414,12 +416,15 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 
 		err := h.cache.Put(r.Context(), kind, hash, contentLength, rdr)
 		if err != nil {
+			var msg string
 			if cerr, ok := err.(*cache.Error); ok {
-				http.Error(w, err.Error(), cerr.Code)
+				msg = cerr.Text
+				http.Error(w, msg, cerr.Code)
 			} else {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				msg = "Unexpected error adding item to cache: " + err.Error()
+				http.Error(w, msg, http.StatusInternalServerError)
 			}
-			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), err)
+			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
 		} else {
 			h.logResponse(http.StatusOK, r)
 		}
