@@ -124,6 +124,13 @@ go_repository(
     version = "v1.3.5",
 )
 
+go_repository(
+    name = "in_gopkg_asn1_ber_v1",
+    importpath = "gopkg.in/asn1-ber.v1",
+    sum = "h1:TxyelI5cVkbREznMhfzycHdkp5cLA7DpE+GKjSslYhM=",
+    version = "v1.0.0-20181015200546-f715ec2f112d",
+)
+
 gazelle_dependencies()
 
 http_archive(
