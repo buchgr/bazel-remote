@@ -1,6 +1,6 @@
 load("@bazel_gazelle//:def.bzl", "gazelle")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
-load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_tarball")
 load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 gazelle(
@@ -132,6 +132,12 @@ oci_image(
     visibility = ["//visibility:public"],
 )
 
+oci_tarball(
+    name = "bazel-remote-image-tarball",
+    image = ":bazel-remote-image",
+    repo_tags = ["buchgr/bazel-remote-cache:tmp-amd64"],
+)
+
 pkg_tar(
     name = "bazel-remote-linux-arm64_tar",
     srcs = [":bazel-remote-linux-arm64"],
@@ -157,6 +163,12 @@ oci_image(
     ],
     user = str(BAZEL_REMOTE_USER_ID),
     visibility = ["//visibility:private"],
+)
+
+oci_tarball(
+    name = "bazel-remote-image-arm64-tarball",
+    image = ":bazel-remote-image-arm64",
+    repo_tags = ["buchgr/bazel-remote-cache:tmp-arm64"],
 )
 
 # The following container_push targets push to "tmp-amd64" and "tmp-arm64"
