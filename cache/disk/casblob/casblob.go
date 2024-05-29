@@ -350,6 +350,20 @@ func GetZstdReadCloser(zstd zstdimpl.ZstdImpl, f *os.File, expectedSize int64, o
 			h.compression)
 	}
 
+	if offset == 0 {
+		// Special case for full reads: stream the header also.
+		//
+		// When using compressed storage mode and the grpc proxy backend, the
+		// frontend bazel-remote expects to receive the casblob header.
+
+		_, err = f.Seek(0, io.SeekStart)
+		if err != nil {
+			return nil, fmt.Errorf("failed to seek to start of file: %w", err)
+		}
+
+		return f, nil
+	}
+
 	// Find the first relevant chunk.
 	chunkNum := int64(offset / int64(h.chunkSize))
 	remainder := offset % int64(h.chunkSize)
