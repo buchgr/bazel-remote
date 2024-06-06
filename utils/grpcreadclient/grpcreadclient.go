@@ -109,7 +109,7 @@ func main() {
 }
 
 func dial(serverAddr string, caCertFile string, clientCertFile string, clientKeyFile string, basicAuthUser string, basicAuthPass string) (*grpc.ClientConn, error, context.Context, context.CancelFunc) {
-
+	//nolint:all
 	dialOpts := []grpc.DialOption{grpc.WithBlock()}
 
 	if basicAuthUser != "" {
@@ -154,6 +154,7 @@ func dial(serverAddr string, caCertFile string, clientCertFile string, clientKey
 	fmt.Println("Dialing...", serverAddr)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	//nolint:all
 	conn, err := grpc.DialContext(ctx, serverAddr, dialOpts...)
 	return conn, err, ctx, cancel
 }

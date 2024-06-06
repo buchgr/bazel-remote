@@ -63,8 +63,7 @@ func newProxy(t *testing.T, dir string, storageMode string) *testProxy {
 	dialer := func(context.Context, string) (net.Conn, error) {
 		return listener.Dial()
 	}
-	cc, err := grpc.Dial(
-		"bufconn",
+	cc, err := grpc.NewClient("passthrough://bufnet",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(dialer),
 	)
@@ -223,8 +222,7 @@ func newFixture(t *testing.T, proxy cache.Proxy, storageMode string) *fixture {
 		return listener.Dial()
 	}
 
-	cc, err := grpc.Dial(
-		"bufconn",
+	cc, err := grpc.NewClient("passthrough://bufnet",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(dialer),
 	)

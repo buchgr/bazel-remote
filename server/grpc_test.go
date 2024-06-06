@@ -112,7 +112,7 @@ func grpcTestSetupInternal(t *testing.T, mangleACKeys bool) (tc grpcTestFixture)
 		}
 	}()
 
-	conn, err := grpc.Dial("bufnet",
+	conn, err := grpc.NewClient("passthrough://bufnet",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(bufDialer))
 	if err != nil {

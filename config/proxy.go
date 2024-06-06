@@ -95,7 +95,7 @@ func (c *Config) setProxy() error {
 		opts = append(opts, grpc.WithChainStreamInterceptor(metrics.StreamClientInterceptor()))
 		opts = append(opts, grpc.WithChainUnaryInterceptor(metrics.UnaryClientInterceptor()))
 
-		conn, err := grpc.Dial(c.GRPCBackend.BaseURL.Host, opts...)
+		conn, err := grpc.NewClient(c.GRPCBackend.BaseURL.Host, opts...)
 		if err != nil {
 			return err
 		}
