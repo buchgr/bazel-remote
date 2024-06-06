@@ -184,7 +184,7 @@ func parseBucketLookupType(typeStr string) (minio.BucketLookupType, error) {
 
 	val, ok := valMap[typeStr]
 	if !ok {
-		return 0, fmt.Errorf("Unsupported value: %s", typeStr)
+		return 0, fmt.Errorf("Unsupported bucket_lookup_type value : %s", typeStr)
 	}
 
 	return val, nil
