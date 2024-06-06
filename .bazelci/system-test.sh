@@ -5,6 +5,8 @@ set -e
 set -u
 set -o pipefail
 
+export USE_BAZEL_VERSION=4.2.2
+
 SRC_ROOT=$(dirname "$0")/..
 SRC_ROOT=$(realpath "$SRC_ROOT")
 cd "$SRC_ROOT"
@@ -18,7 +20,7 @@ summary=""
 
 if [ ! -e minio ]
 then
-	wget https://dl.min.io/server/minio/release/linux-amd64/minio
+	wget -O minio https://dl.min.io/server/minio/release/linux-amd64/archive/minio.RELEASE.2021-12-29T06-49-06Z
 	chmod +x minio
 fi
 if [ ! -e mc ]
