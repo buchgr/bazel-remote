@@ -239,7 +239,7 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 	checkClientCertForWrites := c.TLSCaFile != ""
 	validateAC := !c.DisableHTTPACValidation
 	h := server.NewHTTPCache(diskCache, c.AccessLogger, c.ErrorLogger, validateAC,
-		c.EnableACKeyInstanceMangling, checkClientCertForReads, checkClientCertForWrites, gitCommit)
+		c.EnableACKeyInstanceMangling, checkClientCertForReads, checkClientCertForWrites, gitCommit, c.DigestFunctions)
 
 	cacheHandler := h.CacheHandler
 	var basicAuthenticator auth.BasicAuth
@@ -429,7 +429,8 @@ func startGrpcServer(c *config.Config, grpcServer **grpc.Server,
 		validateAC,
 		c.EnableACKeyInstanceMangling,
 		enableRemoteAssetAPI,
-		diskCache, c.AccessLogger, c.ErrorLogger)
+		diskCache, c.AccessLogger, c.ErrorLogger,
+		c.DigestFunctions)
 }
 
 // A http.HandlerFunc wrapper which requires successful basic

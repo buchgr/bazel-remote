@@ -1591,6 +1591,13 @@ def go_dependencies():
     )
 
     go_repository(
+        name = "com_lukechampine_blake3",
+        importpath = "lukechampine.com/blake3",
+        sum = "h1:YuqqRuaqsGV71BV/nm9xlI0MKUv4QC54jQnBChWbGnI=",
+        version = "v1.2.1",
+    )
+
+    go_repository(
         name = "in_gopkg_check_v1",
         importpath = "gopkg.in/check.v1",
         sum = "h1:Hei/4ADfdWqJk1ZMxUNpqntNwaWcugrBjAiHlqqRiVk=",

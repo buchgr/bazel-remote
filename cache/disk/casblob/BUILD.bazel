@@ -5,7 +5,10 @@ go_library(
     srcs = ["casblob.go"],
     importpath = "github.com/buchgr/bazel-remote/v2/cache/disk/casblob",
     visibility = ["//visibility:public"],
-    deps = ["//cache/disk/zstdimpl:go_default_library"],
+    deps = [
+        "//cache/disk/zstdimpl:go_default_library",
+        "//cache/hashing:go_default_library",
+    ],
 )
 
 go_test(
@@ -14,6 +17,7 @@ go_test(
     deps = [
         ":go_default_library",
         "//cache/disk/zstdimpl:go_default_library",
+        "//cache/hashing:go_default_library",
         "//utils:go_default_library",
     ],
 )
