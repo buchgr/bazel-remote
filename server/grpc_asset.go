@@ -56,6 +56,8 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 		return nil, errNilFetchBlobRequest
 	}
 
+	headers := http.Header{}
+
 	for _, q := range req.GetQualifiers() {
 		if q == nil {
 			return &asset.FetchBlobResponse{
@@ -64,6 +66,14 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 					Message: "unexpected nil qualifier in FetchBlobRequest",
 				},
 			}, nil
+		}
+
+		const QualifierHTTPHeaderPrefix = "http_header:"
+		if strings.HasPrefix(q.Name, QualifierHTTPHeaderPrefix) {
+			key := q.Name[len(QualifierHTTPHeaderPrefix):]
+
+			headers[key] = strings.Split(q.Value, ",")
+			continue
 		}
 
 		if q.Name == "checksum.sri" && strings.HasPrefix(q.Value, "sha256-") {
@@ -114,7 +124,7 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 	// See if we can download one of the URIs.
 
 	for _, uri := range req.GetUris() {
-		ok, actualHash, size := s.fetchItem(ctx, uri, sha256Str)
+		ok, actualHash, size := s.fetchItem(ctx, uri, headers, sha256Str)
 		if ok {
 			return &asset.FetchBlobResponse{
 				Status: &status.Status{Code: int32(codes.OK)},
@@ -134,7 +144,7 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 	}, nil
 }
 
-func (s *grpcServer) fetchItem(ctx context.Context, uri string, expectedHash string) (bool, string, int64) {
+func (s *grpcServer) fetchItem(ctx context.Context, uri string, headers http.Header, expectedHash string) (bool, string, int64) {
 	u, err := url.Parse(uri)
 	if err != nil {
 		s.errorLogger.Printf("unable to parse URI: %s err: %v", uri, err)
@@ -146,7 +156,15 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, expectedHash str
 		return false, "", int64(-1)
 	}
 
-	resp, err := http.Get(uri)
+	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	if err != nil {
+		s.errorLogger.Printf("failed to new Request: %s err: %v", uri, err)
+		return false, "", int64(-1)
+	}
+
+	req.Header = headers
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		s.errorLogger.Printf("failed to get URI: %s err: %v", uri, err)
 		return false, "", int64(-1)
