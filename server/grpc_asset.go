@@ -158,7 +158,7 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, headers http.Hea
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
-		s.errorLogger.Printf("failed to new Request: %s err: %v", uri, err)
+		s.errorLogger.Printf("failed to create http.Request: %s err: %v", uri, err)
 		return false, "", int64(-1)
 	}
 
