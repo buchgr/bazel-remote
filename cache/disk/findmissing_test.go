@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	testutils "github.com/buchgr/bazel-remote/v2/utils"
 	"google.golang.org/protobuf/proto"
 
@@ -90,14 +91,14 @@ type testCWProxy struct {
 	blob string
 }
 
-func (p *testCWProxy) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
+func (p *testCWProxy) Put(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
 }
 
-func (p *testCWProxy) Get(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (io.ReadCloser, int64, error) {
+func (p *testCWProxy) Get(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, _ int64) (io.ReadCloser, int64, error) {
 	return nil, -1, nil
 }
 
-func (p *testCWProxy) Contains(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (bool, int64) {
+func (p *testCWProxy) Contains(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, _ int64) (bool, int64) {
 	if kind == cache.CAS && hash == p.blob {
 		return true, 42
 	}
@@ -169,19 +170,19 @@ func NewProxyAdapter(cache Cache) (*proxyAdapter, error) {
 	}, nil
 }
 
-func (p *proxyAdapter) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
-	err := p.cache.Put(ctx, kind, hash, logicalSize, rc)
+func (p *proxyAdapter) Put(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
+	err := p.cache.Put(ctx, kind, hasher, hash, logicalSize, rc)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func (p *proxyAdapter) Get(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (rc io.ReadCloser, size int64, err error) {
-	return p.cache.Get(ctx, kind, hash, size, 0)
+func (p *proxyAdapter) Get(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, _ int64) (rc io.ReadCloser, size int64, err error) {
+	return p.cache.Get(ctx, kind, hasher, hash, size, 0)
 }
 
-func (p *proxyAdapter) Contains(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (bool, int64) {
-	return p.cache.Contains(ctx, kind, hash, -1)
+func (p *proxyAdapter) Contains(ctx context.Context, kind cache.EntryKind, hasher hashing.Hasher, hash string, _ int64) (bool, int64) {
+	return p.cache.Contains(ctx, kind, hasher, hash, -1)
 }
 
 func TestFindMissingCasBlobsWithProxy(t *testing.T) {
@@ -214,10 +215,10 @@ func TestFindMissingCasBlobsWithProxy(t *testing.T) {
 	data3, digest3 := testutils.RandomDataAndDigest(300)
 	_, digest4 := testutils.RandomDataAndDigest(400)
 
-	proxy.Put(ctx, cache.CAS, digest1.Hash, digest1.SizeBytes, digest1.SizeBytes, io.NopCloser(bytes.NewReader(data1)))
-	proxy.Put(ctx, cache.CAS, digest3.Hash, digest3.SizeBytes, digest3.SizeBytes, io.NopCloser(bytes.NewReader(data3)))
+	proxy.Put(ctx, cache.CAS, hashing.DefaultHasher, digest1.Hash, digest1.SizeBytes, digest1.SizeBytes, io.NopCloser(bytes.NewReader(data1)))
+	proxy.Put(ctx, cache.CAS, hashing.DefaultHasher, digest3.Hash, digest3.SizeBytes, digest3.SizeBytes, io.NopCloser(bytes.NewReader(data3)))
 
-	missing, err := testCache.FindMissingCasBlobs(ctx, []*pb.Digest{
+	missing, err := testCache.FindMissingCasBlobs(ctx, hashing.DefaultHasher, []*pb.Digest{
 		&digest1,
 		&digest2,
 		&digest3,
@@ -280,8 +281,8 @@ func TestFindMissingCasBlobsWithProxyFailFast(t *testing.T) {
 	data3, digest3 := testutils.RandomDataAndDigest(300)
 	_, digest4 := testutils.RandomDataAndDigest(400)
 
-	proxy.Put(ctx, cache.CAS, digest1.Hash, digest1.SizeBytes, digest1.SizeBytes, io.NopCloser(bytes.NewReader(data1)))
-	proxy.Put(ctx, cache.CAS, digest3.Hash, digest3.SizeBytes, digest3.SizeBytes, io.NopCloser(bytes.NewReader(data3)))
+	proxy.Put(ctx, cache.CAS, hashing.DefaultHasher, digest1.Hash, digest1.SizeBytes, digest1.SizeBytes, io.NopCloser(bytes.NewReader(data1)))
+	proxy.Put(ctx, cache.CAS, hashing.DefaultHasher, digest3.Hash, digest3.SizeBytes, digest3.SizeBytes, io.NopCloser(bytes.NewReader(data3)))
 
 	blobs := []*pb.Digest{
 		&digest1,
@@ -289,7 +290,7 @@ func TestFindMissingCasBlobsWithProxyFailFast(t *testing.T) {
 		&digest3,
 		&digest4,
 	}
-	err = actualDiskCache.findMissingCasBlobsInternal(ctx, blobs, true)
+	err = actualDiskCache.findMissingCasBlobsInternal(ctx, hashing.DefaultHasher, blobs, true)
 
 	if !errors.Is(err, errMissingBlob) {
 		t.Fatalf("Expected err to be errMissingBlob, got: %s", err)
@@ -339,10 +340,10 @@ func TestFindMissingCasBlobsWithProxyFailFastNoneMissing(t *testing.T) {
 	data3, digest3 := testutils.RandomDataAndDigest(300)
 	data4, digest4 := testutils.RandomDataAndDigest(400)
 
-	proxy.Put(ctx, cache.CAS, digest1.Hash, digest1.SizeBytes, digest1.SizeBytes, io.NopCloser(bytes.NewReader(data1)))
-	proxy.Put(ctx, cache.CAS, digest2.Hash, digest2.SizeBytes, digest2.SizeBytes, io.NopCloser(bytes.NewReader(data2)))
-	proxy.Put(ctx, cache.CAS, digest3.Hash, digest3.SizeBytes, digest3.SizeBytes, io.NopCloser(bytes.NewReader(data3)))
-	proxy.Put(ctx, cache.CAS, digest4.Hash, digest4.SizeBytes, digest4.SizeBytes, io.NopCloser(bytes.NewReader(data4)))
+	proxy.Put(ctx, cache.CAS, hashing.DefaultHasher, digest1.Hash, digest1.SizeBytes, digest1.SizeBytes, io.NopCloser(bytes.NewReader(data1)))
+	proxy.Put(ctx, cache.CAS, hashing.DefaultHasher, digest2.Hash, digest2.SizeBytes, digest2.SizeBytes, io.NopCloser(bytes.NewReader(data2)))
+	proxy.Put(ctx, cache.CAS, hashing.DefaultHasher, digest3.Hash, digest3.SizeBytes, digest3.SizeBytes, io.NopCloser(bytes.NewReader(data3)))
+	proxy.Put(ctx, cache.CAS, hashing.DefaultHasher, digest4.Hash, digest4.SizeBytes, digest4.SizeBytes, io.NopCloser(bytes.NewReader(data4)))
 
 	blobs := []*pb.Digest{
 		&digest1,
@@ -351,7 +352,7 @@ func TestFindMissingCasBlobsWithProxyFailFastNoneMissing(t *testing.T) {
 		&digest4,
 	}
 
-	err = actualDiskCache.findMissingCasBlobsInternal(ctx, blobs, true)
+	err = actualDiskCache.findMissingCasBlobsInternal(ctx, hashing.DefaultHasher, blobs, true)
 
 	if err != nil {
 		t.Fatal(err)
@@ -413,16 +414,16 @@ func TestFindMissingCasBlobsWithProxyFailFastMaxProxyBlobSize(t *testing.T) {
 	data3, digest3 := testutils.RandomDataAndDigest(300) // We expect this blob to not be found.
 
 	// Put blobs directly into proxy backend, where it will not be filtered out.
-	proxy.Put(ctx, cache.CAS, digest1.Hash, digest1.SizeBytes, digest1.SizeBytes, io.NopCloser(bytes.NewReader(data1)))
-	proxy.Put(ctx, cache.CAS, digest2.Hash, digest2.SizeBytes, digest2.SizeBytes, io.NopCloser(bytes.NewReader(data2)))
-	proxy.Put(ctx, cache.CAS, digest3.Hash, digest3.SizeBytes, digest3.SizeBytes, io.NopCloser(bytes.NewReader(data3)))
+	proxy.Put(ctx, cache.CAS, hashing.DefaultHasher, digest1.Hash, digest1.SizeBytes, digest1.SizeBytes, io.NopCloser(bytes.NewReader(data1)))
+	proxy.Put(ctx, cache.CAS, hashing.DefaultHasher, digest2.Hash, digest2.SizeBytes, digest2.SizeBytes, io.NopCloser(bytes.NewReader(data2)))
+	proxy.Put(ctx, cache.CAS, hashing.DefaultHasher, digest3.Hash, digest3.SizeBytes, digest3.SizeBytes, io.NopCloser(bytes.NewReader(data3)))
 
 	blobs := []*pb.Digest{
 		&digest1,
 		&digest2,
 		&digest3,
 	}
-	err = actualDiskCache.findMissingCasBlobsInternal(ctx, blobs, true)
+	err = actualDiskCache.findMissingCasBlobsInternal(ctx, hashing.DefaultHasher, blobs, true)
 
 	if !errors.Is(err, errMissingBlob) {
 		t.Fatalf("Expected err to be errMissingBlob, got: %s", err)
@@ -469,10 +470,10 @@ func TestFindMissingCasBlobsWithProxyMaxProxyBlobSize(t *testing.T) {
 	data1, digest1 := testutils.RandomDataAndDigest(100)
 	data2, digest2 := testutils.RandomDataAndDigest(600)
 
-	proxy.Put(ctx, cache.CAS, digest1.Hash, digest1.SizeBytes, digest1.SizeBytes, io.NopCloser(bytes.NewReader(data1)))
-	proxy.Put(ctx, cache.CAS, digest2.Hash, digest2.SizeBytes, digest2.SizeBytes, io.NopCloser(bytes.NewReader(data2)))
+	proxy.Put(ctx, cache.CAS, hashing.DefaultHasher, digest1.Hash, digest1.SizeBytes, digest1.SizeBytes, io.NopCloser(bytes.NewReader(data1)))
+	proxy.Put(ctx, cache.CAS, hashing.DefaultHasher, digest2.Hash, digest2.SizeBytes, digest2.SizeBytes, io.NopCloser(bytes.NewReader(data2)))
 
-	missing, err := testCache.FindMissingCasBlobs(ctx, []*pb.Digest{
+	missing, err := testCache.FindMissingCasBlobs(ctx, hashing.DefaultHasher, []*pb.Digest{
 		&digest1,
 		&digest2,
 	})

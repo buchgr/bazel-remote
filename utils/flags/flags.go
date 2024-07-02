@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/buchgr/bazel-remote/v2/cache/azblobproxy"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	"github.com/buchgr/bazel-remote/v2/cache/s3proxy"
 
 	"github.com/urfave/cli/v2"
@@ -448,6 +449,12 @@ func GetCliFlags() []cli.Flag {
 			Value:       "UTC",
 			DefaultText: "UTC, ie use UTC timezone",
 			EnvVars:     []string{"BAZEL_REMOTE_LOG_TIMEZONE"},
+		},
+		&cli.StringFlag{
+			Name:    "digest_functions",
+			Usage:   fmt.Sprintf("A comma-separated list of digest functions that should be supported. Possible values are %v", hashing.DigestFunctions()),
+			Value:   "sha256",
+			EnvVars: []string{"BAZEL_REMOTE_DIGEST_FUNCTIONS"},
 		},
 	}
 }

@@ -17,7 +17,9 @@ import (
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/azblobproxy"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 	"github.com/buchgr/bazel-remote/v2/cache/s3proxy"
+	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 
 	"github.com/urfave/cli/v2"
 	yaml "gopkg.in/yaml.v3"
@@ -114,6 +116,7 @@ type Config struct {
 	LogTimezone                 string                    `yaml:"log_timezone"`
 	MaxBlobSize                 int64                     `yaml:"max_blob_size"`
 	MaxProxyBlobSize            int64                     `yaml:"max_proxy_blob_size"`
+	DigestFunctions             []pb.DigestFunction_Value
 
 	// Fields that are created by combinations of the flags above.
 	ProxyBackend cache.Proxy
@@ -124,6 +127,9 @@ type Config struct {
 
 type YamlConfig struct {
 	Config `yaml:",inline"`
+
+	// Complext types that are converted later
+	DigestFunctionNames []string `yaml:"digest_functions"`
 
 	// Deprecated fields, retained for backwards compatibility when
 	// parsing config files.
@@ -169,7 +175,8 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	accessLogLevel string,
 	logTimezone string,
 	maxBlobSize int64,
-	maxProxyBlobSize int64) (*Config, error) {
+	maxProxyBlobSize int64,
+	digestFunctions []pb.DigestFunction_Value) (*Config, error) {
 
 	c := Config{
 		HTTPAddress:                 httpAddress,
@@ -205,6 +212,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		LogTimezone:                 logTimezone,
 		MaxBlobSize:                 maxBlobSize,
 		MaxProxyBlobSize:            maxProxyBlobSize,
+		DigestFunctions:             digestFunctions,
 	}
 
 	err := validateConfig(&c)
@@ -234,6 +242,7 @@ func newFromYamlFile(path string) (*Config, error) {
 
 func newFromYaml(data []byte) (*Config, error) {
 	yc := YamlConfig{
+		DigestFunctionNames: []string{"sha256"},
 		Config: Config{
 			StorageMode:            "zstd",
 			ZstdImplementation:     "go",
@@ -269,6 +278,16 @@ func newFromYaml(data []byte) (*Config, error) {
 	if c.MetricsDurationBuckets != nil {
 		sort.Float64s(c.MetricsDurationBuckets)
 	}
+
+	dfs := make([]pb.DigestFunction_Value, 0)
+	for _, dfn := range yc.DigestFunctionNames {
+		df := hashing.DigestFunction(dfn)
+		if df == pb.DigestFunction_UNKNOWN {
+			return nil, fmt.Errorf("unknown digest function %s", dfn)
+		}
+		dfs = append(dfs, hashing.DigestFunction(dfn))
+	}
+	c.DigestFunctions = dfs
 
 	err = validateConfig(&c)
 	if err != nil {
@@ -462,6 +481,15 @@ func validateConfig(c *Config) error {
 		return errors.New("'log_timezone' must be set to either \"UTC\", \"local\" or \"none\"")
 	}
 
+	if c.DigestFunctions == nil {
+		return errors.New("at least on digest function must be supported")
+	}
+	for _, df := range c.DigestFunctions {
+		if !hashing.Supported(df) {
+			return fmt.Errorf("unsupported hashing function %s", df)
+		}
+	}
+
 	return nil
 }
 
@@ -590,6 +618,17 @@ func get(ctx *cli.Context) (*Config, error) {
 		}
 	}
 
+	dfs := make([]pb.DigestFunction_Value, 0)
+	if ctx.String("digest_functions") != "" {
+		for _, dfn := range strings.Split(ctx.String("digest_functions"), ",") {
+			df := hashing.DigestFunction(dfn)
+			if df == pb.DigestFunction_UNKNOWN {
+				return nil, fmt.Errorf("unknown digest function %s", dfn)
+			}
+			dfs = append(dfs, df)
+		}
+	}
+
 	return newFromArgs(
 		ctx.String("dir"),
 		ctx.Int("max_size"),
@@ -623,5 +662,6 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.String("log_timezone"),
 		ctx.Int64("max_blob_size"),
 		ctx.Int64("max_proxy_blob_size"),
+		dfs,
 	)
 }

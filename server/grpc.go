@@ -22,25 +22,21 @@ import (
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk"
-	"github.com/buchgr/bazel-remote/v2/utils/validate"
+	"github.com/buchgr/bazel-remote/v2/cache/hashing"
 
 	_ "github.com/mostynb/go-grpc-compression/snappy" // Register snappy
 	_ "github.com/mostynb/go-grpc-compression/zstd"   // and zstd support.
 )
 
-const (
-	hashKeyLength = 64
-	emptySha256   = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-)
-
 const grpcHealthServiceName = "/grpc.health.v1.Health/Check"
 
 type grpcServer struct {
-	cache        disk.Cache
-	accessLogger cache.Logger
-	errorLogger  cache.Logger
-	depsCheck    bool
-	mangleACKeys bool
+	cache           disk.Cache
+	accessLogger    cache.Logger
+	errorLogger     cache.Logger
+	depsCheck       bool
+	mangleACKeys    bool
+	digestFunctions map[pb.DigestFunction_Value]bool
 }
 
 var readOnlyMethods = map[string]struct{}{
@@ -61,26 +57,33 @@ func ListenAndServeGRPC(
 	validateACDeps bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
-	c disk.Cache, a cache.Logger, e cache.Logger) error {
+	c disk.Cache, a cache.Logger, e cache.Logger,
+	digestFunctions []pb.DigestFunction_Value) error {
 
 	listener, err := net.Listen(network, addr)
 	if err != nil {
 		return err
 	}
 
-	return ServeGRPC(listener, srv, validateACDeps, mangleACKeys, enableRemoteAssetAPI, c, a, e)
+	return ServeGRPC(listener, srv, validateACDeps, mangleACKeys, enableRemoteAssetAPI, c, a, e, digestFunctions)
 }
 
 func ServeGRPC(l net.Listener, srv *grpc.Server,
 	validateACDepsCheck bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
-	c disk.Cache, a cache.Logger, e cache.Logger) error {
+	c disk.Cache, a cache.Logger, e cache.Logger,
+	digestFunctions []pb.DigestFunction_Value) error {
 
+	dfs := make(map[pb.DigestFunction_Value]bool)
+	for _, df := range digestFunctions {
+		dfs[df] = true
+	}
 	s := &grpcServer{
 		cache: c, accessLogger: a, errorLogger: e,
-		depsCheck:    validateACDepsCheck,
-		mangleACKeys: mangleACKeys,
+		depsCheck:       validateACDepsCheck,
+		mangleACKeys:    mangleACKeys,
+		digestFunctions: dfs,
 	}
 	pb.RegisterActionCacheServer(srv, s)
 	pb.RegisterCapabilitiesServer(srv, s)
@@ -106,7 +109,7 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 
 	resp := pb.ServerCapabilities{
 		CacheCapabilities: &pb.CacheCapabilities{
-			DigestFunctions: []pb.DigestFunction_Value{pb.DigestFunction_SHA256},
+			DigestFunctions: hashing.DigestFunctions(),
 			ActionCacheUpdateCapabilities: &pb.ActionCacheUpdateCapabilities{
 				UpdateEnabled: true,
 			},
@@ -132,31 +135,32 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 	return &resp, nil
 }
 
-// Return an error if `hash` is not a valid cache key.
-func (s *grpcServer) validateHash(hash string, size int64, logPrefix string) error {
-	if size == int64(0) {
-		if hash == emptySha256 {
-			return nil
+func (s *grpcServer) getHasher(df pb.DigestFunction_Value) (hashing.Hasher, error) {
+	var err error
+	var hasher hashing.Hasher
+
+	switch df {
+	case pb.DigestFunction_UNKNOWN:
+		hasher, err = hashing.Get(hashing.LegacyFn)
+	default:
+		if _, ok := s.digestFunctions[df]; !ok {
+			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("unsupported digest function %s", df))
 		}
-
-		msg := "Invalid zero-length SHA256 hash"
-		s.accessLogger.Printf("%s %s: %s", logPrefix, hash, msg)
-		return status.Error(codes.InvalidArgument, msg)
+		hasher, err = hashing.Get(df)
 	}
-
-	if len(hash) != hashKeyLength {
-		msg := fmt.Sprintf("Hash length must be length %d", hashKeyLength)
-		s.accessLogger.Printf("%s %s: %s", logPrefix, hash, msg)
-		return status.Error(codes.InvalidArgument, msg)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	return hasher, nil
+}
 
-	if !validate.HashKeyRegex.MatchString(hash) {
-		msg := "Malformed hash"
-		s.accessLogger.Printf("%s %s: %s", logPrefix, hash, msg)
-		return status.Error(codes.InvalidArgument, msg)
+// Return an error if `hash` is not a valid cache key.
+func (s *grpcServer) validateHash(hasher hashing.Hasher, hash string, size int64, logPrefix string) error {
+	err := hasher.ValidateDigest(hash, size)
+	if err != nil {
+		err = status.Error(codes.InvalidArgument, err.Error())
 	}
-
-	return nil
+	return err
 }
 
 // Return a grpc.StreamServerInterceptor that checks for mTLS/client cert
