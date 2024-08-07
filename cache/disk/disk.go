@@ -476,7 +476,7 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 				}
 
 				if err != nil {
-					log.Printf("Warning: expected item to be on disk, but something happened: %v", err)
+					log.Printf("Warning: expected item to be on disk, but something happened when retrieving %s (compressed: %v, legacy: %v): %v", blobPath, item.legacy, zstd, err)
 					f.Close()
 				} else {
 					return rc, item.size, false, nil
