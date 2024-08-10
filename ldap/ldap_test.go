@@ -19,7 +19,7 @@ import (
 )
 
 func loadYamlConfig(data []byte) *config.Config {
-	cfg, err := config.NewConfigFromYaml(data)
+	cfg, err := config.NewFromYaml(data)
 	if err != nil {
 		log.Fatal(err)
 	}

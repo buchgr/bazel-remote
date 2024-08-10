@@ -31,7 +31,7 @@ access_log_level: none
 log_timezone: local
 `
 
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ gcs_proxy:
   use_default_credentials: false
   json_credentials_file: /opt/creds.json
 `
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ http_proxy:
   url: https://remote-cache.com:8080/cache
   mode: zstd
 `
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ s3_proxy:
   access_key_id: EXAMPLE_ACCESS_KEY
   secret_access_key: EXAMPLE_SECRET_KEY
 `
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +247,7 @@ ldap:
    - CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com
    - CN=other-users,OU=Groups2,OU=Alien Users,DC=foo,DC=org
 `
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +289,7 @@ dir: /opt/cache-dir
 max_size: 42
 profile_address: :7070
 `
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +320,7 @@ profile_address: :7070
 
 	expectedConfig.ProfileAddress = "192.168.1.1:7070"
 
-	config, err = newFromYaml([]byte(yaml))
+	config, err = NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +338,7 @@ max_size: 42
 storage_mode: zstd
 endpoint_metrics_duration_buckets: [.005, .1, 5]
 `
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -426,7 +426,7 @@ storage_mode: gzip
 		}}
 
 	for _, tc := range tests {
-		cfg, err := newFromYaml([]byte(tc.yaml))
+		cfg, err := NewFromYaml([]byte(tc.yaml))
 		if !tc.invalid && err != nil {
 			t.Error("Expected to succeed, got", err)
 		}
@@ -469,7 +469,7 @@ dir: /opt/cache-dir
 max_size: 42
 storage_mode: zstd
 `
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -503,7 +503,7 @@ dir: /opt/cache-dir
 max_size: 42
 storage_mode: zstd
 `
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}

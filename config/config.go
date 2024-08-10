@@ -242,10 +242,10 @@ func newFromYamlFile(path string) (*Config, error) {
 		return nil, fmt.Errorf("Failed to read config file '%s': %v", path, err)
 	}
 
-	return newFromYaml(data)
+	return NewFromYaml(data)
 }
 
-func newFromYaml(data []byte) (*Config, error) {
+func NewFromYaml(data []byte) (*Config, error) {
 	yc := YamlConfig{
 		Config: Config{
 			StorageMode:            "zstd",
@@ -289,10 +289,6 @@ func newFromYaml(data []byte) (*Config, error) {
 	}
 
 	return &c, nil
-}
-
-func NewConfigFromYaml(data []byte) (*Config, error) {
-	return newFromYaml(data)
 }
 
 func validateConfig(c *Config) error {
