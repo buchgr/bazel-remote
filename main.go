@@ -264,8 +264,6 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 			}
 			cacheHandler = ldapAuthWrapper(cacheHandler, ldapAuthenticator)
 		}
-	} else {
-		log.Println("Neither HTTP_PASSWD nor LDAP used")
 	}
 
 	if c.IdleTimeout > 0 {
