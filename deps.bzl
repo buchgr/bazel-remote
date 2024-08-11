@@ -331,14 +331,8 @@ def go_dependencies():
     go_repository(
         name = "com_github_golang_jwt_jwt",
         importpath = "github.com/golang-jwt/jwt",
-        sum = "h1:IfV12K8xAKAnZqdXVzCZ+TOjboZ2keLg81eXfW3O+oY=",
-        version = "v3.2.2+incompatible",
-    )
-    go_repository(
-        name = "com_github_golang_jwt_jwt_v4",
-        importpath = "github.com/golang-jwt/jwt/v4",
-        sum = "h1:7cYmW1XlMY7h7ii7UhUyChSgS5wUJEnm9uZVTGqOWzg=",
-        version = "v4.5.0",
+        sum = "h1:73Z+4BJcrTC+KczS6WvTPvRGOp1WmfEP4Q1lOd9Z/+c=",
+        version = "v3.2.1+incompatible",
     )
 
     go_repository(
@@ -1693,12 +1687,6 @@ def go_dependencies():
         importpath = "gopkg.in/ini.v1",
         sum = "h1:Dgnx+6+nfE+IfzjUEISNeydPJh9AXNNsWbGP9KzCsOA=",
         version = "v1.67.0",
-    )
-    go_repository(
-        name = "in_gopkg_ldap_v3",
-        importpath = "gopkg.in/ldap.v3",
-        sum = "h1:YKRHW/2sIl05JsCtx/5ZuUueFuJyoj/6+DGXe3wp6ro=",
-        version = "v3.0.3",
     )
 
     go_repository(
