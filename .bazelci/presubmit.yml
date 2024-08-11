@@ -83,6 +83,13 @@ tasks:
       - ".bazelci/buildkite-install-go.sh"
       - "echo +++ Run basic auth tests"
       - "PATH=$HOME/go/bin:$PATH timeout 30m .bazelci/basic-auth-tests.sh"
+  ldap_tests:
+    platform: ubuntu2004
+    name: "LDAP tests"
+    shell_commands:
+      - ".bazelci/buildkite-install-go.sh"
+      - "echo +++ Run LDAP tests"
+      - "PATH=$HOME/go/bin:$PATH timeout 30m .bazelci/ldap-tests.sh"
   migration_tests:
     platform: ubuntu2004
     name: "migration tests"
