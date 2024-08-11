@@ -493,12 +493,6 @@ def go_dependencies():
         sum = "h1:Qbeh12Vq6BxURXT1qZBRHsDxeURB8ztcL6f3EXSGeHk=",
         version = "v1.1.3",
     )
-    go_repository(
-        name = "com_github_jonasscharpf_godap",
-        importpath = "github.com/JonasScharpf/godap",
-        sum = "h1:7L5zT1awL4RZeLtT4vp+BlRoTrFBbRtMFOZMQCqub7I=",
-        version = "v0.0.0-20240417153024-2d460c2776c0",
-    )
 
     go_repository(
         name = "com_github_josharian_intern",

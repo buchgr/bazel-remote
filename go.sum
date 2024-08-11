@@ -16,7 +16,6 @@ github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 h1:mFRzDkZVAjdal+
 github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358/go.mod h1:chxPXzSsl7ZWRAuOIE23GDNzjWuZquvFlgA8xmpunjU=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 h1:XHOnouVk1mxXfQidrMEnLlPk9UMeRtyBTnEFtxkV0kU=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2/go.mod h1:wP83P5OoQ5p6ip3ScPr0BAq0BvuPAvacpEuSzyouqAI=
-github.com/JonasScharpf/godap v0.0.0-20240417153024-2d460c2776c0/go.mod h1:K5gGJQ/vwxHEUWBYv7ciUOgw94MYrGCoy5JX/hjSJkY=
 github.com/abbot/go-http-auth v0.4.1-0.20220112235402-e1cee1c72f2f h1:R2ZVGCZzU95oXFJxncosHS9LsX8N4/MYUdGGWOb2cFk=
 github.com/abbot/go-http-auth v0.4.1-0.20220112235402-e1cee1c72f2f/go.mod h1:l2P3JyHa+fjy5Bxol6y1u2o4DV/mv3QMBdBu2cNR53w=
 github.com/alexbrainman/sspi v0.0.0-20231016080023-1a75b4708caa/go.mod h1:cEWa1LVoE5KvSD9ONXsZrj0z6KqySlCCNKHlLzbqAt4=

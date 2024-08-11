@@ -31,7 +31,6 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.5.2
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v0.4.1
-	github.com/JonasScharpf/godap v0.0.0-20240417153024-2d460c2776c0
 	github.com/go-ldap/ldap/v3 v3.4.8
 	github.com/johannesboyne/gofakes3 v0.0.0-20230506070712-04da935ef877
 	github.com/valyala/gozstd v1.20.1
