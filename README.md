@@ -716,8 +716,10 @@ $ bazel build :bazel-remote
 ### Authentication
 
 bazel-remote defaults to allow unauthenticated access, but basic `.htpasswd`
-style authentication, mutual TLS authentication and LDAP are also supported.
-Please note that only one authentication mechanism can be used at a time.
+style authentication, mutual TLS authentication and (experimental) LDAP are
+also supported.
+
+Note that only one authentication mechanism can be used at a time.
 
 #### htpasswd
 
@@ -760,8 +762,12 @@ $ docker run -v /path/to/cache/dir:/data \
 
 #### LDAP
 
-LDAP is an additional authentication method for the cache. It can be used via
-command line args, the config file or env variables.
+There is also an experimental LDAP authentication method. A configuration
+file is advised to avoid leaking the ldap.bind_password value to local
+users, but command line arguments are also supported.
+
+Note that the configuration options for this feature might change while
+the feature is still considered "experimental".
 
 ```bash
 $ docker run -v /path/to/cache/dir:/data \
