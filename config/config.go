@@ -44,7 +44,7 @@ type LDAPConfig struct {
 	BindUser          string        `yaml:"bind_user"`
 	BindPassword      string        `yaml:"bind_password"`
 	UsernameAttribute string        `yaml:"username_attribute"`
-	Groups            []string      `yaml:"groups,flow"`
+	GroupsQuery       string        `yaml:"groups_query"`
 	CacheTime         time.Duration `yaml:"cache_time"`
 }
 
@@ -630,7 +630,7 @@ func get(ctx *cli.Context) (*Config, error) {
 			BindUser:          ctx.String("ldap.bind_user"),
 			BindPassword:      ctx.String("ldap.bind_password"),
 			UsernameAttribute: ctx.String("ldap.username_attribute"),
-			Groups:            ctx.StringSlice("ldap.groups"),
+			GroupsQuery:       ctx.String("ldap.groups_query"),
 			CacheTime:         ctx.Duration("ldap.cache_time"),
 		}
 	}

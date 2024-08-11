@@ -285,13 +285,10 @@ func GetCliFlags() []cli.Flag {
 			Usage:   "The user attribute of a connecting user.",
 			EnvVars: []string{"BAZEL_REMOTE_LDAP_USER_ATTRIBUTE"},
 		},
-		// https://cli.urfave.org/v2/examples/flags/#multiple-values-per-single-flag
-		&cli.StringSliceFlag{
-			Name: "ldap.groups",
-			// setting a "Value" will no longer respect the "SliceFlagSeparator"
-			// https://github.com/urfave/cli/issues/1878
-			Usage:   "Filter clause for searching groups. This option can be given multiple times and the groups are OR connected in the search query.",
-			EnvVars: []string{"BAZEL_REMOTE_LDAP_GROUPS"},
+		&cli.StringFlag{
+			Name:    "ldap.groups_query",
+			Usage:   "Filter clause for searching groups.",
+			EnvVars: []string{"BAZEL_REMOTE_LDAP_GROUPS_QUERY"},
 		},
 		&cli.IntFlag{
 			Name:    "ldap.cache_time",

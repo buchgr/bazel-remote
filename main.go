@@ -49,8 +49,6 @@ func main() {
 	cli.HelpPrinterCustom = flags.HelpPrinter
 	// Force the use of cli.HelpPrinterCustom.
 	app.ExtraInfo = func() map[string]string { return map[string]string{} }
-	// ldap groups could contain "," and would be split
-	app.SliceFlagSeparator = ";"
 
 	app.Flags = flags.GetCliFlags()
 	app.Action = run

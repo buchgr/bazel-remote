@@ -89,17 +89,7 @@ func (c *Cache) query(user, password string) bool {
 		log.Fatal("LDAP connection with username and password failed:", err)
 	}
 
-	var groupsQuery strings.Builder
-	if len(c.config.Groups) != 0 {
-		groupsQuery.WriteString("(|")
-		for _, group := range c.config.Groups {
-			// memberOf only works with groupOfNames, not with POSIX
-			fmt.Fprintf(&groupsQuery, "(memberOf=%s)", group)
-		}
-		groupsQuery.WriteString(")")
-	}
-
-	query := fmt.Sprintf("(&(%s=%s)%s)", c.config.UsernameAttribute, user, groupsQuery.String())
+	query := fmt.Sprintf("(&(%s=%s)%s)", c.config.UsernameAttribute, user, c.config.GroupsQuery)
 
 	searchRequest := ldap.NewSearchRequest(
 		c.config.BaseDN,

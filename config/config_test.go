@@ -243,9 +243,7 @@ ldap:
   bind_user: ldapuser
   bind_password: ldappassword
   cache_time: 3600s
-  groups:
-   - CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com
-   - CN=other-users,OU=Groups2,OU=Alien Users,DC=foo,DC=org
+  groups_query: (|(memberOf=CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com)(memberOf=CN=other-users,OU=Groups2,OU=Alien Users,DC=foo,DC=org))
 `
 	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
@@ -264,7 +262,7 @@ ldap:
 			BindUser:          "ldapuser",
 			BindPassword:      "ldappassword",
 			UsernameAttribute: "sAMAccountName",
-			Groups:            []string{"CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com", "CN=other-users,OU=Groups2,OU=Alien Users,DC=foo,DC=org"},
+			GroupsQuery:       "(|(memberOf=CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com)(memberOf=CN=other-users,OU=Groups2,OU=Alien Users,DC=foo,DC=org))",
 			CacheTime:         3600 * time.Second,
 		},
 		NumUploaders:           100,

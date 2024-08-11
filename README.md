@@ -506,10 +506,7 @@ http_address: 0.0.0.0:8080
 #  bind_user: ldapuser
 #  bind_password: ldappassword
 #  cache_time: 3600                        # in seconds (default 1 hour)
-#  groups:
-#   - CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com
-
-
+#  groups_query: (memberOf=CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com)
 
 # If tls_ca_file or htpasswd_file are specified, you can choose
 # whether or not to allow unauthenticated read access:
@@ -771,8 +768,7 @@ $ docker run -v /path/to/cache/dir:/data \
    -p 9090:8080 -p 9092:9092 buchgr/bazel-remote-cache \
    --ldap.url="ldaps://ldap.example.com:636" \
    --ldap.base_dn="OU=My Users,DC=example,DC=com" \
-   --ldap.groups="CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com" \
-   --ldap.groups="CN=bazel-testers,OU=Groups,OU=My Users,DC=example,DC=com" \
+   --ldap.groups_query="(|(memberOf=CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com)(memberOf=CN=other-users,OU=Groups2,OU=Alien Users,DC=foo,DC=org))" \
    --ldap.cache_time=100 \
    --ldap.bind_user="cn=readonly.username,ou=readonly,OU=Other Users,DC=example,DC=com" \
    --ldap.bind_password="secret4Sure" \
