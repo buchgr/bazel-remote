@@ -245,7 +245,7 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 		c.EnableACKeyInstanceMangling, checkClientCertForReads, checkClientCertForWrites, gitCommit)
 
 	cacheHandler := h.CacheHandler
-	var ldapAuthenticator auth.AuthenticatorInterface
+	var ldapAuthenticator authenticator
 	var basicAuthenticator auth.BasicAuth
 	if c.HtpasswdFile != "" {
 		if c.AllowUnauthenticatedReads {
@@ -452,13 +452,18 @@ func startGrpcServer(c *config.Config, grpcServer **grpc.Server,
 		diskCache, c.AccessLogger, c.ErrorLogger)
 }
 
+type authenticator interface {
+	NewContext(ctx context.Context, r *http.Request) context.Context
+	Wrap(auth.AuthenticatedHandlerFunc) http.HandlerFunc
+}
+
 // A http.HandlerFunc wrapper which requires successful basic
 // authentication for all requests.
 func basicAuthWrapper(handler http.HandlerFunc, authenticator *auth.BasicAuth) http.HandlerFunc {
 	return auth.JustCheck(authenticator, handler)
 }
 
-func ldapAuthWrapper(handler http.HandlerFunc, authenticator auth.AuthenticatorInterface) http.HandlerFunc {
+func ldapAuthWrapper(handler http.HandlerFunc, authenticator authenticator) http.HandlerFunc {
 	return auth.JustCheck(authenticator, handler)
 }
 
