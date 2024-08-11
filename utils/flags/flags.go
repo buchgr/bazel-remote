@@ -257,7 +257,7 @@ func GetCliFlags() []cli.Flag {
 		&cli.StringFlag{
 			Name:    "ldap.url",
 			Value:   "",
-			Usage:   "The LDAP URL which may include a port. LDAP over SSL (LDAPs) is supported.",
+			Usage:   "The LDAP URL which may include a port. LDAP over SSL (LDAPs) is also supported. Note that this feature is currently considered experimental.",
 			EnvVars: []string{"BAZEL_REMOTE_LDAP_URL"},
 		},
 		&cli.StringFlag{
