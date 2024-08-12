@@ -684,7 +684,7 @@ See [examples/docker-compose.yml](examples/docker-compose.yml) for an example co
   alb.ingress.kubernetes.io/target-type: ip
   ```
 
-### Build your own
+### Build your own docker image
 
 The command below will build a docker image from source and install it into your local docker registry.
 
@@ -693,11 +693,11 @@ $ bazel build :bazel-remote-image-tarball && docker load -i bazel-bin/bazel-remo
 $ docker run buchgr/bazel-remote-cache:tmp-amd64 --max_size 5 --dir /your/path/to/data
 ```
 
-### ARM Support
+### ARM64 docker image
 
-Bazel remote cache server can be run on an ARM architecture (i.e.: on a Raspberry Pi).
+Bazel-remote can also run on ARM64 architecture devices, for example on a Raspberry Pi.
 
-To build for ARM, use:
+To build a docker image for ARM64:
 
 ```bash
 $ bazel build :bazel-remote-image-arm64-tarball && docker load -i bazel-bin/bazel-remote-image-arm64-tarball/tarball.tar
