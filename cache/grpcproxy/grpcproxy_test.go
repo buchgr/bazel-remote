@@ -242,7 +242,7 @@ func newFixture(t *testing.T, proxy cache.Proxy, storageMode string) *fixture {
 	go func() {
 		err := server.ServeGRPC(listener, grpcServer, false, false, true, diskCache, logger, logger)
 		if err != nil {
-			logger.Printf(err.Error())
+			logger.Printf("%s", err.Error())
 		}
 	}()
 

@@ -27,7 +27,7 @@ func WithStorageMode(mode string) Option {
 			c.diskCache.storageMode = casblob.Identity
 			return nil
 		} else {
-			return fmt.Errorf("Unsupported storage mode: " + mode)
+			return fmt.Errorf("Unsupported storage mode: %s", mode)
 		}
 	}
 }
