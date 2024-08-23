@@ -15,8 +15,6 @@ import (
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
 
-	"github.com/klauspost/compress/zstd"
-
 	"github.com/buchgr/bazel-remote/v2/utils/zstdpool"
 	syncpool "github.com/mostynb/zstdpool-syncpool"
 )
@@ -367,7 +365,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 	resourceNameChan := make(chan string, 1)
 
 	cmp := casblob.Identity
-	var dec *zstd.Decoder
+	var dec *syncpool.DecoderWrapper
 	defer func() {
 		if dec != nil {
 			dec.Close()
@@ -438,7 +436,8 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 
 				var rc io.ReadCloser = pr
 				if cmp == casblob.Zstandard {
-					dec, ok := decoderPool.Get().(*syncpool.DecoderWrapper)
+					var ok bool
+					dec, ok = decoderPool.Get().(*syncpool.DecoderWrapper)
 					if !ok {
 						s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", errDecoderPoolFail)
 						recvResult <- errDecoderPoolFail
