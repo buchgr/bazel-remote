@@ -15,8 +15,6 @@ import (
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
 
-	"github.com/klauspost/compress/zstd"
-
 	"github.com/buchgr/bazel-remote/v2/utils/zstdpool"
 	syncpool "github.com/mostynb/zstdpool-syncpool"
 )
@@ -367,12 +365,6 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 	resourceNameChan := make(chan string, 1)
 
 	cmp := casblob.Identity
-	var dec *zstd.Decoder
-	defer func() {
-		if dec != nil {
-			dec.Close()
-		}
-	}()
 
 	go func() {
 		firstIteration := true
@@ -454,6 +446,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 				}
 
 				go func() {
+					defer rc.Close()
 					err := s.cache.Put(srv.Context(), cache.CAS, hash, size, rc)
 					putResult <- err
 				}()
