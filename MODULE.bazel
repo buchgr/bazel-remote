@@ -1,0 +1,84 @@
+# https://registry.bazel.build/
+bazel_dep(name = "googleapis", version = "0.0.0-20240326-1c8d509c5")
+bazel_dep(name = "rules_go", version = "0.50.0", repo_name = "io_bazel_rules_go")
+bazel_dep(name = "gazelle", version = "0.38.0", repo_name = "bazel_gazelle")
+bazel_dep(name = "rules_proto", version = "6.0.2")
+bazel_dep(name = "rules_pkg", version = "1.0.1")
+bazel_dep(name = "rules_oci", version = "1.8.0")
+bazel_dep(name = "aspect_bazel_lib", version = "2.8.1")
+
+oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+oci.pull(
+    name = "cgo_amd64_base",
+    image = "gcr.io/distroless/base-nossl-debian12",
+    # See https://github.com/buchgr/bazel-remote/issues/605 and https://github.com/GoogleContainerTools/distroless/issues/1098
+    # TODO: specify this by digest instead? Where can I find that?
+    reproducible = False,
+    tag = "nonroot-amd64",
+)
+use_repo(oci, "cgo_amd64_base")
+oci.pull(
+    name = "cgo_arm64_base",
+    image = "gcr.io/distroless/base-nossl-debian12",
+    reproducible = False,
+    tag = "nonroot-arm64",
+)
+use_repo(oci, "cgo_arm64_base")
+
+# Download an SDK for the host OS & architecture as well as common remote execution platforms.
+go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
+go_sdk.download(version = "1.23.0")
+
+go_deps = use_extension("@bazel_gazelle//:extensions.bzl", "go_deps")
+go_deps.from_file(go_mod = "//:go.mod")
+go_deps.module(
+    path = "github.com/aws/aws-sdk-go",
+    sum = "h1:O8VH+bJqgLDguqkH/xQBFz5o/YheeZqgcOYIgsTVWY4=",
+    version = "v1.44.256",
+)
+go_deps.module(
+    path = "github.com/jmespath/go-jmespath",
+    sum = "h1:BEgLn5cpjn8UN1mAw4NjwDrS35OdebyEtFe+9YPoQUg=",
+    version = "v0.4.0",
+)
+go_deps.module(
+    path = "github.com/jmespath/go-jmespath/internal/testify",
+    sum = "h1:shLQSRRSCCPj3f2gpwzGwWFoC7ycTf1rcQZHOlsJ6N8=",
+    version = "v1.5.1",
+)
+go_deps.module(
+    path = "github.com/johannesboyne/gofakes3",
+    sum = "h1:O7syWuYGzre3s73s+NkgB8e0ZvsIVhT/zxNU7V1gHK8=",
+    version = "v0.0.0-20230506070712-04da935ef877",
+)
+go_deps.module(
+    path = "github.com/ryszard/goskiplist",
+    sum = "h1:GHRpF1pTW19a8tTFrMLUcfWwyC0pnifVo2ClaLq+hP8=",
+    version = "v0.0.0-20150312221310-2dfbae5fcf46",
+)
+go_deps.module(
+    path = "github.com/shabbyrobe/gocovmerge",
+    sum = "h1:WnNuhiq+FOY3jNj6JXFT+eLN3CQ/oPIsDPRanvwsmbI=",
+    version = "v0.0.0-20190829150210-3e036491d500",
+)
+go_deps.module(
+    path = "github.com/spf13/afero",
+    sum = "h1:qgMbHoJbPbw579P+1zVY+6n4nIFuIchaIjzZ/I/Yq8M=",
+    version = "v1.2.1",
+)
+go_deps.module(
+    path = "gopkg.in/mgo.v2",
+    sum = "h1:xcEWjVhvbDy+nHP67nPDDpbYrY+ILlfndk4bRioVHaU=",
+    version = "v2.0.0-20180705113604-9856a29383ce",
+)
+go_deps.module(
+    path = "go.etcd.io/bbolt",
+    sum = "h1:XAzx9gjCb0Rxj7EoqcClPD1d5ZBxZJk0jbuoPHenBt0=",
+    version = "v1.3.5",
+)
+go_deps.module(
+    path = "github.com/abbot/go-http-auth",
+    sum = "h1:R2ZVGCZzU95oXFJxncosHS9LsX8N4/MYUdGGWOb2cFk=",
+    version = "v0.4.1-0.20220112235402-e1cee1c72f2f",
+)
+use_repo(go_deps, "com_github_abbot_go_http_auth", "com_github_aws_aws_sdk_go", "com_github_azure_azure_sdk_for_go_sdk_azcore", "com_github_azure_azure_sdk_for_go_sdk_azidentity", "com_github_azure_azure_sdk_for_go_sdk_storage_azblob", "com_github_djherbis_atime", "com_github_go_ldap_ldap_v3", "com_github_golang_protobuf", "com_github_google_go_cmp", "com_github_google_uuid", "com_github_grpc_ecosystem_go_grpc_prometheus", "com_github_jmespath_go_jmespath", "com_github_jmespath_go_jmespath_internal_testify", "com_github_johannesboyne_gofakes3", "com_github_klauspost_compress", "com_github_minio_minio_go_v7", "com_github_mostynb_go_grpc_compression", "com_github_mostynb_zstdpool_syncpool", "com_github_prometheus_client_golang", "com_github_ryszard_goskiplist", "com_github_shabbyrobe_gocovmerge", "com_github_slok_go_http_metrics", "com_github_spf13_afero", "com_github_urfave_cli_v2", "com_github_valyala_gozstd", "in_gopkg_mgo_v2", "in_gopkg_yaml_v3", "io_etcd_go_bbolt", "org_golang_google_genproto", "org_golang_google_genproto_googleapis_api", "org_golang_google_genproto_googleapis_bytestream", "org_golang_google_genproto_googleapis_rpc", "org_golang_google_grpc", "org_golang_google_protobuf", "org_golang_x_oauth2", "org_golang_x_sync")

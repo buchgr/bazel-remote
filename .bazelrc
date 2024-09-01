@@ -2,6 +2,4 @@
 build --stamp
 build --workspace_status_command 'echo STABLE_GIT_COMMIT $(git rev-parse HEAD)'
 
-# TODO: migrate all dependencies from WORKSPACE to MODULE.bazel
-common --noenable_bzlmod
-common --enable_workspace=true
+common --enable_bzlmod
