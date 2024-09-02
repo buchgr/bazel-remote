@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 
 	"github.com/buchgr/bazel-remote/v2/cache/disk/zstdimpl"
 )
@@ -508,6 +509,14 @@ func (b *readCloserWrapper) Close() error {
 	return f.Close()
 }
 
+// sync pool to reuse large byte buffer between multiple go routines
+var chunkBufferPool = &sync.Pool{
+	New: func() any {
+		b := make([]byte, defaultChunkSize)
+		return &b
+	},
+}
+
 // Read from r and write to f, using CompressionType t.
 // Return the size on disk or an error if something went wrong.
 func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t CompressionType, hash string, size int64) (int64, error) {
@@ -577,7 +586,13 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 	remainingRawData := size
 	var numRead int
 
-	uncompressedChunk := make([]byte, chunkSize)
+	chunkBufferPtr := chunkBufferPool.Get().(*[]byte)
+	defer func() {
+		if chunkBufferPtr != nil {
+			chunkBufferPool.Put(chunkBufferPtr)
+		}
+	}()
+	uncompressedChunk := *chunkBufferPtr
 
 	hasher := sha256.New()
 
