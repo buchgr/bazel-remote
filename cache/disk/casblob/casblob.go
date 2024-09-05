@@ -588,9 +588,7 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 
 	chunkBufferPtr := chunkBufferPool.Get().(*[]byte)
 	defer func() {
-		if chunkBufferPtr != nil {
-			chunkBufferPool.Put(chunkBufferPtr)
-		}
+		chunkBufferPool.Put(chunkBufferPtr)
 	}()
 	uncompressedChunk := *chunkBufferPtr
 
