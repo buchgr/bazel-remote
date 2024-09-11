@@ -34,6 +34,7 @@ tasks:
       - "bazel run //:gazelle"
       - "bazel mod tidy"
       - "git diff --exit-code" # If there is a diff, fail.
+    skip_in_bazel_downstream_pipeline: "Lockfile could change when building with Bazel@HEAD"
   check_gofmt:
     platform: ubuntu2004
     name: "go fmt"
