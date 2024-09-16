@@ -5,5 +5,8 @@ go_library(
     srcs = ["semver.pb.go"],
     importpath = "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/semver",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_golang_protobuf//proto:go_default_library"],
+    deps = [
+        "@org_golang_google_protobuf//reflect/protoreflect:go_default_library",
+        "@org_golang_google_protobuf//runtime/protoimpl:go_default_library",
+    ],
 )

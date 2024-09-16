@@ -77,6 +77,7 @@ func ActionResult(ar *pb.ActionResult) error {
 		}
 	}
 
+	//nolint:staticcheck // validate deprecated field without giving lint errors
 	for _, s := range ar.OutputFileSymlinks {
 		if s == nil {
 			return errNilOuputFileSymlink
@@ -107,6 +108,7 @@ func ActionResult(ar *pb.ActionResult) error {
 		}
 	}
 
+	//nolint:staticcheck // validate deprecated field without giving lint errors
 	for _, s := range ar.OutputDirectorySymlinks {
 		if s == nil {
 			return errNilOuputDirSymlink

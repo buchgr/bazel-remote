@@ -2,17 +2,15 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "go_default_library",
-    srcs = ["remote_execution.pb.go"],
+    srcs = [
+        "remote_execution.pb.go",
+        "remote_execution_grpc.pb.go",
+    ],
     importpath = "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2",
     visibility = ["//visibility:public"],
     deps = [
         "//genproto/build/bazel/semver:go_default_library",
-        "@com_github_golang_protobuf//proto:go_default_library",
-        "@com_github_golang_protobuf//ptypes/any:go_default_library",
-        "@com_github_golang_protobuf//ptypes/duration:go_default_library",
-        "@com_github_golang_protobuf//ptypes/timestamp:go_default_library",
-        "@com_github_golang_protobuf//ptypes/wrappers:go_default_library",
-        "@org_golang_google_genproto//googleapis/longrunning:go_default_library",
+        "@com_google_cloud_go_longrunning//autogen/longrunningpb:go_default_library",
         "@org_golang_google_genproto_googleapis_api//annotations:go_default_library",
         "@org_golang_google_genproto_googleapis_rpc//status:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
@@ -20,5 +18,9 @@ go_library(
         "@org_golang_google_grpc//status:go_default_library",
         "@org_golang_google_protobuf//reflect/protoreflect:go_default_library",
         "@org_golang_google_protobuf//runtime/protoimpl:go_default_library",
+        "@org_golang_google_protobuf//types/known/anypb:go_default_library",
+        "@org_golang_google_protobuf//types/known/durationpb:go_default_library",
+        "@org_golang_google_protobuf//types/known/timestamppb:go_default_library",
+        "@org_golang_google_protobuf//types/known/wrapperspb:go_default_library",
     ],
 )

@@ -1,10 +1,10 @@
 module github.com/buchgr/bazel-remote/v2
 
 require (
+	cloud.google.com/go/longrunning v0.5.12
 	github.com/abbot/go-http-auth v0.4.1-0.20220112235402-e1cee1c72f2f
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
 	github.com/djherbis/atime v1.1.0
-	github.com/golang/protobuf v1.5.4
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
@@ -16,12 +16,11 @@ require (
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/slok/go-http-metrics v0.11.0
 	github.com/urfave/cli/v2 v2.27.1
-	golang.org/x/oauth2 v0.19.0
-	golang.org/x/sync v0.7.0
-	golang.org/x/sys v0.21.0 // indirect
-	google.golang.org/genproto v0.0.0-20240401170217-c3f982113cda
+	golang.org/x/oauth2 v0.22.0
+	golang.org/x/sync v0.8.0
+	golang.org/x/sys v0.22.0 // indirect
 	google.golang.org/grpc v1.64.1
-	google.golang.org/protobuf v1.34.1
+	google.golang.org/protobuf v1.34.2
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -32,15 +31,13 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.8
 	github.com/johannesboyne/gofakes3 v0.0.0-20230506070712-04da935ef877
 	github.com/valyala/gozstd v1.20.1
-	google.golang.org/genproto/googleapis/api v0.0.0-20240401170217-c3f982113cda
+	google.golang.org/genproto/googleapis/api v0.0.0-20240725223205-93522f1f2a9f
 	google.golang.org/genproto/googleapis/bytestream v0.0.0-20240401170217-c3f982113cda
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240401170217-c3f982113cda
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240730163845-b1a4ccb954bf
 )
 
 require (
-	cloud.google.com/go/compute v1.25.1 // indirect
-	cloud.google.com/go/compute/metadata v0.2.3 // indirect
-	cloud.google.com/go/longrunning v0.5.6 // indirect
+	cloud.google.com/go/compute/metadata v0.5.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.8.0 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
@@ -67,8 +64,8 @@ require (
 	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
 	github.com/xrash/smetrics v0.0.0-20240312152122-5f08fbb34913 // indirect
-	golang.org/x/crypto v0.24.0 // indirect
-	golang.org/x/net v0.26.0 // indirect
+	golang.org/x/crypto v0.25.0 // indirect
+	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
