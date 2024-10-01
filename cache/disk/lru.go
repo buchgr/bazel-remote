@@ -84,16 +84,16 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback, initialCapacity int) Size
 			Name: "bazel_remote_disk_cache_overwritten_bytes_total",
 			Help: "The total number of bytes removed from disk backend, due to put of already existing key",
 		}),
-        summaryCacheItemBytes: prometheus.NewSummary(prometheus.SummaryOpts{
-            Name: "bazel_remote_disk_cache_entry_bytes",
-            Help: "Size of cache entries",
-               Objectives: map[float64]float64{
-                   0.5:  0.05,
-                   0.9:  0.01,
-                   0.99: 0.001,
-                   1: 0.001,
-               },
-        }),
+		summaryCacheItemBytes: prometheus.NewSummary(prometheus.SummaryOpts{
+			Name: "bazel_remote_disk_cache_entry_bytes",
+			Help: "Size of cache entries",
+			Objectives: map[float64]float64{
+				0.5:  0.05,
+				0.9:  0.01,
+				0.99: 0.001,
+				1:    0,
+			},
+		}),
 	}
 }
 
