@@ -48,6 +48,7 @@ type SizedLRU struct {
 	gaugeCacheLogicalBytes  prometheus.Gauge
 	counterEvictedBytes     prometheus.Counter
 	counterOverwrittenBytes prometheus.Counter
+	summaryCacheItemBytes   prometheus.Summary
 }
 
 type entry struct {
@@ -83,6 +84,16 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback, initialCapacity int) Size
 			Name: "bazel_remote_disk_cache_overwritten_bytes_total",
 			Help: "The total number of bytes removed from disk backend, due to put of already existing key",
 		}),
+        summaryCacheItemBytes: prometheus.NewSummary(prometheus.SummaryOpts{
+            Name: "bazel_remote_disk_cache_entry_bytes",
+            Help: "Size of cache entries",
+               Objectives: map[float64]float64{
+                   0.5:  0.05,
+                   0.9:  0.01,
+                   0.99: 0.001,
+                   1: 0.001,
+               },
+        }),
 	}
 }
 
@@ -91,6 +102,7 @@ func (c *SizedLRU) RegisterMetrics() {
 	prometheus.MustRegister(c.gaugeCacheLogicalBytes)
 	prometheus.MustRegister(c.counterEvictedBytes)
 	prometheus.MustRegister(c.counterOverwrittenBytes)
+	prometheus.MustRegister(c.summaryCacheItemBytes)
 }
 
 // Add adds a (key, value) to the cache, evicting items as necessary.
@@ -149,6 +161,7 @@ func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
 
 	c.gaugeCacheSizeBytes.Set(float64(c.currentSize))
 	c.gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
+	c.summaryCacheItemBytes.Observe(float64(sizeDelta))
 
 	return true
 }
