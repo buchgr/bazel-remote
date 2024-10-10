@@ -289,6 +289,7 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 
 		metricsMdlw := middleware.New(middleware.Config{
 			Recorder: httpmetrics.NewRecorder(httpmetrics.Config{
+				Prefix: c.HttpMetricsPrefix,
 				DurationBuckets: c.MetricsDurationBuckets,
 			}),
 		})
