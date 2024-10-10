@@ -471,6 +471,12 @@ func GetCliFlags() []cli.Flag {
 			DefaultText: "false, ie disable metrics",
 			EnvVars:     []string{"BAZEL_REMOTE_ENABLE_ENDPOINT_METRICS"},
 		},
+		&cli.StringFlag{
+			Name:        "http_metrics_prefix",
+			Usage:       "Prefix to apply to exported http metrics",
+			DefaultText: "empty string, ie no prefix",
+			EnvVars:     []string{"BAZEL_HTTP_METRICS_PREFIX"},
+		},
 		&cli.BoolFlag{
 			Name:        "experimental_remote_asset_api",
 			Usage:       "Whether to enable the experimental remote asset API implementation.",
