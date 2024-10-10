@@ -118,6 +118,7 @@ type Config struct {
 	EnableACKeyInstanceMangling bool                      `yaml:"enable_ac_key_instance_mangling"`
 	EnableEndpointMetrics       bool                      `yaml:"enable_endpoint_metrics"`
 	MetricsDurationBuckets      []float64                 `yaml:"endpoint_metrics_duration_buckets"`
+	HttpMetricsPrefix           bool                      `yaml:"http_metrics_prefix"`
 	ExperimentalRemoteAssetAPI  bool                      `yaml:"experimental_remote_asset_api"`
 	HTTPReadTimeout             time.Duration             `yaml:"http_read_timeout"`
 	HTTPWriteTimeout            time.Duration             `yaml:"http_write_timeout"`
@@ -175,6 +176,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	disableGRPCACDepsCheck bool,
 	enableACKeyInstanceMangling bool,
 	enableEndpointMetrics bool,
+	httpMetricsPrefix bool,
 	experimentalRemoteAssetAPI bool,
 	httpReadTimeout time.Duration,
 	httpWriteTimeout time.Duration,
@@ -211,6 +213,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		EnableACKeyInstanceMangling: enableACKeyInstanceMangling,
 		EnableEndpointMetrics:       enableEndpointMetrics,
 		MetricsDurationBuckets:      defaultDurationBuckets,
+		HttpMetricsPrefix:           httpMetricsPrefix,
 		ExperimentalRemoteAssetAPI:  experimentalRemoteAssetAPI,
 		HTTPReadTimeout:             httpReadTimeout,
 		HTTPWriteTimeout:            httpWriteTimeout,
@@ -662,6 +665,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.Bool("disable_grpc_ac_deps_check"),
 		ctx.Bool("enable_ac_key_instance_mangling"),
 		ctx.Bool("enable_endpoint_metrics"),
+		ctx.Bool("http_metrics_prefix"),
 		ctx.Bool("experimental_remote_asset_api"),
 		ctx.Duration("http_read_timeout"),
 		ctx.Duration("http_write_timeout"),
