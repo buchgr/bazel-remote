@@ -1,6 +1,6 @@
 load("@gazelle//:def.bzl", "gazelle")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
-load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_tarball")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load", "oci_push")
 load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 gazelle(
@@ -123,7 +123,7 @@ oci_image(
     visibility = ["//visibility:public"],
 )
 
-oci_tarball(
+oci_load(
     name = "bazel-remote-image-tarball",
     image = ":bazel-remote-image",
     repo_tags = ["buchgr/bazel-remote-cache:tmp-amd64"],
@@ -156,7 +156,7 @@ oci_image(
     visibility = ["//visibility:private"],
 )
 
-oci_tarball(
+oci_load(
     name = "bazel-remote-image-arm64-tarball",
     image = ":bazel-remote-image-arm64",
     repo_tags = ["buchgr/bazel-remote-cache:tmp-arm64"],
