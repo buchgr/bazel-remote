@@ -471,10 +471,10 @@ func GetCliFlags() []cli.Flag {
 			DefaultText: "false, ie disable metrics",
 			EnvVars:     []string{"BAZEL_REMOTE_ENABLE_ENDPOINT_METRICS"},
 		},
-		&cli.StringFlag{
+		&cli.BoolFlag{
 			Name:        "http_metrics_prefix",
 			Usage:       "Prefix to apply to exported http metrics",
-			DefaultText: "empty string, ie no prefix",
+			DefaultText: "false, ie no prefix",
 			EnvVars:     []string{"BAZEL_HTTP_METRICS_PREFIX"},
 		},
 		&cli.BoolFlag{

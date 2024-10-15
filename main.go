@@ -287,9 +287,14 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 	if c.EnableEndpointMetrics {
 		log.Println("Endpoint metrics: enabled")
 
+		prefix := ""
+		if c.HttpMetricsPrefix {
+			prefix = "bazel_remote"
+		}
+
 		metricsMdlw := middleware.New(middleware.Config{
 			Recorder: httpmetrics.NewRecorder(httpmetrics.Config{
-				Prefix:          c.HttpMetricsPrefix,
+				Prefix:          prefix,
 				DurationBuckets: c.MetricsDurationBuckets,
 			}),
 		})
