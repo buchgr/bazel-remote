@@ -473,9 +473,9 @@ func GetCliFlags() []cli.Flag {
 		},
 		&cli.BoolFlag{
 			Name:        "http_metrics_prefix",
-			Usage:       "Prefix to apply to exported http metrics",
+			Usage:       "Whether to prefix http metrics with `bazel_remote` or not",
 			DefaultText: "false, ie no prefix",
-			EnvVars:     []string{"BAZEL_HTTP_METRICS_PREFIX"},
+			EnvVars:     []string{"BAZEL_REMOTE_HTTP_METRICS_PREFIX"},
 		},
 		&cli.BoolFlag{
 			Name:        "experimental_remote_asset_api",

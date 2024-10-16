@@ -434,7 +434,7 @@ OPTIONS:
 
    --http_metrics_prefix Prefix HTTP metrics names with `bazel_remote`
       (default: false, ie no prefix)
-	  [$BAZEL_HTTP_METRICS_PREFIX]
+	  [$BAZEL_REMOTE_HTTP_METRICS_PREFIX]
 
    --experimental_remote_asset_api Whether to enable the experimental remote
       asset API implementation. (default: false, ie disable remote asset API)
