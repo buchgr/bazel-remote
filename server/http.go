@@ -212,7 +212,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.mangleACKeys && kind == cache.AC {
+	if h.mangleACKeys && (kind == cache.AC || kind == cache.RAW) {
 		hash = cache.TransformActionCacheKey(hash, instance, h.accessLogger)
 	}
 
