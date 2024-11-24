@@ -29,6 +29,7 @@ http_read_timeout: 5s
 http_write_timeout: 10s
 access_log_level: none
 log_timezone: local
+grpc_max_recv_msg_size: 26214400
 `
 
 	config, err := NewFromYaml([]byte(yaml))
@@ -60,6 +61,7 @@ log_timezone: local
 		MetricsDurationBuckets:      []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:              "none",
 		LogTimezone:                 "local",
+		GrpcMaxRecvMsgSize:          1024 * 1024 * 25,
 	}
 
 	if !reflect.DeepEqual(config, expectedConfig) {
@@ -103,6 +105,7 @@ gcs_proxy:
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
+		GrpcMaxRecvMsgSize:     1024 * 1024 * 4,
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -147,6 +150,7 @@ http_proxy:
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
+		GrpcMaxRecvMsgSize:     1024 * 1024 * 4,
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -224,6 +228,7 @@ s3_proxy:
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
+		GrpcMaxRecvMsgSize:     1024 * 1024 * 4,
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -307,6 +312,7 @@ profile_address: :7070
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
+		GrpcMaxRecvMsgSize:     1024 * 1024 * 4,
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -355,6 +361,7 @@ endpoint_metrics_duration_buckets: [.005, .1, 5]
 		MetricsDurationBuckets: []float64{0.005, 0.1, 5},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
+		GrpcMaxRecvMsgSize:     1024 * 1024 * 4,
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -390,7 +397,7 @@ func TestStorageModes(t *testing.T) {
 	}{{
 		yaml: `host: localhost
 port: 1234
-dir: /foo/bar 
+dir: /foo/bar
 max_size: 20
 `,
 		expected: "zstd",
@@ -398,7 +405,7 @@ max_size: 20
 		{
 			yaml: `host: localhost
 port: 1234
-dir: /foo/bar 
+dir: /foo/bar
 max_size: 20
 storage_mode: zstd
 `,
@@ -407,7 +414,7 @@ storage_mode: zstd
 		{
 			yaml: `host: localhost
 port: 1234
-dir: /foo/bar 
+dir: /foo/bar
 max_size: 20
 storage_mode: uncompressed
 `,
@@ -416,7 +423,7 @@ storage_mode: uncompressed
 		{
 			yaml: `host: localhost
 port: 1234
-dir: /foo/bar 
+dir: /foo/bar
 max_size: 20
 storage_mode: gzip
 `,
@@ -487,6 +494,7 @@ storage_mode: zstd
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
+		GrpcMaxRecvMsgSize:     1024 * 1024 * 4,
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -521,6 +529,7 @@ storage_mode: zstd
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
+		GrpcMaxRecvMsgSize:     1024 * 1024 * 4,
 	}
 
 	if !cmp.Equal(config, expectedConfig) {

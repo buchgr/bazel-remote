@@ -126,6 +126,7 @@ type Config struct {
 	LogTimezone                 string                    `yaml:"log_timezone"`
 	MaxBlobSize                 int64                     `yaml:"max_blob_size"`
 	MaxProxyBlobSize            int64                     `yaml:"max_proxy_blob_size"`
+	GrpcMaxRecvMsgSize          int                       `yaml:"grpc_max_recv_msg_size"`
 
 	// Fields that are created by combinations of the flags above.
 	ProxyBackend cache.Proxy
@@ -183,7 +184,9 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	accessLogLevel string,
 	logTimezone string,
 	maxBlobSize int64,
-	maxProxyBlobSize int64) (*Config, error) {
+	maxProxyBlobSize int64,
+	grpcMaxRecvMsgSize int,
+) (*Config, error) {
 
 	c := Config{
 		HTTPAddress:                 httpAddress,
@@ -221,6 +224,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		LogTimezone:                 logTimezone,
 		MaxBlobSize:                 maxBlobSize,
 		MaxProxyBlobSize:            maxProxyBlobSize,
+		GrpcMaxRecvMsgSize:          grpcMaxRecvMsgSize,
 	}
 
 	err := validateConfig(&c)
@@ -261,6 +265,7 @@ func NewFromYaml(data []byte) (*Config, error) {
 			MetricsDurationBuckets: defaultDurationBuckets,
 			AccessLogLevel:         "all",
 			LogTimezone:            "UTC",
+			GrpcMaxRecvMsgSize:     1024 * 1024 * 4,
 		},
 	}
 
@@ -673,5 +678,6 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.String("log_timezone"),
 		ctx.Int64("max_blob_size"),
 		ctx.Int64("max_proxy_blob_size"),
+		ctx.Int("grpc_max_recv_msg_size"),
 	)
 }
