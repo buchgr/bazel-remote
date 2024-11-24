@@ -365,12 +365,6 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 	resourceNameChan := make(chan string, 1)
 
 	cmp := casblob.Identity
-	var dec *syncpool.DecoderWrapper
-	defer func() {
-		if dec != nil {
-			dec.Close()
-		}
-	}()
 
 	go func() {
 		firstIteration := true
@@ -436,8 +430,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 
 				var rc io.ReadCloser = pr
 				if cmp == casblob.Zstandard {
-					var ok bool
-					dec, ok = decoderPool.Get().(*syncpool.DecoderWrapper)
+					dec, ok := decoderPool.Get().(*syncpool.DecoderWrapper)
 					if !ok {
 						s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", errDecoderPoolFail)
 						recvResult <- errDecoderPoolFail
@@ -453,6 +446,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 				}
 
 				go func() {
+					defer rc.Close()
 					err := s.cache.Put(srv.Context(), cache.CAS, hash, size, rc)
 					putResult <- err
 				}()
