@@ -561,6 +561,7 @@ func get(ctx *cli.Context) (*Config, error) {
 			AuthMethod:               ctx.String("s3.auth_method"),
 			AccessKeyID:              ctx.String("s3.access_key_id"),
 			SecretAccessKey:          ctx.String("s3.secret_access_key"),
+			SessionToken:             ctx.String("s3.session_token"),
 			SignatureType:            ctx.String("s3.signature_type"),
 			DisableSSL:               ctx.Bool("s3.disable_ssl"),
 			UpdateTimestamps:         ctx.Bool("s3.update_timestamps"),

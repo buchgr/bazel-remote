@@ -341,6 +341,10 @@ OPTIONS:
       using S3 proxy backend. Applies to s3 auth method(s): access_key.
       [$BAZEL_REMOTE_S3_SECRET_ACCESS_KEY]
 
+   --s3.session_token value The S3/minio session token to use when using S3
+      proxy backend. Optional. Applies to s3 auth method(s): access_key.
+      [$BAZEL_REMOTE_S3_SESSION_TOKEN, $AWS_SESSION_TOKEN]
+
    --s3.signature_type value Which type of s3 signature to use when using S3
       proxy backend. Only applies when using the s3 access_key auth method.
       Allowed values: v2, v4, v4streaming, anonymous. (default: v4)
@@ -556,6 +560,7 @@ http_address: 0.0.0.0:8080
 #  auth_method: access_key
 #  access_key_id: EXAMPLE_ACCESS_KEY
 #  secret_access_key: EXAMPLE_SECRET_KEY
+#  session_token: EXAMPLE_SESSION_TOKEN
 #  signature_type: v4
 #
 # IAM Role authentication.
