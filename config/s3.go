@@ -17,6 +17,7 @@ type S3CloudStorageConfig struct {
 	AuthMethod               string `yaml:"auth_method"`
 	AccessKeyID              string `yaml:"access_key_id"`
 	SecretAccessKey          string `yaml:"secret_access_key"`
+	SessionToken             string `yaml:"session_token"`
 	SignatureType            string `yaml:"signature_type"`
 	DisableSSL               bool   `yaml:"disable_ssl"`
 	UpdateTimestamps         bool   `yaml:"update_timestamps"`
@@ -42,7 +43,7 @@ func (s3c S3CloudStorageConfig) GetCredentials() (*credentials.Credentials, erro
 		log.Println("S3 Credentials: using access/secret access key.")
 		signatureType := parseSignatureType(s3c.SignatureType)
 		log.Printf("S3 Sign: using %s sign\n", signatureType.String())
-		return credentials.NewStatic(s3c.AccessKeyID, s3c.SecretAccessKey, "", signatureType), nil
+		return credentials.NewStatic(s3c.AccessKeyID, s3c.SecretAccessKey, s3c.SessionToken, signatureType), nil
 	} else if s3c.AuthMethod == s3proxy.AuthMethodIAMRole {
 		// Fall back to getting credentials from IAM
 		log.Println("S3 Credentials: using IAM.")
