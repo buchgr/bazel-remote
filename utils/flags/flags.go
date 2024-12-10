@@ -339,6 +339,12 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_S3_SECRET_ACCESS_KEY"},
 		},
 		&cli.StringFlag{
+			Name:    "s3.session_token",
+			Value:   "",
+			Usage:   "The S3/minio session token to use when using S3 proxy backend. Optional. " + s3AuthMsg(s3proxy.AuthMethodAccessKey),
+			EnvVars: []string{"BAZEL_REMOTE_S3_SESSION_TOKEN"},
+		},
+		&cli.StringFlag{
 			Name:        "s3.signature_type",
 			Usage:       "Which type of s3 signature to use when using S3 proxy backend. Only applies when using the s3 access_key auth method. Allowed values: v2, v4, v4streaming, anonymous.",
 			DefaultText: "v4",
