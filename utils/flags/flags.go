@@ -342,7 +342,7 @@ func GetCliFlags() []cli.Flag {
 			Name:    "s3.session_token",
 			Value:   "",
 			Usage:   "The S3/minio session token to use when using S3 proxy backend. Optional. " + s3AuthMsg(s3proxy.AuthMethodAccessKey),
-			EnvVars: []string{"BAZEL_REMOTE_S3_SESSION_TOKEN", "AWS_SESSION_TOKEN"},
+			EnvVars: []string{"BAZEL_REMOTE_S3_SESSION_TOKEN"},
 		},
 		&cli.StringFlag{
 			Name:        "s3.signature_type",
