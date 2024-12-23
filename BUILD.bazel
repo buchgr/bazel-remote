@@ -104,16 +104,15 @@ pkg_tar(
 oci_image(
     name = "bazel-remote-image",
     base = "@cgo_amd64_base",  # Does not include openssl.
-    entrypoint = [
-        "/bazel-remote",
-        "--http_address=:8080",
-        "--dir=/data",
-
+    entrypoint = ["/bazel-remote"],
+    env = {
+        "BAZEL_REMOTE_DIR": "/data",
+        "BAZEL_REMOTE_HTTP_ADDRESS": ":8080",
         # Listen on all addresses, not just 127.0.0.1, so this can
         # be reached from outside the container (with a -p mapping).
         # Specify a port to enable the profiling http server.
-        "--profile_address=:6060",
-    ],
+        "BAZEL_REMOTE_PROFILE_ADDRESS": ":6060",
+    },
     exposed_ports = ["8080"],
     tars = [
         "data.tar",
@@ -137,16 +136,15 @@ pkg_tar(
 oci_image(
     name = "bazel-remote-image-arm64",
     base = "@cgo_arm64_base",  # Does not include openssl.
-    entrypoint = [
-        "/bazel-remote-linux-arm64",
-        "--http_address=:8080",
-        "--dir=/data",
-
+    entrypoint = ["/bazel-remote-linux-arm64"],
+    env = {
+        "BAZEL_REMOTE_DIR": "/data",
+        "BAZEL_REMOTE_HTTP_ADDRESS": ":8080",
         # Listen on all addresses, not just 127.0.0.1, so this can
         # be reached from outside the container (with a -p mapping).
         # Specify a port to enable the profiling http server.
-        "--profile_address=:6060",
-    ],
+        "BAZEL_REMOTE_PROFILE_ADDRESS": ":6060",
+    },
     exposed_ports = ["8080"],
     tars = [
         "data.tar",
