@@ -95,7 +95,7 @@ index 0000000..150b214
 +
 +# Download an SDK for the host OS & architecture as well as common remote execution platforms.
 +go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
-+go_sdk.download(version = "1.23.0")
++go_sdk.download(version = "1.23.4")
 +
 +go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 +go_deps.from_file(go_mod = "//:go.mod")
