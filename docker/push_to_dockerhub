@@ -27,7 +27,7 @@ fi
 # push test-amd64 and test-arm64 images.
 if [ "$(uname -p)" = aarch64 ]
 then
-	CC=clang-17 bazel run //:push_to_dockerhub_arm64
+	bazel run //:push_to_dockerhub_arm64
 
 	# Check that the image works, at least well enough to print help.
 	docker pull docker.io/buchgr/bazel-remote-cache:tmp-arm64
