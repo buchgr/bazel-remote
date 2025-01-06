@@ -175,6 +175,13 @@ func GetCliFlags() []cli.Flag {
 			DefaultText: strconv.FormatInt(math.MaxInt64, 10),
 			EnvVars:     []string{"BAZEL_REMOTE_MAX_BLOB_SIZE"},
 		},
+		&cli.IntFlag{
+			Name:        "grpc_max_recv_msg_size",
+			Value:       1024 * 1024 * 4,
+			Usage:       "The maximum message size in bytes the gRPC server can receive.",
+			DefaultText: strconv.FormatInt(1024*1024*4, 10),
+			EnvVars:     []string{"BAZEL_REMOTE_GRPC_MAX_RECV_MSG_SIZE"},
+		},
 		&cli.Int64Flag{
 			Name:        "max_proxy_blob_size",
 			Value:       math.MaxInt64,
