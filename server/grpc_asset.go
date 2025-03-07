@@ -34,7 +34,6 @@ var (
 )
 
 func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest) (*asset.FetchBlobResponse, error) {
-
 	var sha256Str string
 
 	// Q: which combinations of qualifiers to support?
