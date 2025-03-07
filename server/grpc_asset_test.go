@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	asset "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/asset/v1"
-	//pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
+	// pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 
 	"google.golang.org/grpc/codes"
 
@@ -60,6 +60,35 @@ func TestAssetFetchBlob(t *testing.T) {
 	}
 	if resp.BlobDigest.Hash != hexSha256 {
 		t.Fatal("mismatching BlobDigest hash returned")
+	}
+}
+
+func TestAssetMismatchingSRIAlgorithm(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
+
+	ts := newTestGetServer()
+
+	req := asset.FetchBlobRequest{
+		Uris: []string{
+			ts.srv.URL + "/" + ts.path, // This URL should work.
+		},
+		Qualifiers: []*asset.Qualifier{
+			{
+				Name: "checksum.sri",
+				// This is a mismatching algorithm
+				// and also a mismatching hash.
+				// This should cause an error.
+				Value: "sha512-ieYjnbXfruIhY0rGSc4H5uYoEFP42Bj6jtnVK0dlzORoEOE0nJxDBRcjJdN9KHIQkB1y4UYdvHKe1u8/ELU+Ow==",
+			},
+		},
+	}
+
+	_, err := fixture.assetClient.FetchBlob(ctx, &req)
+	if err == nil {
+		t.Fatal("expected rpc error from fetch")
 	}
 }
 

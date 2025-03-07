@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -28,7 +29,9 @@ var (
 		"expected a non-nil *FetchBlobRequest")
 	errNilQualifier = grpc_status.Error(codes.InvalidArgument,
 		"expected a non-nil *Qualifier")
- )
+	errUnsupportedDigestFunction = grpc_status.Error(codes.InvalidArgument,
+		"unsupported digest function")
+)
 
 func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest) (*asset.FetchBlobResponse, error) {
 
@@ -75,16 +78,19 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 			continue
 		}
 
-		if q.Name == "checksum.sri" && strings.HasPrefix(q.Value, "sha256-") {
+		if q.Name == "checksum.sri" {
 			// Ref: https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity
 
-			b64hash := strings.TrimPrefix(q.Value, "sha256-")
+			b64hash, ok := strings.CutPrefix(q.Value, "sha256-")
+			if !ok {
+				return nil, grpc_status.Error(codes.InvalidArgument, fmt.Sprintf(`unsupported digest function in "checksum.sri" qualifier %q`, q.Value))
+			}
 
 			decoded, err := base64.StdEncoding.DecodeString(b64hash)
 			if err != nil {
 				s.errorLogger.Printf("failed to base64 decode \"%s\": %v",
 					b64hash, err)
-				continue
+				return nil, grpc_status.Error(codes.InvalidArgument, fmt.Errorf(`invalid sri in "checksum.sri" qualifier for %q: base64 decode:  %w`, q.Value, err).Error())
 			}
 
 			sha256Str = hex.EncodeToString(decoded)
