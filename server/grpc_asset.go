@@ -23,8 +23,12 @@ import (
 
 // FetchServer implementation
 
-var errNilFetchBlobRequest = grpc_status.Error(codes.InvalidArgument,
-	"expected a non-nil *FetchBlobRequest")
+var (
+	errNilFetchBlobRequest = grpc_status.Error(codes.InvalidArgument,
+		"expected a non-nil *FetchBlobRequest")
+	errNilQualifier = grpc_status.Error(codes.InvalidArgument,
+		"expected a non-nil *Qualifier")
+ )
 
 func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest) (*asset.FetchBlobResponse, error) {
 
@@ -60,12 +64,7 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 
 	for _, q := range req.GetQualifiers() {
 		if q == nil {
-			return &asset.FetchBlobResponse{
-				Status: &status.Status{
-					Code:    int32(codes.InvalidArgument),
-					Message: "unexpected nil qualifier in FetchBlobRequest",
-				},
-			}, nil
+			return nil, errNilQualifier
 		}
 
 		const QualifierHTTPHeaderPrefix = "http_header:"
