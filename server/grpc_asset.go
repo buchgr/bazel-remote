@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strings"
 
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
 	grpc_status "google.golang.org/grpc/status"
@@ -64,6 +65,7 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 
 	headers := http.Header{}
 
+	var unsupportedQualifierNames []string
 	for _, q := range req.GetQualifiers() {
 		if q == nil {
 			return nil, errNilQualifier
@@ -93,12 +95,17 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 			}
 
 			sha256Str = hex.EncodeToString(decoded)
+			continue
+		}
 
-			found, size := s.cache.Contains(ctx, cache.CAS, sha256Str, -1)
-			if !found {
-				continue
-			}
+		unsupportedQualifierNames = append(unsupportedQualifierNames, q.Name)
+	}
+	if len(unsupportedQualifierNames) > 0 {
+		return nil, s.unsupportedQualifiersErrStatus(unsupportedQualifierNames)
+	}
 
+	if len(sha256Str) != 0 {
+		if found, size := s.cache.Contains(ctx, cache.CAS, sha256Str, -1); found {
 			if size < 0 {
 				// We don't know the size yet (bad http backend?).
 				r, actualSize, err := s.cache.Get(ctx, cache.CAS, sha256Str, -1, 0)
@@ -108,7 +115,8 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 				if err != nil || actualSize < 0 {
 					s.errorLogger.Printf("failed to get CAS %s from proxy backend size: %d err: %v",
 						sha256Str, actualSize, err)
-					continue
+					return nil, grpc_status.Error(codes.Internal, fmt.Sprintf("failed to get CAS %s from proxy backend size: %d err: %v",
+						sha256Str, actualSize, err))
 				}
 				size = actualSize
 			}
@@ -212,6 +220,25 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, headers http.Hea
 	}
 
 	return true, expectedHash, expectedSize
+}
+
+// unsupportedQualifiersErrStatus creates a gRPC status error that includes a list of unsupported qualifiers.
+func (s *grpcServer) unsupportedQualifiersErrStatus(qualifierNames []string) error {
+	fieldViolations := make([]*errdetails.BadRequest_FieldViolation, 0, len(qualifierNames))
+	for _, name := range qualifierNames {
+		fieldViolations = append(fieldViolations, &errdetails.BadRequest_FieldViolation{
+			Field:       "qualifiers.name",
+			Description: fmt.Sprintf("%q not supported", name),
+		})
+	}
+	statusWithoutDetails := grpc_status.New(codes.InvalidArgument, fmt.Sprintf("Unsupported qualifiers: %s", strings.Join(qualifierNames, ", ")))
+	statusWithDetails, err := statusWithoutDetails.WithDetails(&errdetails.BadRequest{FieldViolations: fieldViolations})
+	// should never happen
+	if err != nil {
+		s.errorLogger.Printf("failed to add details to status: %v", err)
+		return statusWithoutDetails.Err()
+	}
+	return statusWithDetails.Err()
 }
 
 func (s *grpcServer) FetchDirectory(context.Context, *asset.FetchDirectoryRequest) (*asset.FetchDirectoryResponse, error) {
