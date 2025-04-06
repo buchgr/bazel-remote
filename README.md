@@ -381,6 +381,10 @@ OPTIONS:
       value. This flag will be removed. (default: 2)
       [$BAZEL_REMOTE_S3_KEY_VERSION]
 
+   --s3.max_idle_conns value The maximum number of idle connections to use
+      when using the S3 proxy backend. (default: 1024)
+      [$BAZEL_REMOTE_S3_MAX_IDLE_CONNS]
+
    --azblob.tenant_id value The Azure blob storage tenant id to use when
       using azblob proxy backend. [$BAZEL_REMOTE_AZBLOB_TENANT_ID,
       $AZURE_TENANT_ID]
