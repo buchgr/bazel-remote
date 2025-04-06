@@ -569,6 +569,7 @@ func get(ctx *cli.Context) (*Config, error) {
 			Region:                   ctx.String("s3.region"),
 			AWSProfile:               ctx.String("s3.aws_profile"),
 			AWSSharedCredentialsFile: ctx.String("s3.aws_shared_credentials_file"),
+			MaxIdleConns:             ctx.Int("s3.max_idle_conns"),
 		}
 	}
 

@@ -55,6 +55,7 @@ func New(
 	DisableSSL bool,
 	UpdateTimestamps bool,
 	Region string,
+	MaxIdleConns int,
 
 	storageMode string, accessLogger cache.Logger,
 	errorLogger cache.Logger, numUploaders, maxQueuedUploads int) cache.Proxy {
@@ -68,13 +69,23 @@ func New(
 		log.Fatalf("Failed to determine s3proxy credentials")
 	}
 
+	secure := !DisableSSL
+	tr, err := minio.DefaultTransport(secure)
+	if err != nil {
+		log.Fatalf("Failed to create default transport: %v", err)
+	}
+
+	tr.MaxIdleConns = MaxIdleConns
+	tr.MaxIdleConnsPerHost = MaxIdleConns
+
 	// Initialize minio client with credentials
 	opts := &minio.Options{
 		Creds:        Credentials,
 		BucketLookup: BucketLookupType,
 
-		Region: Region,
-		Secure: !DisableSSL,
+		Region:    Region,
+		Secure:    secure,
+		Transport: tr,
 	}
 	minioCore, err = minio.NewCore(Endpoint, opts)
 	if err != nil {
