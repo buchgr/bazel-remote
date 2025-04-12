@@ -97,15 +97,15 @@ go_binary(
 BAZEL_REMOTE_USER_ID = 65532
 
 pkg_tar(
-    name = "bazel-remote_tar",
-    srcs = [":bazel-remote"],
+    name = "bazel-remote-linux-amd64_tar",
+    srcs = [":bazel-remote-linux-amd64"],
 )
 
 oci_image(
     name = "bazel-remote-image",
     base = "@cgo_amd64_base",  # Does not include openssl.
     entrypoint = [
-        "/bazel-remote",
+        "/bazel-remote-linux-amd64",
         "--http_address=:8080",
         "--dir=/data",
 
@@ -117,7 +117,7 @@ oci_image(
     exposed_ports = ["8080"],
     tars = [
         "data.tar",
-        ":bazel-remote_tar",
+        ":bazel-remote-linux-amd64_tar",
     ],
     user = str(BAZEL_REMOTE_USER_ID),
     visibility = ["//visibility:public"],
