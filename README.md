@@ -436,9 +436,8 @@ OPTIONS:
       endpoint. (default: false, ie disable metrics)
       [$BAZEL_REMOTE_ENABLE_ENDPOINT_METRICS]
 
-   --http_metrics_prefix Prefix HTTP metrics names with `bazel_remote`
-      (default: false, ie no prefix)
-	  [$BAZEL_REMOTE_HTTP_METRICS_PREFIX]
+   --http_metrics_prefix Whether to prefix http metrics with "bazel_remote"
+      or not (default: false, ie no prefix) [$BAZEL_REMOTE_HTTP_METRICS_PREFIX]
 
    --experimental_remote_asset_api Whether to enable the experimental remote
       asset API implementation. (default: false, ie disable remote asset API)

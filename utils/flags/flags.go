@@ -489,7 +489,7 @@ func GetCliFlags() []cli.Flag {
 		},
 		&cli.BoolFlag{
 			Name:        "http_metrics_prefix",
-			Usage:       "Whether to prefix http metrics with `bazel_remote` or not",
+			Usage:       "Whether to prefix http metrics with \"bazel_remote\" or not",
 			DefaultText: "false, ie no prefix",
 			EnvVars:     []string{"BAZEL_REMOTE_HTTP_METRICS_PREFIX"},
 		},
