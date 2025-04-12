@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/buchgr/bazel-remote/v2/cache/azblobproxy"
+	"github.com/buchgr/bazel-remote/v2/cache/disk/zstdimpl"
 	"github.com/buchgr/bazel-remote/v2/cache/s3proxy"
 
 	"github.com/urfave/cli/v2"
@@ -18,6 +19,15 @@ func s3AuthMsg(authMethods ...string) string {
 
 func azBlobAuthMsg(authMethods ...string) string {
 	return fmt.Sprintf("Applies to AzBlob auth method(s): %s.", strings.Join(authMethods, ", "))
+}
+
+func getSupportedZstdImplsString() string {
+	impls := zstdimpl.GetImplementations()
+	for i, name := range impls {
+		impls[i] = "\"" + name + "\""
+	}
+
+	return strings.Join(impls, ", ")
 }
 
 // GetCliFlags returns a slice of cli.Flag's that bazel-remote accepts.
@@ -50,7 +60,7 @@ func GetCliFlags() []cli.Flag {
 		&cli.StringFlag{
 			Name:    "zstd_implementation",
 			Value:   "go",
-			Usage:   "ZSTD implementation to use. Must be one of \"go\" or \"cgo\".",
+			Usage:   "ZSTD implementation to use. Supported values: " + getSupportedZstdImplsString(),
 			EnvVars: []string{"BAZEL_REMOTE_ZSTD_IMPLEMENTATION"},
 		},
 		&cli.StringFlag{
