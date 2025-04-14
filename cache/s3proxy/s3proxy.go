@@ -72,7 +72,7 @@ func New(
 	secure := !DisableSSL
 	tr, err := minio.DefaultTransport(secure)
 	if err != nil {
-		log.Fatalf("Failed to create default transport: %v", err)
+		log.Fatalf("Failed to create default minio transport: %v", err)
 	}
 
 	tr.MaxIdleConns = MaxIdleConns
