@@ -403,6 +403,12 @@ func GetCliFlags() []cli.Flag {
 			DefaultText: "2",
 			EnvVars:     []string{"BAZEL_REMOTE_S3_KEY_VERSION"},
 		},
+		&cli.IntFlag{
+			Name:        "s3.max_idle_conns",
+			Usage:       "The maximum number of idle connections to use when using the S3 proxy backend.",
+			DefaultText: "1024",
+			EnvVars:     []string{"BAZEL_REMOTE_S3_MAX_IDLE_CONNS"},
+		},
 		&cli.StringFlag{
 			Name:    "azblob.tenant_id",
 			Value:   "",
