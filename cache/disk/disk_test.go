@@ -1477,3 +1477,30 @@ func TestCacheDirLostAndFound(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestValidatesCasHash(t *testing.T) {
+	ctx := context.Background()
+	size := int64(100)
+
+	for _, storage := range []string{"zstd", "uncompressed"} {
+		t.Run(storage, func(t *testing.T) {
+			cacheDir := tempDir(t)
+			defer os.RemoveAll(cacheDir)
+			cacheSize := int64(100000)
+
+			testCache, err := New(cacheDir, cacheSize, WithEndpointMetrics(), WithStorageMode(storage))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			data, hash := testutils.RandomDataAndHash(size)
+			_, hash2 := testutils.RandomDataAndHash(size)
+			if err = testCache.Put(ctx, cache.CAS, hash2, size, bytes.NewReader(data)); err == nil {
+				t.Fatal("Expected error, got nil")
+			}
+			if err = testCache.Put(ctx, cache.CAS, hash, size, bytes.NewReader(data)); err != nil {
+				t.Fatal("Expected nil, got error", err)
+			}
+		})
+	}
+}
