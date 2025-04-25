@@ -27,6 +27,7 @@ type S3CloudStorageConfig struct {
 	AWSProfile               string `yaml:"aws_profile"`
 	AWSSharedCredentialsFile string `yaml:"aws_shared_credentials_file"`
 	BucketLookupType         string `yaml:"bucket_lookup_type"`
+	STSEndpoint              string `yaml:"sts_endpoint"`
 }
 
 func (s3c S3CloudStorageConfig) GetCredentials() (*credentials.Credentials, error) {
@@ -48,6 +49,10 @@ func (s3c S3CloudStorageConfig) GetCredentials() (*credentials.Credentials, erro
 		// Fall back to getting credentials from IAM
 		log.Println("S3 Credentials: using IAM.")
 		return credentials.NewIAM(s3c.IAMRoleEndpoint), nil
+	} else if s3c.AuthMethod == s3proxy.AuthMethodKubernetesIdentity {
+		// Fall back IRSA
+		log.Println("S3 Credentials: using IRSA")
+		return credentials.NewKubernetesIdentity(s3c.STSEndpoint), nil
 	}
 
 	return nil, fmt.Errorf("invalid s3.auth_method: %s", s3c.AuthMethod)

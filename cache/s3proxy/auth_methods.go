@@ -4,6 +4,7 @@ const (
 	AuthMethodIAMRole            = "iam_role"
 	AuthMethodAccessKey          = "access_key"
 	AuthMethodAWSCredentialsFile = "aws_credentials_file"
+	AuthMethodKubernetesIdentity = "kubernetes_identity"
 )
 
 func GetAuthMethods() []string {
@@ -11,6 +12,7 @@ func GetAuthMethods() []string {
 		AuthMethodIAMRole,
 		AuthMethodAccessKey,
 		AuthMethodAWSCredentialsFile,
+		AuthMethodKubernetesIdentity,
 	}
 }
 
