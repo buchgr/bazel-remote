@@ -52,7 +52,7 @@ func (s3c S3CloudStorageConfig) GetCredentials() (*credentials.Credentials, erro
 	} else if s3c.AuthMethod == s3proxy.AuthMethodKubernetesIdentity {
 		// Fall back IRSA
 		log.Println("S3 Credentials: using IRSA")
-		return credentials.NewKubernetesIdentity(s3c.STSEndpoint), nil
+		return credentials.NewKubernetesIdentity(s3c.STSEndpoint)
 	}
 
 	return nil, fmt.Errorf("invalid s3.auth_method: %s", s3c.AuthMethod)
