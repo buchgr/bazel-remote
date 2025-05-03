@@ -4,7 +4,10 @@ set -euxo pipefail
 
 GOARCH=${GOARCH:-amd64}
 
-VERSION_TAG="$(git rev-parse HEAD)"
-VERSION_LINK_FLAG="main.gitCommit=${VERSION_TAG}"
+GIT_COMMIT_TAG="$(git rev-parse HEAD)"
+GIT_COMMIT_LINK_FLAG="main.gitCommit=${GIT_COMMIT_TAG}"
 
-CGO_ENABLED=1 GOOS=linux GOARCH=$GOARCH go build -a -ldflags "-X ${VERSION_LINK_FLAG}" .
+GIT_DESCRIBE_TAG="$(git describe --tags || true)"
+GIT_DESCRIBE_LINK_FLAG="main.gitDescribe=${GIT_DESCRIBE_TAG}"
+
+CGO_ENABLED=1 GOOS=linux GOARCH=$GOARCH go build -a -ldflags "-X \"${GIT_COMMIT_LINK_FLAG}\" -X \"${GIT_DESCRIBE_LINK_FLAG}\"" .
