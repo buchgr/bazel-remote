@@ -16,7 +16,6 @@ oci.pull(
     tag = "nonroot-amd64",
 )
 use_repo(oci, "cgo_amd64_base")
-
 oci.pull(
     name = "cgo_arm64_base",
     image = "gcr.io/distroless/base-nossl-debian12",
