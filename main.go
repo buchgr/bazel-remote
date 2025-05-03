@@ -42,6 +42,10 @@ import (
 // is set through linker options.
 var gitCommit string
 
+// gitDescribe is another version stamp, the value comes from the
+// output of `git describe --tags`.
+var gitDescribe string
+
 func main() {
 	app := cli.NewApp()
 
@@ -83,8 +87,12 @@ func run(ctx *cli.Context) error {
 	if len(gitCommit) > 0 && gitCommit != "{STABLE_GIT_COMMIT}" {
 		maybeGitCommitMsg = fmt.Sprintf(" from git commit %s", gitCommit)
 	}
-	log.Printf("bazel-remote built with %s%s.",
-		runtime.Version(), maybeGitCommitMsg)
+	maybeGitDescribeMsg := ""
+	if len(gitDescribe) > 0 && gitDescribe != "{STABLE_GIT_DESCRIBE}" {
+		maybeGitDescribeMsg = " " + gitDescribe
+	}
+	log.Printf("bazel-remote built with %s%s%s.",
+		runtime.Version(), maybeGitCommitMsg, maybeGitDescribeMsg)
 
 	rlimit.Raise()
 
@@ -240,7 +248,7 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 	checkClientCertForWrites := c.TLSCaFile != ""
 	validateAC := !c.DisableHTTPACValidation
 	h := server.NewHTTPCache(diskCache, c.AccessLogger, c.ErrorLogger, validateAC,
-		c.EnableACKeyInstanceMangling, checkClientCertForReads, checkClientCertForWrites, gitCommit)
+		c.EnableACKeyInstanceMangling, checkClientCertForReads, checkClientCertForWrites, gitCommit, gitDescribe)
 
 	cacheHandler := h.CacheHandler
 	var ldapAuthenticator authenticator
