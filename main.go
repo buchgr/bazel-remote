@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"syscall"
 
@@ -85,6 +86,8 @@ func run(ctx *cli.Context) error {
 	}
 	log.Printf("bazel-remote built with %s%s.",
 		runtime.Version(), maybeGitCommitMsg)
+	log.Printf("Setting number of max os threads to %d", c.MaxOsThreads)
+	debug.SetMaxThreads(c.MaxOsThreads)
 
 	rlimit.Raise()
 
