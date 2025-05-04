@@ -455,9 +455,9 @@ func TestCacheExistingFiles(t *testing.T) {
 
 	evicted := []Key{}
 	origOnEvict := testCache.lru.onEvict
-	testCache.lru.onEvict = func(key Key, value lruItem) {
+	testCache.lru.onEvict = func(key Key, value lruItem) error {
 		evicted = append(evicted, key.(string))
-		origOnEvict(key, value)
+		return origOnEvict(key, value)
 	}
 
 	if testCache.lru.Len() != 4 {
