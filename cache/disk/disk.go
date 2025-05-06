@@ -259,8 +259,7 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 	// Put requests are processed using blocking file syscalls, which
 	// consume one operating system thread per put request. Throttling
 	// the Put requests with a semaphore to avoid requring too many
-	// operating system threads. Get requests do not seem to consume any
-	// significant amount of OS threads and are therefore not throttled.
+	// operating system threads.
 	if err := c.diskWaitSem.Acquire(context.Background(), 1); err != nil {
 		log.Printf("ERROR: failed to aquire semaphore: %v", err)
 		return internalErr(err)
@@ -644,6 +643,16 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 	if !tryProxy {
 		return nil, -1, nil
 	}
+
+	// Non-proxied Get requests do not seem to consume any significant amount of OS threads,
+	// and are therefore not throttled. However, it is assumed that proxied Get requests might,
+	// at least when storing the result from the proxy to disk, and perhaps also when
+	// waiting for the proxy. Proxied Get requests are therefore throttled by a semaphore.
+	if err := c.diskWaitSem.Acquire(context.Background(), 1); err != nil {
+		log.Printf("ERROR: failed to aquire semaphore: %v", err)
+		return nil, -1, internalErr(err)
+	}
+	defer c.diskWaitSem.Release(1)
 
 	r, foundSize, err := c.proxy.Get(ctx, kind, hash, size)
 	if r != nil {
