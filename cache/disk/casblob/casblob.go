@@ -523,44 +523,15 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 	var err error
 	defer f.Close()
 
+	var n int64
 	if size <= 0 {
 		return -1, fmt.Errorf("invalid file size: %d", size)
 	}
 
-	chunkSize := uint32(defaultChunkSize)
+	hasher := sha256.New()
 
-	numChunks := int64(1)
-	remainder := int64(0)
-	if t == Zstandard {
-		numChunks = size / int64(chunkSize)
-		remainder = size % int64(chunkSize)
-		if remainder > 0 {
-			numChunks++
-		}
-	}
-
-	numOffsets := numChunks + 1
-	h := header{
-		uncompressedSize: size,
-		compression:      t,
-		chunkSize:        chunkSize,
-		chunkOffsets:     make([]int64, numOffsets),
-	}
-
-	h.chunkOffsets[0] = chunkTableOffset
-
-	err = h.write(f)
-	if err != nil {
-		return -1, err
-	}
-
-	fileOffset := h.size()
-
-	var n int64
-
-	if t == Identity {
-		hasher := sha256.New()
-
+	switch t {
+	case Identity:
 		n, err = io.Copy(io.MultiWriter(f, hasher), r)
 		if err != nil {
 			return -1, err
@@ -569,82 +540,100 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 			return -1, fmt.Errorf("expected to copy %d bytes, actually copied %d bytes",
 				size, n)
 		}
+	case Zstandard:
+		chunkSize := uint32(defaultChunkSize)
 
-		actualHash := hex.EncodeToString(hasher.Sum(nil))
-		if actualHash != hash {
-			return -1,
-				fmt.Errorf("checksums don't match. Expected %s, found %s",
-					hash, actualHash)
+		numChunks := int64(1)
+		remainder := int64(0)
+		if t == Zstandard {
+			numChunks = size / int64(chunkSize)
+			remainder = size % int64(chunkSize)
+			if remainder > 0 {
+				numChunks++
+			}
 		}
 
-		return n + fileOffset, f.Close()
-	}
-
-	// Compress the data in chunks...
-
-	nextChunk := 0 // Index in h.chunkOffsets.
-	remainingRawData := size
-	var numRead int
-
-	chunkBufferPtr := chunkBufferPool.Get().(*[]byte)
-	defer func() {
-		chunkBufferPool.Put(chunkBufferPtr)
-	}()
-	uncompressedChunk := *chunkBufferPtr
-
-	hasher := sha256.New()
-
-	for nextChunk < len(h.chunkOffsets)-1 {
-		h.chunkOffsets[nextChunk] = fileOffset
-		nextChunk++
-
-		chunkEnd := int64(chunkSize)
-		if remainingRawData <= int64(chunkSize) {
-			chunkEnd = remainingRawData
+		numOffsets := numChunks + 1
+		h := header{
+			uncompressedSize: size,
+			compression:      t,
+			chunkSize:        chunkSize,
+			chunkOffsets:     make([]int64, numOffsets),
 		}
-		remainingRawData -= chunkEnd
 
-		numRead, err = io.ReadFull(r, uncompressedChunk[0:chunkEnd])
+		h.chunkOffsets[0] = chunkTableOffset
+
+		err = h.write(f)
 		if err != nil {
-			return -1, fmt.Errorf("Only managed to read %d of %d bytes: %w", numRead, chunkEnd, err)
+			return -1, err
 		}
 
-		compressedChunk := zstd.EncodeAll(uncompressedChunk[0:chunkEnd])
+		n = h.size()
 
-		hasher.Write(uncompressedChunk[0:chunkEnd])
+		// Compress the data in chunks...
 
-		written, err := f.Write(compressedChunk)
+		nextChunk := 0 // Index in h.chunkOffsets.
+		remainingRawData := size
+		var numRead int
+
+		chunkBufferPtr := chunkBufferPool.Get().(*[]byte)
+		defer func() {
+			chunkBufferPool.Put(chunkBufferPtr)
+		}()
+		uncompressedChunk := *chunkBufferPtr
+
+		for nextChunk < len(h.chunkOffsets)-1 {
+			h.chunkOffsets[nextChunk] = n
+			nextChunk++
+
+			chunkEnd := int64(chunkSize)
+			if remainingRawData <= int64(chunkSize) {
+				chunkEnd = remainingRawData
+			}
+			remainingRawData -= chunkEnd
+
+			numRead, err = io.ReadFull(r, uncompressedChunk[0:chunkEnd])
+			if err != nil {
+				return -1, fmt.Errorf("Only managed to read %d of %d bytes: %w", numRead, chunkEnd, err)
+			}
+
+			compressedChunk := zstd.EncodeAll(uncompressedChunk[0:chunkEnd])
+
+			hasher.Write(uncompressedChunk[0:chunkEnd])
+
+			written, err := f.Write(compressedChunk)
+			if err != nil {
+				return -1, fmt.Errorf("Failed to write compressed chunk to disk: %w", err)
+			}
+
+			n += int64(written)
+		}
+		h.chunkOffsets[nextChunk] = n
+
+		// Confirm that there is no data left to be read.
+		bytesAfter, err := io.ReadFull(r, uncompressedChunk)
+		if err == nil {
+			return -1, fmt.Errorf("expected %d bytes but got at least %d more", size, bytesAfter)
+		} else if err != io.EOF {
+			return -1, fmt.Errorf("Failed to read chunk of size %d: %w", len(uncompressedChunk), err)
+		}
+
+		// We know all the chunk offsets now, go back and fill those in.
+		_, err = f.Seek(chunkTableOffset, io.SeekStart)
 		if err != nil {
-			return -1, fmt.Errorf("Failed to write compressed chunk to disk: %w", err)
+			return -1, fmt.Errorf("Failed to seek to offset %d: %w", chunkTableOffset, err)
 		}
 
-		fileOffset += int64(written)
-	}
-	h.chunkOffsets[nextChunk] = fileOffset
-
-	// Confirm that there is no data left to be read.
-	bytesAfter, err := io.ReadFull(r, uncompressedChunk)
-	if err == nil {
-		return -1, fmt.Errorf("expected %d bytes but got at least %d more", size, bytesAfter)
-	} else if err != io.EOF {
-		return -1, fmt.Errorf("Failed to read chunk of size %d: %w", len(uncompressedChunk), err)
+		err = binary.Write(f, binary.LittleEndian, h.chunkOffsets)
+		if err != nil {
+			return -1, fmt.Errorf("Failed to write chunk offsets: %w", err)
+		}
 	}
 
 	actualHash := hex.EncodeToString(hasher.Sum(nil))
 	if actualHash != hash {
 		return -1, fmt.Errorf("checksums don't match. Expected %s, found %s",
 			hash, actualHash)
-	}
-
-	// We know all the chunk offsets now, go back and fill those in.
-	_, err = f.Seek(chunkTableOffset, io.SeekStart)
-	if err != nil {
-		return -1, fmt.Errorf("Failed to seek to offset %d: %w", chunkTableOffset, err)
-	}
-
-	err = binary.Write(f, binary.LittleEndian, h.chunkOffsets)
-	if err != nil {
-		return -1, fmt.Errorf("Failed to write chunk offsets: %w", err)
 	}
 
 	err = f.Sync()
@@ -657,5 +646,5 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 		return -1, fmt.Errorf("Failed to close file: %w", err)
 	}
 
-	return fileOffset, nil
+	return n, nil
 }
