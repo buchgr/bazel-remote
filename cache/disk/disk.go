@@ -355,7 +355,7 @@ func (c *diskCache) writeAndCloseFile(ctx context.Context, r io.Reader, kind cac
 	if kind == cache.CAS {
 		sizeOnDisk, err = casblob.WriteAndClose(c.zstd, r, f, c.storageMode, hash, size)
 		if err != nil {
-			return -1, annotate.Err(ctx, "Failed to write compressed CAS blob to disk", err)
+			return -1, annotate.Err(ctx, "Failed to write CAS blob to disk", err)
 		}
 		closeFile = false
 		return sizeOnDisk, nil
