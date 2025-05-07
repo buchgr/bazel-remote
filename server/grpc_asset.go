@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -19,12 +20,23 @@ import (
 	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
+	"github.com/buchgr/bazel-remote/v2/cache/disk"
+
+
 )
+
 
 // FetchServer implementation
 
 var errNilFetchBlobRequest = grpc_status.Error(codes.InvalidArgument,
 	"expected a non-nil *FetchBlobRequest")
+
+var resourceExhaustedResponse = asset.FetchBlobResponse{
+	Status: &status.Status{
+		Code:    int32(codes.ResourceExhausted),
+		Message: "Storage appears to be falling behind",
+	},
+}
 
 func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest) (*asset.FetchBlobResponse, error) {
 
@@ -124,8 +136,8 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 	// See if we can download one of the URIs.
 
 	for _, uri := range req.GetUris() {
-		ok, actualHash, size := s.fetchItem(ctx, uri, headers, sha256Str)
-		if ok {
+		actualHash, size, err := s.fetchItem(ctx, uri, headers, sha256Str)
+		if err == nil {
 			return &asset.FetchBlobResponse{
 				Status: &status.Status{Code: int32(codes.OK)},
 				BlobDigest: &pb.Digest{
@@ -136,6 +148,10 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 			}, nil
 		}
 
+		if err == disk.ErrOverloaded {
+			return &resourceExhaustedResponse, nil
+		}
+
 		// Not a simple file. Not yet handled...
 	}
 
@@ -144,22 +160,22 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 	}, nil
 }
 
-func (s *grpcServer) fetchItem(ctx context.Context, uri string, headers http.Header, expectedHash string) (bool, string, int64) {
+func (s *grpcServer) fetchItem(ctx context.Context, uri string, headers http.Header, expectedHash string) (string, int64, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
 		s.errorLogger.Printf("unable to parse URI: %s err: %v", uri, err)
-		return false, "", int64(-1)
+		return "", int64(-1), err
 	}
 
 	if u.Scheme != "http" && u.Scheme != "https" {
 		s.errorLogger.Printf("unsupported URI: %s", uri)
-		return false, "", int64(-1)
+		return "", int64(-1), fmt.Errorf("Unknown URL scheme: %q", u.Scheme)
 	}
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
 		s.errorLogger.Printf("failed to create http.Request: %s err: %v", uri, err)
-		return false, "", int64(-1)
+		return "", int64(-1), err
 	}
 
 	req.Header = headers
@@ -167,14 +183,14 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, headers http.Hea
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		s.errorLogger.Printf("failed to get URI: %s err: %v", uri, err)
-		return false, "", int64(-1)
+		return "", int64(-1), err
 	}
 	defer resp.Body.Close()
 	rc := resp.Body
 
 	s.accessLogger.Printf("GRPC ASSET FETCH %s %s", uri, resp.Status)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return false, "", int64(-1)
+		return "", int64(-1), fmt.Errorf("Unsuccessful HTTP status code: %d", resp.StatusCode)
 	}
 
 	expectedSize := resp.ContentLength
@@ -184,7 +200,7 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, headers http.Hea
 		data, err := io.ReadAll(resp.Body)
 		if err != nil {
 			s.errorLogger.Printf("failed to read data: %v", uri)
-			return false, "", int64(-1)
+			return "", int64(-1), err
 		}
 
 		expectedSize = int64(len(data))
@@ -194,7 +210,7 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, headers http.Hea
 		if expectedHash != "" && hashStr != expectedHash {
 			s.errorLogger.Printf("URI data has hash %s, expected %s",
 				hashStr, expectedHash)
-			return false, "", int64(-1)
+			return "", int64(-1), fmt.Errorf("URI data has hash %s, expected %s", hashStr, expectedHash)
 		}
 
 		expectedHash = hashStr
@@ -204,10 +220,10 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, headers http.Hea
 	err = s.cache.Put(ctx, cache.CAS, expectedHash, expectedSize, rc)
 	if err != nil && err != io.EOF {
 		s.errorLogger.Printf("failed to Put %s: %v", expectedHash, err)
-		return false, "", int64(-1)
+		return "", int64(-1), err
 	}
 
-	return true, expectedHash, expectedSize
+	return expectedHash, expectedSize, nil
 }
 
 func (s *grpcServer) FetchDirectory(context.Context, *asset.FetchDirectoryRequest) (*asset.FetchDirectoryResponse, error) {

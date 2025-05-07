@@ -171,6 +171,12 @@ func (s *grpcServer) maybeInline(ctx context.Context, inline bool, slice *[]byte
 			return nil // Not inlined, nothing to do.
 		}
 
+		if (*digest).SizeBytes <= 0 {
+			// Unexpected corner case?
+			*slice = []byte{}
+			return nil
+		}
+
 		if *digest == nil {
 			hash := sha256.Sum256(*slice)
 			*digest = &pb.Digest{
@@ -183,10 +189,10 @@ func (s *grpcServer) maybeInline(ctx context.Context, inline bool, slice *[]byte
 		if !found {
 			err := s.cache.Put(ctx, cache.CAS, (*digest).Hash, (*digest).SizeBytes,
 				bytes.NewReader(*slice))
-			if err != nil && err != io.EOF {
-				return err
+			if err == nil || err == io.EOF {
+				s.accessLogger.Printf("GRPC CAS PUT %s OK", (*digest).Hash)
 			}
-			s.accessLogger.Printf("GRPC CAS PUT %s OK", (*digest).Hash)
+			// De-inline failed (possibly due to "resource overload"), that's OK though.
 		}
 
 		*slice = []byte{}
@@ -261,7 +267,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 	err = s.cache.Put(ctx, cache.AC, req.ActionDigest.Hash,
 		int64(len(data)), bytes.NewReader(data))
 	if err != nil && err != io.EOF {
-		s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+		s.logErrorPrintf(err, "%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 		code := gRPCErrCode(err, codes.Internal)
 		return nil, status.Error(code, err.Error())
 	}
@@ -285,7 +291,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 			err = s.cache.Put(ctx, cache.CAS, f.Digest.Hash,
 				f.Digest.SizeBytes, bytes.NewReader(f.Contents))
 			if err != nil && err != io.EOF {
-				s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+				s.logErrorPrintf(err, "%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 				code := gRPCErrCode(err, codes.Internal)
 				return nil, status.Error(code, err.Error())
 			}
@@ -308,7 +314,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 		err = s.cache.Put(ctx, cache.CAS, hash, sizeBytes,
 			bytes.NewReader(req.ActionResult.StdoutRaw))
 		if err != nil && err != io.EOF {
-			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+			s.logErrorPrintf(err, "%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 			code := gRPCErrCode(err, codes.Internal)
 			return nil, status.Error(code, err.Error())
 		}
@@ -330,7 +336,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 		err = s.cache.Put(ctx, cache.CAS, hash, sizeBytes,
 			bytes.NewReader(req.ActionResult.StderrRaw))
 		if err != nil && err != io.EOF {
-			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+			s.logErrorPrintf(err, "%s %s %s", logPrefix, req.ActionDigest.Hash, err)
 			code := gRPCErrCode(err, codes.Internal)
 			return nil, status.Error(code, err.Error())
 		}
