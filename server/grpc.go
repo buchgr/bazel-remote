@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -245,13 +246,14 @@ func gRPCErrCode(err error, dflt codes.Code) codes.Code {
 		return codes.OK
 	}
 
-	if err == disk.ErrOverloaded {
-		return codes.ResourceExhausted
-	}
-
-	cerr, ok := err.(*cache.Error)
-	if ok && cerr.Code == http.StatusBadRequest {
-		return codes.InvalidArgument
+	var cerr *cache.Error
+	if errors.As(err, &cerr) {
+		switch cerr.Code {
+		case http.StatusInsufficientStorage:
+			return codes.ResourceExhausted
+		case http.StatusBadRequest:
+			return codes.InvalidArgument
+		}
 	}
 
 	return dflt
@@ -283,10 +285,10 @@ func translateGRPCErrCodeFromClient(err error) codes.Code {
 }
 
 func (s *grpcServer) logErrorPrintf(err error, format string, a ...any) {
-       if err == disk.ErrOverloaded {
-               // Using accessLogger to prevent too verbose logging to errorLogger.
-               s.accessLogger.Printf(format, a...)
-       } else {
-               s.errorLogger.Printf(format, a...)
-       }
+	if translateGRPCErrCodeFromClient(err) == codes.ResourceExhausted {
+		// Using accessLogger to prevent too verbose logging to errorLogger.
+		s.accessLogger.Printf(format, a...)
+	} else {
+		s.errorLogger.Printf(format, a...)
+	}
 }

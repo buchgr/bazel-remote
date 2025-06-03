@@ -105,11 +105,6 @@ func badReqErr(format string, a ...interface{}) *cache.Error {
 	}
 }
 
-var ErrOverloaded = &cache.Error{
-	Code: http.StatusInsufficientStorage,
-	Text: "Out of disk space, due to too large or too many concurrent cache requests. Please try again later.",
-}
-
 // Non-test users must call this to expose metrics.
 func (c *diskCache) RegisterMetrics() {
 	c.lru.RegisterMetrics()
@@ -301,17 +296,10 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 
 	if size > 0 {
 		c.mu.Lock()
-		ok, err := c.lru.Reserve(size)
+		err := c.lru.Reserve(size)
 		if err != nil {
 			c.mu.Unlock()
-			return &cache.Error{
-				Code: http.StatusInsufficientStorage,
-				Text: err.Error(),
-			}
-		}
-		if !ok {
-			c.mu.Unlock()
-			return ErrOverloaded
+			return err
 		}
 		c.mu.Unlock()
 		unreserve = true
@@ -531,7 +519,10 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 			if !locked {
 				c.mu.Lock()
 			}
-			tryProxy, err = c.lru.Reserve(size)
+			err = c.lru.Reserve(size)
+			if err == nil {
+				tryProxy = true
+			}
 			c.mu.Unlock()
 			locked = false
 		} else {
@@ -631,7 +622,7 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 
 	f, foundSize, tryProxy, err := c.availableOrTryProxy(kind, hash, size, offset, zstd)
 	if err != nil {
-		return nil, -1, internalErr(err)
+		return nil, -1, err
 	}
 	if tryProxy && size > 0 {
 		unreserve = true

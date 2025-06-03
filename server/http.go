@@ -420,7 +420,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			if cerr, ok := err.(*cache.Error); ok {
 				msg = cerr.Text
 				http.Error(w, msg, cerr.Code)
-				if err == disk.ErrOverloaded {
+				if cerr.Code == http.StatusInsufficientStorage {
 					// Using accessLogger to prevent too verbose logging
 					// to errorLogger.
 					h.logResponse(cerr.Code, r)

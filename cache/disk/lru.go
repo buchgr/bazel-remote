@@ -4,8 +4,10 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync/atomic"
 
+	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -287,24 +289,37 @@ func sumLargerThan(a, b, c int64) bool {
 
 var errReservation = errors.New("internal reservation error")
 
-func (c *SizedLRU) Reserve(size int64) (bool, error) {
+func (c *SizedLRU) Reserve(size int64) error {
 	if size == 0 {
-		return true, nil
+		return nil
 	}
 
 	if size < 0 {
-		return false, fmt.Errorf("Invalid negative blob size: %d", size)
+		return &cache.Error{
+			Code: http.StatusBadRequest,
+			Text: fmt.Sprintf("Invalid negative blob size: %d", size),
+		}
 	}
 
 	if size > c.maxSize {
-		return false, fmt.Errorf("Unable to reserve space for blob (size: %d) larger than cache size %d", size, c.maxSize)
+		// Classified as http.StatusBadRequest because the current
+		// configuration does not support it, and retrying will not
+		// resolve the issue.
+		return &cache.Error{
+			Code: http.StatusBadRequest,
+			Text: fmt.Sprintf("Unable to reserve space for blob (size: %d) larger than cache size %d", size, c.maxSize),
+		}
 	}
 
 	if sumLargerThan(size, c.reservedSize, c.maxSize) {
 		// If size + c.reservedSize is larger than c.maxSize
 		// then we cannot evict enough items to make enough
-		// space.
-		return false, fmt.Errorf("INTERNAL ERROR: unable to reserve enough space for blob with size %d (undersized cache?)", size)
+		// space. Classified as http.StatusInsufficientStorage because
+		// retrying may resolve the issue.
+		return &cache.Error{
+			Code: http.StatusInsufficientStorage,
+			Text: fmt.Sprintf("The item (%d) + reserved space (%d) is larger than the cache's maximum size (%d).", size, c.reservedSize, c.maxSize),
+		}
 	}
 
 	// Note that the calculated value and the potentially updated peak
@@ -332,8 +347,10 @@ func (c *SizedLRU) Reserve(size int64) (bool, error) {
 		// overloaded by writes, e.g., when SSD's write IOPS capacity
 		// is overloaded but reads can be served from operating
 		// system's file system cache in RAM.
-
-		return false, nil
+		return &cache.Error{
+			Code: http.StatusInsufficientStorage,
+			Text: fmt.Sprintf("Out of disk space, due to too large or too many concurrent cache requests. Needed %d but limit is %d bytes. Please try again later.", totalDiskSizeNow, c.diskSizeLimit),
+		}
 	}
 
 	// Evict elements until we are able to reserve enough space.
@@ -342,13 +359,13 @@ func (c *SizedLRU) Reserve(size int64) (bool, error) {
 		if ele != nil {
 			c.removeElement(ele)
 		} else {
-			return false, errReservation // This should have been caught at the start.
+			return internalErr(errReservation) // This should have been caught at the start.
 		}
 	}
 
 	c.currentSize += size
 	c.reservedSize += size
-	return true, nil
+	return nil
 }
 
 func (c *SizedLRU) Unreserve(size int64) error {
