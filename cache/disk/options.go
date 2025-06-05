@@ -14,8 +14,8 @@ import (
 type Option func(*CacheConfig) error
 
 type CacheConfig struct {
-	diskCache *diskCache        // Assumed to be non-nil.
-	metrics   *metricsDecorator // May be nil.
+	diskCache     *diskCache        // Assumed to be non-nil.
+	metrics       *metricsDecorator // May be nil.
 	diskSizeLimit int64
 }
 

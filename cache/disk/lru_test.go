@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func checkSizeAndNumItems(t *testing.T, lru SizedLRU, expSize int64, expNum int) {
+func checkSizeAndNumItems(t *testing.T, lru *SizedLRU, expSize int64, expNum int) {
 	currentSize := lru.TotalSize()
 	if currentSize != expSize {
 		t.Fatalf("TotalSize: expected %d, got %d", expSize, currentSize)
@@ -32,7 +32,7 @@ func TestBasics(t *testing.T) {
 		t.Fatalf("Get: unexpected element found")
 	}
 
-	checkSizeAndNumItems(t, lru, 0, 0)
+	checkSizeAndNumItems(t, &lru, 0, 0)
 
 	// Add an item
 	aKey := "akey"
@@ -50,11 +50,11 @@ func TestBasics(t *testing.T) {
 		t.Fatalf("Get: got a different item back")
 	}
 
-	checkSizeAndNumItems(t, lru, BlockSize, 1)
+	checkSizeAndNumItems(t, &lru, BlockSize, 1)
 
 	// Remove the item
 	lru.Remove(aKey)
-	checkSizeAndNumItems(t, lru, 0, 0)
+	checkSizeAndNumItems(t, &lru, 0, 0)
 }
 
 func TestEviction(t *testing.T) {
@@ -92,7 +92,7 @@ func TestEviction(t *testing.T) {
 		if len(lru.queuedEvictionsChan) > 0 {
 			lru.performQueuedEvictions()
 		}
-		checkSizeAndNumItems(t, lru, thisExpected.expBlocks*BlockSize, thisExpected.expNumItems)
+		checkSizeAndNumItems(t, &lru, thisExpected.expBlocks*BlockSize, thisExpected.expNumItems)
 
 		expectedEvictions = append(expectedEvictions, thisExpected.expEvicted...)
 		if !reflect.DeepEqual(expectedEvictions, evictions) {
@@ -110,7 +110,7 @@ func TestRejectBigItem(t *testing.T) {
 		t.Fatalf("Add succeeded, expected it to fail")
 	}
 
-	checkSizeAndNumItems(t, lru, 0, 0)
+	checkSizeAndNumItems(t, &lru, 0, 0)
 }
 
 func TestReserveZeroAlwaysPossible(t *testing.T) {

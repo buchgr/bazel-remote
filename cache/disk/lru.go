@@ -65,13 +65,13 @@ type SizedLRU struct {
 
 	onEvict EvictCallback
 
-	gaugeCacheSizeBytes     prometheus.Gauge
+	gaugeCacheSizeBytes      prometheus.Gauge
 	gaugeCacheSizeBytesLimit *prometheus.GaugeVec
-	gaugeCacheLogicalBytes  prometheus.Gauge
-	counterEvictedBytes     prometheus.Counter
-	counterOverwrittenBytes prometheus.Counter
+	gaugeCacheLogicalBytes   prometheus.Gauge
+	counterEvictedBytes      prometheus.Counter
+	counterOverwrittenBytes  prometheus.Counter
 
-	summaryCacheItemBytes   prometheus.Summary
+	summaryCacheItemBytes prometheus.Summary
 
 	// Peak value of: currentSize + currentlyEvictingSize
 	// Type is uint64 instead of int64 in order to allow representing also
