@@ -45,18 +45,14 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 	}
 
 	// Go defaults to a limit of 10,000 operating system threads.
-	// We probably don't need half of those for file removals at
-	// any given point in time, unless the disk/fs can't keep up.
-	// I suppose it's better to slow down processing than to crash
-	// when hitting the 10k limit or to run out of disk space.
+	// Violating that limit would result in a crash and therefore we use
+	// a semaphore to throttle amount of concurrently running blocking
+	// file syscalls. A semaphore weight of 5,000 should give plenty of
+	// margin. The weight should not be set too low because the
+	// average latency could increase if a few slow clients could block
+	// all other clients.
 	semaphoreWeight := int64(5000)
-
-	if strings.HasPrefix(runtime.GOOS, "darwin") {
-		// Mac seems to fail to create os threads when removing
-		// lots of files, so allow fewer than linux.
-		semaphoreWeight = 3000
-	}
-	log.Printf("Limiting concurrent file removals to %d\n", semaphoreWeight)
+	log.Printf("Limiting concurrent disk waiting requests to %d\n", semaphoreWeight)
 
 	zi, err := zstdimpl.Get("go")
 	if err != nil {
@@ -72,7 +68,11 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 		maxBlobSize:      math.MaxInt64,
 		maxProxyBlobSize: math.MaxInt64,
 
-		fileRemovalSem: semaphore.NewWeighted(semaphoreWeight),
+		// Acquire 1 of these before starting filesystem writes/deletes, or
+		// reject filesystem writes upon failure (since this will create a
+		// new OS thread and we don't want to hit Go's default 10,000 OS
+		// thread limit.
+		diskWaitSem: semaphore.NewWeighted(semaphoreWeight),
 
 		gaugeCacheAge: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "bazel_remote_disk_cache_longest_item_idle_time_seconds",
@@ -114,7 +114,7 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Attempting to migrate the old directory structure failed: %w", err)
 	}
-	err = c.loadExistingFiles(maxSizeBytes)
+	err = c.loadExistingFiles(maxSizeBytes, cc)
 	if err != nil {
 		return nil, fmt.Errorf("Loading of existing cache entries failed due to error: %w", err)
 	}
@@ -561,7 +561,7 @@ func (c *diskCache) scanDir() (scanResult, error) {
 // loadExistingFiles lists all files in the cache directory, and adds them to the
 // LRU index so that they can be served. Files are sorted by access time first,
 // so that the eviction behavior is preserved across server restarts.
-func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
+func (c *diskCache) loadExistingFiles(maxSizeBytes int64, cc CacheConfig) error {
 	log.Printf("Loading existing files in %s.\n", c.dir)
 
 	result, err := c.scanDir()
@@ -574,17 +574,39 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
 	sort.Sort(result)
 
 	// The eviction callback deletes the file from disk.
-	// This function is only called while the lock is held
+	// This function is only called while the lock is not held
 	// by the current goroutine.
 	onEvict := func(key Key, value lruItem) {
 		f := c.getElementPath(key, value)
-		// Run in a goroutine so we can release the lock sooner.
-		go c.removeFile(f)
+		c.removeFile(f)
 	}
 
 	log.Println("Building LRU index.")
 
 	c.lru = NewSizedLRU(maxSizeBytes, onEvict, len(result.item))
+
+	log.Printf("Will evict at max_size: %.2f GB", bytesToGigaBytes(maxSizeBytes))
+
+	if cc.diskSizeLimit > 0 {
+		// Only set and print if optional limit is enabled.
+		c.lru.diskSizeLimit = cc.diskSizeLimit
+		log.Printf("Will reject at disk_size_limit: %.2f GB",
+			bytesToGigaBytes(c.lru.diskSizeLimit))
+	}
+
+	// Start one single goroutine running in background, continuously
+	// waiting for files to be removed and removing them. Benchmarks on
+	// Linux with XFS file system have surprisingly shown that removal
+	// sequentially with a single goroutine is much faster than starting
+	// separate go routines for each file and removing them in parallel
+	// despite SSDs with high IOPS performance. Benchmarks have also shown
+	// that the single background goroutine is still slightly faster even
+	// if the parallel goroutines would be serialized with a semaphore.
+	// Sequentially evicting all files helps ensure that Go’s default
+	// limit of 10,000 operating system threads is not violated. Otherwise,
+	// the number of concurrent removals could explode when a large new
+	// file suddenly evicts thousands of old small files.
+	go c.lru.performQueuedEvictionsContinuously()
 
 	for i := 0; i < len(result.item); i++ {
 		ok := c.lru.Add(result.metadata[i].lookupKey, *result.item[i])
@@ -596,7 +618,19 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
 		}
 	}
 
+	// Printing progress gives awareness about slow operations.
+	// And waiting for evictions to complete before accepting client
+	// connection reduce risk for confusing overload errors at runtime.
+	log.Println("Waiting for evictions...")
+	for c.lru.queuedEvictionsSize.Load() > 0 {
+		time.Sleep(200 * time.Millisecond)
+	}
+
 	log.Println("Finished loading disk cache files.")
 
 	return nil
+}
+
+func bytesToGigaBytes(bytes int64) float64 {
+	return float64(bytes) / (1024.0 * 1024.0 * 1024.0)
 }

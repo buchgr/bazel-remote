@@ -498,7 +498,7 @@ func TestCacheExistingFiles(t *testing.T) {
 	}
 }
 
-// Make sure that the cache returns http.StatusInsufficientStorage when trying to upload an item
+// Make sure that the cache returns http.StatusBadRequest when trying to upload an item
 // that's bigger than the maximum size.
 func TestCacheBlobTooLarge(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -520,8 +520,8 @@ func TestCacheBlobTooLarge(t *testing.T) {
 		}
 
 		if cerr, ok := err.(*cache.Error); ok {
-			if cerr.Code != http.StatusInsufficientStorage {
-				t.Fatalf("Expected error code %d but received %d", http.StatusInsufficientStorage, cerr.Code)
+			if cerr.Code != http.StatusBadRequest {
+				t.Fatalf("Expected error code %d but received %d", http.StatusBadRequest, cerr.Code)
 			}
 		} else {
 			t.Fatal("Expected error to be of type Error")

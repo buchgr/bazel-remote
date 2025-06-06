@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func checkSizeAndNumItems(t *testing.T, lru SizedLRU, expSize int64, expNum int) {
+func checkSizeAndNumItems(t *testing.T, lru *SizedLRU, expSize int64, expNum int) {
 	currentSize := lru.TotalSize()
 	if currentSize != expSize {
 		t.Fatalf("TotalSize: expected %d, got %d", expSize, currentSize)
@@ -32,7 +32,7 @@ func TestBasics(t *testing.T) {
 		t.Fatalf("Get: unexpected element found")
 	}
 
-	checkSizeAndNumItems(t, lru, 0, 0)
+	checkSizeAndNumItems(t, &lru, 0, 0)
 
 	// Add an item
 	aKey := "akey"
@@ -50,11 +50,11 @@ func TestBasics(t *testing.T) {
 		t.Fatalf("Get: got a different item back")
 	}
 
-	checkSizeAndNumItems(t, lru, BlockSize, 1)
+	checkSizeAndNumItems(t, &lru, BlockSize, 1)
 
 	// Remove the item
 	lru.Remove(aKey)
-	checkSizeAndNumItems(t, lru, 0, 0)
+	checkSizeAndNumItems(t, &lru, 0, 0)
 }
 
 func TestEviction(t *testing.T) {
@@ -89,8 +89,10 @@ func TestEviction(t *testing.T) {
 		if !ok {
 			t.Fatalf("Add: failed adding %d", i)
 		}
-
-		checkSizeAndNumItems(t, lru, thisExpected.expBlocks*BlockSize, thisExpected.expNumItems)
+		if len(lru.queuedEvictionsChan) > 0 {
+			lru.performQueuedEvictions()
+		}
+		checkSizeAndNumItems(t, &lru, thisExpected.expBlocks*BlockSize, thisExpected.expNumItems)
 
 		expectedEvictions = append(expectedEvictions, thisExpected.expEvicted...)
 		if !reflect.DeepEqual(expectedEvictions, evictions) {
@@ -108,7 +110,7 @@ func TestRejectBigItem(t *testing.T) {
 		t.Fatalf("Add succeeded, expected it to fail")
 	}
 
-	checkSizeAndNumItems(t, lru, 0, 0)
+	checkSizeAndNumItems(t, &lru, 0, 0)
 }
 
 func TestReserveZeroAlwaysPossible(t *testing.T) {
@@ -116,47 +118,37 @@ func TestReserveZeroAlwaysPossible(t *testing.T) {
 
 	lru := NewSizedLRU(math.MaxInt64, nil, 0)
 	lru.Add("foo", largeItem)
-	ok, err := lru.Reserve(0)
+	err := lru.Reserve(0)
 	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
-		t.Fatal("Should always be able to reserve 0")
+		t.Fatalf("Should always be able to reserve 0, but got: %v", err)
 	}
 }
 
 func TestReserveAtCapacity(t *testing.T) {
-	var ok bool
 	var err error
 
 	lru := NewSizedLRU(math.MaxInt64, nil, 0)
 
-	ok, err = lru.Reserve(math.MaxInt64)
+	err = lru.Reserve(math.MaxInt64)
 	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
-		t.Fatal("Should be able to reserve all the space")
+		t.Fatalf("Should be able to reserve all the space, but got: %v", err)
 	}
 	if lru.TotalSize() != math.MaxInt64 {
 		t.Fatalf("Expected total size %d, actual size %d", math.MaxInt64,
 			lru.TotalSize())
 	}
 
-	ok, err = lru.Reserve(0)
+	err = lru.Reserve(0)
 	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
-		t.Fatal("Should always be able to reserve 0")
+		t.Fatalf("Should always be able to reserve 0, but got: %v", err)
 	}
 	if lru.TotalSize() != math.MaxInt64 {
 		t.Fatalf("Expected total size %d, actual size %d", math.MaxInt64,
 			lru.TotalSize())
 	}
 
-	ok, err = lru.Reserve(1)
-	if ok || err == nil {
+	err = lru.Reserve(1)
+	if err == nil {
 		t.Fatal("Should not be able to reserve any space")
 	}
 	if lru.TotalSize() != math.MaxInt64 {
@@ -167,45 +159,37 @@ func TestReserveAtCapacity(t *testing.T) {
 
 func TestReserveOverflow(t *testing.T) {
 	var lru SizedLRU
-	var ok bool
 	var err error
 
 	lru = NewSizedLRU(1, nil, 0)
 
-	ok, err = lru.Reserve(1)
+	err = lru.Reserve(1)
 	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
-		t.Fatalf("Expected to be able to reserve 1")
+		t.Fatalf("Expected to be able to reserve 1, but got: %v", err)
 	}
 
-	ok, err = lru.Reserve(math.MaxInt64)
-	if ok || err == nil {
+	err = lru.Reserve(math.MaxInt64)
+	if err == nil {
 		t.Fatal("Expected overflow")
 	}
 
 	lru = NewSizedLRU(10, nil, 0)
-	ok, err = lru.Reserve(math.MaxInt64)
-	if ok || err == nil {
+	err = lru.Reserve(math.MaxInt64)
+	if err == nil {
 		t.Fatal("Expected overflow")
 	}
 }
 
 func TestUnreserve(t *testing.T) {
-	var ok bool
 	var err error
 
 	cap := int64(10)
 	lru := NewSizedLRU(cap, nil, 0)
 
 	for i := int64(1); i <= cap; i++ {
-		ok, err = lru.Reserve(1)
+		err = lru.Reserve(1)
 		if err != nil {
-			t.Fatal(err)
-		}
-		if !ok {
-			t.Fatal("Expected to be able to reserve 1")
+			t.Fatalf("Expected to be able to reserve 1, but got: %v", err)
 		}
 		if lru.TotalSize() != i {
 			t.Fatalf("Expected total size %d, actual size %d", i,
@@ -238,15 +222,12 @@ func TestUnreserve(t *testing.T) {
 func TestAddWithSpaceReserved(t *testing.T) {
 	lru := NewSizedLRU(roundUp4k(2), nil, 0)
 
-	ok, err := lru.Reserve(1)
+	err := lru.Reserve(1)
 	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
-		t.Fatalf("Expected to be able to reserve 1")
+		t.Fatalf("Expected to be able to reserve 1, but got: %v", err)
 	}
 
-	ok = lru.Add("hello", lruItem{size: 2, sizeOnDisk: 2})
+	ok := lru.Add("hello", lruItem{size: 2, sizeOnDisk: 2})
 	if ok {
 		t.Fatal("Expected to not be able to add item with size 2")
 	}

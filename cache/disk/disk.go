@@ -78,8 +78,9 @@ type diskCache struct {
 	accessLogger     *log.Logger
 	containsQueue    chan proxyCheck
 
-	// Limit the number of simultaneous file removals.
-	fileRemovalSem *semaphore.Weighted
+	// Limit the number of simultaneous file removals and filesystem write
+	// operations (apart from atime updates, which we hope are fast).
+	diskWaitSem *semaphore.Weighted
 
 	mu  sync.Mutex
 	lru SizedLRU
@@ -115,6 +116,21 @@ func (c *diskCache) RegisterMetrics() {
 	// but since the updater func must lock the cache mu, it was deemed
 	// necessary to have greater control of when to get the cache age
 	go c.pollCacheAge()
+
+	go c.shiftMetricPeriodContinuously()
+}
+
+// Shift to new period for metrics every 30 seconds. A period of
+// 30 seconds should give margin to catch all peaks (with for example
+// a 10 second scrape interval) even in cases of delayed or missed
+// scrapes from prometheus.
+func (c *diskCache) shiftMetricPeriodContinuously() {
+	ticker := time.NewTicker(30 * time.Second)
+	for ; true; <-ticker.C {
+		c.mu.Lock()
+		c.lru.shiftToNextMetricPeriod()
+		c.mu.Unlock()
+	}
 }
 
 // Update metric every minute with the idle time of the least recently used item in the cache
@@ -168,12 +184,6 @@ func (c *diskCache) getElementPath(key Key, value lruItem) string {
 }
 
 func (c *diskCache) removeFile(f string) {
-	if err := c.fileRemovalSem.Acquire(context.Background(), 1); err != nil {
-		log.Printf("ERROR: failed to aquire semaphore: %v, unable to remove %s", err, f)
-		return
-	}
-	defer c.fileRemovalSem.Release(1)
-
 	err := os.Remove(f)
 	if err != nil {
 		log.Printf("ERROR: failed to remove evicted cache file: %s", f)
@@ -241,6 +251,16 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 		return nil
 	}
 
+	// Put requests are processed using blocking file syscalls, which
+	// consume one operating system thread per put request. Throttling
+	// the Put requests with a semaphore to avoid requring too many
+	// operating system threads.
+	if err := c.diskWaitSem.Acquire(context.Background(), 1); err != nil {
+		log.Printf("ERROR: failed to aquire semaphore: %v", err)
+		return internalErr(err)
+	}
+	defer c.diskWaitSem.Release(1)
+
 	key := cache.LookupKey(kind, hash)
 
 	var tf *os.File // Tempfile.
@@ -276,21 +296,10 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 
 	if size > 0 {
 		c.mu.Lock()
-		ok, err := c.lru.Reserve(size)
+		err := c.lru.Reserve(size)
 		if err != nil {
 			c.mu.Unlock()
-			return &cache.Error{
-				Code: http.StatusInsufficientStorage,
-				Text: err.Error(),
-			}
-		}
-		if !ok {
-			c.mu.Unlock()
-			return &cache.Error{
-				Code: http.StatusInsufficientStorage,
-				Text: fmt.Sprintf("The item (%d) + reserved space is larger than the cache's maximum size (%d).",
-					size, c.lru.MaxSize()),
-			}
+			return err
 		}
 		c.mu.Unlock()
 		unreserve = true
@@ -510,7 +519,10 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 			if !locked {
 				c.mu.Lock()
 			}
-			tryProxy, err = c.lru.Reserve(size)
+			err = c.lru.Reserve(size)
+			if err == nil {
+				tryProxy = true
+			}
 			c.mu.Unlock()
 			locked = false
 		} else {
@@ -610,7 +622,7 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 
 	f, foundSize, tryProxy, err := c.availableOrTryProxy(kind, hash, size, offset, zstd)
 	if err != nil {
-		return nil, -1, internalErr(err)
+		return nil, -1, err
 	}
 	if tryProxy && size > 0 {
 		unreserve = true
@@ -622,6 +634,16 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 	if !tryProxy {
 		return nil, -1, nil
 	}
+
+	// Non-proxied Get requests do not seem to consume any significant amount of OS threads,
+	// and are therefore not throttled. However, it is assumed that proxied Get requests might,
+	// at least when storing the result from the proxy to disk, and perhaps also when
+	// waiting for the proxy. Proxied Get requests are therefore throttled by a semaphore.
+	if err := c.diskWaitSem.Acquire(context.Background(), 1); err != nil {
+		log.Printf("ERROR: failed to aquire semaphore: %v", err)
+		return nil, -1, internalErr(err)
+	}
+	defer c.diskWaitSem.Release(1)
 
 	r, foundSize, err := c.proxy.Get(ctx, kind, hash, size)
 	if r != nil {
