@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["sha256verifier.go"],
+    importpath = "github.com/buchgr/bazel-remote/v2/utils/sha256verifier",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = ["sha256verifier_test.go"],
+    embed = [":go_default_library"],
+)

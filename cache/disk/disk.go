@@ -20,6 +20,7 @@ import (
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/zstdimpl"
 	"github.com/buchgr/bazel-remote/v2/utils/annotate"
+	"github.com/buchgr/bazel-remote/v2/utils/sha256verifier"
 	"github.com/buchgr/bazel-remote/v2/utils/tempfile"
 	"github.com/buchgr/bazel-remote/v2/utils/validate"
 
@@ -168,13 +169,14 @@ func (c *diskCache) getElementPath(key Key, value lruItem) string {
 }
 
 func (c *diskCache) removeFile(f string) {
-	if err := c.fileRemovalSem.Acquire(context.Background(), 1); err != nil {
+	err := c.fileRemovalSem.Acquire(context.Background(), 1)
+	if err != nil {
 		log.Printf("ERROR: failed to aquire semaphore: %v, unable to remove %s", err, f)
 		return
 	}
 	defer c.fileRemovalSem.Release(1)
 
-	err := os.Remove(f)
+	err = os.Remove(f)
 	if err != nil {
 		log.Printf("ERROR: failed to remove evicted cache file: %s", f)
 	}
@@ -361,7 +363,13 @@ func (c *diskCache) writeAndCloseFile(ctx context.Context, r io.Reader, kind cac
 		return sizeOnDisk, nil
 	}
 
-	if sizeOnDisk, err = io.Copy(f, r); err != nil {
+	var writeCloser io.WriteCloser = f
+	if kind == cache.CAS { // c.storageMode == casblob.Identity
+		writeCloser = sha256verifier.New(hash, size, f)
+	}
+
+	sizeOnDisk, err = io.Copy(writeCloser, r)
+	if err != nil {
 		return -1, annotate.Err(ctx, "Failed to copy data to disk", err)
 	}
 
@@ -370,13 +378,16 @@ func (c *diskCache) writeAndCloseFile(ctx context.Context, r io.Reader, kind cac
 			"Sizes don't match. Expected %d, found %d", size, sizeOnDisk)
 	}
 
-	if err = f.Sync(); err != nil {
+	err = f.Sync()
+	if err != nil {
 		return -1, fmt.Errorf("Failed to sync file to disk: %w", err)
 	}
 
-	if err = f.Close(); err != nil {
-		return -1, fmt.Errorf("Failed to close file: %w", err)
+	err = writeCloser.Close()
+	if err != nil {
+		return -1, fmt.Errorf("Failed to verify hash: %w", err)
 	}
+
 	closeFile = false
 
 	return sizeOnDisk, nil
