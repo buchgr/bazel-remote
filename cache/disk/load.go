@@ -587,11 +587,11 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64, cc CacheConfig) error 
 
 	log.Printf("Will evict at max_size: %.2f GB", bytesToGigaBytes(maxSizeBytes))
 
-	if cc.diskSizeLimit > 0 {
+	if cc.maxSizeHardLimit > 0 {
 		// Only set and print if optional limit is enabled.
-		c.lru.diskSizeLimit = cc.diskSizeLimit
-		log.Printf("Will reject at disk_size_limit: %.2f GB",
-			bytesToGigaBytes(c.lru.diskSizeLimit))
+		c.lru.maxSizeHardLimit = cc.maxSizeHardLimit
+		log.Printf("Will reject at max_size_hard_limit: %.2f GB",
+			bytesToGigaBytes(c.lru.maxSizeHardLimit))
 	}
 
 	// Start one single goroutine running in background, continuously

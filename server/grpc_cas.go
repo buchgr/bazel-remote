@@ -181,15 +181,21 @@ func (s *grpcServer) getBlobResponse(ctx context.Context, digest *pb.Digest, all
 		if rc != nil {
 			defer rc.Close()
 		}
-		if rc == nil || foundSize != digest.SizeBytes {
-			s.accessLogger.Printf("GRPC CAS GET %s NOT FOUND", digest.Hash)
-			r.Status = &status.Status{Code: int32(code.Code_NOT_FOUND)}
-			return &r
-		}
 
 		if err != nil {
 			s.errorLogger.Printf("GRPC CAS GET %s INTERNAL ERROR: %v", digest.Hash, err)
-			r.Status = &status.Status{Code: int32(code.Code_INTERNAL)}
+			// Using codes.NotFound as default, in order to keep historical behaviour.
+			// That ensures that clients handle for example corrupted headers
+			// as normal cache misses and allows clients to gracefully replace corrupted
+			// entries on disk by new uploads.
+			// The drawback is that it hides the real reason in e.g. prometheus metrics.
+			r.Status = &status.Status{Code: int32(gRPCErrCode(err, codes.NotFound))}
+			return &r
+		}
+
+		if rc == nil || foundSize != digest.SizeBytes {
+			s.accessLogger.Printf("GRPC CAS GET %s NOT FOUND", digest.Hash)
+			r.Status = &status.Status{Code: int32(code.Code_NOT_FOUND)}
 			return &r
 		}
 
@@ -216,7 +222,10 @@ func (s *grpcServer) getBlobResponse(ctx context.Context, digest *pb.Digest, all
 	if err != nil {
 		s.errorLogger.Printf("GRPC CAS GET %s INTERNAL ERROR: %v",
 			digest.Hash, err)
-		r.Status = &status.Status{Code: int32(code.Code_INTERNAL)}
+		// TODO The case above with allowZstd have codes.NotFound as default
+		//      for unknown erros, but this has codes.Internal. Is that difference
+		//      intentional?
+		r.Status = &status.Status{Code: int32(gRPCErrCode(err, codes.Internal))}
 		return &r
 	}
 

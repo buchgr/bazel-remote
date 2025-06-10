@@ -76,7 +76,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 		rdr, sizeBytes, err := s.cache.Get(ctx, cache.AC, req.ActionDigest.Hash, unknownActionResultSize, 0)
 		if err != nil {
 			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
-			return nil, status.Error(codes.Unknown, err.Error())
+			return nil, status.Error(gRPCErrCode(err, codes.Unknown), err.Error())
 		}
 		if rdr == nil || sizeBytes <= 0 {
 			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, "NOT FOUND")
@@ -112,7 +112,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 	result, _, err := s.cache.GetValidatedActionResult(ctx, req.ActionDigest.Hash)
 	if err != nil {
 		s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
-		return nil, status.Error(codes.Unknown, err.Error())
+		return nil, status.Error(gRPCErrCode(err, codes.Unknown), err.Error())
 	}
 
 	if result == nil {
@@ -171,12 +171,6 @@ func (s *grpcServer) maybeInline(ctx context.Context, inline bool, slice *[]byte
 			return nil // Not inlined, nothing to do.
 		}
 
-		if (*digest).SizeBytes <= 0 {
-			// Unexpected corner case?
-			*slice = []byte{}
-			return nil
-		}
-
 		if *digest == nil {
 			hash := sha256.Sum256(*slice)
 			*digest = &pb.Digest{
@@ -191,8 +185,13 @@ func (s *grpcServer) maybeInline(ctx context.Context, inline bool, slice *[]byte
 				bytes.NewReader(*slice))
 			if err == nil || err == io.EOF {
 				s.accessLogger.Printf("GRPC CAS PUT %s OK", (*digest).Hash)
+			} else {
+				// De-inline failed (possibly due to "resource overload"). Preserve
+				// inlined data regardless of desire to de-inline.
+				s.accessLogger.Printf("GRPC CAS PUT %s %s", (*digest).Hash, err)
+				*inlinedSoFar += int64(len(*slice))
+				return nil
 			}
-			// De-inline failed (possibly due to "resource overload"), that's OK though.
 		}
 
 		*slice = []byte{}

@@ -253,7 +253,10 @@ func gRPCErrCode(err error, dflt codes.Code) codes.Code {
 			return codes.ResourceExhausted
 		case http.StatusBadRequest:
 			return codes.InvalidArgument
+		case http.StatusNotFound:
+			return codes.NotFound
 		}
+
 	}
 
 	return dflt

@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/buchgr/bazel-remote/v2/utils",
     visibility = ["//visibility:public"],
     deps = [
+        "//cache:go_default_library",
         "//genproto/build/bazel/remote/execution/v2:go_default_library",
     ],
 )

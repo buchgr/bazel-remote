@@ -526,6 +526,18 @@ http_address: 0.0.0.0:8080
 # to by ActionResult messages are in the cache.
 #disable_grpc_ac_deps_check: false
 
+# If specified, write requests will be rejected when this limit is reached.
+# Clients can then decide which requests to retry. This setting can be used
+# to avoid running out of disk space when new files are uploaded faster than
+# old files can be evicted. A reasonable value might be 5% larger than
+# max_size. A higher limit might be needed if combined with a proxy backend.
+#
+# The max_size_hard_limit can be tuned by watching how the prometheus query
+# max_over_time(bazel_remote_disk_cache_size_bytes[$__interval]) varies
+# between bazel_remote_disk_cache_size_bytes_limit{type="evict"} and
+# bazel_remote_disk_cache_size_bytes_limit{type="reject"}.
+#max_size_hard_limit: 105
+
 # If set to true, enable metrics for each HTTP/gRPC endpoint.
 #enable_endpoint_metrics: false
 

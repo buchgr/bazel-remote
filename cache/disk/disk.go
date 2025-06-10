@@ -80,6 +80,9 @@ type diskCache struct {
 
 	// Limit the number of simultaneous file removals and filesystem write
 	// operations (apart from atime updates, which we hope are fast).
+	// When acquiring both the "diskWaitSem" semaphore and the "mu" mutex,
+	// the "diskWaitSem" must be acquired before "mu" in order to avoid
+	// potential deadlocks.
 	diskWaitSem *semaphore.Weighted
 
 	mu  sync.Mutex
@@ -639,6 +642,9 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 	// and are therefore not throttled. However, it is assumed that proxied Get requests might,
 	// at least when storing the result from the proxy to disk, and perhaps also when
 	// waiting for the proxy. Proxied Get requests are therefore throttled by a semaphore.
+	// Unfortunately, this proxy-specific throttling does not limit the size reservation
+	// performed inside availableOrTryProxy. It should still be effective in limiting the number
+	// of OS threads, but it does not help reduce the risk of http.StatusInsufficientStorage.
 	if err := c.diskWaitSem.Acquire(context.Background(), 1); err != nil {
 		log.Printf("ERROR: failed to aquire semaphore: %v", err)
 		return nil, -1, internalErr(err)

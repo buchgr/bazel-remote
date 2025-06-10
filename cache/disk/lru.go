@@ -76,15 +76,15 @@ type SizedLRU struct {
 	// Peak value of: currentSize + currentlyEvictingSize
 	// Type is uint64 instead of int64 in order to allow representing also
 	// large, rejected reservations that would have resulted in values above
-	// the int64 diskSizeLimit.
+	// the int64 maxSizeHardLimit.
 	totalDiskSizePeak uint64
 
 	// Configured max allowed bytes on disk for the cache, including files
 	// queued for eviction but not yet removed. Value <= 0 means no
-	// limit. The diskSizeLimit is expected to be configured higher than
+	// limit. The maxSizeHardLimit is expected to be configured higher than
 	// maxSize (e.g., 5% higher) to allow the asynchronous removal to catch
 	// up after peaks of file writes.
-	diskSizeLimit int64
+	maxSizeHardLimit int64
 
 	// Number of bytes currently being evicted (removed from lru but not
 	// yet removed from disk). Is allowed to be accessed and changed
@@ -155,12 +155,12 @@ func (c *SizedLRU) RegisterMetrics() {
 	prometheus.MustRegister(c.summaryCacheItemBytes)
 
 	// Set gauges to constant configured values to help visualize configured limits
-	// and in particular help tuning disk_size_limit configuration by comparing it
+	// and in particular help tuning max_size_hard_limit configuration by comparing it
 	// against peak values of the bazel_remote_disk_cache_size_bytes prometheus gauge
 	// and give awareness about if getting close to rejecting requests.
 	c.gaugeCacheSizeBytesLimit.WithLabelValues("evict").Set(float64(c.maxSize))
-	if c.diskSizeLimit > 0 {
-		c.gaugeCacheSizeBytesLimit.WithLabelValues("reject").Set(float64(c.diskSizeLimit))
+	if c.maxSizeHardLimit > 0 {
+		c.gaugeCacheSizeBytesLimit.WithLabelValues("reject").Set(float64(c.maxSizeHardLimit))
 	}
 }
 
@@ -181,7 +181,7 @@ func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
 	}
 
 	// The files are already stored on disk when Add is invoked, therefore
-	// it is not motivated to reject based on diskSizeLimit. The check
+	// it is not motivated to reject based on maxSizeHardLimit. The check
 	// against maxSize is considered sufficient. However, invoke
 	// calcTotalDiskSizeAndUpdatePeak to update the peak value. The peak
 	// value is updated BEFORE triggering new evictions, to make the
@@ -333,7 +333,7 @@ func (c *SizedLRU) Reserve(size int64) error {
 	// gauge and the logic for deciding about rejection.
 	totalDiskSizeNow := c.calcTotalDiskSizeAndUpdatePeak(size)
 
-	if c.diskSizeLimit > 0 && totalDiskSizeNow > (uint64(c.diskSizeLimit)) {
+	if c.maxSizeHardLimit > 0 && totalDiskSizeNow > (uint64(c.maxSizeHardLimit)) {
 
 		// Reject and let the client decide about retries. E.g., a bazel
 		// client either building locally or with
@@ -349,7 +349,7 @@ func (c *SizedLRU) Reserve(size int64) error {
 		// system's file system cache in RAM.
 		return &cache.Error{
 			Code: http.StatusInsufficientStorage,
-			Text: fmt.Sprintf("Out of disk space, due to too large or too many concurrent cache requests. Needed %d but limit is %d bytes. Please try again later.", totalDiskSizeNow, c.diskSizeLimit),
+			Text: fmt.Sprintf("Out of disk space, due to too large or too many concurrent cache requests. Needed %d but limit is %d bytes. Please try again later.", totalDiskSizeNow, c.maxSizeHardLimit),
 		}
 	}
 
@@ -417,10 +417,8 @@ func (c *SizedLRU) getTailItem() (Key, lruItem) {
 
 // Append an entry to the eviction queue. The entry must have been removed
 // from SizedLRU.ll before being sent to this method.
-// Note that this method can be invoked without holding the diskCache.mu mutex,
-// but it is guaranteed to never block for full channel buffer as long as
-// it is invoked only when holding the diskCache.mu mutex and no one else tries
-// to send to queuedEvictionsChan concurrently.
+// The diskCache.mu mutex should be held when invoking this method (to prevent
+// queuedEvictionsChan from potentially becoming full and block calls).
 func (c *SizedLRU) appendEvictionToQueue(e *entry) {
 	c.queuedEvictionsSize.Add(e.value.sizeOnDisk)
 	select {

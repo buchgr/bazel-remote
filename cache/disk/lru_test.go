@@ -2,8 +2,12 @@ package disk
 
 import (
 	"math"
+	"net/http"
 	"reflect"
 	"testing"
+
+	testutils "github.com/buchgr/bazel-remote/v2/utils"
+	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 func checkSizeAndNumItems(t *testing.T, lru *SizedLRU, expSize int64, expNum int) {
@@ -155,6 +159,74 @@ func TestReserveAtCapacity(t *testing.T) {
 		t.Fatalf("Expected total size %d, actual size %d", math.MaxInt64,
 			lru.TotalSize())
 	}
+}
+
+func TestReserveAtEvictionQueueLimit(t *testing.T) {
+
+	lru := NewSizedLRU(BlockSize*2, func(Key, lruItem) {}, 0)
+	lru.maxSizeHardLimit = BlockSize * 3
+
+	blockSize1Key := 7777
+	blockSize1Item := lruItem{size: BlockSize * 1, sizeOnDisk: BlockSize * 1}
+
+	blockSize2Key := 8888
+	blockSize2Item := lruItem{size: BlockSize * 2, sizeOnDisk: BlockSize * 2}
+
+	// Add large item.
+	testutils.AssertSuccess(t, lru.Add(blockSize2Key, blockSize2Item))
+	testutils.AssertEquals(t, BlockSize*2, lru.totalDiskSizePeak)
+
+	// Move large item into eviction queue.
+	lru.Remove(blockSize2Key)
+	testutils.AssertEquals(t, BlockSize*2, lru.queuedEvictionsSize.Load())
+
+	// Accept reservation since not exceeding maxSizeHardLimit.
+	testutils.AssertSuccess(t, lru.Reserve(BlockSize))
+	testutils.AssertEquals(t, BlockSize*2, lru.queuedEvictionsSize.Load())
+	testutils.AssertEquals(t, BlockSize*3, lru.totalDiskSizePeak)
+
+	// Reject reservation when the item + reserved + queued > maxSizeHardLimit.
+	testutils.AssertFailureWithCode(t, lru.Reserve(BlockSize), http.StatusInsufficientStorage)
+	testutils.AssertEquals(t, BlockSize*4, lru.totalDiskSizePeak) // Includes rejected item.
+
+	// Convert reservation into added item.
+	testutils.AssertSuccess(t, lru.Unreserve(BlockSize))
+	testutils.AssertSuccess(t, lru.Add(blockSize1Key, blockSize1Item))
+
+	// Reject reservation when the item + added + queued > maxSizeHardLimit.
+	testutils.AssertFailureWithCode(t, lru.Reserve(BlockSize), http.StatusInsufficientStorage)
+	testutils.AssertEquals(t, BlockSize*4, lru.totalDiskSizePeak) // Includes rejected item.
+
+	// Complete queued evictions
+	lru.performQueuedEvictions()
+	testutils.AssertEquals(t, BlockSize*0, lru.queuedEvictionsSize.Load())
+	testutils.AssertEquals(t, BlockSize*4, lru.totalDiskSizePeak) // Not reset until next period.
+
+	// Accept reservation since more space is available after completed evictions.
+	testutils.AssertSuccess(t, lru.Reserve(BlockSize))
+	testutils.AssertEquals(t, BlockSize*4, lru.totalDiskSizePeak)
+}
+
+func TestPeriodicMetricUpdate(t *testing.T) {
+
+	lru := NewSizedLRU(BlockSize*10, nil, 0)
+
+	// Reserve so that peak become 5 + 2 = 7
+	testutils.AssertSuccess(t, lru.Reserve(BlockSize*5))
+	testutils.AssertSuccess(t, lru.Reserve(BlockSize*2))
+	testutils.AssertEquals(t, BlockSize*7, lru.totalDiskSizePeak)
+
+	// Peak remains the same while in same period even after unreserve.
+	testutils.AssertSuccess(t, lru.Unreserve(BlockSize*2))
+	testutils.AssertEquals(t, BlockSize*7, lru.totalDiskSizePeak)
+
+	lru.shiftToNextMetricPeriod()
+	testutils.AssertEquals(t, BlockSize*5, lru.totalDiskSizePeak)
+	testutils.AssertEquals(t, BlockSize*7, promtestutil.ToFloat64(lru.gaugeCacheSizeBytes))
+
+	lru.shiftToNextMetricPeriod()
+	testutils.AssertEquals(t, BlockSize*5, lru.totalDiskSizePeak)
+	testutils.AssertEquals(t, BlockSize*5, promtestutil.ToFloat64(lru.gaugeCacheSizeBytes))
 }
 
 func TestReserveOverflow(t *testing.T) {
