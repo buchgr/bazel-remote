@@ -155,8 +155,8 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 
 	for uriIndex, uri := range req.GetUris() {
 		uriSpecificHeader := globalHeader
-		found := false
-		if uriSpecificHeader, found = uriSpecificHeaders[uriIndex]; found {
+		if header, found := uriSpecificHeaders[uriIndex]; found {
+			uriSpecificHeader = header
 			for key, value := range globalHeader {
 				if _, found := uriSpecificHeader[key]; !found {
 					uriSpecificHeader[key] = value
