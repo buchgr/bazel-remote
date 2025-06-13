@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"google.golang.org/genproto/googleapis/rpc/status"
@@ -56,7 +57,9 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 		return nil, errNilFetchBlobRequest
 	}
 
-	headers := http.Header{}
+	globalHeader := http.Header{}
+
+	uriSpecificHeaders := make(map[int]http.Header)
 
 	for _, q := range req.GetQualifiers() {
 		if q == nil {
@@ -69,10 +72,37 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 		}
 
 		const QualifierHTTPHeaderPrefix = "http_header:"
+		const QualifierHTTPHeaderUrlPrefix = "http_header_url:"
+
 		if strings.HasPrefix(q.Name, QualifierHTTPHeaderPrefix) {
 			key := q.Name[len(QualifierHTTPHeaderPrefix):]
 
-			headers[key] = strings.Split(q.Value, ",")
+			globalHeader[key] = strings.Split(q.Value, ",")
+			continue
+		} else if strings.HasPrefix(q.Name, QualifierHTTPHeaderUrlPrefix) {
+			idxAndKey := q.Name[len(QualifierHTTPHeaderUrlPrefix):]
+			parts := strings.Split(idxAndKey, ":")
+			if len(parts) != 2 {
+				s.errorLogger.Printf("invalid http_header_url qualifier: \"%s\"", idxAndKey)
+				continue
+			}
+
+			uriIndex, err := strconv.Atoi(parts[0])
+			if err != nil {
+				s.errorLogger.Printf("failed to parse URI index as int: %s", err)
+				continue
+			}
+
+			if uriIndex < 0 || uriIndex >= len(req.GetUris()) {
+				s.errorLogger.Printf("URI index for header is out of range [0 - %d]: %d", len(req.GetUris())-1, uriIndex)
+				continue
+			}
+
+			if _, found := uriSpecificHeaders[uriIndex]; !found {
+				uriSpecificHeaders[uriIndex] = make(http.Header)
+			}
+			uriSpecificHeaders[uriIndex].Add(parts[1], q.Value)
+
 			continue
 		}
 
@@ -123,8 +153,15 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 
 	// See if we can download one of the URIs.
 
-	for _, uri := range req.GetUris() {
-		ok, actualHash, size := s.fetchItem(ctx, uri, headers, sha256Str)
+	for uriIndex, uri := range req.GetUris() {
+		uriSpecificHeader := globalHeader.Clone()
+		if header, found := uriSpecificHeaders[uriIndex]; found {
+			for key, value := range header {
+				uriSpecificHeader[key] = value
+			}
+		}
+
+		ok, actualHash, size := s.fetchItem(ctx, uri, uriSpecificHeader, sha256Str)
 		if ok {
 			return &asset.FetchBlobResponse{
 				Status: &status.Status{Code: int32(codes.OK)},
