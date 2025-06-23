@@ -1,7 +1,7 @@
 # https://registry.bazel.build/
 bazel_dep(name = "googleapis", version = "0.0.0-20240326-1c8d509c5")
 bazel_dep(name = "rules_go", version = "0.55.0", repo_name = "io_bazel_rules_go")
-bazel_dep(name = "gazelle", version = "0.43.0")
+bazel_dep(name = "gazelle", version = "0.44.0")
 bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "rules_pkg", version = "1.1.0")
 bazel_dep(name = "rules_oci", version = "2.2.6")
