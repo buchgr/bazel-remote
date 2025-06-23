@@ -154,13 +154,10 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 	// See if we can download one of the URIs.
 
 	for uriIndex, uri := range req.GetUris() {
-		uriSpecificHeader := globalHeader
+		uriSpecificHeader := globalHeader.Clone()
 		if header, found := uriSpecificHeaders[uriIndex]; found {
-			uriSpecificHeader = header
-			for key, value := range globalHeader {
-				if _, found := uriSpecificHeader[key]; !found {
-					uriSpecificHeader[key] = value
-				}
+			for key, value := range header {
+				uriSpecificHeader[key] = value
 			}
 		}
 
