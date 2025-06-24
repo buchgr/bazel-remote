@@ -91,6 +91,7 @@ func (c *URLBackendConfig) validate(protocol string) error {
 
 // Config holds the top-level configuration for bazel-remote.
 type Config struct {
+	MaxOsThreads                int                       `yaml:"max_os_threads"`
 	HTTPAddress                 string                    `yaml:"http_address"`
 	GRPCAddress                 string                    `yaml:"grpc_address"`
 	ProfileAddress              string                    `yaml:"profile_address"`
@@ -154,7 +155,7 @@ var defaultDurationBuckets = []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320}
 
 // newFromArgs returns a validated Config with the specified values, and
 // an error if there were any problems with the validation.
-func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation string,
+func newFromArgs(maxOsThreads int, dir string, maxSize int, storageMode string, zstdImplementation string,
 	httpAddress string, grpcAddress string,
 	profileAddress string,
 	htpasswdFile string,
@@ -186,6 +187,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	maxProxyBlobSize int64) (*Config, error) {
 
 	c := Config{
+		MaxOsThreads:                maxOsThreads,
 		HTTPAddress:                 httpAddress,
 		GRPCAddress:                 grpcAddress,
 		ProfileAddress:              profileAddress,
@@ -295,6 +297,10 @@ func NewFromYaml(data []byte) (*Config, error) {
 }
 
 func validateConfig(c *Config) error {
+	if c.MaxOsThreads < 0 {
+		return errors.New("The 'max_os_threads' flag/key must be a positive integer")
+	}
+
 	if c.Dir == "" {
 		return errors.New("The 'dir' flag/key is required")
 	}
@@ -640,6 +646,7 @@ func get(ctx *cli.Context) (*Config, error) {
 	}
 
 	return newFromArgs(
+		ctx.Int("max_os_threads"),
 		ctx.String("dir"),
 		ctx.Int("max_size"),
 		ctx.String("storage_mode"),
