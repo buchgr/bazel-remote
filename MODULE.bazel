@@ -1,10 +1,10 @@
 # https://registry.bazel.build/
 bazel_dep(name = "googleapis", version = "0.0.0-20240326-1c8d509c5")
-bazel_dep(name = "rules_go", version = "0.50.1", repo_name = "io_bazel_rules_go")
-bazel_dep(name = "gazelle", version = "0.38.0")
-bazel_dep(name = "rules_proto", version = "7.0.2")
-bazel_dep(name = "rules_pkg", version = "1.0.1")
-bazel_dep(name = "rules_oci", version = "2.0.0")
+bazel_dep(name = "rules_go", version = "0.55.0", repo_name = "io_bazel_rules_go")
+bazel_dep(name = "gazelle", version = "0.44.0")
+bazel_dep(name = "rules_proto", version = "7.1.0")
+bazel_dep(name = "rules_pkg", version = "1.1.0")
+bazel_dep(name = "rules_oci", version = "2.2.6")
 
 oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
 oci.pull(
@@ -26,7 +26,7 @@ use_repo(oci, "cgo_arm64_base")
 
 # Download an SDK for the host OS & architecture as well as common remote execution platforms.
 go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
-go_sdk.download(version = "1.24.0")
+go_sdk.download(version = "1.24.4")
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 go_deps.from_file(go_mod = "//:go.mod")

@@ -41,11 +41,12 @@ type badDigest struct {
 }
 
 type grpcTestFixture struct {
-	acClient     pb.ActionCacheClient
-	casClient    pb.ContentAddressableStorageClient
-	bsClient     bytestream.ByteStreamClient
-	assetClient  asset.FetchClient
-	healthClient grpc_health_v1.HealthClient
+	acClient           pb.ActionCacheClient
+	casClient          pb.ContentAddressableStorageClient
+	capabilitiesClient pb.CapabilitiesClient
+	bsClient           bytestream.ByteStreamClient
+	assetClient        asset.FetchClient
+	healthClient       grpc_health_v1.HealthClient
 
 	diskCache disk.Cache
 
@@ -69,6 +70,8 @@ var (
 func grpcTestSetup(t *testing.T) (tc grpcTestFixture) {
 	return grpcTestSetupInternal(t, false)
 }
+
+var testMaxCasBlobSizeBytes int64 = 123456789
 
 func grpcTestSetupInternal(t *testing.T, mangleACKeys bool) (tc grpcTestFixture) {
 	dir, err := os.MkdirTemp("", "bazel-remote-grpc-tests-"+t.Name())
@@ -105,6 +108,7 @@ func grpcTestSetupInternal(t *testing.T, mangleACKeys bool) (tc grpcTestFixture)
 			validateAC,
 			mangleACKeys,
 			enableRemoteAssetAPI,
+			testMaxCasBlobSizeBytes,
 			diskCache, accessLogger, errorLogger)
 		if err2 != nil {
 			fmt.Println(err2)
@@ -121,11 +125,12 @@ func grpcTestSetupInternal(t *testing.T, mangleACKeys bool) (tc grpcTestFixture)
 	}
 
 	return grpcTestFixture{
-		casClient:    pb.NewContentAddressableStorageClient(conn),
-		acClient:     pb.NewActionCacheClient(conn),
-		bsClient:     bytestream.NewByteStreamClient(conn),
-		assetClient:  asset.NewFetchClient(conn),
-		healthClient: grpc_health_v1.NewHealthClient(conn),
+		casClient:          pb.NewContentAddressableStorageClient(conn),
+		acClient:           pb.NewActionCacheClient(conn),
+		capabilitiesClient: pb.NewCapabilitiesClient(conn),
+		bsClient:           bytestream.NewByteStreamClient(conn),
+		assetClient:        asset.NewFetchClient(conn),
+		healthClient:       grpc_health_v1.NewHealthClient(conn),
 
 		diskCache: diskCache,
 
@@ -2542,5 +2547,30 @@ func TestHealthCheck(t *testing.T) {
 
 	if resp.Status != grpc_health_v1.HealthCheckResponse_SERVING {
 		t.Fatalf("Expected health check to return SERVING status, got: %s", resp.Status.String())
+	}
+}
+
+func TestMaxCasBlobSizeBytes(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
+
+	resp, err := fixture.capabilitiesClient.GetCapabilities(context.Background(), &pb.GetCapabilitiesRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp == nil {
+		t.Fatal("Expected non-nil *ServerCapabilities")
+	}
+
+	cacheCapabilities := resp.GetCacheCapabilities()
+	if cacheCapabilities == nil {
+		t.Fatal("Expected non-nil *CacheCapabilities")
+	}
+
+	if cacheCapabilities.MaxCasBlobSizeBytes != testMaxCasBlobSizeBytes {
+		t.Fatalf("Expected MaxCasBlobSizeBytes to be %d, found %d\n",
+			testMaxCasBlobSizeBytes, cacheCapabilities.MaxCasBlobSizeBytes)
 	}
 }

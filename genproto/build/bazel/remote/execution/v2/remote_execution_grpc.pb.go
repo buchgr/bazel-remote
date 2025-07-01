@@ -412,7 +412,7 @@ type ActionCacheClient interface {
 	//
 	// In order to allow the server to perform access control based on the type of
 	// action, and to assist with client debugging, the client MUST first upload
-	// the [Action][build.bazel.remote.execution.v2.Execution] that produced the
+	// the [Action][build.bazel.remote.execution.v2.Action] that produced the
 	// result, along with its
 	// [Command][build.bazel.remote.execution.v2.Command], into the
 	// `ContentAddressableStorage`.
@@ -477,7 +477,7 @@ type ActionCacheServer interface {
 	//
 	// In order to allow the server to perform access control based on the type of
 	// action, and to assist with client debugging, the client MUST first upload
-	// the [Action][build.bazel.remote.execution.v2.Execution] that produced the
+	// the [Action][build.bazel.remote.execution.v2.Action] that produced the
 	// result, along with its
 	// [Command][build.bazel.remote.execution.v2.Command], into the
 	// `ContentAddressableStorage`.

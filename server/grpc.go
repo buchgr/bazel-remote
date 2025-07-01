@@ -36,11 +36,12 @@ const (
 const grpcHealthServiceName = "/grpc.health.v1.Health/Check"
 
 type grpcServer struct {
-	cache        disk.Cache
-	accessLogger cache.Logger
-	errorLogger  cache.Logger
-	depsCheck    bool
-	mangleACKeys bool
+	cache               disk.Cache
+	accessLogger        cache.Logger
+	errorLogger         cache.Logger
+	depsCheck           bool
+	mangleACKeys        bool
+	maxCasBlobSizeBytes int64
 }
 
 var readOnlyMethods = map[string]struct{}{
@@ -61,6 +62,7 @@ func ListenAndServeGRPC(
 	validateACDeps bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
+	maxCasBlobSizeBytes int64,
 	c disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	listener, err := net.Listen(network, addr)
@@ -68,19 +70,23 @@ func ListenAndServeGRPC(
 		return err
 	}
 
-	return ServeGRPC(listener, srv, validateACDeps, mangleACKeys, enableRemoteAssetAPI, c, a, e)
+	return ServeGRPC(listener, srv, validateACDeps, mangleACKeys, enableRemoteAssetAPI, maxCasBlobSizeBytes, c, a, e)
 }
 
 func ServeGRPC(l net.Listener, srv *grpc.Server,
 	validateACDepsCheck bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
+	maxCasBlobSizeBytes int64,
 	c disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	s := &grpcServer{
-		cache: c, accessLogger: a, errorLogger: e,
-		depsCheck:    validateACDepsCheck,
-		mangleACKeys: mangleACKeys,
+		cache:               c,
+		accessLogger:        a,
+		errorLogger:         e,
+		depsCheck:           validateACDepsCheck,
+		mangleACKeys:        mangleACKeys,
+		maxCasBlobSizeBytes: maxCasBlobSizeBytes,
 	}
 	pb.RegisterActionCacheServer(srv, s)
 	pb.RegisterCapabilitiesServer(srv, s)
@@ -122,6 +128,7 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 			SymlinkAbsolutePathStrategy:     pb.SymlinkAbsolutePathStrategy_ALLOWED,
 			SupportedCompressors:            []pb.Compressor_Value{pb.Compressor_ZSTD},
 			SupportedBatchUpdateCompressors: []pb.Compressor_Value{pb.Compressor_ZSTD},
+			MaxCasBlobSizeBytes:             s.maxCasBlobSizeBytes,
 		},
 		LowApiVersion:  &semver.SemVer{Major: int32(2)},
 		HighApiVersion: &semver.SemVer{Major: int32(2), Minor: int32(3)},

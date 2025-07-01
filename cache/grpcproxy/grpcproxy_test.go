@@ -238,9 +238,13 @@ func newFixture(t *testing.T, proxy cache.Proxy, storageMode string) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	unlimitedMaxCasBlobSize := int64(0)
+
 	grpcServer := grpc.NewServer()
+
 	go func() {
-		err := server.ServeGRPC(listener, grpcServer, false, false, true, diskCache, logger, logger)
+		err := server.ServeGRPC(listener, grpcServer, false, false, true, unlimitedMaxCasBlobSize, diskCache, logger, logger)
 		if err != nil {
 			logger.Printf("%s", err.Error())
 		}

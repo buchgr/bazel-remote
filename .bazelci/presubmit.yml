@@ -1,8 +1,5 @@
 ---
 validate_config: 1
-buildifier:
-  version: latest
-  warnings: "all"
 tasks:
   ubuntu1804:
     platform: ubuntu1804
