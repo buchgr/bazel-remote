@@ -27,6 +27,7 @@ type S3CloudStorageConfig struct {
 	AWSProfile               string `yaml:"aws_profile"`
 	AWSSharedCredentialsFile string `yaml:"aws_shared_credentials_file"`
 	BucketLookupType         string `yaml:"bucket_lookup_type"`
+	MaxIdleConns             int    `yaml:"max_idle_conns"`
 }
 
 func (s3c S3CloudStorageConfig) GetCredentials() (*credentials.Credentials, error) {
