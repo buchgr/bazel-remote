@@ -16,14 +16,14 @@ func TestTempfileCreator(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	targetFileBase := path.Join(dir, "foo")
 	tf, random, err := tfc.Create(targetFileBase, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tf.Name())
+	defer func() { _ = os.Remove(tf.Name()) }()
 
 	if random == "" {
 		t.Fatalf("Expected non-empty random string in the filename: %q",

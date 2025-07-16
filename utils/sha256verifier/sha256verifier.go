@@ -41,12 +41,12 @@ func (s *sha256verifier) Write(p []byte) (int, error) {
 
 func (s *sha256verifier) Close() error {
 	if s.actualSize != s.expectedSize {
-		return fmt.Errorf("Error: expected %d bytes, got %d", s.expectedSize, s.actualSize)
+		return fmt.Errorf("error: expected %d bytes, got %d", s.expectedSize, s.actualSize)
 	}
 
 	actualHash := hex.EncodeToString(s.Sum(nil))
 	if actualHash != s.expectedHash {
-		return fmt.Errorf("Error: expected hash %s, got %s", s.expectedHash, actualHash)
+		return fmt.Errorf("error: expected hash %s, got %s", s.expectedHash, actualHash)
 	}
 
 	err := s.originalWriteCloser.Close()

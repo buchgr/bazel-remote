@@ -108,7 +108,7 @@ func main() {
 	}
 }
 
-func dial(serverAddr string, caCertFile string, clientCertFile string, clientKeyFile string, basicAuthUser string, basicAuthPass string) (*grpc.ClientConn, error, context.Context, context.CancelFunc) {
+func dial(serverAddr string, caCertFile string, clientCertFile string, clientKeyFile string, basicAuthUser string, basicAuthPass string) (*grpc.ClientConn, context.Context, context.CancelFunc, error) {
 	//nolint:all
 	dialOpts := []grpc.DialOption{grpc.WithBlock()}
 
@@ -125,13 +125,13 @@ func dial(serverAddr string, caCertFile string, clientCertFile string, clientKey
 
 		caCertData, err := os.ReadFile(caCertFile)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to read CA cert file %q: %w",
-				caCertFile, err), nil, nil
+			return nil, nil, nil,
+				fmt.Errorf("failed to read CA cert file %q: %w", caCertFile, err)
 		}
 
 		pool := x509.NewCertPool()
 		if !pool.AppendCertsFromPEM(caCertData) {
-			return nil, fmt.Errorf("Failed to create CA certificate pool"), nil, nil
+			return nil, nil, nil, fmt.Errorf("failed to create CA certificate pool")
 		}
 
 		tlsCfg := &tls.Config{RootCAs: pool}
@@ -139,8 +139,9 @@ func dial(serverAddr string, caCertFile string, clientCertFile string, clientKey
 		if clientCertFile != "" {
 			clientCert, err := tls.LoadX509KeyPair(clientCertFile, clientKeyFile)
 			if err != nil {
-				return nil, fmt.Errorf("Failed to read client cert file %q (key file %q): %w",
-					clientCertFile, clientKeyFile, err), nil, nil
+				return nil, nil, nil,
+					fmt.Errorf("failed to read client cert file %q (key file %q): %w",
+						clientCertFile, clientKeyFile, err)
 			}
 
 			tlsCfg.Certificates = []tls.Certificate{clientCert}
@@ -156,14 +157,14 @@ func dial(serverAddr string, caCertFile string, clientCertFile string, clientKey
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	//nolint:all
 	conn, err := grpc.DialContext(ctx, serverAddr, dialOpts...)
-	return conn, err, ctx, cancel
+	return conn, ctx, cancel, err
 }
 
 func run(serverAddr string, readsShouldWork bool, writesShouldWork bool, clientCertFile string, clientKeyFile string, caCertFile string, basicAuthUser string, basicAuthPass string) error {
 
-	conn, err, ctx, cancel := dial(serverAddr, caCertFile, clientCertFile, clientKeyFile, basicAuthUser, basicAuthPass)
+	conn, ctx, cancel, err := dial(serverAddr, caCertFile, clientCertFile, clientKeyFile, basicAuthUser, basicAuthPass)
 	if conn != nil {
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 	}
 	defer cancel()
 
@@ -174,12 +175,12 @@ func run(serverAddr string, readsShouldWork bool, writesShouldWork bool, clientC
 			return nil
 		}
 
-		return fmt.Errorf("Failed to connect to %q: %w", serverAddr, ctx.Err())
+		return fmt.Errorf("failed to connect to %q: %w", serverAddr, ctx.Err())
 	default:
 	}
 
 	if err != nil || conn == nil {
-		return fmt.Errorf("Failed to connect %q: %w", serverAddr, err)
+		return fmt.Errorf("failed to connect %q: %w", serverAddr, err)
 	}
 
 	fmt.Println("Connected.")
@@ -213,11 +214,11 @@ func checkGetCapabilities(conn *grpc.ClientConn, shouldWork bool) error {
 			fmt.Println("GetCapabilities failed, as expected")
 			return nil
 		}
-		return fmt.Errorf("Got capabilities when we expected it to fail")
+		return fmt.Errorf("got capabilities when we expected it to fail")
 	}
 
 	if err != nil {
-		return fmt.Errorf("Failed to get capabilities: %w", err)
+		return fmt.Errorf("failed to get capabilities: %w", err)
 	}
 
 	fmt.Println("GetCapabilities succeeded, as expected")
@@ -283,29 +284,29 @@ func checkBatchReadBlobs(casClient pb.ContentAddressableStorageClient, shouldWor
 	}
 
 	if len(brResp.Responses) != 1 {
-		return fmt.Errorf("Error: expected 1 digest in the response, found: %d",
+		return fmt.Errorf("expected 1 digest in the response, found: %d",
 			len(brResp.Responses))
 	}
 
 	if brResp.Responses[0] == nil {
-		return fmt.Errorf("Error: found nil response")
+		return fmt.Errorf("found nil response")
 	}
 
 	if brResp.Responses[0].Status.Code != int32(codes.OK) {
-		return fmt.Errorf("Error: unexpected response: %s",
+		return fmt.Errorf("unexpected response: %s",
 			brResp.Responses[0].Status.GetMessage())
 	}
 
 	if brResp.Responses[0].Digest == nil {
-		return fmt.Errorf("Error: found nil digest")
+		return fmt.Errorf("found nil digest")
 	}
 
 	if brResp.Responses[0].Digest.Hash != emptyDigest.Hash || brResp.Responses[0].Digest.SizeBytes != 0 {
-		return fmt.Errorf("Error: found different digest")
+		return fmt.Errorf("found different digest")
 	}
 
 	if len(brResp.Responses[0].Data) != 0 {
-		return fmt.Errorf("Error: found non-empty Data")
+		return fmt.Errorf("found non-empty Data")
 	}
 
 	fmt.Println("BatchReadBlobs succeeded, as expected")
@@ -324,7 +325,7 @@ func checkFindMissingBlobs(casClient pb.ContentAddressableStorageClient, shouldW
 			return nil
 		}
 
-		return fmt.Errorf("Expected FindMissingBlobs to fail, but it succeeded")
+		return fmt.Errorf("expected FindMissingBlobs to fail, but it succeeded")
 	}
 
 	if err != nil {
@@ -333,7 +334,7 @@ func checkFindMissingBlobs(casClient pb.ContentAddressableStorageClient, shouldW
 
 	if len(resp.MissingBlobDigests) != 0 {
 		// The empty blob should always be available.
-		return fmt.Errorf("Expected no missing blobs from FindMissingBlobs call")
+		return fmt.Errorf("expected no missing blobs from FindMissingBlobs call")
 	}
 
 	fmt.Println("FindMissingBlobsRequest succeeded, as expected")
@@ -351,15 +352,15 @@ func checkGetActionResult(acClient pb.ActionCacheClient, shouldWork bool) error 
 
 	if !shouldWork {
 		if ar != nil {
-			return fmt.Errorf("Expected GetActionResult to fail, but it returned a non-nil ActionResult")
+			return fmt.Errorf("expected GetActionResult to fail, but it returned a non-nil ActionResult")
 		}
 
 		if err == nil {
-			return fmt.Errorf("Expected GetActionResult to fail and return a non-nil error, but the error was nil")
+			return fmt.Errorf("expected GetActionResult to fail and return a non-nil error, but the error was nil")
 		}
 
 		if status.Code(err) != codes.Unauthenticated {
-			return fmt.Errorf("Expected GetActionResult to fail and return Unauthenticated, but got: %s", err.Error())
+			return fmt.Errorf("expected GetActionResult to fail and return Unauthenticated, but got: %s", err.Error())
 		}
 
 		fmt.Println("GetActionResult failed, as expected")
@@ -367,11 +368,11 @@ func checkGetActionResult(acClient pb.ActionCacheClient, shouldWork bool) error 
 	}
 
 	if err == nil {
-		return fmt.Errorf("Expected a GetActionResult to return NotFound, but it succeeded somehow")
+		return fmt.Errorf("expected a GetActionResult to return NotFound, but it succeeded somehow")
 	}
 
 	if status.Code(err) != codes.NotFound {
-		return fmt.Errorf("Expected a GetActionResult to return NotFound, but got: %s", err.Error())
+		return fmt.Errorf("expected a GetActionResult to return NotFound, but got: %s", err.Error())
 	}
 
 	fmt.Println("GetActionResult succeeded, as expected")
@@ -397,11 +398,11 @@ func checkBytestreamRead(bsClient bytestream.ByteStreamClient, shouldWork bool) 
 			return nil
 		}
 
-		return fmt.Errorf("Expected bytestream Read to fail, but it succeeded")
+		return fmt.Errorf("expected bytestream Read to fail, but it succeeded")
 	}
 
 	if err != nil {
-		return fmt.Errorf("Expected bytestream Read to succeed, got %w", err)
+		return fmt.Errorf("expected bytestream Read to succeed, got %w", err)
 	}
 
 	var downloadedBlob []byte
@@ -411,16 +412,16 @@ func checkBytestreamRead(bsClient bytestream.ByteStreamClient, shouldWork bool) 
 			break
 		}
 		if err != nil {
-			return fmt.Errorf("Expected success, got %w", err)
+			return fmt.Errorf("expected success, got %w", err)
 		}
 		if bsrResp == nil {
-			return fmt.Errorf("Expected non-nil response")
+			return fmt.Errorf("expected non-nil response")
 		}
 
 		downloadedBlob = append(downloadedBlob, bsrResp.Data...)
 
 		if len(downloadedBlob) > 0 {
-			return fmt.Errorf("Downloaded too much data, expected an empty blob")
+			return fmt.Errorf("downloaded too much data, expected an empty blob")
 		}
 	}
 
@@ -476,11 +477,11 @@ func checkUpdateActionResult(acClient pb.ActionCacheClient, shouldWork bool) err
 			return nil
 		}
 
-		return fmt.Errorf("Expected UpdateActionResult to fail, but it succeeded")
+		return fmt.Errorf("expected UpdateActionResult to fail, but it succeeded")
 	}
 
 	if err != nil {
-		return fmt.Errorf("Expected UpdateActionResult to succeed, got: %w", err)
+		return fmt.Errorf("expected UpdateActionResult to succeed, got: %w", err)
 	}
 
 	fmt.Println("UpdateActionResult succeeded, as expected")
@@ -506,28 +507,28 @@ func checkBatchUpdateBlobs(casClient pb.ContentAddressableStorageClient, shouldW
 			return nil
 		}
 
-		return fmt.Errorf("Expected BatchUpdateBlobs to fail, but it succeeded")
+		return fmt.Errorf("expected BatchUpdateBlobs to fail, but it succeeded")
 	}
 
 	if err != nil {
-		return fmt.Errorf("Expected BatchUpdateBlobs to succeed, got %w", err)
+		return fmt.Errorf("expected BatchUpdateBlobs to succeed, got %w", err)
 	}
 
 	rs := resp.GetResponses()
 	if len(rs) != 1 {
-		return fmt.Errorf("Expected BatchUpdateBlobs to have 1 response, found %d", len(rs))
+		return fmt.Errorf("expected BatchUpdateBlobs to have 1 response, found %d", len(rs))
 	}
 
 	if rs[0].Digest.Hash != ur.Digest.Hash {
-		return fmt.Errorf("Unexpected digest in response")
+		return fmt.Errorf("unexpected digest in response")
 	}
 
 	if rs[0].Digest.SizeBytes != ur.Digest.SizeBytes {
-		return fmt.Errorf("Unexpected digest in response")
+		return fmt.Errorf("unexpected digest in response")
 	}
 
 	if rs[0].Status != nil && rs[0].Status.Code != int32(codes.OK) {
-		return fmt.Errorf("Unexpected unsuccessful response")
+		return fmt.Errorf("unexpected unsuccessful response")
 	}
 
 	fmt.Println("BatchUpdateBlobs succeeded, as expected")
@@ -603,15 +604,15 @@ func checkHealth(healthClient grpc_health_v1.HealthClient) error {
 	req := grpc_health_v1.HealthCheckRequest{Service: grpcHealthServiceName}
 	resp, err := healthClient.Check(context.Background(), &req)
 	if err != nil {
-		return fmt.Errorf("Failed to check health status: %w", err)
+		return fmt.Errorf("failed to check health status: %w", err)
 	}
 
 	if resp == nil {
-		return fmt.Errorf("Expected non-nil *HealthCheckResponse")
+		return fmt.Errorf("expected non-nil *HealthCheckResponse")
 	}
 
 	if resp.Status != grpc_health_v1.HealthCheckResponse_SERVING {
-		return fmt.Errorf("Expected health check to return SERVING status, got: %s", resp.Status.String())
+		return fmt.Errorf("expected health check to return SERVING status, got: %s", resp.Status.String())
 	}
 	fmt.Println("Health check succeeded, as expected")
 

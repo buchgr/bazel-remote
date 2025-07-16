@@ -44,7 +44,7 @@ const FinalMode = 0664
 // The setgid bit will be unset when the upload has finished.
 const wipMode = FinalMode | os.ModeSetgid
 
-var errNoTempfile = errors.New("Failed to create a temp file")
+var errNoTempfile = errors.New("failed to create a temp file")
 
 // Create attempts to create a file whose name is of the form
 // <base>-<randomstring> and with a ".v1" suffix if `legacy` is
@@ -79,7 +79,7 @@ func (c *Creator) Create(base string, legacy bool) (*os.File, string, error) {
 		}
 
 		// Unexpected error.
-		return nil, "", fmt.Errorf("Unexpected error opening temp file: %w", err)
+		return nil, "", fmt.Errorf("unexpected error opening temp file: %w", err)
 	}
 
 	return nil, "", errNoTempfile
