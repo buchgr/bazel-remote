@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	errBadSize      = errors.New("Unexpected size")
-	errBlobNotFound = errors.New("Blob not found")
+	errBadSize      = errors.New("unexpected size")
+	errBlobNotFound = errors.New("blob not found")
 
 	errNilBatchUpdateBlobsRequest_Request = grpc_status.Error(codes.InvalidArgument,
 		"expected a non-nil *BatchUpdateBlobsRequest_Request")
@@ -147,7 +147,7 @@ func (s *grpcServer) getBlobData(ctx context.Context, hash string, size int64) (
 	rdr, sizeBytes, err := s.cache.Get(ctx, cache.CAS, hash, size, 0)
 	if err != nil {
 		if rdr != nil {
-			rdr.Close()
+			_ = rdr.Close()
 		}
 		return []byte{}, err
 	}
@@ -157,13 +157,13 @@ func (s *grpcServer) getBlobData(ctx context.Context, hash string, size int64) (
 	}
 
 	if sizeBytes != size {
-		rdr.Close()
+		_ = rdr.Close()
 		return []byte{}, errBadSize
 	}
 
 	data, err := io.ReadAll(rdr)
 	if err != nil {
-		rdr.Close()
+		_ = rdr.Close()
 		return []byte{}, err
 	}
 
@@ -179,7 +179,7 @@ func (s *grpcServer) getBlobResponse(ctx context.Context, digest *pb.Digest, all
 	if allowZstd {
 		rc, foundSize, err := s.cache.GetZstd(ctx, digest.Hash, digest.SizeBytes, 0)
 		if rc != nil {
-			defer rc.Close()
+			defer func() { _ = rc.Close() }()
 		}
 		if rc == nil || foundSize != digest.SizeBytes {
 			s.accessLogger.Printf("GRPC CAS GET %s NOT FOUND", digest.Hash)

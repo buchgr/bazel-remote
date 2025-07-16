@@ -129,7 +129,7 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 				// We don't know the size yet (bad http backend?).
 				r, actualSize, err := s.cache.Get(ctx, cache.CAS, sha256Str, -1, 0)
 				if r != nil {
-					defer r.Close()
+					defer func() { _ = r.Close() }()
 				}
 				if err != nil || actualSize < 0 {
 					s.errorLogger.Printf("failed to get CAS %s from proxy backend size: %d err: %v",
@@ -206,7 +206,7 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, headers http.Hea
 		s.errorLogger.Printf("failed to get URI: %s err: %v", uri, err)
 		return false, "", int64(-1)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	rc := resp.Body
 
 	s.accessLogger.Printf("GRPC ASSET FETCH %s %s", uri, resp.Status)

@@ -111,7 +111,7 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 	}
 
 	if rc != nil {
-		defer rc.Close()
+		defer func() { _ = rc.Close() }()
 	}
 
 	if err != nil {
@@ -446,7 +446,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 				}
 
 				go func() {
-					defer rc.Close()
+					defer func() { _ = rc.Close() }()
 					err := s.cache.Put(srv.Context(), cache.CAS, hash, size, rc)
 					putResult <- err
 				}()
@@ -505,7 +505,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 			return status.Error(codes.Internal, msg)
 		}
 		if err == io.EOF {
-			pw.Close()
+			_ = pw.Close()
 			break
 		}
 		if err != nil {

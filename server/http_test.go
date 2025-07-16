@@ -25,7 +25,7 @@ import (
 
 func TestDownloadFile(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	blobSize := int64(1024)
 
@@ -87,7 +87,7 @@ func TestDownloadFile(t *testing.T) {
 
 func TestUploadFilesConcurrently(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	const NumUploads = 1000
 	const blobSize = 1024
@@ -132,7 +132,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	files, err := f.Readdir(-1)
 	if err != nil {
 		t.Fatal(err)
@@ -157,7 +157,7 @@ func TestUploadFilesConcurrently(t *testing.T) {
 
 func TestUploadSameFileConcurrently(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	data, hash := testutils.RandomDataAndHash(1024)
 
@@ -200,7 +200,7 @@ func TestUploadSameFileConcurrently(t *testing.T) {
 
 func TestUploadCorruptedFile(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	data, hash := testutils.RandomDataAndHash(1024)
 	corruptedData := data[:999]
@@ -227,7 +227,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	entries, err := f.Readdir(-1)
 	if err != nil {
 		t.Fatal(err)
@@ -241,7 +241,7 @@ func TestUploadCorruptedFile(t *testing.T) {
 
 func TestUploadEmptyActionResult(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	data, hash := testutils.RandomDataAndHash(0)
 
@@ -304,7 +304,7 @@ func TestEmptyBlobAvailable(t *testing.T) {
 
 func testEmptyBlobAvailable(t *testing.T, method string) {
 	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	data, hash := testutils.RandomDataAndHash(0)
 	r := httptest.NewRequest(method, "/cas/"+hash, bytes.NewReader(data))
@@ -332,7 +332,7 @@ func testEmptyBlobAvailable(t *testing.T, method string) {
 
 func TestStatusPage(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	r := httptest.NewRequest("GET", "/status", nil)
 
@@ -478,7 +478,7 @@ func TestRemoteReturnsNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 	emptyCache, err := disk.New(cacheDir, 1024, disk.WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
@@ -513,7 +513,7 @@ func TestManglingACKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	blobSize := int64(1024)
 	cacheSize := blobSize*2 + disk.BlockSize
@@ -552,7 +552,7 @@ func TestManglingACKeys(t *testing.T) {
 
 	url, _ = url.Parse(fmt.Sprintf("http://localhost:8080/test-instance/ac/%s", hash))
 	reader.Reset([]byte{})
-	body.Close()
+	_ = body.Close()
 	body = io.NopCloser(reader)
 	req.URL = url
 	req.Body = body

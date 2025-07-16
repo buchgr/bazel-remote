@@ -35,7 +35,7 @@ func New(config *config.LDAPConfig) (*Cache, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Test the configured bind credentials
 	if err = conn.Bind(config.BindUser+","+config.BaseDN, config.BindPassword); err != nil {
@@ -83,7 +83,7 @@ func (c *Cache) query(user, password string) bool {
 	if err != nil {
 		log.Fatal("No valid LDAP connection could be established:", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	if err = conn.Bind(c.config.BindUser+","+c.config.BaseDN, c.config.BindPassword); err != nil {
 		log.Fatal("LDAP connection with username and password failed:", err)

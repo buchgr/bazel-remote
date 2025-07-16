@@ -203,7 +203,7 @@ func (h *httpCache) logResponse(code int, r *http.Request) {
 }
 
 func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	kind, hash, instance, err := parseRequestURL(r.URL.Path, h.validateAC)
 	if err != nil {
@@ -254,7 +254,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			h.logResponse(http.StatusNotFound, r)
 			return
 		}
-		defer rdr.Close()
+		defer func() { _ = rdr.Close() }()
 
 		w.Header().Set("Content-Type", "application/octet-stream")
 		if zstdCompressed {
@@ -410,7 +410,7 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			rc := z.IOReadCloser()
-			defer rc.Close()
+			defer func() { _ = rc.Close() }()
 			rdr = rc
 		}
 
@@ -493,7 +493,7 @@ func addWorkerMetadataHTTP(addr string, ct string, orig []byte) (actionResult *p
 
 // Produce a debugging page with some stats about the cache.
 func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	totalSize, reservedSize, numItems, uncompressedSize := h.cache.Stats()
 

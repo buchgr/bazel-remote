@@ -160,7 +160,7 @@ func TestGrpcAc(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	ar := pb.ActionResult{
 		StdoutRaw: []byte("pretend action stdout"),
@@ -307,7 +307,7 @@ func TestAcKeyMangling(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetupInternal(t, true)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	ar := pb.ActionResult{
 		StdoutRaw: []byte("pretend action stdout"),
@@ -376,7 +376,7 @@ func TestGrpcCasEmptySha256(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	// Check that we can "download" an empty blob, even if it hasn't
 	// been uploaded.
@@ -405,7 +405,7 @@ func TestGrpcAcRequestInlinedBlobs(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	// Upload an ActionResult with some inlined blobs.
 
@@ -612,7 +612,7 @@ func TestGrpcByteStreamDeadline(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	testCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -716,7 +716,7 @@ func TestGrpcByteStreamEmptySha256(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	// We should always be able to read the empty blob.
 
@@ -790,7 +790,7 @@ func TestGrpcByteStream(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	// Must be large enough to test multiple iterations of the
 	// bytestream Read Recv loop.
@@ -952,7 +952,7 @@ func TestGrpcByteStream(t *testing.T) {
 			}
 		}
 
-		dw.Close()
+		_ = dw.Close()
 	}()
 
 	_, err = io.Copy(&decmpBuf, dec)
@@ -1009,7 +1009,7 @@ func TestGrpcByteStreamEmptyLastWrite(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	instance := "ignoredByteStreamInstance"
 	testBlob, testBlobHash := testutils.RandomDataAndHash(7)
@@ -1050,7 +1050,7 @@ func TestGrpcByteStreamZstdWrite(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	// Must be large enough to test multiple iterations of the
 	// bytestream Read Recv loop.
@@ -1066,7 +1066,7 @@ func TestGrpcByteStreamZstdWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	compressedBlob := enc.EncodeAll(testBlob, nil)
-	enc.Close()
+	_ = enc.Close()
 
 	bswc, err := fixture.bsClient.Write(ctx)
 	if err != nil {
@@ -1150,7 +1150,7 @@ func TestGrpcByteStreamInvalidReadLimit(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	testBlobSize := int64(maxChunkSize)
 	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize)
@@ -1191,7 +1191,7 @@ func TestGrpcByteStreamSkippedWrite(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	// Must be large enough to test multiple iterations of the
 	// bytestream Read Recv loop.
@@ -1273,7 +1273,7 @@ func TestGrpcByteStreamQueryWriteStatus(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	testBlob, testBlobHash := testutils.RandomDataAndHash(123)
 	testBlobDigest := pb.Digest{
@@ -1379,7 +1379,7 @@ func TestGrpcCasBasics(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	testBlob, testBlobHash := testutils.RandomDataAndHash(256)
 	testBlobDigest := pb.Digest{
@@ -1461,7 +1461,7 @@ func TestGrpcCasTreeRequest(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	// Create a test tree, which does not yet exist in the CAS.
 
@@ -1649,7 +1649,7 @@ func TestBadUpdateActionResultRequest(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	digest := pb.Digest{
 		Hash:      "0123456789012345678901234567890123456789012345678901234567890123",
@@ -2025,7 +2025,7 @@ func TestParseReadResource(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	// Format: [{instance_name}]/blobs/{hash}/{size}
 
@@ -2235,7 +2235,7 @@ func TestParseWriteResource(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	// Format: [{instance_name}/]uploads/{uuid}/blobs/{hash}/{size}[/{optionalmetadata}]
 	// Or: [{instance_name}/]uploads/{uuid}/compressed-blobs/{compressor}/{uncompressed_hash}/{uncompressed_size}[{/optional_metadata}]
@@ -2440,13 +2440,13 @@ func TestCompressedBatchReadsAndWrites(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	blob := []byte("payload data")
 
 	enc, err := zstd.NewWriter(nil, zstd.WithEncoderConcurrency(1))
 	if enc != nil {
-		defer enc.Close()
+		defer func() { _ = enc.Close() }()
 	}
 	if err != nil {
 		t.Fatal(err)
@@ -2533,7 +2533,7 @@ func TestHealthCheck(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	req := grpc_health_v1.HealthCheckRequest{Service: grpcHealthServiceName}
 	resp, err := fixture.healthClient.Check(ctx, &req)
@@ -2554,7 +2554,7 @@ func TestMaxCasBlobSizeBytes(t *testing.T) {
 	t.Parallel()
 
 	fixture := grpcTestSetup(t)
-	defer os.Remove(fixture.tempdir)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
 
 	resp, err := fixture.capabilitiesClient.GetCapabilities(context.Background(), &pb.GetCapabilitiesRequest{})
 	if err != nil {
