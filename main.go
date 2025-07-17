@@ -42,6 +42,10 @@ import (
 // is set through linker options.
 var gitCommit string
 
+// gitTags is another version stamp, with the set of tags for the current
+// commit joined by commas.
+var gitTags string
+
 func main() {
 	app := cli.NewApp()
 
@@ -83,8 +87,12 @@ func run(ctx *cli.Context) error {
 	if len(gitCommit) > 0 && gitCommit != "{STABLE_GIT_COMMIT}" {
 		maybeGitCommitMsg = fmt.Sprintf(" from git commit %s", gitCommit)
 	}
-	log.Printf("bazel-remote built with %s%s.",
-		runtime.Version(), maybeGitCommitMsg)
+	maybeGitTagsMsg := ""
+	if len(gitTags) > 0 && gitTags != "{GIT_TAGS}" {
+		maybeGitTagsMsg = " " + gitTags
+	}
+	log.Printf("bazel-remote built with %s%s%s.",
+		runtime.Version(), maybeGitCommitMsg, maybeGitTagsMsg)
 
 	rlimit.Raise()
 
@@ -240,7 +248,7 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 	checkClientCertForWrites := c.TLSCaFile != ""
 	validateAC := !c.DisableHTTPACValidation
 	h := server.NewHTTPCache(diskCache, c.AccessLogger, c.ErrorLogger, validateAC,
-		c.EnableACKeyInstanceMangling, checkClientCertForReads, checkClientCertForWrites, gitCommit)
+		c.EnableACKeyInstanceMangling, checkClientCertForReads, checkClientCertForWrites, gitCommit, gitTags)
 
 	cacheHandler := h.CacheHandler
 	var ldapAuthenticator authenticator

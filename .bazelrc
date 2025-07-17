@@ -1,5 +1,5 @@
 # Include git version info
 build --stamp
-build --workspace_status_command 'echo STABLE_GIT_COMMIT $(git rev-parse HEAD)'
+build --workspace_status_command=$(pwd)/git-commit.sh
 
 common --enable_bzlmod

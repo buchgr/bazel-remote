@@ -67,8 +67,9 @@ $ curl http://localhost:8080/status
  "ReservedSize": 876400,
  "MaxSize": 8589934592000,
  "NumFiles": 621413,
- "ServerTime": 1588329927,
- "GitCommit": "940d540d3a7f17939c3df0038530122eabef2f19",
+ "ServerTime": 1746258977,
+ "GitCommit": "d0f166cdd973342ec4aa8a51228cfd3a7a205414",
+ "GitTags": "v2.5.1",
  "NumGoroutines": 12
 }
 ```

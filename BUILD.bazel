@@ -42,7 +42,10 @@ go_binary(
     pure = "off",
     static = "off",
     visibility = ["//visibility:public"],
-    x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
+    x_defs = {
+        "main.gitCommit": "{STABLE_GIT_COMMIT}",
+        "main.gitTags": "{GIT_TAGS}",
+    },
 )
 
 go_binary(
@@ -54,7 +57,10 @@ go_binary(
     pure = "off",
     static = "off",
     visibility = ["//visibility:public"],
-    x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
+    x_defs = {
+        "main.gitCommit": "{STABLE_GIT_COMMIT}",
+        "main.gitTags": "{GIT_TAGS}",
+    },
 )
 
 go_binary(
@@ -66,7 +72,10 @@ go_binary(
     pure = "off",
     static = "on",
     visibility = ["//visibility:public"],
-    x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
+    x_defs = {
+        "main.gitCommit": "{STABLE_GIT_COMMIT}",
+        "main.gitTags": "{GIT_TAGS}",
+    },
 )
 
 go_binary(
@@ -78,7 +87,10 @@ go_binary(
     pure = "off",
     #static = "on", # With static enabled, I get the following error: "ld: library not found for -lcrt0.o"
     visibility = ["//visibility:public"],
-    x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
+    x_defs = {
+        "main.gitCommit": "{STABLE_GIT_COMMIT}",
+        "main.gitTags": "{GIT_TAGS}",
+    },
 )
 
 go_binary(
@@ -90,7 +102,10 @@ go_binary(
     pure = "off",
     #static = "on", # With static enabled, I get the following error: "ld: library not found for -lcrt0.o"
     visibility = ["//visibility:public"],
-    x_defs = {"main.gitCommit": "{STABLE_GIT_COMMIT}"},
+    x_defs = {
+        "main.gitCommit": "{STABLE_GIT_COMMIT}",
+        "main.gitTags": "{GIT_TAGS}",
+    },
 )
 
 # The distroless static container image's nonroot user id.

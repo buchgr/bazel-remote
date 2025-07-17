@@ -45,6 +45,7 @@ type httpCache struct {
 	validateAC               bool
 	mangleACKeys             bool
 	gitCommit                string
+	gitTags                  string
 	checkClientCertForReads  bool
 	checkClientCertForWrites bool
 }
@@ -57,6 +58,7 @@ type statusPageData struct {
 	NumFiles         int
 	ServerTime       int64
 	GitCommit        string
+	GitTags          string
 	NumGoroutines    int
 }
 
@@ -64,7 +66,7 @@ type statusPageData struct {
 // accessLogger will print one line for each HTTP request to stdout.
 // errorLogger will print unexpected server errors. Inexistent files and malformed URLs will not
 // be reported.
-func NewHTTPCache(cache disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, mangleACKeys bool, checkClientCertForReads bool, checkClientCertForWrites bool, commit string) HTTPCache {
+func NewHTTPCache(cache disk.Cache, accessLogger cache.Logger, errorLogger cache.Logger, validateAC bool, mangleACKeys bool, checkClientCertForReads bool, checkClientCertForWrites bool, commit string, gitTags string) HTTPCache {
 
 	_, _, numItems, _ := cache.Stats()
 
@@ -82,6 +84,10 @@ func NewHTTPCache(cache disk.Cache, accessLogger cache.Logger, errorLogger cache
 
 	if commit != "{STABLE_GIT_COMMIT}" {
 		hc.gitCommit = commit
+	}
+
+	if gitTags != "{GIT_TAGS}" {
+		hc.gitTags = gitTags
 	}
 
 	return hc
@@ -510,6 +516,7 @@ func (h *httpCache) StatusPageHandler(w http.ResponseWriter, r *http.Request) {
 		NumFiles:         numItems,
 		ServerTime:       time.Now().Unix(),
 		GitCommit:        h.gitCommit,
+		GitTags:          h.gitTags,
 		NumGoroutines:    goroutines,
 	})
 	if err != nil {
