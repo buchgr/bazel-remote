@@ -557,6 +557,7 @@ http_address: 0.0.0.0:8080
 #  prefix: test-prefix
 #  disable_ssl: true
 #  bucket_lookup_type: auto
+#  max_idle_conns: 1024
 #
 # Provide exactly one auth_method (access_key, iam_role, or credentials_file) and accompanying configuration.
 #
