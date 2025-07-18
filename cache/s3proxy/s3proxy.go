@@ -174,12 +174,12 @@ func (c *s3Cache) UploadFile(item backendproxy.UploadReq) {
 
 	logResponse(c.accessLogger, "UPLOAD", c.bucket, c.objectKey(item.Hash, item.Kind), err)
 
-	item.Rc.Close()
+	_ = item.Rc.Close()
 }
 
 func (c *s3Cache) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
 	if c.uploadQueue == nil {
-		rc.Close()
+		_ = rc.Close()
 		return
 	}
 
@@ -193,7 +193,7 @@ func (c *s3Cache) Put(ctx context.Context, kind cache.EntryKind, hash string, lo
 	}:
 	default:
 		c.errorLogger.Printf("too many uploads queued\n")
-		rc.Close()
+		_ = rc.Close()
 	}
 }
 
