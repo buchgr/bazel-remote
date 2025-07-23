@@ -466,6 +466,18 @@ OPTIONS:
 dir: path/to/cache-dir
 max_size: 100
 
+# If specified, write requests will be rejected when max_size_hard_limit is
+# reached. Clients can then decide which requests to retry. This setting can
+# be used to avoid running out of disk space when new blobs are uploaded faster
+# than old blobs can be evicted. A reasonable value might be 5% larger than
+# max_size. A higher limit might be needed when using a proxy backend.
+#
+# The max_size_hard_limit can be tuned by watching how the prometheus query
+# max_over_time(bazel_remote_disk_cache_size_bytes[$__interval]) varies
+# between bazel_remote_disk_cache_size_bytes_limit{type="evict"} and
+# bazel_remote_disk_cache_size_bytes_limit{type="reject"}.
+#max_size_hard_limit: 105
+
 # The form to store CAS blobs in ("zstd" or "uncompressed"):
 #storage_mode: zstd
 

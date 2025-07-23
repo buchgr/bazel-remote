@@ -44,19 +44,22 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 		return nil, err
 	}
 
-	// Go defaults to a limit of 10,000 operating system threads.
-	// We probably don't need half of those for file removals at
-	// any given point in time, unless the disk/fs can't keep up.
-	// I suppose it's better to slow down processing than to crash
-	// when hitting the 10k limit or to run out of disk space.
+	// Go defaults to a limit of 10,000 operating system threads. Going
+	// over that limit would result in a crash and therefore we use a
+	// semaphore to throttle amount of concurrently running blocking
+	// file syscalls. A semaphore weight of 5,000 should give plenty of
+	// margin. The weight should not be set too low because the
+	// average latency could increase if a few slow clients could block
+	// all other clients.
 	semaphoreWeight := int64(5000)
 
-	if strings.HasPrefix(runtime.GOOS, "darwin") {
+	if runtime.GOOS == "darwin" {
 		// Mac seems to fail to create os threads when removing
 		// lots of files, so allow fewer than linux.
 		semaphoreWeight = 3000
 	}
-	log.Printf("Limiting concurrent file removals to %d\n", semaphoreWeight)
+
+	log.Printf("Limiting concurrent disk waiting requests to %d\n", semaphoreWeight)
 
 	zi, err := zstdimpl.Get("go")
 	if err != nil {
@@ -118,7 +121,7 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Attempting to migrate the old directory structure failed: %w", err)
 	}
-	err = c.loadExistingFiles(maxSizeBytes)
+	err = c.loadExistingFiles(maxSizeBytes, cc)
 	if err != nil {
 		return nil, fmt.Errorf("Loading of existing cache entries failed due to error: %w", err)
 	}
@@ -565,7 +568,7 @@ func (c *diskCache) scanDir() (scanResult, error) {
 // loadExistingFiles lists all files in the cache directory, and adds them to the
 // LRU index so that they can be served. Files are sorted by access time first,
 // so that the eviction behavior is preserved across server restarts.
-func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
+func (c *diskCache) loadExistingFiles(maxSizeBytes int64, cc CacheConfig) error {
 	log.Printf("Loading existing files in %s.\n", c.dir)
 
 	result, err := c.scanDir()
@@ -578,17 +581,39 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
 	sort.Sort(result)
 
 	// The eviction callback deletes the file from disk.
-	// This function is only called while the lock is held
+	// This function is only called while the lock is not held
 	// by the current goroutine.
 	onEvict := func(key Key, value lruItem) {
 		f := c.getElementPath(key, value)
-		// Run in a goroutine so we can release the lock sooner.
-		go c.removeFile(f)
+		c.removeFile(f)
 	}
 
 	log.Println("Building LRU index.")
 
 	c.lru = NewSizedLRU(maxSizeBytes, onEvict, len(result.item))
+
+	log.Printf("Will evict at max size: %.2f GB", bytesToGigaBytes(maxSizeBytes))
+
+	if cc.maxSizeHardLimit > 0 {
+		// Only set and print if optional limit is enabled.
+		c.lru.maxSizeHardLimit = cc.maxSizeHardLimit
+		log.Printf("Will reject requests at hard limit: %.2f GB",
+			bytesToGigaBytes(c.lru.maxSizeHardLimit))
+	}
+
+	// Start one single goroutine running in background, continuously
+	// waiting for files to be removed and removing them. Benchmarks on
+	// Linux with the XFS file system have surprisingly shown that removal
+	// sequentially with a single goroutine is much faster than starting
+	// separate go routines for each file and removing them in parallel
+	// despite SSDs with high IOPS performance. Benchmarks have also shown
+	// that the single background goroutine is still slightly faster even
+	// if the parallel goroutines would be serialized with a semaphore.
+	// Sequentially evicting all files helps ensure that Go's default
+	// limit of 10,000 operating system threads is not reached. Otherwise,
+	// the number of concurrent removals could explode when a large new
+	// file suddenly evicts thousands of old small files.
+	go c.lru.performQueuedEvictionsContinuously()
 
 	for i := 0; i < len(result.item); i++ {
 		ok := c.lru.Add(result.metadata[i].lookupKey, *result.item[i])
@@ -600,7 +625,25 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64) error {
 		}
 	}
 
+	if c.lru.queuedEvictionsSize.Load() > 0 {
+		// We were either restarted with a lower cache size, or there is still
+		// a backlog of blobs to be removed. Wait for them to be removed before
+		// accepting connections, to avoid confusing error logs.
+
+		log.Println("Waiting for blob eviction backlog to complete.")
+
+		for c.lru.queuedEvictionsSize.Load() > 0 {
+			time.Sleep(200 * time.Millisecond)
+		}
+
+		log.Println("Finished waiting for blob evictions.")
+	}
+
 	log.Println("Finished loading disk cache files.")
 
 	return nil
+}
+
+func bytesToGigaBytes(bytes int64) float64 {
+	return float64(bytes) / (1024.0 * 1024.0 * 1024.0)
 }

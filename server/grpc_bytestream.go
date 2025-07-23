@@ -546,7 +546,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 		}
 
 		msg := fmt.Sprintf("GRPC BYTESTREAM WRITE CACHE ERROR: %s %v", resourceName, err)
-		s.accessLogger.Printf(msg)
+		s.logErrorPrintf(err, msg)
 		return status.Error(gRPCErrCode(err, codes.Internal), msg)
 	}
 
