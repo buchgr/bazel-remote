@@ -21,11 +21,7 @@ import (
 	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
-	"github.com/buchgr/bazel-remote/v2/cache/disk"
-
-
 )
-
 
 // FetchServer implementation
 
@@ -185,7 +181,7 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 			}, nil
 		}
 
-		if err == disk.ErrOverloaded {
+		if translateGRPCErrCodeFromClient(err) == codes.ResourceExhausted {
 			return &resourceExhaustedResponse, nil
 		}
 

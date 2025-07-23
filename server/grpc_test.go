@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -49,7 +50,10 @@ type grpcTestFixture struct {
 	healthClient       grpc_health_v1.HealthClient
 
 	diskCache disk.Cache
+}
 
+type grpcTestFixtureWithTmpDirCache struct {
+	grpcTestFixture
 	tempdir string
 }
 
@@ -67,13 +71,14 @@ var (
 	}
 )
 
-func grpcTestSetup(t *testing.T) (tc grpcTestFixture) {
+func grpcTestSetup(t *testing.T) (tc grpcTestFixtureWithTmpDirCache) {
 	return grpcTestSetupInternal(t, false)
 }
 
 var testMaxCasBlobSizeBytes int64 = 123456789
 
-func grpcTestSetupInternal(t *testing.T, mangleACKeys bool) (tc grpcTestFixture) {
+func grpcTestSetupInternal(t *testing.T, mangleACKeys bool) (tc grpcTestFixtureWithTmpDirCache) {
+
 	dir, err := os.MkdirTemp("", "bazel-remote-grpc-tests-"+t.Name())
 	if err != nil {
 		t.Fatal("Failed to create grpc test temp dir", err)
@@ -87,6 +92,17 @@ func grpcTestSetupInternal(t *testing.T, mangleACKeys bool) (tc grpcTestFixture)
 		fmt.Println("Test setup failed")
 		os.Exit(1)
 	}
+	validateAC := true
+	baseFixture := grpcTestSetupWithCustomCache(t, mangleACKeys, validateAC, diskCache)
+	return grpcTestFixtureWithTmpDirCache{
+		grpcTestFixture: baseFixture,
+
+		// Callers should defer os.Remove(tc.tempdir)
+		tempdir: dir,
+	}
+}
+
+func grpcTestSetupWithCustomCache(t *testing.T, mangleACKeys bool, validateAC bool, diskCache disk.Cache) (tc grpcTestFixture) {
 
 	accessLogger := testutils.NewSilentLogger()
 	errorLogger := testutils.NewSilentLogger()
@@ -98,7 +114,6 @@ func grpcTestSetupInternal(t *testing.T, mangleACKeys bool) (tc grpcTestFixture)
 		return listener.Dial()
 	}
 
-	validateAC := true
 	enableRemoteAssetAPI := true
 
 	go func() {
@@ -133,9 +148,6 @@ func grpcTestSetupInternal(t *testing.T, mangleACKeys bool) (tc grpcTestFixture)
 		healthClient:       grpc_health_v1.NewHealthClient(conn),
 
 		diskCache: diskCache,
-
-		// Callers should defer os.Remove(tc.tempdir)
-		tempdir: dir,
 	}
 }
 
@@ -2572,5 +2584,257 @@ func TestMaxCasBlobSizeBytes(t *testing.T) {
 	if cacheCapabilities.MaxCasBlobSizeBytes != testMaxCasBlobSizeBytes {
 		t.Fatalf("Expected MaxCasBlobSizeBytes to be %d, found %d\n",
 			testMaxCasBlobSizeBytes, cacheCapabilities.MaxCasBlobSizeBytes)
+	}
+}
+
+type StubCache struct {
+	ProgrammedPutError     error
+	ProgrammedGetError     error
+	ProgrammedActionResult *pb.ActionResult
+}
+
+func (c *StubCache) Get(ctx context.Context, kind cache.EntryKind, hash string, size int64, offset int64) (io.ReadCloser, int64, error) {
+	return nil, -1, c.ProgrammedGetError
+}
+
+func (c *StubCache) GetValidatedActionResult(ctx context.Context, hash string) (*pb.ActionResult, []byte, error) {
+	if c.ProgrammedActionResult == nil {
+		return nil, nil, c.ProgrammedGetError
+	} else {
+		return c.ProgrammedActionResult, nil, nil
+	}
+}
+
+func (c *StubCache) GetZstd(ctx context.Context, hash string, size int64, offset int64) (io.ReadCloser, int64, error) {
+	return nil, -1, c.ProgrammedGetError
+}
+
+func (c *StubCache) Put(ctx context.Context, kind cache.EntryKind, hash string, size int64, r io.Reader) error {
+	return c.ProgrammedPutError
+}
+
+func (c *StubCache) Contains(ctx context.Context, kind cache.EntryKind, hash string, size int64) (bool, int64) {
+	return false, -1
+}
+
+func (c *StubCache) FindMissingCasBlobs(ctx context.Context, blobs []*pb.Digest) ([]*pb.Digest, error) {
+	return blobs, nil
+}
+
+func (c *StubCache) MaxSize() int64 {
+	return 0
+}
+
+func (c *StubCache) Stats() (totalSize int64, reservedSize int64, numItems int, uncompressedSize int64) {
+	return 0, 0, 0, 0
+}
+
+func (c *StubCache) RegisterMetrics() {
+}
+
+func assertStatusCodeFromError(t *testing.T, err error, expectedCode codes.Code) {
+	t.Helper()
+	statusError, ok := status.FromError(err)
+	if !ok {
+		t.Fatalf("expected rpc error code, got %v\n", err)
+	}
+	if code := statusError.Code(); code != expectedCode {
+		t.Fatalf("expected %v, got %v\n", expectedCode.String(), code.String())
+	}
+}
+
+func TestInsufficientStorageForUploads(t *testing.T) {
+	t.Parallel()
+
+	actionResult := pb.ActionResult{
+		StdoutRaw: []byte("pretend action stdout"),
+		StderrRaw: []byte("pretend action stderr"),
+		ExitCode:  int32(11),
+	}
+
+	fixture := grpcTestSetupWithCustomCache(
+		t,
+		false,
+		true,
+		&StubCache{
+			ProgrammedPutError: &cache.Error{
+				Code: http.StatusInsufficientStorage,
+				Text: "Stub programmed to generate error",
+			},
+		})
+
+	testBlobSize := int64(1)
+	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize)
+	testBlobDigest := pb.Digest{
+		Hash:      testBlobHash,
+		SizeBytes: int64(len(testBlob)),
+	}
+
+	// Verify that bytestream upload is converting
+	// http.StatusInsufficientStorage to codes.ResourceExhausted.
+	bswc, err := fixture.bsClient.Write(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = bswc.Send(&bytestream.WriteRequest{
+		ResourceName: fmt.Sprintf("instance/uploads/%s/blobs/%s/%d",
+			uuid.New().String(), testBlobDigest.Hash, len(testBlob)),
+		FinishWrite: true,
+		Data:        testBlob,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = bswc.CloseAndRecv()
+	assertStatusCodeFromError(t, err, codes.ResourceExhausted)
+
+	// Verify that BatchUpdateBlobsRequest is converting
+	// http.StatusInsufficientStorage to codes.ResourceExhausted.
+	upReq := pb.BatchUpdateBlobsRequest{}
+	r := pb.BatchUpdateBlobsRequest_Request{
+		Digest: &testBlobDigest,
+		Data:   testBlob,
+	}
+	upReq.Requests = append(upReq.Requests, &r)
+	upResp, err := fixture.casClient.BatchUpdateBlobs(ctx, &upReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testutils.AssertEquals(t, int32(codes.ResourceExhausted), upResp.Responses[0].Status.Code)
+
+	// Verify that UpdateActionResultRequest is converting
+	// http.StatusInsufficientStorage to codes.ResourceExhausted.
+	updateACReq := pb.UpdateActionResultRequest{
+		ActionDigest: &testBlobDigest,
+		ActionResult: &actionResult,
+	}
+	_, err = fixture.acClient.UpdateActionResult(ctx, &updateACReq)
+	assertStatusCodeFromError(t, err, codes.ResourceExhausted)
+}
+
+func TestInsufficientStorageWhenDeinlining(t *testing.T) {
+	t.Parallel()
+
+	actionResult := pb.ActionResult{
+		StdoutRaw: []byte("pretend action stdout"),
+		StderrRaw: []byte("pretend action stderr"),
+		ExitCode:  int32(11),
+	}
+
+	fixture := grpcTestSetupWithCustomCache(
+		t,
+		false,
+		true,
+		&StubCache{
+			ProgrammedPutError: &cache.Error{
+				Code: http.StatusInsufficientStorage,
+				Text: "Stub programmed to generate error",
+			},
+			ProgrammedActionResult: &actionResult,
+		})
+
+	testBlobSize := int64(1)
+	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize)
+	testBlobDigest := pb.Digest{
+		Hash:      testBlobHash,
+		SizeBytes: int64(len(testBlob)),
+	}
+
+	// Verify that GetActionResultRequest does not lose the original stdout and
+	// stderr when de-inlining fails due to http.StatusInsufficientStorage.
+	getACReq := pb.GetActionResultRequest{
+		ActionDigest:      &testBlobDigest,
+		InlineStdout:      false,
+		InlineStderr:      false,
+		InlineOutputFiles: []string{},
+	}
+	receivedActionResult, err := fixture.acClient.GetActionResult(ctx, &getACReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testutils.AssertEquals(t,
+		"pretend action stdout",
+		string(receivedActionResult.StdoutRaw))
+	testutils.AssertEquals(t,
+		"pretend action stderr",
+		string(receivedActionResult.StderrRaw))
+}
+
+func TestInsufficientStorageWhenProxyTriesToStoreCasBlobs(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetupWithCustomCache(
+		t,
+		false,
+		true,
+		&StubCache{
+			ProgrammedGetError: &cache.Error{
+				Code: http.StatusInsufficientStorage,
+				Text: "Stub programmed to generate error",
+			},
+		})
+
+	testBlobSize := int64(1)
+	testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize)
+	testBlobDigest := pb.Digest{
+		Hash:      testBlobHash,
+		SizeBytes: int64(len(testBlob)),
+	}
+
+	alternativeCompressors := [][]pb.Compressor_Value{{
+		pb.Compressor_ZSTD},
+		nil,
+	}
+
+	for _, acceptableCompressors := range alternativeCompressors {
+		// Verify that BatchReadBlobs is converting
+		// http.StatusInsufficientStorage to codes.ResourceExhausted.
+		// This can occur when a proxy fails to store result locally.
+		downReq := pb.BatchReadBlobsRequest{
+			AcceptableCompressors: acceptableCompressors,
+			Digests: []*pb.Digest{
+				&testBlobDigest,
+			},
+		}
+		downResp, err := fixture.casClient.BatchReadBlobs(ctx, &downReq)
+		if err != nil {
+			t.Fatal(err)
+		}
+		testutils.AssertEquals(t, int32(codes.ResourceExhausted), downResp.Responses[0].Status.Code)
+	}
+}
+
+func TestInsufficientStorageWhenProxyTriesToStoreAc(t *testing.T) {
+	t.Parallel()
+
+	for _, validateACDepsCheck := range []bool{true, false} {
+
+		fixture := grpcTestSetupWithCustomCache(
+			t,
+			false,
+			validateACDepsCheck,
+			&StubCache{
+				ProgrammedGetError: &cache.Error{
+					Code: http.StatusInsufficientStorage,
+					Text: "Stub programmed to generate error",
+				},
+			})
+
+		testBlobSize := int64(1)
+		testBlob, testBlobHash := testutils.RandomDataAndHash(testBlobSize)
+		testBlobDigest := pb.Digest{
+			Hash:      testBlobHash,
+			SizeBytes: int64(len(testBlob)),
+		}
+
+		// Verify that ...
+		getACReq := pb.GetActionResultRequest{
+			ActionDigest:      &testBlobDigest,
+			InlineStdout:      false,
+			InlineStderr:      false,
+			InlineOutputFiles: []string{},
+		}
+		_, err := fixture.acClient.GetActionResult(ctx, &getACReq)
+		assertStatusCodeFromError(t, err, codes.ResourceExhausted)
 	}
 }

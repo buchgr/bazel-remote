@@ -14,8 +14,9 @@ import (
 type Option func(*CacheConfig) error
 
 type CacheConfig struct {
-	diskCache *diskCache        // Assumed to be non-nil.
-	metrics   *metricsDecorator // May be nil.
+	diskCache        *diskCache        // Assumed to be non-nil.
+	metrics          *metricsDecorator // May be nil.
+	maxSizeHardLimit int64
 }
 
 func WithStorageMode(mode string) Option {
@@ -105,6 +106,13 @@ func WithEndpointMetrics() Option {
 		c.metrics.counter.WithLabelValues("get", "ac", "hit").Add(0)
 		c.metrics.counter.WithLabelValues("get", "ac", "miss").Add(0)
 
+		return nil
+	}
+}
+
+func WithMaxSizeHardLimit(maxSizeHardLimit int64) Option {
+	return func(cc *CacheConfig) error {
+		cc.maxSizeHardLimit = maxSizeHardLimit
 		return nil
 	}
 }

@@ -426,11 +426,18 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			if cerr, ok := err.(*cache.Error); ok {
 				msg = cerr.Text
 				http.Error(w, msg, cerr.Code)
+				if cerr.Code == http.StatusInsufficientStorage {
+					// Using accessLogger to prevent too verbose logging
+					// to errorLogger.
+					h.logResponse(cerr.Code, r)
+				} else {
+					h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
+				}
 			} else {
 				msg = "Unexpected error adding item to cache: " + err.Error()
 				http.Error(w, msg, http.StatusInternalServerError)
+				h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
 			}
-			h.errorLogger.Printf("PUT %s: %s", path(kind, hash), msg)
 		} else {
 			h.logResponse(http.StatusOK, r)
 		}
