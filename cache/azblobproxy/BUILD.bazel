@@ -14,6 +14,7 @@ go_library(
         "//utils/backendproxy:go_default_library",
         "@com_github_azure_azure_sdk_for_go_sdk_azcore//:go_default_library",
         "@com_github_azure_azure_sdk_for_go_sdk_storage_azblob//:go_default_library",
+        "@com_github_azure_azure_sdk_for_go_sdk_storage_azblob//container:go_default_library",
         "@com_github_prometheus_client_golang//prometheus:go_default_library",
         "@com_github_prometheus_client_golang//prometheus/promauto:go_default_library",
     ],
