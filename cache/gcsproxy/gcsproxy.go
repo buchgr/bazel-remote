@@ -31,19 +31,19 @@ func New(bucket string, useDefaultCredentials bool, jsonCredentialsFile string, 
 	} else if jsonCredentialsFile != "" {
 		jsonConfig, err := os.ReadFile(jsonCredentialsFile)
 		if err != nil {
-			err = fmt.Errorf("Failed to read Google Credentials file '%s': %v", jsonCredentialsFile, err)
+			err = fmt.Errorf("failed to read Google Credentials file '%s': %v", jsonCredentialsFile, err)
 			return nil, err
 		}
 		config, err := google.CredentialsFromJSON(context.Background(), jsonConfig,
 			"https://www.googleapis.com/auth/devstorage.read_write")
 		if err != nil {
-			err = fmt.Errorf("The provided Google Credentials file '%s' couldn't be parsed: %v",
+			err = fmt.Errorf("the provided Google Credentials file '%s' couldn't be parsed: %v",
 				jsonCredentialsFile, err)
 			return nil, err
 		}
 		remoteClient = oauth2.NewClient(context.Background(), config.TokenSource)
 	} else {
-		return nil, fmt.Errorf("For Google authentication one needs to specify one of default "+
+		return nil, fmt.Errorf("for Google authentication one needs to specify one of default "+
 			"credentials or a json credentials file %v", useDefaultCredentials)
 	}
 
