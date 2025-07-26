@@ -47,7 +47,7 @@ type azBlobCache struct {
 
 func (c *azBlobCache) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
 	if c.uploadQueue == nil {
-		rc.Close()
+		_ = rc.Close()
 		return
 	}
 
@@ -61,7 +61,7 @@ func (c *azBlobCache) Put(ctx context.Context, kind cache.EntryKind, hash string
 	}:
 	default:
 		c.errorLogger.Printf("too many uploads queued\n")
-		rc.Close()
+		_ = rc.Close()
 	}
 }
 
@@ -190,7 +190,7 @@ func New(
 }
 
 func (c *azBlobCache) UploadFile(item backendproxy.UploadReq) {
-	defer item.Rc.Close()
+	defer func() { _ = item.Rc.Close() }()
 
 	key := c.objectKey(item.Hash, item.Kind)
 	if c.prefix != "" {
