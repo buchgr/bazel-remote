@@ -715,8 +715,9 @@ See [examples/docker-compose.yml](examples/docker-compose.yml) for an example co
 The command below will build a docker image from source and install it into your local docker registry.
 
 ```bash
-$ bazel build :bazel-remote-image-tarball && docker load -i bazel-bin/bazel-remote-image-tarball/tarball.tar
-$ docker run buchgr/bazel-remote-cache:tmp-amd64 --max_size 5 --dir /your/path/to/data
+$ bazel run :bazel-remote-image-tarball
+# Ensure /your/path/to/data exists and is writable (e.g. by UID 65532)
+$ docker run -v /your/path/to/data:/data buchgr/bazel-remote-cache:tmp-amd64 --max_size 5 --dir /data
 ```
 
 ### ARM64 docker image
@@ -726,8 +727,9 @@ Bazel-remote can also run on ARM64 architecture devices, for example on a Raspbe
 To build a docker image for ARM64:
 
 ```bash
-$ bazel build :bazel-remote-image-arm64-tarball && docker load -i bazel-bin/bazel-remote-image-arm64-tarball/tarball.tar
-$ docker run buchgr/bazel-remote-cache:tmp-arm64 --max_size 5 --dir /your/path/to/data
+$ bazel run :bazel-remote-image-arm64-tarball
+# Ensure /your/path/to/data exists and is writable (e.g. by UID 65532)
+$ docker run -v /your/path/to/data:/data buchgr/bazel-remote-cache:tmp-arm64 --max_size 5 --dir /data
 ```
 
 ## Build a standalone Linux binary
