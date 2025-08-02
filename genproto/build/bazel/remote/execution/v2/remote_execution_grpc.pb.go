@@ -578,6 +578,8 @@ const (
 	ContentAddressableStorage_BatchUpdateBlobs_FullMethodName = "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchUpdateBlobs"
 	ContentAddressableStorage_BatchReadBlobs_FullMethodName   = "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs"
 	ContentAddressableStorage_GetTree_FullMethodName          = "/build.bazel.remote.execution.v2.ContentAddressableStorage/GetTree"
+	ContentAddressableStorage_SplitBlob_FullMethodName        = "/build.bazel.remote.execution.v2.ContentAddressableStorage/SplitBlob"
+	ContentAddressableStorage_SpliceBlob_FullMethodName       = "/build.bazel.remote.execution.v2.ContentAddressableStorage/SpliceBlob"
 )
 
 // ContentAddressableStorageClient is the client API for ContentAddressableStorage service.
@@ -664,6 +666,104 @@ type ContentAddressableStorageClient interface {
 	//
 	// * `NOT_FOUND`: The requested tree root is not present in the CAS.
 	GetTree(ctx context.Context, in *GetTreeRequest, opts ...grpc.CallOption) (ContentAddressableStorage_GetTreeClient, error)
+	// Split a blob into chunks.
+	//
+	// This call splits a blob into chunks, stores the chunks in the CAS, and
+	// returns a list of the chunk digests. Using this list, a client can check
+	// which chunks are locally available and just fetch the missing ones. The
+	// desired blob can be assembled by concatenating the fetched chunks in the
+	// order of the digests in the list.
+	//
+	// This rpc can be used to reduce the required data to download a large blob
+	// from CAS if chunks from earlier downloads of a different version of this
+	// blob are locally available. For this procedure to work properly, blobs
+	// SHOULD be split in a content-defined way, rather than with fixed-sized
+	// chunking.
+	//
+	// If a split request is answered successfully, a client can expect the
+	// following guarantees from the server:
+	//  1. The blob chunks are stored in CAS.
+	//  2. Concatenating the blob chunks in the order of the digest list returned
+	//     by the server results in the original blob.
+	//
+	// Servers which implement this functionality MUST declare that they support
+	// it by setting the
+	// [CacheCapabilities.blob_split_support][build.bazel.remote.execution.v2.CacheCapabilities.blob_split_support]
+	// field accordingly.
+	//
+	// Clients MUST check that the server supports this capability, before using
+	// it.
+	//
+	// Clients SHOULD verify that the digest of the blob assembled by the fetched
+	// chunks is equal to the requested blob digest.
+	//
+	// The lifetimes of the generated chunk blobs MAY be independent of the
+	// lifetime of the original blob. In particular:
+	//   - A blob and any chunk derived from it MAY be evicted from the CAS at
+	//     different times.
+	//   - A call to [SplitBlob][build.bazel.remote.execution.v2.ContentAddressableStorage.SplitBlob]
+	//     extends the lifetime of the original blob, and sets the lifetimes of
+	//     the resulting chunks (or extends the lifetimes of already-existing
+	//     chunks).
+	//   - Touching a chunk extends its lifetime, but the server MAY choose not
+	//     to extend the lifetime of the original blob.
+	//   - Touching the original blob extends its lifetime, but the server MAY
+	//     choose not to extend the lifetimes of chunks derived from it.
+	//
+	// When blob splitting and splicing is used at the same time, the clients and
+	// the server SHOULD agree out-of-band upon a chunking algorithm used by both
+	// parties to benefit from each others chunk data and avoid unnecessary data
+	// duplication.
+	//
+	// Errors:
+	//
+	//   - `NOT_FOUND`: The requested blob is not present in the CAS.
+	//   - `RESOURCE_EXHAUSTED`: There is insufficient disk quota to store the blob
+	//     chunks.
+	SplitBlob(ctx context.Context, in *SplitBlobRequest, opts ...grpc.CallOption) (*SplitBlobResponse, error)
+	// Splice a blob from chunks.
+	//
+	// This is the complementary operation to the
+	// [ContentAddressableStorage.SplitBlob][build.bazel.remote.execution.v2.ContentAddressableStorage.SplitBlob]
+	// function to handle the chunked upload of large blobs to save upload
+	// traffic.
+	//
+	// If a client needs to upload a large blob and is able to split a blob into
+	// chunks in such a way that reusable chunks are obtained, e.g., by means of
+	// content-defined chunking, it can first determine which parts of the blob
+	// are already available in the remote CAS and upload the missing chunks, and
+	// then use this API to instruct the server to splice the original blob from
+	// the remotely available blob chunks.
+	//
+	// Servers which implement this functionality MUST declare that they support
+	// it by setting the
+	// [CacheCapabilities.blob_splice_support][build.bazel.remote.execution.v2.CacheCapabilities.blob_splice_support]
+	// field accordingly.
+	//
+	// Clients MUST check that the server supports this capability, before using
+	// it.
+	//
+	// In order to ensure data consistency of the CAS, the server MUST only add
+	// blobs to the CAS after verifying their digests. In particular, servers MUST NOT
+	// trust digests provided by the client. The server MAY accept a request as no-op
+	// if the client-specified blob is already in CAS; the lifetime of that blob SHOULD
+	// be extended as usual. If the client-specified blob is not already in the CAS,
+	// the server SHOULD verify that the digest of the newly created blob matches the
+	// digest specified by the client, and reject the request if they differ.
+	//
+	// When blob splitting and splicing is used at the same time, the clients and
+	// the server SHOULD agree out-of-band upon a chunking algorithm used by both
+	// parties to benefit from each others chunk data and avoid unnecessary data
+	// duplication.
+	//
+	// Errors:
+	//
+	//   - `NOT_FOUND`: At least one of the blob chunks is not present in the CAS.
+	//   - `RESOURCE_EXHAUSTED`: There is insufficient disk quota to store the
+	//     spliced blob.
+	//   - `INVALID_ARGUMENT`: The digest of the spliced blob is different from the
+	//     provided expected digest.
+	SpliceBlob(ctx context.Context, in *SpliceBlobRequest, opts ...grpc.CallOption) (*SpliceBlobResponse, error)
 }
 
 type contentAddressableStorageClient struct {
@@ -731,6 +831,24 @@ func (x *contentAddressableStorageGetTreeClient) Recv() (*GetTreeResponse, error
 		return nil, err
 	}
 	return m, nil
+}
+
+func (c *contentAddressableStorageClient) SplitBlob(ctx context.Context, in *SplitBlobRequest, opts ...grpc.CallOption) (*SplitBlobResponse, error) {
+	out := new(SplitBlobResponse)
+	err := c.cc.Invoke(ctx, ContentAddressableStorage_SplitBlob_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentAddressableStorageClient) SpliceBlob(ctx context.Context, in *SpliceBlobRequest, opts ...grpc.CallOption) (*SpliceBlobResponse, error) {
+	out := new(SpliceBlobResponse)
+	err := c.cc.Invoke(ctx, ContentAddressableStorage_SpliceBlob_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // ContentAddressableStorageServer is the server API for ContentAddressableStorage service.
@@ -817,6 +935,104 @@ type ContentAddressableStorageServer interface {
 	//
 	// * `NOT_FOUND`: The requested tree root is not present in the CAS.
 	GetTree(*GetTreeRequest, ContentAddressableStorage_GetTreeServer) error
+	// Split a blob into chunks.
+	//
+	// This call splits a blob into chunks, stores the chunks in the CAS, and
+	// returns a list of the chunk digests. Using this list, a client can check
+	// which chunks are locally available and just fetch the missing ones. The
+	// desired blob can be assembled by concatenating the fetched chunks in the
+	// order of the digests in the list.
+	//
+	// This rpc can be used to reduce the required data to download a large blob
+	// from CAS if chunks from earlier downloads of a different version of this
+	// blob are locally available. For this procedure to work properly, blobs
+	// SHOULD be split in a content-defined way, rather than with fixed-sized
+	// chunking.
+	//
+	// If a split request is answered successfully, a client can expect the
+	// following guarantees from the server:
+	//  1. The blob chunks are stored in CAS.
+	//  2. Concatenating the blob chunks in the order of the digest list returned
+	//     by the server results in the original blob.
+	//
+	// Servers which implement this functionality MUST declare that they support
+	// it by setting the
+	// [CacheCapabilities.blob_split_support][build.bazel.remote.execution.v2.CacheCapabilities.blob_split_support]
+	// field accordingly.
+	//
+	// Clients MUST check that the server supports this capability, before using
+	// it.
+	//
+	// Clients SHOULD verify that the digest of the blob assembled by the fetched
+	// chunks is equal to the requested blob digest.
+	//
+	// The lifetimes of the generated chunk blobs MAY be independent of the
+	// lifetime of the original blob. In particular:
+	//   - A blob and any chunk derived from it MAY be evicted from the CAS at
+	//     different times.
+	//   - A call to [SplitBlob][build.bazel.remote.execution.v2.ContentAddressableStorage.SplitBlob]
+	//     extends the lifetime of the original blob, and sets the lifetimes of
+	//     the resulting chunks (or extends the lifetimes of already-existing
+	//     chunks).
+	//   - Touching a chunk extends its lifetime, but the server MAY choose not
+	//     to extend the lifetime of the original blob.
+	//   - Touching the original blob extends its lifetime, but the server MAY
+	//     choose not to extend the lifetimes of chunks derived from it.
+	//
+	// When blob splitting and splicing is used at the same time, the clients and
+	// the server SHOULD agree out-of-band upon a chunking algorithm used by both
+	// parties to benefit from each others chunk data and avoid unnecessary data
+	// duplication.
+	//
+	// Errors:
+	//
+	//   - `NOT_FOUND`: The requested blob is not present in the CAS.
+	//   - `RESOURCE_EXHAUSTED`: There is insufficient disk quota to store the blob
+	//     chunks.
+	SplitBlob(context.Context, *SplitBlobRequest) (*SplitBlobResponse, error)
+	// Splice a blob from chunks.
+	//
+	// This is the complementary operation to the
+	// [ContentAddressableStorage.SplitBlob][build.bazel.remote.execution.v2.ContentAddressableStorage.SplitBlob]
+	// function to handle the chunked upload of large blobs to save upload
+	// traffic.
+	//
+	// If a client needs to upload a large blob and is able to split a blob into
+	// chunks in such a way that reusable chunks are obtained, e.g., by means of
+	// content-defined chunking, it can first determine which parts of the blob
+	// are already available in the remote CAS and upload the missing chunks, and
+	// then use this API to instruct the server to splice the original blob from
+	// the remotely available blob chunks.
+	//
+	// Servers which implement this functionality MUST declare that they support
+	// it by setting the
+	// [CacheCapabilities.blob_splice_support][build.bazel.remote.execution.v2.CacheCapabilities.blob_splice_support]
+	// field accordingly.
+	//
+	// Clients MUST check that the server supports this capability, before using
+	// it.
+	//
+	// In order to ensure data consistency of the CAS, the server MUST only add
+	// blobs to the CAS after verifying their digests. In particular, servers MUST NOT
+	// trust digests provided by the client. The server MAY accept a request as no-op
+	// if the client-specified blob is already in CAS; the lifetime of that blob SHOULD
+	// be extended as usual. If the client-specified blob is not already in the CAS,
+	// the server SHOULD verify that the digest of the newly created blob matches the
+	// digest specified by the client, and reject the request if they differ.
+	//
+	// When blob splitting and splicing is used at the same time, the clients and
+	// the server SHOULD agree out-of-band upon a chunking algorithm used by both
+	// parties to benefit from each others chunk data and avoid unnecessary data
+	// duplication.
+	//
+	// Errors:
+	//
+	//   - `NOT_FOUND`: At least one of the blob chunks is not present in the CAS.
+	//   - `RESOURCE_EXHAUSTED`: There is insufficient disk quota to store the
+	//     spliced blob.
+	//   - `INVALID_ARGUMENT`: The digest of the spliced blob is different from the
+	//     provided expected digest.
+	SpliceBlob(context.Context, *SpliceBlobRequest) (*SpliceBlobResponse, error)
 }
 
 // UnimplementedContentAddressableStorageServer should be embedded to have forward compatible implementations.
@@ -834,6 +1050,12 @@ func (UnimplementedContentAddressableStorageServer) BatchReadBlobs(context.Conte
 }
 func (UnimplementedContentAddressableStorageServer) GetTree(*GetTreeRequest, ContentAddressableStorage_GetTreeServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetTree not implemented")
+}
+func (UnimplementedContentAddressableStorageServer) SplitBlob(context.Context, *SplitBlobRequest) (*SplitBlobResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SplitBlob not implemented")
+}
+func (UnimplementedContentAddressableStorageServer) SpliceBlob(context.Context, *SpliceBlobRequest) (*SpliceBlobResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SpliceBlob not implemented")
 }
 
 // UnsafeContentAddressableStorageServer may be embedded to opt out of forward compatibility for this service.
@@ -922,6 +1144,42 @@ func (x *contentAddressableStorageGetTreeServer) Send(m *GetTreeResponse) error 
 	return x.ServerStream.SendMsg(m)
 }
 
+func _ContentAddressableStorage_SplitBlob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SplitBlobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentAddressableStorageServer).SplitBlob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentAddressableStorage_SplitBlob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentAddressableStorageServer).SplitBlob(ctx, req.(*SplitBlobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentAddressableStorage_SpliceBlob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SpliceBlobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentAddressableStorageServer).SpliceBlob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentAddressableStorage_SpliceBlob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentAddressableStorageServer).SpliceBlob(ctx, req.(*SpliceBlobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ContentAddressableStorage_ServiceDesc is the grpc.ServiceDesc for ContentAddressableStorage service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -940,6 +1198,14 @@ var ContentAddressableStorage_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "BatchReadBlobs",
 			Handler:    _ContentAddressableStorage_BatchReadBlobs_Handler,
+		},
+		{
+			MethodName: "SplitBlob",
+			Handler:    _ContentAddressableStorage_SplitBlob_Handler,
+		},
+		{
+			MethodName: "SpliceBlob",
+			Handler:    _ContentAddressableStorage_SpliceBlob_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

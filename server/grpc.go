@@ -37,6 +37,7 @@ const (
 const grpcHealthServiceName = "/grpc.health.v1.Health/Check"
 
 type grpcServer struct {
+	pb.UnimplementedContentAddressableStorageServer
 	cache               disk.Cache
 	accessLogger        cache.Logger
 	errorLogger         cache.Logger

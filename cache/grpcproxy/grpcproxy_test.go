@@ -31,6 +31,7 @@ import (
 var logger = testutils.NewSilentLogger()
 
 type testProxy struct {
+	pb.UnimplementedContentAddressableStorageServer
 	dir    string
 	server *grpc.Server
 	proxy  cache.Proxy
