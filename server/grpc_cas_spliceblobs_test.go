@@ -147,7 +147,15 @@ func TestSpliceBlobCapability(t *testing.T) {
 	}
 }
 
-func TestSpliceBlob(t *testing.T) {
+func TestSpliceBlobWithBlobDigest(t *testing.T) {
+	testSpliceBlob(t, true)
+}
+
+func TestSpliceBlobWithoutBlobDigest(t *testing.T) {
+	testSpliceBlob(t, false)
+}
+
+func testSpliceBlob(t *testing.T, withBlobDigest bool) {
 	fixture, helloDigest, worldDigest, helloworldDigest := spliceBlobTestSetup(t)
 	defer func() { _ = os.Remove(fixture.tempdir) }()
 
@@ -155,8 +163,13 @@ func TestSpliceBlob(t *testing.T) {
 
 	// Splice together the "hello" and "world" blobs to form "helloworld".
 
+	var blobDigest *pb.Digest
+	if withBlobDigest {
+		blobDigest = helloworldDigest
+	}
+
 	spliceReq := pb.SpliceBlobRequest{
-		BlobDigest: helloworldDigest,
+		BlobDigest: blobDigest,
 		ChunkDigests: []*pb.Digest{
 			helloDigest,
 			worldDigest,

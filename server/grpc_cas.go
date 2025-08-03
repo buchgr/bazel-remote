@@ -3,6 +3,8 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 
@@ -383,32 +385,7 @@ func (s *grpcServer) SpliceBlob(ctx context.Context, req *pb.SpliceBlobRequest) 
 			"SpliceBlob called with nil SpliceBlobRequest")
 	}
 
-	if req.BlobDigest == nil {
-		return nil, grpc_status.Errorf(codes.InvalidArgument,
-			"SpliceBlob called with nil SpliceBlobRequest.BlobDigest")
-	}
-
-	if req.BlobDigest.SizeBytes == 0 || req.BlobDigest.Hash == emptySha256 {
-		return nil, grpc_status.Errorf(codes.InvalidArgument,
-			"SpliceBlob called to create the empty blob?")
-	}
-
-	if req.BlobDigest.SizeBytes < 0 {
-		return nil, grpc_status.Errorf(codes.InvalidArgument,
-			"SpliceBlob called with negative SpliceBlobRequest.BlobDigest.SizeBytes")
-	}
-
-	if s.maxCasBlobSizeBytes > 0 && req.BlobDigest.SizeBytes > s.maxCasBlobSizeBytes {
-		return nil, grpc_status.Errorf(codes.InvalidArgument,
-			"SpliceBlob called to create blob with size %d, which is greater than the max configured blob size %d",
-			req.BlobDigest.SizeBytes, s.maxCasBlobSizeBytes)
-	}
-
-	if !validate.HashKeyRegex.MatchString(req.BlobDigest.Hash) {
-		return nil, grpc_status.Errorf(codes.InvalidArgument,
-			"SpliceBlob called with invalid SpliceBlobRequest.BlobDigest.Hash: %s",
-			req.BlobDigest.Hash)
-	}
+	// Check that req.ChunkDigests is OK.
 
 	if len(req.ChunkDigests) == 0 {
 		return nil, grpc_status.Errorf(codes.InvalidArgument,
@@ -448,6 +425,86 @@ func (s *grpcServer) SpliceBlob(ctx context.Context, req *pb.SpliceBlobRequest) 
 			return nil, grpc_status.Errorf(codes.InvalidArgument,
 				"Overflow in SpliceBlobRequest.ChunkDigests, does not match SpliceBlobRequest.BlobDigest.SizeBytes")
 		}
+	}
+
+	checkBlobDigestHashMatchesRegex := true
+	if req.BlobDigest == nil {
+		// We need to calculate the spliced blob's digest before we can call Put.
+		// Since the blob might be large, let's try to avoid buffering the entire
+		// thing in memory. We might get cache hits from the kernel's filesystem
+		// cache when reading the chunks twice anyway when feeding the Put call.
+
+		checkBlobDigestHashMatchesRegex = false // No need to check, if we hash ourselves
+
+		hasher := sha256.New()
+
+		for _, chunkDigest := range req.ChunkDigests {
+			rc, _, err := s.cache.Get(ctx, cache.CAS, chunkDigest.Hash, chunkDigest.SizeBytes, 0)
+			if err != nil {
+				if rc != nil {
+					rc.Close()
+				}
+
+				return nil, grpc_status.Errorf(codes.Unknown,
+					"SpliceBlob failed to get chunk %s/%d: %s",
+					chunkDigest.Hash, chunkDigest.SizeBytes, err)
+			}
+
+			if rc == nil {
+				return nil, grpc_status.Errorf(codes.NotFound,
+					"SpliceBlob called with nonexistent blob: %s/%d",
+					chunkDigest.Hash, chunkDigest.SizeBytes)
+			}
+
+			// We can assume that the size returned by s.cache.Get equals chunkDigest.SizeBytes,
+			// because we checked that is was not -1 in the chunkTotal check performed earlier.
+
+			copiedBytes, err := io.Copy(hasher, rc)
+			if err != nil {
+				rc.Close()
+				return nil, grpc_status.Errorf(codes.Unknown,
+					"SpliceBlob failed to copy chunk %s/%d: %s",
+					chunkDigest.Hash, chunkDigest.SizeBytes, err)
+			}
+
+			if copiedBytes != chunkDigest.SizeBytes {
+				rc.Close()
+				return nil, grpc_status.Errorf(codes.Unknown,
+					"SpliceBlob copied unpexpected number of bytes (%d) from chunk %s/%d",
+					copiedBytes, chunkDigest.Hash, chunkDigest.SizeBytes)
+			}
+
+			rc.Close()
+		}
+
+		req.BlobDigest = &pb.Digest{
+			Hash:      hex.EncodeToString(hasher.Sum(nil)),
+			SizeBytes: chunkTotal,
+		}
+	}
+
+	// At this point, req.BlobDigest is non-nil.
+
+	if s.maxCasBlobSizeBytes > 0 && req.BlobDigest.SizeBytes > s.maxCasBlobSizeBytes {
+		return nil, grpc_status.Errorf(codes.InvalidArgument,
+			"SpliceBlob called to create blob with size %d, which is greater than the max configured blob size %d",
+			req.BlobDigest.SizeBytes, s.maxCasBlobSizeBytes)
+	}
+
+	if req.BlobDigest.SizeBytes == 0 || req.BlobDigest.Hash == emptySha256 {
+		return nil, grpc_status.Errorf(codes.InvalidArgument,
+			"SpliceBlob called to create the empty blob?")
+	}
+
+	if req.BlobDigest.SizeBytes < 0 {
+		return nil, grpc_status.Errorf(codes.InvalidArgument,
+			"SpliceBlob called with negative SpliceBlobRequest.BlobDigest.SizeBytes")
+	}
+
+	if checkBlobDigestHashMatchesRegex && !validate.HashKeyRegex.MatchString(req.BlobDigest.Hash) {
+		return nil, grpc_status.Errorf(codes.InvalidArgument,
+			"SpliceBlob called with invalid SpliceBlobRequest.BlobDigest.Hash: %s",
+			req.BlobDigest.Hash)
 	}
 
 	if chunkTotal != req.BlobDigest.SizeBytes {
