@@ -194,18 +194,6 @@ func (p *testProxy) Write(srv bs.ByteStream_WriteServer) error {
 	}
 }
 
-func (p *testProxy) BatchReadBlobs(context.Context, *pb.BatchReadBlobsRequest) (*pb.BatchReadBlobsResponse, error) {
-	return nil, nil
-}
-
-func (p *testProxy) BatchUpdateBlobs(context.Context, *pb.BatchUpdateBlobsRequest) (*pb.BatchUpdateBlobsResponse, error) {
-	return nil, nil
-}
-
-func (p *testProxy) GetTree(*pb.GetTreeRequest, pb.ContentAddressableStorage_GetTreeServer) error {
-	return nil
-}
-
 func (p *testProxy) QueryWriteStatus(context.Context, *bs.QueryWriteStatusRequest) (*bs.QueryWriteStatusResponse, error) {
 	return nil, nil
 }
