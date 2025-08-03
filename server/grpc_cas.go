@@ -474,7 +474,9 @@ func (s *grpcServer) SpliceBlob(ctx context.Context, req *pb.SpliceBlobRequest) 
 		for _, chunkDigest := range req.ChunkDigests {
 			rc, _, err := s.cache.Get(ctx, cache.CAS, chunkDigest.Hash, chunkDigest.SizeBytes, 0)
 			if err != nil {
-				rc.Close()
+				if rc != nil {
+					rc.Close()
+				}
 				writerResultChan <- grpc_status.Errorf(codes.Unknown,
 					"SpliceBlob failed to get chunk %s/%d: %s",
 					chunkDigest.Hash, chunkDigest.SizeBytes, err)
