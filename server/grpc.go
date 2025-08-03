@@ -37,7 +37,6 @@ const (
 const grpcHealthServiceName = "/grpc.health.v1.Health/Check"
 
 type grpcServer struct {
-	pb.UnimplementedContentAddressableStorageServer
 	cache               disk.Cache
 	accessLogger        cache.Logger
 	errorLogger         cache.Logger
@@ -131,6 +130,8 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 			SupportedCompressors:            []pb.Compressor_Value{pb.Compressor_ZSTD},
 			SupportedBatchUpdateCompressors: []pb.Compressor_Value{pb.Compressor_ZSTD},
 			MaxCasBlobSizeBytes:             s.maxCasBlobSizeBytes,
+			BlobSpliceSupport:               true,
+			BlobSplitSupport:                false,
 		},
 		LowApiVersion:  &semver.SemVer{Major: int32(2)},
 		HighApiVersion: &semver.SemVer{Major: int32(2), Minor: int32(3)},

@@ -50,6 +50,7 @@ go_test(
     name = "go_default_test",
     srcs = [
         "grpc_asset_test.go",
+        "grpc_cas_spliceblobs_test.go",
         "grpc_test.go",
         "http_test.go",
     ],
