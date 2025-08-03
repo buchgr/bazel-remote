@@ -456,6 +456,15 @@ func (s *grpcServer) SpliceBlob(ctx context.Context, req *pb.SpliceBlobRequest) 
 			chunkTotal, req.BlobDigest.SizeBytes)
 	}
 
+	alreadyHaveSplicedBlob, _ := s.cache.Contains(ctx, cache.CAS, req.BlobDigest.Hash, req.BlobDigest.SizeBytes)
+	if alreadyHaveSplicedBlob {
+		resp := pb.SpliceBlobResponse{
+			BlobDigest: req.BlobDigest,
+		}
+
+		return &resp, nil
+	}
+
 	pr, pw := io.Pipe()
 	writerResultChan := make(chan error, 1)
 
