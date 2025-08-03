@@ -419,3 +419,26 @@ func TestSpliceBlobWithMissingChunk(t *testing.T) {
 		t.Fatal("expected \"missing\" blob not to exist in the cache yet, but got error", err)
 	}
 }
+
+func TestUnsupportedSpliceBlobDigestsAreRejected(t *testing.T) {
+	fixture, helloDigest, worldDigest, helloworldDigest := spliceBlobTestSetup(t)
+	defer func() { _ = os.Remove(fixture.tempdir) }()
+
+	spliceReq := pb.SpliceBlobRequest{
+		BlobDigest: helloworldDigest,
+		ChunkDigests: []*pb.Digest{
+			helloDigest,
+			worldDigest,
+		},
+		DigestFunction: pb.DigestFunction_MD5, // Unsupported
+	}
+
+	_, err := fixture.casClient.SpliceBlob(ctx, &spliceReq)
+	if err == nil {
+		t.Fatal("expected error when specifying an unsupported SpliceBlobRequest.DigestFunction")
+	}
+
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatal("expected an InvalidArgument error, got:", err)
+	}
+}

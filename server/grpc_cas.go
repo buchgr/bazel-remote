@@ -385,6 +385,19 @@ func (s *grpcServer) SpliceBlob(ctx context.Context, req *pb.SpliceBlobRequest) 
 			"SpliceBlob called with nil SpliceBlobRequest")
 	}
 
+	if req.DigestFunction != pb.DigestFunction_UNKNOWN && req.DigestFunction != pb.DigestFunction_SHA256 {
+		digestName, ok := pb.DigestFunction_Value_name[int32(req.DigestFunction)]
+		if ok {
+			return nil, grpc_status.Errorf(codes.InvalidArgument,
+				"SpliceBlob called with unsupported digest function: %s", digestName)
+		}
+
+		return nil, grpc_status.Errorf(codes.InvalidArgument,
+			"SpliceBlob called with unrecognised digest function: %d", req.DigestFunction)
+	}
+
+	// From this point, we assume that the digest function is SHA256 and verify digests as necessary.
+
 	// Check that req.ChunkDigests is OK.
 
 	if len(req.ChunkDigests) == 0 {
