@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
 	grpc_status "google.golang.org/grpc/status"
@@ -25,8 +26,14 @@ import (
 
 // FetchServer implementation
 
-var errNilFetchBlobRequest = grpc_status.Error(codes.InvalidArgument,
-	"expected a non-nil *FetchBlobRequest")
+var (
+	errNilFetchBlobRequest = grpc_status.Error(codes.InvalidArgument,
+		"expected a non-nil *FetchBlobRequest")
+	errNilQualifier = grpc_status.Error(codes.InvalidArgument,
+		"expected a non-nil *Qualifier")
+	errUnsupportedDigestFunction = grpc_status.Error(codes.InvalidArgument,
+		"unsupported digest function")
+)
 
 var resourceExhaustedResponse = asset.FetchBlobResponse{
 	Status: &status.Status{
@@ -36,7 +43,6 @@ var resourceExhaustedResponse = asset.FetchBlobResponse{
 }
 
 func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest) (*asset.FetchBlobResponse, error) {
-
 	var sha256Str string
 
 	// Q: which combinations of qualifiers to support?
@@ -69,14 +75,10 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 
 	uriSpecificHeaders := make(map[int]http.Header)
 
+	var unsupportedQualifierNames []string
 	for _, q := range req.GetQualifiers() {
 		if q == nil {
-			return &asset.FetchBlobResponse{
-				Status: &status.Status{
-					Code:    int32(codes.InvalidArgument),
-					Message: "unexpected nil qualifier in FetchBlobRequest",
-				},
-			}, nil
+			return nil, errNilQualifier
 		}
 
 		const QualifierHTTPHeaderPrefix = "http_header:"
@@ -114,25 +116,33 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 			continue
 		}
 
-		if q.Name == "checksum.sri" && strings.HasPrefix(q.Value, "sha256-") {
+		if q.Name == "checksum.sri" {
 			// Ref: https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity
 
-			b64hash := strings.TrimPrefix(q.Value, "sha256-")
+			b64hash, ok := strings.CutPrefix(q.Value, "sha256-")
+			if !ok {
+				return nil, grpc_status.Error(codes.InvalidArgument, fmt.Sprintf(`unsupported digest function in "checksum.sri" qualifier %q`, q.Value))
+			}
 
 			decoded, err := base64.StdEncoding.DecodeString(b64hash)
 			if err != nil {
 				s.errorLogger.Printf("failed to base64 decode \"%s\": %v",
 					b64hash, err)
-				continue
+				return nil, grpc_status.Error(codes.InvalidArgument, fmt.Errorf(`invalid sri in "checksum.sri" qualifier for %q: base64 decode:  %w`, q.Value, err).Error())
 			}
 
 			sha256Str = hex.EncodeToString(decoded)
+			continue
+		}
 
-			found, size := s.cache.Contains(ctx, cache.CAS, sha256Str, -1)
-			if !found {
-				continue
-			}
+		unsupportedQualifierNames = append(unsupportedQualifierNames, q.Name)
+	}
+	if len(unsupportedQualifierNames) > 0 {
+		return nil, s.unsupportedQualifiersErrStatus(unsupportedQualifierNames)
+	}
 
+	if len(sha256Str) != 0 {
+		if found, size := s.cache.Contains(ctx, cache.CAS, sha256Str, -1); found {
 			if size < 0 {
 				// We don't know the size yet (bad http backend?).
 				r, actualSize, err := s.cache.Get(ctx, cache.CAS, sha256Str, -1, 0)
@@ -142,7 +152,8 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 				if err != nil || actualSize < 0 {
 					s.errorLogger.Printf("failed to get CAS %s from proxy backend size: %d err: %v",
 						sha256Str, actualSize, err)
-					continue
+					return nil, grpc_status.Error(codes.Internal, fmt.Sprintf("failed to get CAS %s from proxy backend size: %d err: %v",
+						sha256Str, actualSize, err))
 				}
 				size = actualSize
 			}
@@ -257,6 +268,25 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, headers http.Hea
 	}
 
 	return expectedHash, expectedSize, nil
+}
+
+// unsupportedQualifiersErrStatus creates a gRPC status error that includes a list of unsupported qualifiers.
+func (s *grpcServer) unsupportedQualifiersErrStatus(qualifierNames []string) error {
+	fieldViolations := make([]*errdetails.BadRequest_FieldViolation, 0, len(qualifierNames))
+	for _, name := range qualifierNames {
+		fieldViolations = append(fieldViolations, &errdetails.BadRequest_FieldViolation{
+			Field:       "qualifiers.name",
+			Description: fmt.Sprintf("%q not supported", name),
+		})
+	}
+	statusWithoutDetails := grpc_status.New(codes.InvalidArgument, fmt.Sprintf("Unsupported qualifiers: %s", strings.Join(qualifierNames, ", ")))
+	statusWithDetails, err := statusWithoutDetails.WithDetails(&errdetails.BadRequest{FieldViolations: fieldViolations})
+	// should never happen
+	if err != nil {
+		s.errorLogger.Printf("failed to add details to status: %v", err)
+		return statusWithoutDetails.Err()
+	}
+	return statusWithDetails.Err()
 }
 
 func (s *grpcServer) FetchDirectory(context.Context, *asset.FetchDirectoryRequest) (*asset.FetchDirectoryResponse, error) {
