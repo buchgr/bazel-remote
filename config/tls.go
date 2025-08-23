@@ -26,11 +26,11 @@ func (c *Config) setTLSConfig() error {
 		caCertPool := x509.NewCertPool()
 		caCert, err := os.ReadFile(c.TLSCaFile)
 		if err != nil {
-			return fmt.Errorf("Error reading TLS CA File: %w", err)
+			return fmt.Errorf("error reading TLS CA File: %w", err)
 		}
 		added := caCertPool.AppendCertsFromPEM(caCert)
 		if !added {
-			return fmt.Errorf("Failed to add certificate to cert pool.")
+			return fmt.Errorf("failed to add certificate to cert pool")
 		}
 
 		readCert, err := tls.LoadX509KeyPair(
@@ -38,7 +38,7 @@ func (c *Config) setTLSConfig() error {
 			c.TLSKeyFile,
 		)
 		if err != nil {
-			return fmt.Errorf("Error reading certificate/key pair: %w", err)
+			return fmt.Errorf("error reading certificate/key pair: %w", err)
 		}
 
 		c.TLSConfig = &tls.Config{
@@ -64,7 +64,7 @@ func (c *Config) setTLSConfig() error {
 			c.TLSKeyFile,
 		)
 		if err != nil {
-			return fmt.Errorf("Error reading certificate/key pair: %w", err)
+			return fmt.Errorf("error reading certificate/key pair: %w", err)
 		}
 
 		c.TLSConfig = &tls.Config{

@@ -41,7 +41,7 @@ func getTLSConfig(certFile, keyFile, caFile string) (*tls.Config, error) {
 		}
 		caCertPool := x509.NewCertPool()
 		if added := caCertPool.AppendCertsFromPEM(caCert); !added {
-			return nil, fmt.Errorf("Failed to add ca cert to cert pool.")
+			return nil, fmt.Errorf("failed to add CA cert to cert pool")
 		}
 		config.RootCAs = caCertPool
 	}
@@ -185,7 +185,7 @@ func parseBucketLookupType(typeStr string) (minio.BucketLookupType, error) {
 
 	val, ok := valMap[typeStr]
 	if !ok {
-		return 0, fmt.Errorf("Unsupported bucket_lookup_type value : %s", typeStr)
+		return 0, fmt.Errorf("unsupported bucket_lookup_type value : %s", typeStr)
 	}
 
 	return val, nil

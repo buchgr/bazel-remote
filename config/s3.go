@@ -31,10 +31,11 @@ type S3CloudStorageConfig struct {
 }
 
 func (s3c S3CloudStorageConfig) GetCredentials() (*credentials.Credentials, error) {
-	if s3c.AuthMethod == s3proxy.AuthMethodAWSCredentialsFile {
+	switch s3c.AuthMethod {
+	case s3proxy.AuthMethodAWSCredentialsFile:
 		log.Println("S3 Credentials: using AWS credentials file.")
 		return credentials.NewFileAWSCredentials(s3c.AWSSharedCredentialsFile, s3c.AWSProfile), nil
-	} else if s3c.AuthMethod == s3proxy.AuthMethodAccessKey {
+	case s3proxy.AuthMethodAccessKey:
 		if s3c.AccessKeyID == "" {
 			return nil, fmt.Errorf("missing s3.access_key_id for s3.auth_method = '%s'", s3proxy.AuthMethodAccessKey)
 		}
@@ -45,7 +46,7 @@ func (s3c S3CloudStorageConfig) GetCredentials() (*credentials.Credentials, erro
 		signatureType := parseSignatureType(s3c.SignatureType)
 		log.Printf("S3 Sign: using %s sign\n", signatureType.String())
 		return credentials.NewStatic(s3c.AccessKeyID, s3c.SecretAccessKey, s3c.SessionToken, signatureType), nil
-	} else if s3c.AuthMethod == s3proxy.AuthMethodIAMRole {
+	case s3proxy.AuthMethodIAMRole:
 		// Fall back to getting credentials from IAM
 		log.Println("S3 Credentials: using IAM.")
 		return credentials.NewIAM(s3c.IAMRoleEndpoint), nil

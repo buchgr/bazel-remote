@@ -47,10 +47,10 @@ func (azblobc AzBlobStorageConfig) GetCredentials() (azcore.TokenCredential, err
 			return nil, fmt.Errorf(`failed to load certificate from "%s": %v`, azblobc.CertPath, err)
 		}
 		if azblobc.TenantID == "" {
-			return nil, fmt.Errorf("An Azure blob tenant ID is required.")
+			return nil, fmt.Errorf("an Azure blob tenant ID is required")
 		}
 		if azblobc.ClientID == "" {
-			return nil, fmt.Errorf("An Azure blob client ID is required with auth method client_certificate.")
+			return nil, fmt.Errorf("an Azure blob client ID is required with auth method client_certificate")
 		}
 
 		return azidentity.NewClientCertificateCredential(azblobc.TenantID, azblobc.ClientID, certs, key, nil)
@@ -58,10 +58,10 @@ func (azblobc AzBlobStorageConfig) GetCredentials() (azcore.TokenCredential, err
 
 	if azblobc.AuthMethod == azblobproxy.AuthMethodClientSecret {
 		if azblobc.TenantID == "" {
-			return nil, fmt.Errorf("An Azure blob tenant ID is required.")
+			return nil, fmt.Errorf("an Azure blob tenant ID is required")
 		}
 		if azblobc.ClientID == "" {
-			return nil, fmt.Errorf("An Azure blob client ID is required with auth method client_secret.")
+			return nil, fmt.Errorf("an Azure blob client ID is required with auth method client_secret")
 		}
 
 		log.Println("AzBlob Credentials: using client secret credentials")

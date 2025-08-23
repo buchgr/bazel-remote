@@ -70,21 +70,21 @@ func (c *URLBackendConfig) UnmarshalYAML(unmarshal func(interface{}) error) erro
 
 func (c *URLBackendConfig) validate(protocol string) error {
 	if c.BaseURL == nil {
-		return fmt.Errorf("The 'url' field is required for '%s_proxy'", protocol)
+		return fmt.Errorf("the 'url' field is required for '%s_proxy'", protocol)
 	}
 	if c.BaseURL.Scheme != protocol && c.BaseURL.Scheme != protocol+"s" {
-		return fmt.Errorf("The %[1]s proxy backend protocol must be either %[1]s or %[1]ss", protocol)
+		return fmt.Errorf("the %[1]s proxy backend protocol must be either %[1]s or %[1]ss", protocol)
 	}
 	if c.KeyFile != "" || c.CertFile != "" {
 		if c.KeyFile == "" || c.CertFile == "" {
-			return fmt.Errorf("To use mTLS with the %s proxy, both a key and a certificate must be provided", protocol)
+			return fmt.Errorf("to use mTLS with the %s proxy, both a key and a certificate must be provided", protocol)
 		}
 		if c.BaseURL.Scheme != protocol+"s" {
-			return fmt.Errorf("When mTLS is enabled, the %[1]s proxy backend protocol must be %[1]ss", protocol)
+			return fmt.Errorf("when mTLS is enabled, the %[1]s proxy backend protocol must be %[1]ss", protocol)
 		}
 	}
 	if c.CaFile != "" && c.BaseURL.Scheme != protocol+"s" {
-		return fmt.Errorf("When TLS is enabled, the %[1]s proxy backend protocol must be %[1]s", protocol)
+		return fmt.Errorf("when TLS is enabled, the %[1]s proxy backend protocol must be %[1]s", protocol)
 	}
 	return nil
 }
@@ -239,13 +239,13 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 func newFromYamlFile(path string) (*Config, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to open config file '%s': %v", path, err)
+		return nil, fmt.Errorf("failed to open config file '%s': %v", path, err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	data, err := io.ReadAll(file)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to read config file '%s': %v", path, err)
+		return nil, fmt.Errorf("failed to read config file '%s': %v", path, err)
 	}
 
 	return NewFromYaml(data)
@@ -269,7 +269,7 @@ func NewFromYaml(data []byte) (*Config, error) {
 
 	err := yaml.Unmarshal(data, &yc)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to parse YAML config: %v", err)
+		return nil, fmt.Errorf("failed to parse YAML config: %v", err)
 	}
 	c := yc.Config
 
@@ -299,11 +299,11 @@ func NewFromYaml(data []byte) (*Config, error) {
 
 func validateConfig(c *Config) error {
 	if c.Dir == "" {
-		return errors.New("The 'dir' flag/key is required")
+		return errors.New("the 'dir' flag/key is required")
 	}
 
 	if c.MaxSize <= 0 {
-		return errors.New("The 'max_size' flag/key must be set to a value > 0")
+		return errors.New("the 'max_size' flag/key must be set to a value > 0")
 	}
 
 	if c.StorageMode != "zstd" && c.StorageMode != "uncompressed" {
@@ -331,7 +331,7 @@ func validateConfig(c *Config) error {
 	}
 
 	if proxyCount > 1 {
-		return errors.New("At most one of the S3/GCS/HTTP proxy backends is allowed")
+		return errors.New("at most one of the S3/GCS/HTTP proxy backends is allowed")
 	}
 
 	var httpPort string
@@ -373,18 +373,18 @@ func validateConfig(c *Config) error {
 	}
 
 	if c.GRPCAddress == disabledGRPCListener && c.ExperimentalRemoteAssetAPI {
-		return errors.New("Remote Asset API support depends on gRPC being enabled")
+		return errors.New("remote Asset API support depends on gRPC being enabled")
 	}
 
 	if (c.TLSCertFile != "" && c.TLSKeyFile == "") || (c.TLSCertFile == "" && c.TLSKeyFile != "") {
-		return errors.New("When enabling TLS one must specify both " +
+		return errors.New("when enabling TLS one must specify both " +
 			"'tls_key_file' and 'tls_cert_file'")
 	}
 
 	if c.TLSCaFile != "" && (c.TLSCertFile == "" || c.TLSKeyFile == "") {
-		return errors.New("When enabling mTLS (authenticating client " +
+		return errors.New("when enabling mTLS (authenticating client " +
 			"certificates) the server must have it's own 'tls_key_file' " +
-			"and 'tls_cert_file' specified.")
+			"and 'tls_cert_file' specified")
 	}
 
 	if c.AllowUnauthenticatedReads && c.TLSCaFile == "" && c.HtpasswdFile == "" && c.LDAP == nil {
@@ -392,20 +392,20 @@ func validateConfig(c *Config) error {
 	}
 
 	if c.MaxBlobSize <= 0 {
-		return errors.New("The 'max_blob_size' flag/key must be a positive integer")
+		return errors.New("the 'max_blob_size' flag/key must be a positive integer")
 	}
 
 	if c.MaxProxyBlobSize <= 0 {
-		return errors.New("The 'max_proxy_blob_size' flag/key must be a positive integer")
+		return errors.New("the 'max_proxy_blob_size' flag/key must be a positive integer")
 	}
 
 	if c.GoogleCloudStorage != nil && c.HTTPBackend != nil && c.S3CloudStorage != nil {
-		return errors.New("One can specify at most one proxying backend")
+		return errors.New("one can specify at most one proxying backend")
 	}
 
 	if c.GoogleCloudStorage != nil {
 		if c.GoogleCloudStorage.Bucket == "" {
-			return errors.New("The 'bucket' field is required for 'gcs_proxy'")
+			return errors.New("the 'bucket' field is required for 'gcs_proxy'")
 		}
 	}
 
@@ -446,15 +446,15 @@ func validateConfig(c *Config) error {
 
 	if c.AzBlobConfig != nil {
 		if c.AzBlobConfig.StorageAccount == "" {
-			return errors.New("The 'storage_account' field is required for 'azblob_proxy'")
+			return errors.New("the 'storage_account' field is required for 'azblob_proxy'")
 		}
 
 		if c.AzBlobConfig.ContainerName == "" {
-			return errors.New("The 'container_name' field is required for 'azblob_proxy'")
+			return errors.New("the 'container_name' field is required for 'azblob_proxy'")
 		}
 
 		if !azblobproxy.IsValidAuthMethod(c.AzBlobConfig.AuthMethod) {
-			return fmt.Errorf("Invalid azblob.auth_method: %s", c.AzBlobConfig.AuthMethod)
+			return fmt.Errorf("invalid azblob.auth_method: %s", c.AzBlobConfig.AuthMethod)
 		}
 	}
 
@@ -470,15 +470,15 @@ func validateConfig(c *Config) error {
 	}
 
 	if c.HtpasswdFile != "" && c.TLSCaFile != "" && c.LDAP != nil {
-		return errors.New("One can specify at most one authentication mechanism")
+		return errors.New("at most one authentication mechanism can be specified")
 	}
 
 	if c.LDAP != nil {
 		if c.LDAP.URL == "" {
-			return errors.New("The 'url' field is required for 'ldap'")
+			return errors.New("the 'url' field is required for 'ldap'")
 		}
 		if c.LDAP.BaseDN == "" {
-			return errors.New("The 'base_dn' field is required for 'ldap'")
+			return errors.New("the 'base_dn' field is required for 'ldap'")
 		}
 		if c.LDAP.UsernameAttribute == "" {
 			c.LDAP.UsernameAttribute = "uid"
