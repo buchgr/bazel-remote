@@ -44,7 +44,7 @@ var (
 func (r *remoteHTTPProxyCache) UploadFile(item backendproxy.UploadReq) {
 
 	if item.LogicalSize == 0 {
-		item.Rc.Close()
+		_ = item.Rc.Close()
 		// See https://github.com/golang/go/issues/20257#issuecomment-299509391
 		item.Rc = http.NoBody
 	}
@@ -54,14 +54,14 @@ func (r *remoteHTTPProxyCache) UploadFile(item backendproxy.UploadReq) {
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodHead, url, nil)
 	if err != nil {
 		r.errorLogger.Printf("INTERNAL ERROR, FAILED TO SETUP HTTP PROXY UPLOAD %s: %s", url, err)
-		item.Rc.Close()
+		_ = item.Rc.Close()
 		return
 	}
 
 	rsp, err := r.remote.Do(req)
 	if err == nil && rsp.StatusCode == http.StatusOK {
 		r.accessLogger.Printf("SKIP UPLOAD %s", item.Hash)
-		item.Rc.Close()
+		_ = item.Rc.Close()
 		return
 	}
 
@@ -71,7 +71,7 @@ func (r *remoteHTTPProxyCache) UploadFile(item backendproxy.UploadReq) {
 
 		// item.Rc will be closed if we call req.Do(), but not if we
 		// return earlier.
-		item.Rc.Close()
+		_ = item.Rc.Close()
 
 		return
 	}
@@ -88,7 +88,7 @@ func (r *remoteHTTPProxyCache) UploadFile(item backendproxy.UploadReq) {
 		r.errorLogger.Printf("HTTP %s UPLOAD: %s", url, err.Error())
 		return
 	}
-	rsp.Body.Close()
+	_ = rsp.Body.Close()
 
 	logResponse(r.accessLogger, "UPLOAD", rsp.StatusCode, url)
 }
@@ -108,7 +108,8 @@ func New(baseURL *url.URL, storageMode string, remote *http.Client,
 		v2mode:       storageMode == "zstd",
 	}
 
-	if storageMode == "zstd" {
+	switch storageMode {
+	case "zstd":
 		proxy.requestURL = func(hash string, kind cache.EntryKind) string {
 			if kind == cache.CAS {
 				return fmt.Sprintf("%s/cas.v2/%s", proxy.baseURL, hash)
@@ -116,13 +117,12 @@ func New(baseURL *url.URL, storageMode string, remote *http.Client,
 
 			return fmt.Sprintf("%s/%s/%s", proxy.baseURL, kind, hash)
 		}
-	} else if storageMode == "uncompressed" {
+	case "uncompressed":
 		proxy.requestURL = func(hash string, kind cache.EntryKind) string {
 			return fmt.Sprintf("%s/%s/%s", proxy.baseURL, kind, hash)
 		}
-	} else {
-		return nil, fmt.Errorf("Invalid http_proxy.mode specified: %q",
-			storageMode)
+	default:
+		return nil, fmt.Errorf("invalid http_proxy.mode specified: %q", storageMode)
 	}
 
 	proxy.uploadQueue = backendproxy.StartUploaders(proxy, numUploaders, maxQueuedUploads)
@@ -137,7 +137,7 @@ func logResponse(logger cache.Logger, method string, code int, url string) {
 
 func (r *remoteHTTPProxyCache) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
 	if r.uploadQueue == nil {
-		rc.Close()
+		_ = rc.Close()
 		return
 	}
 
@@ -153,7 +153,7 @@ func (r *remoteHTTPProxyCache) Put(ctx context.Context, kind cache.EntryKind, ha
 	case r.uploadQueue <- item:
 	default:
 		r.errorLogger.Printf("too many uploads queued")
-		rc.Close()
+		_ = rc.Close()
 	}
 }
 
@@ -203,7 +203,7 @@ func (r *remoteHTTPProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 
 	sizeBytesStr := rsp.Header.Get("Content-Length")
 	if sizeBytesStr == "" {
-		err = errors.New("Missing Content-Length header")
+		err = errors.New("missing Content-Length header")
 		cacheMisses.Inc()
 		return nil, -1, err
 	}

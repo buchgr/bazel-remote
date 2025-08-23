@@ -37,15 +37,18 @@ func (s *testServer) handler(w http.ResponseWriter, r *http.Request) {
 
 	kind := fields[1]
 	var kindMap map[string][]byte
-	if kind == "ac" {
+
+	switch kind {
+	case "ac":
 		kindMap = s.ac
-	} else if kind == "cas.v2" {
+	case "cas.v2":
 		kindMap = s.cas
-	} else {
+	default:
 		msg := fmt.Sprintf("unsupported URL: %q", r.URL.Path)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
+
 	hash := fields[2]
 
 	s.mu.Lock()
@@ -99,7 +102,7 @@ func TestEverything(t *testing.T) {
 	defer s.srv.Close()
 
 	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	logFlags := log.Ldate | log.Ltime | log.LUTC
 	accessLogger := log.New(os.Stdout, "", logFlags)
@@ -177,7 +180,7 @@ func TestEverything(t *testing.T) {
 			t.Fatal(err)
 		}
 		tfn := tmpfile.Name()
-		defer os.Remove(tfn)
+		defer func() { _ = os.Remove(tfn) }()
 
 		_, err = io.Copy(tmpfile, bytes.NewReader(v))
 		if err != nil {
@@ -187,7 +190,7 @@ func TestEverything(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.Remove(tmpfile2.Name())
+		defer func() { _ = os.Remove(tmpfile2.Name()) }()
 
 		var zi zstdimpl.ZstdImpl
 		zi, err = zstdimpl.Get("go")
@@ -200,7 +203,7 @@ func TestEverything(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer rc.Close()
+		defer func() { _ = rc.Close() }()
 		vData, err := io.ReadAll(rc)
 		if err != nil {
 			t.Fatal(err)
@@ -259,7 +262,7 @@ func TestEverything(t *testing.T) {
 	if !bytes.Equal(data, acData) {
 		t.Error("Different AC data returned")
 	}
-	rc.Close()
+	_ = rc.Close()
 
 	rc, size, err = diskCache.Get(ctx, cache.CAS, hash, int64(len(casData)), 0)
 	if err != nil {
@@ -279,13 +282,13 @@ func TestEverything(t *testing.T) {
 	if !bytes.Equal(data, casData) {
 		t.Error("Different CAS data returned")
 	}
-	rc.Close()
+	_ = rc.Close()
 
 	// Create a new empty cache, and check that we can fill it
 	// from the backend.
 
 	cacheDir2 := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir2)
+	defer func() { _ = os.RemoveAll(cacheDir2) }()
 
 	diskCache, err = disk.New(cacheDir2, diskCacheSize, disk.WithProxyBackend(proxyCache), disk.WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
@@ -337,7 +340,7 @@ func TestEverything(t *testing.T) {
 	if !bytes.Equal(data, acData) {
 		t.Error("Different AC data returned")
 	}
-	rc.Close()
+	_ = rc.Close()
 
 	rc, size, err = diskCache.Get(ctx, cache.CAS, hash, int64(len(casData)), 0)
 	if err != nil {
@@ -357,5 +360,5 @@ func TestEverything(t *testing.T) {
 	if !bytes.Equal(data, casData) {
 		t.Error("Different CAS data returned")
 	}
-	rc.Close()
+	_ = rc.Close()
 }
