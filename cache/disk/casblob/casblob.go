@@ -182,7 +182,7 @@ func ExtractLogicalSize(rc io.ReadCloser) (io.ReadCloser, int64, error) {
 		return nil, -1, err
 	}
 	if n != 16 {
-		return nil, -1, fmt.Errorf("Tried to read 16 header bytes, only read %d", n)
+		return nil, -1, fmt.Errorf("tried to read 16 header bytes, only read %d", n)
 	}
 
 	var uncompressedSize int64
@@ -192,7 +192,7 @@ func ExtractLogicalSize(rc io.ReadCloser) (io.ReadCloser, int64, error) {
 		return nil, -1, err
 	}
 	if uncompressedSize <= 0 {
-		return nil, -1, fmt.Errorf("Expected blob to have positive size, found %d",
+		return nil, -1, fmt.Errorf("expected blob to have positive size, found %d",
 			uncompressedSize)
 	}
 
@@ -218,12 +218,12 @@ func (m *multiReadCloser) Close() error {
 func GetUncompressedReadCloser(zstd zstdimpl.ZstdImpl, f *os.File, expectedSize int64, offset int64) (io.ReadCloser, error) {
 	h, err := readHeader(f)
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, err
 	}
 
 	if expectedSize != -1 && h.uncompressedSize != expectedSize {
-		f.Close()
+		_ = f.Close()
 		return nil, fmt.Errorf("expected a blob of size %d, found %d",
 			expectedSize, h.uncompressedSize)
 	}
@@ -235,7 +235,7 @@ func GetUncompressedReadCloser(zstd zstdimpl.ZstdImpl, f *os.File, expectedSize 
 		if offset > 0 {
 			_, err = f.Seek(offset, io.SeekCurrent)
 			if err != nil {
-				f.Close()
+				_ = f.Close()
 				return nil, err
 			}
 		}
@@ -244,7 +244,7 @@ func GetUncompressedReadCloser(zstd zstdimpl.ZstdImpl, f *os.File, expectedSize 
 	}
 
 	if h.compression != Zstandard {
-		f.Close()
+		_ = f.Close()
 		return nil,
 			fmt.Errorf("internal error: unsupported compression type %d",
 				h.compression)
@@ -257,14 +257,14 @@ func GetUncompressedReadCloser(zstd zstdimpl.ZstdImpl, f *os.File, expectedSize 
 	if chunkNum > 0 {
 		_, err = f.Seek(h.chunkOffsets[chunkNum], io.SeekStart)
 		if err != nil {
-			f.Close()
+			_ = f.Close()
 			return nil, err
 		}
 	}
 	if remainder == 0 {
 		dec, err := zstd.GetDecoder(f)
 		if err != nil {
-			f.Close()
+			_ = f.Close()
 			return nil, err
 		}
 
@@ -279,26 +279,26 @@ func GetUncompressedReadCloser(zstd zstdimpl.ZstdImpl, f *os.File, expectedSize 
 	compressedFirstChunk := make([]byte, h.chunkOffsets[chunkNum+1]-h.chunkOffsets[chunkNum])
 	_, err = io.ReadFull(f, compressedFirstChunk)
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, err
 	}
 
 	uncompressedFirstChunk, err := zstd.DecodeAll(compressedFirstChunk)
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, err
 	}
 
 	if chunkNum == int64(len(h.chunkOffsets)-2) {
 		// Last chunk in the file.
 		r := bytes.NewReader(uncompressedFirstChunk[remainder:])
-		f.Close()
+		_ = f.Close()
 		return io.NopCloser(r), nil
 	}
 
 	z, err := zstd.GetDecoder(f)
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, err
 	}
 
@@ -320,12 +320,12 @@ func GetZstdReadCloser(zstd zstdimpl.ZstdImpl, f *os.File, expectedSize int64, o
 
 	h, err := readHeader(f)
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, err
 	}
 
 	if expectedSize != -1 && h.uncompressedSize != expectedSize {
-		f.Close()
+		_ = f.Close()
 		return nil, fmt.Errorf("expected a blob of size %d, found %d",
 			expectedSize, h.uncompressedSize)
 	}
@@ -337,7 +337,7 @@ func GetZstdReadCloser(zstd zstdimpl.ZstdImpl, f *os.File, expectedSize int64, o
 		if offset > 0 {
 			_, err = f.Seek(offset, io.SeekCurrent)
 			if err != nil {
-				f.Close()
+				_ = f.Close()
 				return nil, err
 			}
 		}
@@ -346,7 +346,7 @@ func GetZstdReadCloser(zstd zstdimpl.ZstdImpl, f *os.File, expectedSize int64, o
 	}
 
 	if h.compression != Zstandard {
-		f.Close()
+		_ = f.Close()
 		return nil, fmt.Errorf("unsupported compression type: %d",
 			h.compression)
 	}
@@ -372,7 +372,7 @@ func GetZstdReadCloser(zstd zstdimpl.ZstdImpl, f *os.File, expectedSize int64, o
 	if chunkNum > 0 {
 		_, err = f.Seek(h.chunkOffsets[chunkNum], io.SeekStart)
 		if err != nil {
-			f.Close()
+			_ = f.Close()
 			return nil, err
 		}
 	}
@@ -385,13 +385,13 @@ func GetZstdReadCloser(zstd zstdimpl.ZstdImpl, f *os.File, expectedSize int64, o
 	compressedFirstChunk := make([]byte, h.chunkOffsets[chunkNum+1]-h.chunkOffsets[chunkNum])
 	_, err = io.ReadFull(f, compressedFirstChunk)
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, err
 	}
 
 	uncompressedFirstChunk, err := zstd.DecodeAll(compressedFirstChunk)
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, err
 	}
 
@@ -400,7 +400,7 @@ func GetZstdReadCloser(zstd zstdimpl.ZstdImpl, f *os.File, expectedSize int64, o
 
 	br := bytes.NewReader(recompressedChunk)
 	if chunkNum == int64(len(h.chunkOffsets)-2) {
-		f.Close()
+		_ = f.Close()
 		return io.NopCloser(br), nil
 	}
 
@@ -521,7 +521,7 @@ var chunkBufferPool = &sync.Pool{
 // Return the size on disk or an error if something went wrong.
 func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t CompressionType, hash string, size int64) (int64, error) {
 	var err error
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if size <= 0 {
 		return -1, fmt.Errorf("invalid file size: %d", size)
@@ -606,7 +606,7 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 
 		numRead, err = io.ReadFull(r, uncompressedChunk[0:chunkEnd])
 		if err != nil {
-			return -1, fmt.Errorf("Only managed to read %d of %d bytes: %w", numRead, chunkEnd, err)
+			return -1, fmt.Errorf("only managed to read %d of %d bytes: %w", numRead, chunkEnd, err)
 		}
 
 		compressedChunk := zstd.EncodeAll(uncompressedChunk[0:chunkEnd])
@@ -615,7 +615,7 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 
 		written, err := f.Write(compressedChunk)
 		if err != nil {
-			return -1, fmt.Errorf("Failed to write compressed chunk to disk: %w", err)
+			return -1, fmt.Errorf("failed to write compressed chunk to disk: %w", err)
 		}
 
 		fileOffset += int64(written)
@@ -627,7 +627,7 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 	if err == nil {
 		return -1, fmt.Errorf("expected %d bytes but got at least %d more", size, bytesAfter)
 	} else if err != io.EOF {
-		return -1, fmt.Errorf("Failed to read chunk of size %d: %w", len(uncompressedChunk), err)
+		return -1, fmt.Errorf("failed to read chunk of size %d: %w", len(uncompressedChunk), err)
 	}
 
 	actualHash := hex.EncodeToString(hasher.Sum(nil))
@@ -639,22 +639,22 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 	// We know all the chunk offsets now, go back and fill those in.
 	_, err = f.Seek(chunkTableOffset, io.SeekStart)
 	if err != nil {
-		return -1, fmt.Errorf("Failed to seek to offset %d: %w", chunkTableOffset, err)
+		return -1, fmt.Errorf("failed to seek to offset %d: %w", chunkTableOffset, err)
 	}
 
 	err = binary.Write(f, binary.LittleEndian, h.chunkOffsets)
 	if err != nil {
-		return -1, fmt.Errorf("Failed to write chunk offsets: %w", err)
+		return -1, fmt.Errorf("failed to write chunk offsets: %w", err)
 	}
 
 	err = f.Sync()
 	if err != nil {
-		return -1, fmt.Errorf("Failed to sync file: %w", err)
+		return -1, fmt.Errorf("failed to sync file: %w", err)
 	}
 
 	err = f.Close()
 	if err != nil {
-		return -1, fmt.Errorf("Failed to close file: %w", err)
+		return -1, fmt.Errorf("failed to close file: %w", err)
 	}
 
 	return fileOffset, nil

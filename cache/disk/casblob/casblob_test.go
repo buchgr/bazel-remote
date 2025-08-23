@@ -49,7 +49,10 @@ func TestZstdFromLegacy(t *testing.T) {
 	if n != size {
 		t.Fatalf("Unexpected short write %d, expected %d", n, size)
 	}
-	file.Close()
+	err = file.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	file, err = os.Open(filename)
 	if err != nil {
