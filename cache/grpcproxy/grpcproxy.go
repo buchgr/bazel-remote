@@ -62,13 +62,13 @@ func (c *GrpcClients) CheckCapabilities(zstd bool) error {
 		return err
 	}
 	if !resp.CacheCapabilities.ActionCacheUpdateCapabilities.UpdateEnabled {
-		return errors.New("Proxy backend does not allow action cache updates")
+		return errors.New("proxy backend does not allow action cache updates")
 	}
 	if !contains(resp.CacheCapabilities.DigestFunctions, pb.DigestFunction_SHA256) {
-		return errors.New("Proxy backend does not support sha256")
+		return errors.New("proxy backend does not support sha256")
 	}
 	if zstd && !contains(resp.CacheCapabilities.SupportedCompressors, pb.Compressor_ZSTD) {
-		return errors.New("Compression required but the grpc proxy does not support it.")
+		return errors.New("compression required but the grpc proxy does not support it")
 	}
 	return nil
 }
@@ -103,7 +103,7 @@ func logResponse(logger cache.Logger, method string, msg string, kind cache.Entr
 }
 
 func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
-	defer item.Rc.Close()
+	defer func() { _ = item.Rc.Close() }()
 
 	switch item.Kind {
 	case cache.RAW:
@@ -209,7 +209,7 @@ func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
 
 func (r *remoteGrpcProxyCache) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
 	if r.uploadQueue == nil {
-		rc.Close()
+		_ = rc.Close()
 		return
 	}
 
@@ -225,7 +225,7 @@ func (r *remoteGrpcProxyCache) Put(ctx context.Context, kind cache.EntryKind, ha
 	case r.uploadQueue <- item:
 	default:
 		r.errorLogger.Printf("too many uploads queued")
-		rc.Close()
+		_ = rc.Close()
 	}
 }
 
@@ -249,7 +249,7 @@ func (r *remoteGrpcProxyCache) fetchBlobDigest(ctx context.Context, hash string)
 	}
 
 	if res.Status.GetCode() == int32(codes.NotFound) {
-		return nil, errors.New("Not Found")
+		return nil, errors.New("not found")
 	}
 	if res.Status.GetCode() != int32(codes.OK) {
 		return nil, errors.New(res.Status.Message)
@@ -317,7 +317,7 @@ func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 		rc := StreamReadCloser[*bs.ReadResponse]{Stream: stream}
 		return &rc, size, nil
 	default:
-		return nil, -1, fmt.Errorf("Unexpected kind %s", kind)
+		return nil, -1, fmt.Errorf("unexpected kind %s", kind)
 	}
 }
 
@@ -332,7 +332,7 @@ func (r *remoteGrpcProxyCache) Contains(ctx context.Context, kind cache.EntryKin
 		// is to get the object and discard the result
 		// We don't expect this to ever be called anyways since it is not part of the grpc protocol
 		rc, size, err := r.Get(ctx, kind, hash, size)
-		rc.Close()
+		_ = rc.Close()
 		if err != nil || size < 0 {
 			return false, -1
 		}

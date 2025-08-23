@@ -108,7 +108,7 @@ func (p *testProxy) UpdateActionResult(ctx context.Context, req *pb.UpdateAction
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	_, err = io.Copy(f, bytes.NewReader(data))
 	if err != nil {
 		return nil, err
@@ -122,7 +122,7 @@ func (p *testProxy) GetActionResult(ctx context.Context, req *pb.GetActionResult
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	data, err := io.ReadAll(f)
 	result := &pb.ActionResult{}
 	if proto.Unmarshal(data, result) != nil {
@@ -152,7 +152,7 @@ func (p *testProxy) Read(req *bs.ReadRequest, resp bs.ByteStream_ReadServer) err
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	data, err := io.ReadAll(f)
 	if err != nil {
 		return err
@@ -185,7 +185,7 @@ func (p *testProxy) Write(srv bs.ByteStream_WriteServer) error {
 			if err != nil {
 				return err
 			}
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 		}
 		_, err = f.Write(req.Data)
 		if err != nil {
