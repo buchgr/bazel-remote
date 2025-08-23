@@ -175,7 +175,7 @@ func (c *diskCache) updateCacheAgeMetric() {
 func (c *diskCache) getElementPath(key Key, value lruItem) string {
 	ks := key.(string)
 	hash := ks[len(ks)-sha256.Size*2:]
-	var kind cache.EntryKind = cache.AC
+	var kind = cache.AC
 	if strings.HasPrefix(ks, "cas") {
 		kind = cache.CAS
 	} else if strings.HasPrefix(ks, "ac") {
@@ -277,12 +277,15 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 	defer func() {
 		// No lock required to remove stray tempfiles.
 		if removeTempfile {
-			os.Remove(blobFile)
+			err := os.Remove(blobFile)
+			if err != nil {
+				log.Printf("warning: failed to remove temp file: %q", blobFile)
+			}
 		} else if blobFile != "" {
 			// Mark the file as "complete".
 			err := os.Chmod(blobFile, tempfile.FinalMode)
 			if err != nil {
-				log.Println("Failed to mark", blobFile, "as complete:", err)
+				log.Println("failed to mark", blobFile, "as complete:", err)
 			}
 		}
 
@@ -358,7 +361,7 @@ func (c *diskCache) writeAndCloseFile(ctx context.Context, r io.Reader, kind cac
 	closeFile := true
 	defer func() {
 		if closeFile {
-			f.Close()
+			_ = f.Close()
 		}
 	}()
 
@@ -386,17 +389,17 @@ func (c *diskCache) writeAndCloseFile(ctx context.Context, r io.Reader, kind cac
 
 	if isSizeMismatch(sizeOnDisk, size) {
 		return -1, fmt.Errorf(
-			"Sizes don't match. Expected %d, found %d", size, sizeOnDisk)
+			"sizes don't match. Expected %d, found %d", size, sizeOnDisk)
 	}
 
 	err = f.Sync()
 	if err != nil {
-		return -1, fmt.Errorf("Failed to sync file to disk: %w", err)
+		return -1, fmt.Errorf("failed to sync file to disk: %w", err)
 	}
 
 	err = writeCloser.Close()
 	if err != nil {
-		return -1, fmt.Errorf("Failed to verify hash: %w", err)
+		return -1, fmt.Errorf("failed to verify hash: %w", err)
 	}
 
 	closeFile = false
@@ -499,7 +502,7 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 
 				if err != nil {
 					log.Printf("Warning: expected item to be on disk, but something happened when retrieving %s (compressed: %v, legacy: %v): %v", blobPath, item.legacy, zstd, err)
-					f.Close()
+					_ = f.Close()
 				} else {
 					return rc, item.size, false, nil
 				}
@@ -507,7 +510,7 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 				var fileInfo os.FileInfo
 				fileInfo, err = f.Stat()
 				if err != nil {
-					f.Close()
+					_ = f.Close()
 					return nil, -1, true, err
 				}
 				foundSize := fileInfo.Size()
@@ -612,12 +615,15 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 	defer func() {
 		// No lock required to remove stray tempfiles.
 		if removeTempfile {
-			os.Remove(blobFile)
+			err := os.Remove(blobFile)
+			if err != nil {
+				log.Printf("warning: failed to remove temp file: %q", blobFile)
+			}
 		} else if blobFile != "" {
 			// Mark the file as "complete".
 			err := os.Chmod(blobFile, tempfile.FinalMode)
 			if err != nil {
-				log.Println("Failed to mark", blobFile, "as complete:", err)
+				log.Println("failed to mark", blobFile, "as complete:", err)
 			}
 		}
 
@@ -664,7 +670,7 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 
 	r, foundSize, err := c.proxy.Get(ctx, kind, hash, size)
 	if r != nil {
-		defer r.Close()
+		defer func() { _ = r.Close() }()
 	}
 	if err != nil {
 		return nil, -1, internalErr(err)
@@ -673,7 +679,7 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 		return nil, -1, nil
 	}
 	if foundSize > c.maxProxyBlobSize {
-		r.Close()
+		_ = r.Close()
 		return nil, -1, nil
 	}
 
@@ -694,7 +700,7 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 
 	var sizeOnDisk int64
 	sizeOnDisk, err = io.Copy(tf, r)
-	tf.Close()
+	_ = tf.Close()
 	if err != nil {
 		return nil, -1, internalErr(err)
 	}
@@ -731,7 +737,7 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 
 	unreserve, removeTempfile, err = c.commit(key, legacy, blobFile, size, foundSize, sizeOnDisk, random)
 	if err != nil {
-		rc.Close()
+		_ = rc.Close()
 		return nil, -1, internalErr(err)
 	}
 
@@ -806,7 +812,7 @@ func isSizeMismatch(requestedSize int64, foundSize int64) bool {
 func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (*pb.ActionResult, []byte, error) {
 	rc, sizeBytes, err := c.Get(ctx, cache.AC, hash, -1, 0)
 	if rc != nil {
-		defer rc.Close()
+		defer func() { _ = rc.Close() }()
 	}
 	if err != nil {
 		return nil, nil, err
@@ -849,18 +855,18 @@ func (c *diskCache) GetValidatedActionResult(ctx context.Context, hash string) (
 			return nil, nil, err // aka "not found", or an err if non-nil
 		}
 		if err != nil {
-			r.Close()
+			_ = r.Close()
 			return nil, nil, err
 		}
 		if size != d.TreeDigest.SizeBytes {
-			r.Close()
+			_ = r.Close()
 			return nil, nil, fmt.Errorf("expected %d bytes, found %d",
 				d.TreeDigest.SizeBytes, size)
 		}
 
 		var oddata []byte
 		oddata, err = io.ReadAll(r)
-		r.Close()
+		_ = r.Close()
 		if err != nil {
 			return nil, nil, err
 		}

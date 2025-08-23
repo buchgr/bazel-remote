@@ -119,11 +119,11 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 
 	err = c.migrateDirectories()
 	if err != nil {
-		return nil, fmt.Errorf("Attempting to migrate the old directory structure failed: %w", err)
+		return nil, fmt.Errorf("attempting to migrate the old directory structure failed: %w", err)
 	}
 	err = c.loadExistingFiles(maxSizeBytes, cc)
 	if err != nil {
-		return nil, fmt.Errorf("Loading of existing cache entries failed due to error: %w", err)
+		return nil, fmt.Errorf("loading of existing cache entries failed due to error: %w", err)
 	}
 
 	if cc.metrics == nil {
@@ -274,17 +274,17 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 
 			if !validate.HashKeyRegex.MatchString(name) {
 				if strings.ToLower(name) == lowercaseDSStoreFile {
-					os.Remove(oldPath)
+					_ = os.Remove(oldPath)
 					continue
 				}
 
-				return fmt.Errorf("Unexpected file: %s", oldPath)
+				return fmt.Errorf("unexpected file: %s", oldPath)
 			}
 
 			destPath := path.Join(destDir, name) + "-556677.v1"
 			err = os.Rename(oldPath, destPath)
 			if err != nil {
-				return fmt.Errorf("Failed to migrate CAS blob %s: %w",
+				return fmt.Errorf("failed to migrate CAS blob %s: %w",
 					oldPath, err)
 			}
 		}
@@ -299,11 +299,11 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 
 		if !validate.HashKeyRegex.MatchString(name) {
 			if strings.ToLower(name) == lowercaseDSStoreFile {
-				os.Remove(oldPath)
+				_ = os.Remove(oldPath)
 				continue
 			}
 
-			return fmt.Errorf("Unexpected file: %s %s", oldPath, name)
+			return fmt.Errorf("unexpected file: %s %s", oldPath, name)
 		}
 
 		destPath := path.Join(destDir, name) + "-112233"
@@ -311,7 +311,7 @@ func migrateV1Subdir(oldDir string, destDir string, kind cache.EntryKind) error 
 		// TODO: support cross-filesystem migration.
 		err = os.Rename(oldPath, destPath)
 		if err != nil {
-			return fmt.Errorf("Failed to migrate blob %s: %w", oldPath, err)
+			return fmt.Errorf("failed to migrate blob %s: %w", oldPath, err)
 		}
 	}
 
@@ -416,7 +416,7 @@ func (c *diskCache) scanDir() (scanResult, error) {
 				} else if strings.HasPrefix(d, "raw.v2/") {
 					lookupKeyPrefix = "raw/"
 				} else {
-					return fmt.Errorf("Unrecognised directory in cache dir: %q", dirName)
+					return fmt.Errorf("unrecognised directory in cache dir: %q", dirName)
 				}
 
 				des, err := os.ReadDir(dirName)
@@ -438,12 +438,12 @@ func (c *diskCache) scanDir() (scanResult, error) {
 							continue
 						}
 
-						return fmt.Errorf("Unexpected directory: %q", path.Join(dirName, name))
+						return fmt.Errorf("unexpected directory: %q", path.Join(dirName, name))
 					}
 
 					info, err := de.Info()
 					if err != nil {
-						return fmt.Errorf("Failed to get file info for %q: %w", path.Join(dirName, name), err)
+						return fmt.Errorf("failed to get file info for %q: %w", path.Join(dirName, name), err)
 					}
 
 					fields := strings.Split(name, "/")
@@ -451,7 +451,7 @@ func (c *diskCache) scanDir() (scanResult, error) {
 
 					sm := re.FindStringSubmatch(file)
 					if len(sm) != 5 {
-						return fmt.Errorf("Unrecognized file: %q", path.Join(dirName, name))
+						return fmt.Errorf("unrecognized file: %q", path.Join(dirName, name))
 					}
 
 					hash := sm[1]
@@ -466,14 +466,14 @@ func (c *diskCache) scanDir() (scanResult, error) {
 					if len(sm[2]) > 0 {
 						item[n].size, err = strconv.ParseInt(sm[2], 10, 64)
 						if err != nil {
-							return fmt.Errorf("Failed to parse int from %q in file %q: %w",
+							return fmt.Errorf("failed to parse int from %q in file %q: %w",
 								sm[2], path.Join(dirName, name), err)
 						}
 					}
 
 					item[n].random = sm[3]
 					if len(item[n].random) == 0 {
-						return fmt.Errorf("Unrecognized file (no random string): %q", path.Join(dirName, name))
+						return fmt.Errorf("unrecognized file (no random string): %q", path.Join(dirName, name))
 					}
 
 					item[n].legacy = sm[4] == ".v1"
@@ -495,7 +495,7 @@ func (c *diskCache) scanDir() (scanResult, error) {
 
 	des, err := os.ReadDir(c.dir)
 	if err != nil {
-		return scanResult{}, fmt.Errorf("Failed to read cache dir %q: %w", c.dir, err)
+		return scanResult{}, fmt.Errorf("failed to read cache dir %q: %w", c.dir, err)
 	}
 
 	dre := regexp.MustCompile(`^[a-f0-9]{2}$`)
@@ -508,7 +508,7 @@ func (c *diskCache) scanDir() (scanResult, error) {
 				continue
 			}
 
-			return scanResult{}, fmt.Errorf("Unexpected file: %s", name)
+			return scanResult{}, fmt.Errorf("unexpected file: %s", name)
 		}
 
 		if name == lostAndFound {
@@ -516,7 +516,7 @@ func (c *diskCache) scanDir() (scanResult, error) {
 		}
 
 		if name != "ac.v2" && name != "cas.v2" && name != "raw.v2" {
-			return scanResult{}, fmt.Errorf("Unexpected dir: %s", name)
+			return scanResult{}, fmt.Errorf("unexpected dir: %s", name)
 		}
 
 		dir := path.Join(c.dir, name)
@@ -535,7 +535,7 @@ func (c *diskCache) scanDir() (scanResult, error) {
 					continue
 				}
 
-				return scanResult{}, fmt.Errorf("Unexpected file: %s", dirPath)
+				return scanResult{}, fmt.Errorf("unexpected file: %s", dirPath)
 			}
 
 			if name2 == lostAndFound {
@@ -543,7 +543,7 @@ func (c *diskCache) scanDir() (scanResult, error) {
 			}
 
 			if !dre.MatchString(name2) {
-				return scanResult{}, fmt.Errorf("Unexpected dir: %s", dirPath)
+				return scanResult{}, fmt.Errorf("unexpected dir: %s", dirPath)
 			}
 
 			dc <- dirPath

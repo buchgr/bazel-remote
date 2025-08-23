@@ -18,7 +18,7 @@ func register(implName string, impl ZstdImpl) {
 func Get(implName string) (ZstdImpl, error) {
 	impl, ok := registry[implName]
 	if !ok {
-		return nil, fmt.Errorf("Unrecognized ZSTD implementation: %s, supported: %s", implName, GetImplementations())
+		return nil, fmt.Errorf("unrecognized ZSTD implementation: %s, supported: %s", implName, GetImplementations())
 	}
 	return impl, nil
 }

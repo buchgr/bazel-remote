@@ -50,7 +50,7 @@ func TestCacheBasics(t *testing.T) {
 	defer cancel()
 
 	cacheDir := tempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	itemSize := int64(256)
 
@@ -103,7 +103,7 @@ func TestCachePutWrongSize(t *testing.T) {
 	defer cancel()
 
 	cacheDir := tempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 	testCache, err := New(cacheDir, BlockSize, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
@@ -139,7 +139,7 @@ func TestCacheGetContainsWrongSize(t *testing.T) {
 	defer cancel()
 
 	cacheDir := tempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 	testCache, err := New(cacheDir, BlockSize, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
@@ -179,7 +179,7 @@ func TestCacheGetContainsWrongSizeWithProxy(t *testing.T) {
 	defer cancel()
 
 	cacheDir := tempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 	testCacheI, err := New(cacheDir, BlockSize, WithProxyBackend(new(proxyStub)), WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
@@ -245,7 +245,7 @@ func (d proxyStub) Get(ctx context.Context, kind cache.EntryKind, hash string, _
 		return nil, -1, err
 	}
 	tfn := tmpfile.Name()
-	defer os.Remove(tfn)
+	defer func() { _ = os.Remove(tfn) }()
 
 	var zi zstdimpl.ZstdImpl
 	zi, err = zstdimpl.Get("go")
@@ -331,7 +331,7 @@ func TestOverwrite(t *testing.T) {
 	defer cancel()
 
 	cacheDir := tempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	testCacheI, err := New(cacheDir, BlockSize, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
@@ -381,7 +381,7 @@ func TestCacheExistingFiles(t *testing.T) {
 	defer cancel()
 
 	cacheDir := tempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	items := []struct {
 		contents string
@@ -508,7 +508,7 @@ func TestCacheBlobTooLarge(t *testing.T) {
 	defer cancel()
 
 	cacheDir := tempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 	testCacheI, err := New(cacheDir, BlockSize, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
@@ -538,7 +538,7 @@ func TestCacheCorruptedCASBlob(t *testing.T) {
 	defer cancel()
 
 	cacheDir := tempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 	testCacheI, err := New(cacheDir, BlockSize, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
 		t.Fatal(err)
@@ -593,7 +593,7 @@ func TestMigrateFromOldDirectoryStructure(t *testing.T) {
 	defer cancel()
 
 	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	acHash, err := createRandomFile(cacheDir+"/ac", 512)
 	if err != nil {
@@ -647,7 +647,7 @@ func TestLoadExistingEntries(t *testing.T) {
 
 	// Test that loading existing items works
 	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	numBlobs := int64(5)
 	blobSize := int64(1024)
@@ -766,7 +766,7 @@ func TestDistinctKeyspaces(t *testing.T) {
 	defer cancel()
 
 	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	blobSize := 1024
 
@@ -821,9 +821,10 @@ func (s *testServer) handler(w http.ResponseWriter, r *http.Request) {
 	fields := strings.Split(r.URL.Path, "/")
 
 	kindMap := s.ac
-	if fields[1] == "ac" {
+	switch fields[1] {
+	case "ac":
 		kindMap = s.ac
-	} else if fields[1] == "cas" {
+	case "cas":
 		kindMap = s.cas
 	}
 	hash := fields[2]
@@ -895,7 +896,7 @@ func TestHttpProxyBackend(t *testing.T) {
 	}
 
 	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	// Add some overhead for likely CAS blob storage expansion.
 	cacheSize := int64(1024*10) * 2
@@ -938,7 +939,7 @@ func TestHttpProxyBackend(t *testing.T) {
 
 	// Create a new (empty) testCache, without a proxy backend.
 	cacheDir = testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	testCacheI, err = New(cacheDir, cacheSize, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
@@ -1020,7 +1021,7 @@ func TestGetValidatedActionResult(t *testing.T) {
 	defer cancel()
 
 	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	testCacheI, err := New(cacheDir, 1024*32, WithAccessLogger(testutils.NewSilentLogger()))
 	if err != nil {
@@ -1194,7 +1195,7 @@ func TestGetWithOffset(t *testing.T) {
 	defer cancel()
 
 	cacheDir := testutils.TempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	const blobSize = 2048 + 256
 
@@ -1226,7 +1227,10 @@ func TestGetWithOffset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rc.Close()
+	err = rc.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !bytes.Equal(data, foundData) {
 		t.Fatal("Got back different data")
 	}
@@ -1246,7 +1250,10 @@ func TestGetWithOffset(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rc.Close()
+		err = rc.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !bytes.Equal(data[offset:], foundData) {
 			t.Fatalf("Expected data (%d bytes), differs from actual data (%d bytes) for offset %d",
 				len(data[offset:]), len(foundData), offset)
@@ -1262,7 +1269,7 @@ func count(counter *prometheus.CounterVec, kind string, status string) float64 {
 
 func TestMetricsUnvalidatedAC(t *testing.T) {
 	cacheDir := tempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	cacheSize := int64(100000)
 
@@ -1372,7 +1379,7 @@ func TestMetricsUnvalidatedAC(t *testing.T) {
 
 func TestMetricsValidatedAC(t *testing.T) {
 	cacheDir := tempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	cacheSize := int64(100000)
 
@@ -1449,7 +1456,7 @@ func TestMetricsValidatedAC(t *testing.T) {
 
 func TestCacheDirLostAndFound(t *testing.T) {
 	cacheDir := tempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	var err error
 
@@ -1495,7 +1502,7 @@ func TestValidatesCasHash(t *testing.T) {
 	for _, storage := range []string{"zstd", "uncompressed"} {
 		t.Run(storage, func(t *testing.T) {
 			cacheDir := tempDir(t)
-			defer os.RemoveAll(cacheDir)
+			defer func() { _ = os.RemoveAll(cacheDir) }()
 
 			testCache, err := New(cacheDir, cacheSize, WithEndpointMetrics(), WithStorageMode(storage))
 			if err != nil {
@@ -1542,7 +1549,7 @@ func TestPutRequestThrottling(t *testing.T) {
 	defer cancel()
 
 	cacheDir := tempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	numberOfExpectedConcurrentOperations := 5000
 	if runtime.GOOS == "darwin" {
@@ -1677,7 +1684,7 @@ func TestProxiedGetRequestThrottling(t *testing.T) {
 	defer cancel()
 
 	cacheDir := tempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	numberOfExpectedConcurrentOperations := 5000
 	if runtime.GOOS == "darwin" {
@@ -1726,7 +1733,7 @@ func TestProxiedGetRequestThrottling(t *testing.T) {
 			// Request the unique blob via the main disk cache configured with the fake proxy.
 			rdr, _, err := testCache.Get(ctx, cache.CAS, hash, BlockSize, 0)
 			if rdr != nil {
-				rdr.Close()
+				_ = rdr.Close()
 			}
 			getResultsFromBackground <- err
 		}()
@@ -1781,7 +1788,7 @@ func TestResultFromProxyTooLargeToReserve(t *testing.T) {
 	defer cancel()
 
 	cacheDir := tempDir(t)
-	defer os.RemoveAll(cacheDir)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
 
 	fakeProxy := &fakeProxy{
 		cacheStore:   &sync.Map{},
@@ -1811,7 +1818,7 @@ func TestResultFromProxyTooLargeToReserve(t *testing.T) {
 	go func() {
 		rdr, _, err := testCache.Get(ctx, cache.CAS, blob1Hash, BlockSize, 0)
 		if rdr != nil {
-			rdr.Close()
+			_ = rdr.Close()
 		}
 		getResultsFromBackground <- err
 	}()
@@ -1843,7 +1850,7 @@ func TestResultFromProxyTooLargeToReserve(t *testing.T) {
 	// correctly.
 	rdr, _, err := testCache.Get(ctx, cache.CAS, blob2Hash, BlockSize, 0)
 	testutils.AssertSuccess(t, err)
-	rdr.Close()
+	_ = rdr.Close()
 
 	close(fakeProxy.getEvents)
 }
