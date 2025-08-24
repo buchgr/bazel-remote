@@ -455,7 +455,7 @@ func (s *grpcServer) SpliceBlob(ctx context.Context, req *pb.SpliceBlobRequest) 
 			rc, _, err := s.cache.Get(ctx, cache.CAS, chunkDigest.Hash, chunkDigest.SizeBytes, 0)
 			if err != nil {
 				if rc != nil {
-					rc.Close()
+					_ = rc.Close()
 				}
 
 				return nil, grpc_status.Errorf(codes.Unknown,
@@ -474,20 +474,20 @@ func (s *grpcServer) SpliceBlob(ctx context.Context, req *pb.SpliceBlobRequest) 
 
 			copiedBytes, err := io.Copy(hasher, rc)
 			if err != nil {
-				rc.Close()
+				_ = rc.Close()
 				return nil, grpc_status.Errorf(codes.Unknown,
 					"SpliceBlob failed to copy chunk %s/%d: %s",
 					chunkDigest.Hash, chunkDigest.SizeBytes, err)
 			}
 
 			if copiedBytes != chunkDigest.SizeBytes {
-				rc.Close()
+				_ = rc.Close()
 				return nil, grpc_status.Errorf(codes.Unknown,
 					"SpliceBlob copied unpexpected number of bytes (%d) from chunk %s/%d",
 					copiedBytes, chunkDigest.Hash, chunkDigest.SizeBytes)
 			}
 
-			rc.Close()
+			_ = rc.Close()
 		}
 
 		req.BlobDigest = &pb.Digest{
@@ -539,13 +539,13 @@ func (s *grpcServer) SpliceBlob(ctx context.Context, req *pb.SpliceBlobRequest) 
 	writerResultChan := make(chan error, 1)
 
 	go func() {
-		defer pw.Close()
+		defer func() { _ = pw.Close() }()
 
 		for _, chunkDigest := range req.ChunkDigests {
 			rc, _, err := s.cache.Get(ctx, cache.CAS, chunkDigest.Hash, chunkDigest.SizeBytes, 0)
 			if err != nil {
 				if rc != nil {
-					rc.Close()
+					_ = rc.Close()
 				}
 				writerResultChan <- grpc_status.Errorf(codes.Unknown,
 					"SpliceBlob failed to get chunk %s/%d: %s",
@@ -565,7 +565,7 @@ func (s *grpcServer) SpliceBlob(ctx context.Context, req *pb.SpliceBlobRequest) 
 
 			copiedBytes, err := io.Copy(pw, rc)
 			if err != nil {
-				rc.Close()
+				_ = rc.Close()
 				writerResultChan <- grpc_status.Errorf(codes.Unknown,
 					"SpliceBlob failed to copy chunk %s/%d: %s",
 					chunkDigest.Hash, chunkDigest.SizeBytes, err)
@@ -573,14 +573,14 @@ func (s *grpcServer) SpliceBlob(ctx context.Context, req *pb.SpliceBlobRequest) 
 			}
 
 			if copiedBytes != chunkDigest.SizeBytes {
-				rc.Close()
+				_ = rc.Close()
 				writerResultChan <- grpc_status.Errorf(codes.Unknown,
 					"SpliceBlob copied unpexpected number of bytes (%d) from chunk %s/%d",
 					copiedBytes, chunkDigest.Hash, chunkDigest.SizeBytes)
 				return
 			}
 
-			rc.Close()
+			_ = rc.Close()
 		}
 
 		writerResultChan <- nil

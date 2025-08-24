@@ -202,7 +202,7 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, headers http.Hea
 
 	if u.Scheme != "http" && u.Scheme != "https" {
 		s.errorLogger.Printf("unsupported URI: %s", uri)
-		return "", int64(-1), fmt.Errorf("Unknown URL scheme: %q", u.Scheme)
+		return "", int64(-1), fmt.Errorf("unknown URL scheme: %q", u.Scheme)
 	}
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
@@ -223,7 +223,7 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, headers http.Hea
 
 	s.accessLogger.Printf("GRPC ASSET FETCH %s %s", uri, resp.Status)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", int64(-1), fmt.Errorf("Unsuccessful HTTP status code: %d", resp.StatusCode)
+		return "", int64(-1), fmt.Errorf("unsuccessful HTTP status code: %d", resp.StatusCode)
 	}
 
 	expectedSize := resp.ContentLength

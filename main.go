@@ -66,18 +66,18 @@ func main() {
 func run(ctx *cli.Context) error {
 	c, err := config.Get(ctx)
 	if err != nil {
-		fmt.Fprintf(ctx.App.Writer, "%v\n\n", err)
+		_, _ = fmt.Fprintf(ctx.App.Writer, "%v\n\n", err)
 		_ = cli.ShowAppHelp(ctx)
 		return cli.Exit(err.Error(), 1)
 	}
 
 	if ctx.NArg() > 0 {
-		fmt.Fprintf(ctx.App.Writer,
+		_, _ = fmt.Fprintf(ctx.App.Writer,
 			"Error: bazel-remote does not take positional aguments\n")
 		for i := 0; i < ctx.NArg(); i++ {
-			fmt.Fprintf(ctx.App.Writer, "arg: %s\n", ctx.Args().Get(i))
+			_, _ = fmt.Fprintf(ctx.App.Writer, "arg: %s\n", ctx.Args().Get(i))
 		}
-		fmt.Fprintf(ctx.App.Writer, "\n")
+		_, _ = fmt.Fprintf(ctx.App.Writer, "\n")
 
 		_ = cli.ShowAppHelp(ctx)
 		os.Exit(1)
