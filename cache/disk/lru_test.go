@@ -4,6 +4,7 @@ import (
 	"math"
 	"net/http"
 	"reflect"
+	"strconv"
 	"testing"
 
 	testutils "github.com/buchgr/bazel-remote/v2/utils"
@@ -63,9 +64,9 @@ func TestBasics(t *testing.T) {
 
 func TestEviction(t *testing.T) {
 	// Keep track of evictions using the callback
-	var evictions []int
-	onEvict := func(key Key, value lruItem) {
-		evictions = append(evictions, key.(int))
+	var evictions []string
+	onEvict := func(key string, value lruItem) {
+		evictions = append(evictions, key)
 	}
 
 	lru := NewSizedLRU(10*BlockSize, onEvict, 0)
@@ -73,23 +74,23 @@ func TestEviction(t *testing.T) {
 	expectedSizesNumItems := []struct {
 		expBlocks   int64
 		expNumItems int
-		expEvicted  []int
+		expEvicted  []string
 	}{
-		{0, 1, []int{}},           // 0
-		{1, 2, []int{}},           // 0, 1
-		{3, 3, []int{}},           // 0, 1, 2
-		{6, 4, []int{}},           // 0, 1, 2, 3
-		{10, 5, []int{}},          // 0, 1, 2, 3, 4
-		{9, 2, []int{0, 1, 2, 3}}, // 4, 5
-		{6, 1, []int{4, 5}},       // 6
-		{7, 1, []int{6}},          // 7
+		{0, 1, []string{}},                   // 0
+		{1, 2, []string{}},                   // 0, 1
+		{3, 3, []string{}},                   // 0, 1, 2
+		{6, 4, []string{}},                   // 0, 1, 2, 3
+		{10, 5, []string{}},                  // 0, 1, 2, 3, 4
+		{9, 2, []string{"0", "1", "2", "3"}}, // 4, 5
+		{6, 1, []string{"4", "5"}},           // 6
+		{7, 1, []string{"6"}},                // 7
 	}
 
-	var expectedEvictions []int
+	var expectedEvictions []string
 
 	for i, thisExpected := range expectedSizesNumItems {
 		item := lruItem{size: int64(i) * BlockSize, sizeOnDisk: int64(i) * BlockSize}
-		ok := lru.Add(i, item)
+		ok := lru.Add(strconv.Itoa(i), item)
 		if !ok {
 			t.Fatalf("Add: failed adding %d", i)
 		}
@@ -163,13 +164,13 @@ func TestReserveAtCapacity(t *testing.T) {
 
 func TestReserveAtEvictionQueueLimit(t *testing.T) {
 
-	lru := NewSizedLRU(BlockSize*2, func(Key, lruItem) {}, 0)
+	lru := NewSizedLRU(BlockSize*2, func(string, lruItem) {}, 0)
 	lru.maxSizeHardLimit = BlockSize * 3
 
-	blockSize1Key := 7777
+	blockSize1Key := "7777"
 	blockSize1Item := lruItem{size: BlockSize * 1, sizeOnDisk: BlockSize * 1}
 
-	blockSize2Key := 8888
+	blockSize2Key := "8888"
 	blockSize2Item := lruItem{size: BlockSize * 2, sizeOnDisk: BlockSize * 2}
 
 	// Add large item.

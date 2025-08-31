@@ -454,10 +454,10 @@ func TestCacheExistingFiles(t *testing.T) {
 	}
 	testCache := testCacheI.(*diskCache)
 
-	evicted := []Key{}
+	evicted := []string{}
 	origOnEvict := testCache.lru.onEvict
-	testCache.lru.onEvict = func(key Key, value lruItem) {
-		evicted = append(evicted, key.(string))
+	testCache.lru.onEvict = func(key string, value lruItem) {
+		evicted = append(evicted, key)
 		origOnEvict(key, value)
 	}
 

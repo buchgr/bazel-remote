@@ -583,7 +583,7 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64, cc CacheConfig) error 
 	// The eviction callback deletes the file from disk.
 	// This function is only called while the lock is not held
 	// by the current goroutine.
-	onEvict := func(key Key, value lruItem) {
+	onEvict := func(key string, value lruItem) {
 		f := c.getElementPath(key, value)
 		c.removeFile(f)
 	}

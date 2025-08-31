@@ -149,20 +149,24 @@ func (c *diskCache) pollCacheAge() {
 func (c *diskCache) updateCacheAgeMetric() {
 	c.mu.Lock()
 
-	key, value := c.lru.getTailItem()
+	key, value, ok := c.lru.getTailItem()
+	if !ok {
+		// No items in the cache.
+		c.mu.Unlock()
+		return
+	}
+
 	age := 0.0
 	validAge := true
 
-	if key != nil {
-		f := c.getElementPath(key, value)
-		ts, err := atime.Stat(f)
+	f := c.getElementPath(key, value)
+	ts, err := atime.Stat(f)
 
-		if err != nil {
-			log.Printf("ERROR: failed to determine time of least recently used cache item: %v, unable to stat %s", err, f)
-			validAge = false
-		} else {
-			age = time.Since(ts).Seconds()
-		}
+	if err != nil {
+		log.Printf("ERROR: failed to determine time of least recently used cache item: %v, unable to stat %s", err, f)
+		validAge = false
+	} else {
+		age = time.Since(ts).Seconds()
 	}
 
 	c.mu.Unlock()
@@ -172,8 +176,8 @@ func (c *diskCache) updateCacheAgeMetric() {
 	}
 }
 
-func (c *diskCache) getElementPath(key Key, value lruItem) string {
-	ks := key.(string)
+func (c *diskCache) getElementPath(key string, value lruItem) string {
+	ks := key
 	hash := ks[len(ks)-sha256.Size*2:]
 	var kind = cache.AC
 	if strings.HasPrefix(ks, "cas") {

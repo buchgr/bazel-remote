@@ -11,16 +11,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Key is the type used for identifying cache items. For non-test code,
-// this is a string of the form "<keyspace>/<hash>". Some test code uses
-// ints for simplicity.
-//
-// TODO: update the test code to use strings too, then drop all the
-// type assertions.
-type Key interface{}
-
 // EvictCallback is the type of callbacks that are invoked when items are evicted.
-type EvictCallback func(key Key, value lruItem)
+type EvictCallback func(key string, value lruItem)
 
 // SizedLRU is an LRU cache that will keep its total size below maxSize by evicting
 // items.
@@ -96,7 +88,10 @@ type SizedLRU struct {
 }
 
 type entry struct {
-	key   Key
+	// This is used to identify cache items. For non-test code,
+	// this is a string of the form "<keyspace>/<hash>"
+	key string
+
 	value lruItem
 }
 
@@ -175,7 +170,7 @@ func (c *SizedLRU) RegisterMetrics() {
 // Note that this function rounds file sizes up to the nearest
 // BlockSize (4096) bytes, as an estimate of actual disk usage since
 // most linux filesystems default to 4kb blocks.
-func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
+func (c *SizedLRU) Add(key string, value lruItem) (ok bool) {
 
 	roundedUpSizeOnDisk := roundUp4k(value.sizeOnDisk)
 
@@ -237,7 +232,7 @@ func (c *SizedLRU) Add(key Key, value lruItem) (ok bool) {
 }
 
 // Get looks up a key in the cache
-func (c *SizedLRU) Get(key Key) (value lruItem, ok bool) {
+func (c *SizedLRU) Get(key string) (value lruItem, ok bool) {
 	if ele, hit := c.cache[key]; hit {
 		c.ll.MoveToFront(ele)
 		return ele.Value.(*entry).value, true
@@ -247,7 +242,7 @@ func (c *SizedLRU) Get(key Key) (value lruItem, ok bool) {
 }
 
 // Remove removes a (key, value) from the cache
-func (c *SizedLRU) Remove(key Key) {
+func (c *SizedLRU) Remove(key string) {
 	if ele, hit := c.cache[key]; hit {
 		c.removeElement(ele)
 		c.gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
@@ -409,13 +404,13 @@ func roundUp4k(n int64) int64 {
 }
 
 // Get the back item of the LRU cache.
-func (c *SizedLRU) getTailItem() (Key, lruItem) {
+func (c *SizedLRU) getTailItem() (string, lruItem, bool) {
 	ele := c.ll.Back()
 	if ele != nil {
 		kv := ele.Value.(*entry)
-		return kv.key, kv.value
+		return kv.key, kv.value, true
 	}
-	return nil, lruItem{}
+	return "", lruItem{}, false
 }
 
 // Append an entry to the eviction queue. The entry must have been removed
