@@ -204,7 +204,7 @@
   "moduleExtensions": {
     "@@aspect_bazel_lib+//lib:extensions.bzl%toolchains": {
       "general": {
-        "bzlTransitiveDigest": "9sh0AXd3rloN/x4fVAaU4gFXbAdwSQlHBqwEzYXEVx0=",
+        "bzlTransitiveDigest": "wHziE/m1F320vC+YfPrZtDqHsXhEpU/733LhRjjLT6E=",
         "usagesDigest": "5TJaKAC60id12IHd5g6r5y1jPXDuQaIdf9HzY4XIHWU=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -613,7 +613,7 @@
     },
     "@@rules_kotlin+//src/main/starlark/core/repositories:bzlmod_setup.bzl%rules_kotlin_extensions": {
       "general": {
-        "bzlTransitiveDigest": "hUTp2w+RUVdL7ma5esCXZJAFnX7vLbVfLd7FwnQI6bU=",
+        "bzlTransitiveDigest": "OlvsB0HsvxbR8ZN+J9Vf00X/+WVz/Y/5Xrq2LgcVfdo=",
         "usagesDigest": "QI2z8ZUR+mqtbwsf2fLqYdJAkPOHdOV+tF2yVAUgRzw=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
