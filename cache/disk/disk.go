@@ -508,6 +508,10 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 					log.Printf("Warning: expected item to be on disk, but something happened when retrieving %s (compressed: %v, legacy: %v): %v",
 						blobPath, zstd, item.legacy, err)
 					_ = f.Close()
+
+					c.mu.Lock()
+					c.lru.Remove(key)
+					c.mu.Unlock()
 				} else {
 					return rc, item.size, false, nil
 				}
