@@ -144,7 +144,9 @@ func New(
 	var err error
 	var client *azblob.Client
 
-	if creds == nil && len(sharedKey) > 0 {
+	if creds != nil {
+		client, err = azblob.NewClient(url, creds, nil)
+	} else if len(sharedKey) > 0 {
 		cred, e := azblob.NewSharedKeyCredential(storageAccount, sharedKey)
 		if e != nil {
 			log.Fatalln(e)
