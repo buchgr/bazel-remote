@@ -231,14 +231,14 @@ func (c *SizedLRU) Add(key string, value lruItem) (ok bool) {
 	return true
 }
 
-// Get looks up a key in the cache
-func (c *SizedLRU) Get(key string) (value lruItem, ok bool) {
+// Get looks up a key in the cache. The lruItem is only valid if *list.Element is not nil.
+func (c *SizedLRU) Get(key string) (lruItem, *list.Element) {
 	if ele, hit := c.cache[key]; hit {
 		c.ll.MoveToFront(ele)
-		return ele.Value.(*entry).value, true
+		return ele.Value.(*entry).value, ele
 	}
 
-	return
+	return lruItem{}, nil
 }
 
 // Remove removes a (key, value) from the cache

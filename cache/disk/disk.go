@@ -459,8 +459,8 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 	c.mu.Lock()
 
 	key := cache.LookupKey(kind, hash)
-	item, available := c.lru.Get(key)
-	if available {
+	item, listElem := c.lru.Get(key)
+	if listElem != nil {
 		c.mu.Unlock() // We expect a cache hit below.
 		locked = false
 
@@ -474,8 +474,8 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 				// Enter slow path.
 
 				c.mu.Lock()
-				item, available = c.lru.Get(key)
-				if available {
+				item, listElem = c.lru.Get(key)
+				if listElem != nil {
 					blobPath = path.Join(c.dir, c.FileLocation(kind, item.legacy, hash, item.size, item.random))
 					f, err = os.Open(blobPath)
 				}
@@ -775,7 +775,8 @@ func (c *diskCache) Contains(ctx context.Context, kind cache.EntryKind, hash str
 	key := cache.LookupKey(kind, hash)
 
 	c.mu.Lock()
-	item, exists := c.lru.Get(key)
+	item, listElem := c.lru.Get(key)
+	exists := listElem != nil
 	if exists {
 		foundSize = item.size
 	}

@@ -32,8 +32,8 @@ func TestBasics(t *testing.T) {
 		t.Fatalf("MaxSize: expected %d, got %d", maxSize, lru.MaxSize())
 	}
 
-	_, ok := lru.Get("1")
-	if ok {
+	_, listElem := lru.Get("1")
+	if listElem != nil {
 		t.Fatalf("Get: unexpected element found")
 	}
 
@@ -42,13 +42,13 @@ func TestBasics(t *testing.T) {
 	// Add an item
 	aKey := "akey"
 	anItem := lruItem{size: 5, sizeOnDisk: 5}
-	ok = lru.Add(aKey, anItem)
+	ok := lru.Add(aKey, anItem)
 	if !ok {
 		t.Fatalf("Add: failed inserting item")
 	}
 
-	getItem, getOk := lru.Get(aKey)
-	if !getOk {
+	getItem, listElem := lru.Get(aKey)
+	if listElem == nil {
 		t.Fatalf("Get: failed getting item")
 	}
 	if getItem.size != anItem.size {
