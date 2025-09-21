@@ -510,7 +510,7 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 					_ = f.Close()
 
 					c.mu.Lock()
-					c.lru.Remove(key)
+					c.lru.RemoveElement(listElem)
 					c.mu.Unlock()
 				} else {
 					return rc, item.size, false, nil

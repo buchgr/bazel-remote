@@ -58,7 +58,7 @@ func TestBasics(t *testing.T) {
 	checkSizeAndNumItems(t, &lru, BlockSize, 1)
 
 	// Remove the item
-	lru.Remove(aKey)
+	lru.RemoveKey(aKey)
 	checkSizeAndNumItems(t, &lru, 0, 0)
 }
 
@@ -178,7 +178,7 @@ func TestReserveAtEvictionQueueLimit(t *testing.T) {
 	testutils.AssertEquals(t, BlockSize*2, lru.totalDiskSizePeak)
 
 	// Move large item into eviction queue.
-	lru.Remove(blockSize2Key)
+	lru.RemoveKey(blockSize2Key)
 	testutils.AssertEquals(t, BlockSize*2, lru.queuedEvictionsSize.Load())
 
 	// Accept reservation since not exceeding maxSizeHardLimit.

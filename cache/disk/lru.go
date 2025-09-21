@@ -241,12 +241,18 @@ func (c *SizedLRU) Get(key string) (lruItem, *list.Element) {
 	return lruItem{}, nil
 }
 
-// Remove removes a (key, value) from the cache
-func (c *SizedLRU) Remove(key string) {
-	if ele, hit := c.cache[key]; hit {
-		c.removeElement(ele)
+// Remove removes a (key, value) from the cache.
+func (c *SizedLRU) RemoveKey(key string) {
+	if elem, hit := c.cache[key]; hit {
+		c.removeElement(elem)
 		c.gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
 	}
+}
+
+// Remove a *list.Element from the cache.
+func (c *SizedLRU) RemoveElement(elem *list.Element) {
+	c.removeElement(elem)
+	c.gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
 }
 
 // Len returns the number of items in the cache
