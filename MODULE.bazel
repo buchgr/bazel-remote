@@ -5,6 +5,8 @@ bazel_dep(name = "gazelle", version = "0.45.0")
 bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "rules_pkg", version = "1.1.0")
 bazel_dep(name = "rules_oci", version = "2.2.6")
+
+# TODO: Remove `aspect_bazel_lib` as a direct dep once higher version of `rules_oci` is available
 bazel_dep(name = "aspect_bazel_lib", version = "2.21.2")
 
 oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
