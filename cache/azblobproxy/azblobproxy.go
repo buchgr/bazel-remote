@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"path"
 	"time"
 
@@ -75,6 +76,13 @@ func (c *azBlobCache) Get(ctx context.Context, kind cache.EntryKind, hash string
 
 	resp, err := client.DownloadStream(ctx, nil)
 	if err != nil {
+		var azErr *azcore.ResponseError
+		if errors.As(err, &azErr) && azErr != nil && azErr.StatusCode == http.StatusNotFound {
+			cacheMisses.Inc()
+			logResponse(c.accessLogger, "DOWNLOAD", c.storageAccount, c.container, key, errNotFound)
+			return nil, -1, nil
+		}
+
 		cacheMisses.Inc()
 		logResponse(c.accessLogger, "DOWNLOAD", c.storageAccount, c.container, key, err)
 		return nil, -1, err
