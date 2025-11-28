@@ -102,11 +102,11 @@ func run(ctx *cli.Context) error {
 
 	// Initialize OpenTelemetry if enabled
 	var otelProvider *otel.TracerProvider
-	if c.Otel != nil && c.Otel.Enabled {
+	if c.Otel != nil && c.Otel.Tracing != nil && c.Otel.Tracing.Enabled {
 		otelProvider, err = otel.InitTracer(
-			c.Otel.ExporterEndpoint,
-			c.Otel.ServiceName,
-			c.Otel.SampleRate,
+			c.Otel.Tracing.ExporterEndpoint,
+			c.Otel.Tracing.ServiceName,
+			c.Otel.Tracing.SampleRate,
 		)
 		if err != nil {
 			log.Printf("WARNING: Failed to initialize OpenTelemetry: %v", err)
@@ -307,7 +307,7 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 	}
 
 	// Wrap with OTEL tracing if enabled
-	if c.Otel != nil && c.Otel.Enabled {
+	if c.Otel != nil && c.Otel.Tracing != nil && c.Otel.Tracing.Enabled {
 		cacheHandler = otelhttp.NewHandler(
 			http.HandlerFunc(cacheHandler),
 			"cache",
@@ -331,7 +331,7 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 	}
 
 	// Wrap status handler with OTEL tracing if enabled
-	if c.Otel != nil && c.Otel.Enabled {
+	if c.Otel != nil && c.Otel.Tracing != nil && c.Otel.Tracing.Enabled {
 		statusHandler = otelhttp.NewHandler(
 			http.HandlerFunc(statusHandler),
 			"status",
@@ -439,7 +439,7 @@ func startGrpcServer(c *config.Config, grpcServer **grpc.Server,
 	unaryInterceptors := []grpc.UnaryServerInterceptor{}
 
 	// Add OTEL interceptors first for complete trace coverage
-	if c.Otel != nil && c.Otel.Enabled {
+	if c.Otel != nil && c.Otel.Tracing != nil && c.Otel.Tracing.Enabled {
 		streamInterceptors = append(streamInterceptors,
 			otelgrpc.StreamServerInterceptor())
 		unaryInterceptors = append(unaryInterceptors,

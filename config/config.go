@@ -23,12 +23,17 @@ import (
 	yaml "gopkg.in/yaml.v3"
 )
 
-// OtelConfig stores the OpenTelemetry configuration.
-type OtelConfig struct {
+// OtelTracingConfig stores the OpenTelemetry tracing configuration.
+type OtelTracingConfig struct {
 	Enabled          bool    `yaml:"enabled"`
 	ExporterEndpoint string  `yaml:"exporter_endpoint"`
 	ServiceName      string  `yaml:"service_name"`
 	SampleRate       float64 `yaml:"sample_rate"`
+}
+
+// OtelConfig stores the OpenTelemetry configuration.
+type OtelConfig struct {
+	Tracing *OtelTracingConfig `yaml:"tracing,omitempty"`
 }
 
 // GoogleCloudStorageConfig stores the configuration of a GCS proxy backend.
@@ -511,33 +516,33 @@ func validateConfig(c *Config) error {
 		return errors.New("'log_timezone' must be set to either \"UTC\", \"local\" or \"none\"")
 	}
 
-	// Validate OpenTelemetry configuration
-	if c.Otel != nil && c.Otel.Enabled {
-		if c.Otel.ExporterEndpoint == "" {
+	// Validate OpenTelemetry tracing configuration
+	if c.Otel != nil && c.Otel.Tracing != nil && c.Otel.Tracing.Enabled {
+		if c.Otel.Tracing.ExporterEndpoint == "" {
 			// Check standard OTEL env vars
 			if endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); endpoint != "" {
-				c.Otel.ExporterEndpoint = endpoint
+				c.Otel.Tracing.ExporterEndpoint = endpoint
 			} else if endpoint := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"); endpoint != "" {
-				c.Otel.ExporterEndpoint = endpoint
+				c.Otel.Tracing.ExporterEndpoint = endpoint
 			} else {
-				return errors.New("when 'otel.enabled' is true, either 'otel.exporter_endpoint' must be set or OTEL_EXPORTER_OTLP_ENDPOINT env var must be defined")
+				return errors.New("when 'otel.tracing.enabled' is true, either 'otel.tracing.exporter_endpoint' must be set or OTEL_EXPORTER_OTLP_ENDPOINT env var must be defined")
 			}
 		}
 
-		if c.Otel.ServiceName == "" {
+		if c.Otel.Tracing.ServiceName == "" {
 			if name := os.Getenv("OTEL_SERVICE_NAME"); name != "" {
-				c.Otel.ServiceName = name
+				c.Otel.Tracing.ServiceName = name
 			} else {
-				c.Otel.ServiceName = "bazel-remote"
+				c.Otel.Tracing.ServiceName = "bazel-remote"
 			}
 		}
 
-		if c.Otel.SampleRate == 0 {
-			c.Otel.SampleRate = 1.0 // Default to 100% sampling
+		if c.Otel.Tracing.SampleRate == 0 {
+			c.Otel.Tracing.SampleRate = 1.0 // Default to 100% sampling
 		}
 
-		if c.Otel.SampleRate < 0.0 || c.Otel.SampleRate > 1.0 {
-			return errors.New("'otel.sample_rate' must be between 0.0 and 1.0")
+		if c.Otel.Tracing.SampleRate < 0.0 || c.Otel.Tracing.SampleRate > 1.0 {
+			return errors.New("'otel.tracing.sample_rate' must be between 0.0 and 1.0")
 		}
 	}
 
@@ -685,12 +690,14 @@ func get(ctx *cli.Context) (*Config, error) {
 	}
 
 	var otel *OtelConfig
-	if ctx.Bool("otel.enabled") {
+	if ctx.Bool("otel.tracing.enabled") {
 		otel = &OtelConfig{
-			Enabled:          ctx.Bool("otel.enabled"),
-			ExporterEndpoint: ctx.String("otel.exporter_endpoint"),
-			ServiceName:      ctx.String("otel.service_name"),
-			SampleRate:       ctx.Float64("otel.sample_rate"),
+			Tracing: &OtelTracingConfig{
+				Enabled:          ctx.Bool("otel.tracing.enabled"),
+				ExporterEndpoint: ctx.String("otel.tracing.exporter_endpoint"),
+				ServiceName:      ctx.String("otel.tracing.service_name"),
+				SampleRate:       ctx.Float64("otel.tracing.sample_rate"),
+			},
 		}
 	}
 

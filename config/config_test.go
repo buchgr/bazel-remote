@@ -563,24 +563,25 @@ func TestOtelConfigValidation(t *testing.T) {
 			yaml: `dir: /tmp/test
 max_size: 100
 otel:
-  enabled: true
-  exporter_endpoint: localhost:4317
-  service_name: test-service
-  sample_rate: 0.5
+  tracing:
+    enabled: true
+    exporter_endpoint: localhost:4317
+    service_name: test-service
+    sample_rate: 0.5
 `,
 			wantErr: false,
 			checkFunc: func(t *testing.T, c *Config) {
-				if c.Otel == nil || !c.Otel.Enabled {
+				if c.Otel == nil || !c.Otel.Tracing.Enabled {
 					t.Error("Expected OTEL to be enabled")
 				}
-				if c.Otel.ExporterEndpoint != "localhost:4317" {
-					t.Errorf("Expected endpoint localhost:4317, got %s", c.Otel.ExporterEndpoint)
+				if c.Otel.Tracing.ExporterEndpoint != "localhost:4317" {
+					t.Errorf("Expected endpoint localhost:4317, got %s", c.Otel.Tracing.ExporterEndpoint)
 				}
-				if c.Otel.ServiceName != "test-service" {
-					t.Errorf("Expected service name test-service, got %s", c.Otel.ServiceName)
+				if c.Otel.Tracing.ServiceName != "test-service" {
+					t.Errorf("Expected service name test-service, got %s", c.Otel.Tracing.ServiceName)
 				}
-				if c.Otel.SampleRate != 0.5 {
-					t.Errorf("Expected sample rate 0.5, got %f", c.Otel.SampleRate)
+				if c.Otel.Tracing.SampleRate != 0.5 {
+					t.Errorf("Expected sample rate 0.5, got %f", c.Otel.Tracing.SampleRate)
 				}
 			},
 		},
@@ -589,19 +590,20 @@ otel:
 			yaml: `dir: /tmp/test
 max_size: 100
 otel:
-  enabled: true
-  exporter_endpoint: localhost:4317
+  tracing:
+    enabled: true
+    exporter_endpoint: localhost:4317
 `,
 			wantErr: false,
 			checkFunc: func(t *testing.T, c *Config) {
-				if c.Otel == nil || !c.Otel.Enabled {
+				if c.Otel == nil || !c.Otel.Tracing.Enabled {
 					t.Error("Expected OTEL to be enabled")
 				}
-				if c.Otel.ServiceName != "bazel-remote" {
-					t.Errorf("Expected default service name bazel-remote, got %s", c.Otel.ServiceName)
+				if c.Otel.Tracing.ServiceName != "bazel-remote" {
+					t.Errorf("Expected default service name bazel-remote, got %s", c.Otel.Tracing.ServiceName)
 				}
-				if c.Otel.SampleRate != 1.0 {
-					t.Errorf("Expected default sample rate 1.0, got %f", c.Otel.SampleRate)
+				if c.Otel.Tracing.SampleRate != 1.0 {
+					t.Errorf("Expected default sample rate 1.0, got %f", c.Otel.Tracing.SampleRate)
 				}
 			},
 		},
@@ -610,15 +612,16 @@ otel:
 			yaml: `dir: /tmp/test
 max_size: 100
 otel:
-  enabled: true
+  tracing:
+    enabled: true
 `,
 			envVars: map[string]string{
 				"OTEL_EXPORTER_OTLP_ENDPOINT": "env-endpoint:4317",
 			},
 			wantErr: false,
 			checkFunc: func(t *testing.T, c *Config) {
-				if c.Otel.ExporterEndpoint != "env-endpoint:4317" {
-					t.Errorf("Expected endpoint from env var, got %s", c.Otel.ExporterEndpoint)
+				if c.Otel.Tracing.ExporterEndpoint != "env-endpoint:4317" {
+					t.Errorf("Expected endpoint from env var, got %s", c.Otel.Tracing.ExporterEndpoint)
 				}
 			},
 		},
@@ -627,7 +630,8 @@ otel:
 			yaml: `dir: /tmp/test
 max_size: 100
 otel:
-  enabled: true
+  tracing:
+    enabled: true
 `,
 			wantErr:     true,
 			errContains: "exporter_endpoint",
@@ -637,9 +641,10 @@ otel:
 			yaml: `dir: /tmp/test
 max_size: 100
 otel:
-  enabled: true
-  exporter_endpoint: localhost:4317
-  sample_rate: -0.1
+  tracing:
+    enabled: true
+    exporter_endpoint: localhost:4317
+    sample_rate: -0.1
 `,
 			wantErr:     true,
 			errContains: "sample_rate",
@@ -649,9 +654,10 @@ otel:
 			yaml: `dir: /tmp/test
 max_size: 100
 otel:
-  enabled: true
-  exporter_endpoint: localhost:4317
-  sample_rate: 1.5
+  tracing:
+    enabled: true
+    exporter_endpoint: localhost:4317
+    sample_rate: 1.5
 `,
 			wantErr:     true,
 			errContains: "sample_rate",
@@ -661,7 +667,8 @@ otel:
 			yaml: `dir: /tmp/test
 max_size: 100
 otel:
-  enabled: false
+  tracing:
+    enabled: false
 `,
 			wantErr: false,
 		},
@@ -757,8 +764,9 @@ func TestOtelDisabledWhenEnabledIsFalse(t *testing.T) {
 	yaml := `dir: /tmp/test
 max_size: 100
 otel:
-  enabled: false
-  exporter_endpoint: localhost:4317
+  tracing:
+    enabled: false
+    exporter_endpoint: localhost:4317
 `
 	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
@@ -769,7 +777,10 @@ otel:
 	if config.Otel == nil {
 		t.Fatal("Expected Otel config to exist")
 	}
-	if config.Otel.Enabled {
-		t.Error("Expected Otel.Enabled to be false")
+	if config.Otel.Tracing == nil {
+		t.Fatal("Expected Otel.Tracing config to exist")
+	}
+	if config.Otel.Tracing.Enabled {
+		t.Error("Expected Otel.Tracing.Enabled to be false")
 	}
 }

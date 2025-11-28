@@ -51,7 +51,7 @@ func getTLSConfig(certFile, keyFile, caFile string) (*tls.Config, error) {
 }
 
 func (c *Config) setProxy() error {
-	otelEnabled := c.Otel != nil && c.Otel.Enabled
+	otelEnabled := c.Otel != nil && c.Otel.Tracing != nil && c.Otel.Tracing.Enabled
 
 	if c.GoogleCloudStorage != nil {
 		proxyCache, err := gcsproxy.New(c.GoogleCloudStorage.Bucket,
@@ -69,7 +69,7 @@ func (c *Config) setProxy() error {
 		var opts []grpc.DialOption
 
 		// Add OTEL client interceptors if enabled
-		if c.Otel != nil && c.Otel.Enabled {
+		if otelEnabled {
 			opts = append(opts,
 				grpc.WithChainStreamInterceptor(otelgrpc.StreamClientInterceptor()),
 				grpc.WithChainUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
