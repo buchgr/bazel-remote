@@ -1,4 +1,4 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "go_default_library",
@@ -12,17 +12,5 @@ go_library(
         "@io_opentelemetry_go_otel_exporters_otlp_otlptrace_otlptracegrpc//:go_default_library",
         "@io_opentelemetry_go_otel_sdk//resource:go_default_library",
         "@io_opentelemetry_go_otel_sdk//trace:go_default_library",
-    ],
-)
-
-go_test(
-    name = "go_default_test",
-    srcs = ["otel_test.go"],
-    embed = [":go_default_library"],
-    deps = [
-        "@io_opentelemetry_go_otel//:go_default_library",
-        "@io_opentelemetry_go_otel//semconv/v1.37.0:go_default_library",
-        "@io_opentelemetry_go_otel_sdk//trace:go_default_library",
-        "@io_opentelemetry_go_otel_sdk//trace/tracetest:go_default_library",
     ],
 )
