@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+
 	"github.com/buchgr/bazel-remote/v2/cache/azblobproxy"
 	"github.com/buchgr/bazel-remote/v2/cache/gcsproxy"
 	"github.com/buchgr/bazel-remote/v2/cache/grpcproxy"
@@ -49,10 +51,12 @@ func getTLSConfig(certFile, keyFile, caFile string) (*tls.Config, error) {
 }
 
 func (c *Config) setProxy() error {
+	otelEnabled := c.Otel != nil && c.Otel.Tracing != nil && c.Otel.Tracing.Enabled
+
 	if c.GoogleCloudStorage != nil {
 		proxyCache, err := gcsproxy.New(c.GoogleCloudStorage.Bucket,
 			c.GoogleCloudStorage.UseDefaultCredentials, c.GoogleCloudStorage.JSONCredentialsFile,
-			c.StorageMode, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
+			c.StorageMode, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads, otelEnabled)
 		if err != nil {
 			return err
 		}
@@ -63,6 +67,15 @@ func (c *Config) setProxy() error {
 
 	if c.GRPCBackend != nil {
 		var opts []grpc.DialOption
+
+		// Add OTEL client interceptors if enabled
+		if otelEnabled {
+			opts = append(opts,
+				grpc.WithChainStreamInterceptor(otelgrpc.StreamClientInterceptor()),
+				grpc.WithChainUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+			)
+		}
+
 		if c.GRPCBackend.BaseURL.Scheme == "grpcs" {
 			config, err := getTLSConfig(c.GRPCBackend.CertFile, c.GRPCBackend.KeyFile, c.GRPCBackend.CaFile)
 			if err != nil {
@@ -122,7 +135,7 @@ func (c *Config) setProxy() error {
 		}
 
 		proxyCache, err := httpproxy.New(c.HTTPBackend.BaseURL, c.StorageMode,
-			httpClient, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
+			httpClient, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads, otelEnabled)
 		if err != nil {
 			return err
 		}
@@ -151,7 +164,7 @@ func (c *Config) setProxy() error {
 			c.S3CloudStorage.UpdateTimestamps,
 			c.S3CloudStorage.Region,
 			c.S3CloudStorage.MaxIdleConns,
-			c.StorageMode, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
+			c.StorageMode, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads, otelEnabled)
 		return nil
 	}
 

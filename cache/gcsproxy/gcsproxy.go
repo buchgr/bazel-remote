@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"os"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/httpproxy"
 
@@ -18,7 +20,7 @@ import (
 
 // New creates a cache that proxies requests to Google Cloud Storage.
 func New(bucket string, useDefaultCredentials bool, jsonCredentialsFile string, storageMode string,
-	accessLogger cache.Logger, errorLogger cache.Logger, numUploaders, maxQueuedUploads int) (cache.Proxy, error) {
+	accessLogger cache.Logger, errorLogger cache.Logger, numUploaders, maxQueuedUploads int, otelEnabled bool) (cache.Proxy, error) {
 	var remoteClient *http.Client
 	var err error
 
@@ -47,6 +49,14 @@ func New(bucket string, useDefaultCredentials bool, jsonCredentialsFile string, 
 			"credentials or a json credentials file %v", useDefaultCredentials)
 	}
 
+	// Wrap OAuth2 client transport with OTEL instrumentation if enabled
+	if otelEnabled {
+		if remoteClient.Transport == nil {
+			remoteClient.Transport = http.DefaultTransport
+		}
+		remoteClient.Transport = otelhttp.NewTransport(remoteClient.Transport)
+	}
+
 	errorLogger.Printf("Proxying artifacts to GCS bucket '%s'.\n", bucket)
 
 	baseURL := url.URL{
@@ -55,5 +65,5 @@ func New(bucket string, useDefaultCredentials bool, jsonCredentialsFile string, 
 		Path:   bucket,
 	}
 
-	return httpproxy.New(&baseURL, storageMode, remoteClient, accessLogger, errorLogger, numUploaders, maxQueuedUploads)
+	return httpproxy.New(&baseURL, storageMode, remoteClient, accessLogger, errorLogger, numUploaders, maxQueuedUploads, otelEnabled)
 }

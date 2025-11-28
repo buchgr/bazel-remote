@@ -3,6 +3,7 @@ package config
 import (
 	"math"
 	"net/url"
+	"os"
 	"reflect"
 	"regexp"
 	"strings"
@@ -60,6 +61,7 @@ log_timezone: local
 		MetricsDurationBuckets:      []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:              "none",
 		LogTimezone:                 "local",
+		Otel:                        nil,
 	}
 
 	if !reflect.DeepEqual(config, expectedConfig) {
@@ -103,6 +105,7 @@ gcs_proxy:
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
+		Otel:                   nil,
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -147,6 +150,7 @@ http_proxy:
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
+		Otel:                   nil,
 	}
 
 	if !cmp.Equal(config, expectedConfig) {
@@ -542,5 +546,241 @@ func TestSocketPathMissing(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "'http_address'") {
 		t.Fatal("Expected the error message to mention the missing 'http_address' key/flag")
+	}
+}
+
+func TestOtelConfigValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		yaml        string
+		envVars     map[string]string
+		wantErr     bool
+		errContains string
+		checkFunc   func(*testing.T, *Config)
+	}{
+		{
+			name: "valid config with all fields",
+			yaml: `dir: /tmp/test
+max_size: 100
+otel:
+  tracing:
+    enabled: true
+    exporter_endpoint: localhost:4317
+    service_name: test-service
+    sample_rate: 0.5
+`,
+			wantErr: false,
+			checkFunc: func(t *testing.T, c *Config) {
+				if c.Otel == nil || !c.Otel.Tracing.Enabled {
+					t.Error("Expected OTEL to be enabled")
+				}
+				if c.Otel.Tracing.ExporterEndpoint != "localhost:4317" {
+					t.Errorf("Expected endpoint localhost:4317, got %s", c.Otel.Tracing.ExporterEndpoint)
+				}
+				if c.Otel.Tracing.ServiceName != "test-service" {
+					t.Errorf("Expected service name test-service, got %s", c.Otel.Tracing.ServiceName)
+				}
+				if c.Otel.Tracing.SampleRate != 0.5 {
+					t.Errorf("Expected sample rate 0.5, got %f", c.Otel.Tracing.SampleRate)
+				}
+			},
+		},
+		{
+			name: "valid config with defaults",
+			yaml: `dir: /tmp/test
+max_size: 100
+otel:
+  tracing:
+    enabled: true
+    exporter_endpoint: localhost:4317
+`,
+			wantErr: false,
+			checkFunc: func(t *testing.T, c *Config) {
+				if c.Otel == nil || !c.Otel.Tracing.Enabled {
+					t.Error("Expected OTEL to be enabled")
+				}
+				if c.Otel.Tracing.ServiceName != "bazel-remote" {
+					t.Errorf("Expected default service name bazel-remote, got %s", c.Otel.Tracing.ServiceName)
+				}
+				if c.Otel.Tracing.SampleRate != 1.0 {
+					t.Errorf("Expected default sample rate 1.0, got %f", c.Otel.Tracing.SampleRate)
+				}
+			},
+		},
+		{
+			name: "missing endpoint with env var",
+			yaml: `dir: /tmp/test
+max_size: 100
+otel:
+  tracing:
+    enabled: true
+`,
+			envVars: map[string]string{
+				"OTEL_EXPORTER_OTLP_ENDPOINT": "env-endpoint:4317",
+			},
+			wantErr: false,
+			checkFunc: func(t *testing.T, c *Config) {
+				if c.Otel.Tracing.ExporterEndpoint != "env-endpoint:4317" {
+					t.Errorf("Expected endpoint from env var, got %s", c.Otel.Tracing.ExporterEndpoint)
+				}
+			},
+		},
+		{
+			name: "missing endpoint without env var",
+			yaml: `dir: /tmp/test
+max_size: 100
+otel:
+  tracing:
+    enabled: true
+`,
+			wantErr:     true,
+			errContains: "exporter_endpoint",
+		},
+		{
+			name: "invalid sample rate negative",
+			yaml: `dir: /tmp/test
+max_size: 100
+otel:
+  tracing:
+    enabled: true
+    exporter_endpoint: localhost:4317
+    sample_rate: -0.1
+`,
+			wantErr:     true,
+			errContains: "sample_rate",
+		},
+		{
+			name: "invalid sample rate greater than 1",
+			yaml: `dir: /tmp/test
+max_size: 100
+otel:
+  tracing:
+    enabled: true
+    exporter_endpoint: localhost:4317
+    sample_rate: 1.5
+`,
+			wantErr:     true,
+			errContains: "sample_rate",
+		},
+		{
+			name: "disabled no validation",
+			yaml: `dir: /tmp/test
+max_size: 100
+otel:
+  tracing:
+    enabled: false
+`,
+			wantErr: false,
+		},
+		{
+			name: "no otel config",
+			yaml: `dir: /tmp/test
+max_size: 100
+`,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up environment variables
+			cleanup := make([]func(), 0)
+			for k, v := range tt.envVars {
+				oldVal := os.Getenv(k)
+				os.Setenv(k, v)
+				cleanup = append(cleanup, func() {
+					if oldVal != "" {
+						os.Setenv(k, oldVal)
+					} else {
+						os.Unsetenv(k)
+					}
+				})
+			}
+			defer func() {
+				for _, fn := range cleanup {
+					fn()
+				}
+			}()
+
+			// Clear env vars that might interfere
+			if len(tt.envVars) == 0 {
+				oldEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+				oldTracesEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+				oldServiceName := os.Getenv("OTEL_SERVICE_NAME")
+				os.Unsetenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+				os.Unsetenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+				os.Unsetenv("OTEL_SERVICE_NAME")
+				defer func() {
+					if oldEndpoint != "" {
+						os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", oldEndpoint)
+					}
+					if oldTracesEndpoint != "" {
+						os.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", oldTracesEndpoint)
+					}
+					if oldServiceName != "" {
+						os.Setenv("OTEL_SERVICE_NAME", oldServiceName)
+					}
+				}()
+			}
+
+			config, err := NewFromYaml([]byte(tt.yaml))
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewFromYaml() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.wantErr && tt.errContains != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("NewFromYaml() error = %v, want error containing %q", err, tt.errContains)
+				}
+				return
+			}
+
+			if !tt.wantErr && tt.checkFunc != nil {
+				tt.checkFunc(t, config)
+			}
+		})
+	}
+}
+
+func TestOtelDisabledByDefault(t *testing.T) {
+	// Test that OTEL is disabled when no otel config is specified
+	yaml := `dir: /tmp/test
+max_size: 100
+`
+	config, err := NewFromYaml([]byte(yaml))
+	if err != nil {
+		t.Fatalf("NewFromYaml() failed: %v", err)
+	}
+
+	// Otel should be nil when not specified
+	if config.Otel != nil {
+		t.Errorf("Expected Otel to be nil when not specified, got %+v", config.Otel)
+	}
+}
+
+func TestOtelDisabledWhenEnabledIsFalse(t *testing.T) {
+	// Test that OTEL is disabled when explicitly set to false
+	yaml := `dir: /tmp/test
+max_size: 100
+otel:
+  tracing:
+    enabled: false
+    exporter_endpoint: localhost:4317
+`
+	config, err := NewFromYaml([]byte(yaml))
+	if err != nil {
+		t.Fatalf("NewFromYaml() failed: %v", err)
+	}
+
+	// Otel should exist but be disabled
+	if config.Otel == nil {
+		t.Fatal("Expected Otel config to exist")
+	}
+	if config.Otel.Tracing == nil {
+		t.Fatal("Expected Otel.Tracing config to exist")
+	}
+	if config.Otel.Tracing.Enabled {
+		t.Error("Expected Otel.Tracing.Enabled to be false")
 	}
 }

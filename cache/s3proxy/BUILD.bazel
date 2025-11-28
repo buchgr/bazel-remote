@@ -16,6 +16,7 @@ go_library(
         "@com_github_minio_minio_go_v7//pkg/credentials:go_default_library",
         "@com_github_prometheus_client_golang//prometheus:go_default_library",
         "@com_github_prometheus_client_golang//prometheus/promauto:go_default_library",
+        "@io_opentelemetry_go_contrib_instrumentation_net_http_otelhttp//:go_default_library",
     ],
 )
 

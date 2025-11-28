@@ -11,6 +11,7 @@ go_library(
         "//utils/backendproxy:go_default_library",
         "@com_github_prometheus_client_golang//prometheus:go_default_library",
         "@com_github_prometheus_client_golang//prometheus/promauto:go_default_library",
+        "@io_opentelemetry_go_contrib_instrumentation_net_http_otelhttp//:go_default_library",
     ],
 )
 

@@ -23,6 +23,19 @@ import (
 	yaml "gopkg.in/yaml.v3"
 )
 
+// OtelTracingConfig stores the OpenTelemetry tracing configuration.
+type OtelTracingConfig struct {
+	Enabled          bool    `yaml:"enabled"`
+	ExporterEndpoint string  `yaml:"exporter_endpoint"`
+	ServiceName      string  `yaml:"service_name"`
+	SampleRate       float64 `yaml:"sample_rate"`
+}
+
+// OtelConfig stores the OpenTelemetry configuration.
+type OtelConfig struct {
+	Tracing *OtelTracingConfig `yaml:"tracing,omitempty"`
+}
+
 // GoogleCloudStorageConfig stores the configuration of a GCS proxy backend.
 type GoogleCloudStorageConfig struct {
 	Bucket                string `yaml:"bucket"`
@@ -127,6 +140,7 @@ type Config struct {
 	LogTimezone                 string                    `yaml:"log_timezone"`
 	MaxBlobSize                 int64                     `yaml:"max_blob_size"`
 	MaxProxyBlobSize            int64                     `yaml:"max_proxy_blob_size"`
+	Otel                        *OtelConfig               `yaml:"otel,omitempty"`
 
 	// Fields that are created by combinations of the flags above.
 	ProxyBackend cache.Proxy
@@ -173,6 +187,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	ldap *LDAPConfig,
 	s3 *S3CloudStorageConfig,
 	azblob *AzBlobStorageConfig,
+	otel *OtelConfig,
 	disableHTTPACValidation bool,
 	disableGRPCACDepsCheck bool,
 	enableACKeyInstanceMangling bool,
@@ -210,6 +225,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		HTTPBackend:                 hc,
 		GRPCBackend:                 grpcb,
 		LDAP:                        ldap,
+		Otel:                        otel,
 		IdleTimeout:                 idleTimeout,
 		DisableHTTPACValidation:     disableHTTPACValidation,
 		DisableGRPCACDepsCheck:      disableGRPCACDepsCheck,
@@ -500,6 +516,36 @@ func validateConfig(c *Config) error {
 		return errors.New("'log_timezone' must be set to either \"UTC\", \"local\" or \"none\"")
 	}
 
+	// Validate OpenTelemetry tracing configuration
+	if c.Otel != nil && c.Otel.Tracing != nil && c.Otel.Tracing.Enabled {
+		if c.Otel.Tracing.ExporterEndpoint == "" {
+			// Check standard OTEL env vars
+			if endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); endpoint != "" {
+				c.Otel.Tracing.ExporterEndpoint = endpoint
+			} else if endpoint := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"); endpoint != "" {
+				c.Otel.Tracing.ExporterEndpoint = endpoint
+			} else {
+				return errors.New("when 'otel.tracing.enabled' is true, either 'otel.tracing.exporter_endpoint' must be set or OTEL_EXPORTER_OTLP_ENDPOINT env var must be defined")
+			}
+		}
+
+		if c.Otel.Tracing.ServiceName == "" {
+			if name := os.Getenv("OTEL_SERVICE_NAME"); name != "" {
+				c.Otel.Tracing.ServiceName = name
+			} else {
+				c.Otel.Tracing.ServiceName = "bazel-remote"
+			}
+		}
+
+		if c.Otel.Tracing.SampleRate == 0 {
+			c.Otel.Tracing.SampleRate = 1.0 // Default to 100% sampling
+		}
+
+		if c.Otel.Tracing.SampleRate < 0.0 || c.Otel.Tracing.SampleRate > 1.0 {
+			return errors.New("'otel.tracing.sample_rate' must be between 0.0 and 1.0")
+		}
+	}
+
 	return nil
 }
 
@@ -643,6 +689,18 @@ func get(ctx *cli.Context) (*Config, error) {
 		}
 	}
 
+	var otel *OtelConfig
+	if ctx.Bool("otel.tracing.enabled") {
+		otel = &OtelConfig{
+			Tracing: &OtelTracingConfig{
+				Enabled:          ctx.Bool("otel.tracing.enabled"),
+				ExporterEndpoint: ctx.String("otel.tracing.exporter_endpoint"),
+				ServiceName:      ctx.String("otel.tracing.service_name"),
+				SampleRate:       ctx.Float64("otel.tracing.sample_rate"),
+			},
+		}
+	}
+
 	return newFromArgs(
 		ctx.String("dir"),
 		ctx.Int("max_size"),
@@ -666,6 +724,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		ldap,
 		s3,
 		azblob,
+		otel,
 		ctx.Bool("disable_http_ac_validation"),
 		ctx.Bool("disable_grpc_ac_deps_check"),
 		ctx.Bool("enable_ac_key_instance_mangling"),
