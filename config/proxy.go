@@ -51,10 +51,12 @@ func getTLSConfig(certFile, keyFile, caFile string) (*tls.Config, error) {
 }
 
 func (c *Config) setProxy() error {
+	otelEnabled := c.Otel != nil && c.Otel.Enabled
+
 	if c.GoogleCloudStorage != nil {
 		proxyCache, err := gcsproxy.New(c.GoogleCloudStorage.Bucket,
 			c.GoogleCloudStorage.UseDefaultCredentials, c.GoogleCloudStorage.JSONCredentialsFile,
-			c.StorageMode, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
+			c.StorageMode, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads, otelEnabled)
 		if err != nil {
 			return err
 		}
@@ -133,7 +135,7 @@ func (c *Config) setProxy() error {
 		}
 
 		proxyCache, err := httpproxy.New(c.HTTPBackend.BaseURL, c.StorageMode,
-			httpClient, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
+			httpClient, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads, otelEnabled)
 		if err != nil {
 			return err
 		}
@@ -162,7 +164,7 @@ func (c *Config) setProxy() error {
 			c.S3CloudStorage.UpdateTimestamps,
 			c.S3CloudStorage.Region,
 			c.S3CloudStorage.MaxIdleConns,
-			c.StorageMode, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)
+			c.StorageMode, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads, otelEnabled)
 		return nil
 	}
 

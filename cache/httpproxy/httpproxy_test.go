@@ -119,7 +119,7 @@ func TestEverything(t *testing.T) {
 	t.Log("cas HASH:", hash)
 	acData := []byte{1, 2, 3, 4}
 
-	proxyCache, err := New(url, "zstd", &http.Client{}, accessLogger, errorLogger, 100, 10000)
+	proxyCache, err := New(url, "zstd", &http.Client{}, accessLogger, errorLogger, 100, 10000, false)
 	if err != nil {
 		t.Fatal(err)
 	}

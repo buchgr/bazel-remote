@@ -100,13 +100,15 @@ func (r *remoteHTTPProxyCache) UploadFile(item backendproxy.UploadReq) {
 // CAS blobs) or "zstd" (which expects cas.v2 blobs).
 func New(baseURL *url.URL, storageMode string, remote *http.Client,
 	accessLogger cache.Logger, errorLogger cache.Logger,
-	numUploaders, maxQueuedUploads int) (cache.Proxy, error) {
+	numUploaders, maxQueuedUploads int, otelEnabled bool) (cache.Proxy, error) {
 
-	// Wrap HTTP client transport with OTEL instrumentation
-	if remote.Transport == nil {
-		remote.Transport = http.DefaultTransport
+	// Wrap HTTP client transport with OTEL instrumentation if enabled
+	if otelEnabled {
+		if remote.Transport == nil {
+			remote.Transport = http.DefaultTransport
+		}
+		remote.Transport = otelhttp.NewTransport(remote.Transport)
 	}
-	remote.Transport = otelhttp.NewTransport(remote.Transport)
 
 	proxy := &remoteHTTPProxyCache{
 		remote:       remote,

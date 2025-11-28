@@ -890,7 +890,7 @@ func TestHttpProxyBackend(t *testing.T) {
 	accessLogger := testutils.NewSilentLogger()
 	errorLogger := testutils.NewSilentLogger()
 
-	proxy, err := httpproxy.New(url, "zstd", &http.Client{}, accessLogger, errorLogger, 100, 1000000)
+	proxy, err := httpproxy.New(url, "zstd", &http.Client{}, accessLogger, errorLogger, 100, 1000000, false)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"path"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -60,7 +61,7 @@ func New(
 	MaxIdleConns int,
 
 	storageMode string, accessLogger cache.Logger,
-	errorLogger cache.Logger, numUploaders, maxQueuedUploads int) cache.Proxy {
+	errorLogger cache.Logger, numUploaders, maxQueuedUploads int, otelEnabled bool) cache.Proxy {
 
 	fmt.Println("Using S3 backend.")
 
@@ -80,8 +81,11 @@ func New(
 	tr.MaxIdleConns = MaxIdleConns
 	tr.MaxIdleConnsPerHost = MaxIdleConns
 
-	// Wrap transport with OTEL instrumentation
-	otelTransport := otelhttp.NewTransport(tr)
+	// Wrap transport with OTEL instrumentation if enabled
+	var transport http.RoundTripper = tr
+	if otelEnabled {
+		transport = otelhttp.NewTransport(tr)
+	}
 
 	// Initialize minio client with credentials
 	opts := &minio.Options{
@@ -90,7 +94,7 @@ func New(
 
 		Region:    Region,
 		Secure:    secure,
-		Transport: otelTransport,
+		Transport:  transport,
 	}
 	minioCore, err = minio.NewCore(Endpoint, opts)
 	if err != nil {
