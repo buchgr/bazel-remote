@@ -94,7 +94,7 @@ func New(
 
 		Region:    Region,
 		Secure:    secure,
-		Transport:  transport,
+		Transport: transport,
 	}
 	minioCore, err = minio.NewCore(Endpoint, opts)
 	if err != nil {
