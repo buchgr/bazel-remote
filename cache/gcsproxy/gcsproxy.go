@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"os"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/httpproxy"
 
@@ -46,6 +48,12 @@ func New(bucket string, useDefaultCredentials bool, jsonCredentialsFile string, 
 		return nil, fmt.Errorf("for Google authentication one needs to specify one of default "+
 			"credentials or a json credentials file %v", useDefaultCredentials)
 	}
+
+	// Wrap OAuth2 client transport with OTEL instrumentation
+	if remoteClient.Transport == nil {
+		remoteClient.Transport = http.DefaultTransport
+	}
+	remoteClient.Transport = otelhttp.NewTransport(remoteClient.Transport)
 
 	errorLogger.Printf("Proxying artifacts to GCS bucket '%s'.\n", bucket)
 

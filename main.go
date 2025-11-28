@@ -19,6 +19,7 @@ import (
 
 	"github.com/buchgr/bazel-remote/v2/config"
 	"github.com/buchgr/bazel-remote/v2/ldap"
+	"github.com/buchgr/bazel-remote/v2/otel"
 	"github.com/buchgr/bazel-remote/v2/server"
 	"github.com/buchgr/bazel-remote/v2/utils/flags"
 	"github.com/buchgr/bazel-remote/v2/utils/idle"
@@ -30,6 +31,9 @@ import (
 	middleware "github.com/slok/go-http-metrics/middleware"
 	middlewarestd "github.com/slok/go-http-metrics/middleware/std"
 	"github.com/urfave/cli/v2"
+
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -95,6 +99,27 @@ func run(ctx *cli.Context) error {
 		runtime.Version(), maybeGitCommitMsg, maybeGitTagsMsg)
 
 	rlimit.Raise()
+
+	// Initialize OpenTelemetry if enabled
+	var otelProvider *otel.TracerProvider
+	if c.Otel != nil && c.Otel.Enabled {
+		otelProvider, err = otel.InitTracer(
+			c.Otel.ExporterEndpoint,
+			c.Otel.ServiceName,
+			c.Otel.SampleRate,
+		)
+		if err != nil {
+			log.Printf("WARNING: Failed to initialize OpenTelemetry: %v", err)
+			// Continue without OTEL (graceful degradation)
+		} else {
+			defer func() {
+				shutdownCtx := context.Background()
+				if err := otelProvider.Shutdown(shutdownCtx); err != nil {
+					log.Printf("Error shutting down OTEL tracer: %v", err)
+				}
+			}()
+		}
+	}
 
 	grpcSem := semaphore.NewWeighted(1)
 	var grpcServer *grpc.Server
@@ -281,6 +306,18 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 		})
 	}
 
+	// Wrap with OTEL tracing if enabled
+	if c.Otel != nil && c.Otel.Enabled {
+		cacheHandler = otelhttp.NewHandler(
+			http.HandlerFunc(cacheHandler),
+			"cache",
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				return fmt.Sprintf("%s %s", r.Method, r.URL.Path)
+			}),
+		).ServeHTTP
+		log.Println("HTTP OpenTelemetry tracing: enabled")
+	}
+
 	var statusHandler http.HandlerFunc = h.StatusPageHandler
 
 	if !c.AllowUnauthenticatedReads {
@@ -291,6 +328,14 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 		} else if c.LDAP != nil {
 			statusHandler = ldapAuthWrapper(statusHandler, ldapAuthenticator)
 		}
+	}
+
+	// Wrap status handler with OTEL tracing if enabled
+	if c.Otel != nil && c.Otel.Enabled {
+		statusHandler = otelhttp.NewHandler(
+			http.HandlerFunc(statusHandler),
+			"status",
+		).ServeHTTP
 	}
 
 	if c.EnableEndpointMetrics {
@@ -392,6 +437,15 @@ func startGrpcServer(c *config.Config, grpcServer **grpc.Server,
 	opts := []grpc.ServerOption{}
 	streamInterceptors := []grpc.StreamServerInterceptor{}
 	unaryInterceptors := []grpc.UnaryServerInterceptor{}
+
+	// Add OTEL interceptors first for complete trace coverage
+	if c.Otel != nil && c.Otel.Enabled {
+		streamInterceptors = append(streamInterceptors,
+			otelgrpc.StreamServerInterceptor())
+		unaryInterceptors = append(unaryInterceptors,
+			otelgrpc.UnaryServerInterceptor())
+		log.Println("gRPC OpenTelemetry tracing: enabled")
+	}
 
 	if c.EnableEndpointMetrics {
 		streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)

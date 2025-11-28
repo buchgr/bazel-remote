@@ -527,5 +527,31 @@ func GetCliFlags() []cli.Flag {
 			DefaultText: "UTC, ie use UTC timezone",
 			EnvVars:     []string{"BAZEL_REMOTE_LOG_TIMEZONE"},
 		},
+		&cli.BoolFlag{
+			Name:        "otel.enabled",
+			Usage:       "Whether to enable OpenTelemetry distributed tracing.",
+			DefaultText: "false, ie disable OTEL tracing",
+			EnvVars:     []string{"BAZEL_REMOTE_OTEL_ENABLED"},
+		},
+		&cli.StringFlag{
+			Name:        "otel.exporter_endpoint",
+			Usage:       "The OTLP exporter endpoint for OpenTelemetry traces. Can also be set via OTEL_EXPORTER_OTLP_ENDPOINT env var.",
+			DefaultText: "empty, will use OTEL_EXPORTER_OTLP_ENDPOINT env var",
+			EnvVars:     []string{"BAZEL_REMOTE_OTEL_EXPORTER_ENDPOINT"},
+		},
+		&cli.StringFlag{
+			Name:        "otel.service_name",
+			Usage:       "The service name for OpenTelemetry traces. Can also be set via OTEL_SERVICE_NAME env var.",
+			Value:       "bazel-remote",
+			DefaultText: "bazel-remote",
+			EnvVars:     []string{"BAZEL_REMOTE_OTEL_SERVICE_NAME"},
+		},
+		&cli.Float64Flag{
+			Name:        "otel.sample_rate",
+			Usage:       "The sampling rate for OpenTelemetry traces (0.0-1.0). 1.0 means 100% sampling.",
+			Value:       1.0,
+			DefaultText: "1.0 (100% sampling)",
+			EnvVars:     []string{"BAZEL_REMOTE_OTEL_SAMPLE_RATE"},
+		},
 	}
 }

@@ -8,6 +8,8 @@ import (
 	"log"
 	"path"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
 	"github.com/buchgr/bazel-remote/v2/utils/backendproxy"
@@ -78,6 +80,9 @@ func New(
 	tr.MaxIdleConns = MaxIdleConns
 	tr.MaxIdleConnsPerHost = MaxIdleConns
 
+	// Wrap transport with OTEL instrumentation
+	otelTransport := otelhttp.NewTransport(tr)
+
 	// Initialize minio client with credentials
 	opts := &minio.Options{
 		Creds:        Credentials,
@@ -85,7 +90,7 @@ func New(
 
 		Region:    Region,
 		Secure:    secure,
-		Transport: tr,
+		Transport: otelTransport,
 	}
 	minioCore, err = minio.NewCore(Endpoint, opts)
 	if err != nil {

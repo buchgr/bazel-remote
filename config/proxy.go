@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+
 	"github.com/buchgr/bazel-remote/v2/cache/azblobproxy"
 	"github.com/buchgr/bazel-remote/v2/cache/gcsproxy"
 	"github.com/buchgr/bazel-remote/v2/cache/grpcproxy"
@@ -63,6 +65,15 @@ func (c *Config) setProxy() error {
 
 	if c.GRPCBackend != nil {
 		var opts []grpc.DialOption
+
+		// Add OTEL client interceptors if enabled
+		if c.Otel != nil && c.Otel.Enabled {
+			opts = append(opts,
+				grpc.WithChainStreamInterceptor(otelgrpc.StreamClientInterceptor()),
+				grpc.WithChainUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+			)
+		}
+
 		if c.GRPCBackend.BaseURL.Scheme == "grpcs" {
 			config, err := getTLSConfig(c.GRPCBackend.CertFile, c.GRPCBackend.KeyFile, c.GRPCBackend.CaFile)
 			if err != nil {

@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
 	"github.com/buchgr/bazel-remote/v2/utils/backendproxy"
@@ -99,6 +101,12 @@ func (r *remoteHTTPProxyCache) UploadFile(item backendproxy.UploadReq) {
 func New(baseURL *url.URL, storageMode string, remote *http.Client,
 	accessLogger cache.Logger, errorLogger cache.Logger,
 	numUploaders, maxQueuedUploads int) (cache.Proxy, error) {
+
+	// Wrap HTTP client transport with OTEL instrumentation
+	if remote.Transport == nil {
+		remote.Transport = http.DefaultTransport
+	}
+	remote.Transport = otelhttp.NewTransport(remote.Transport)
 
 	proxy := &remoteHTTPProxyCache{
 		remote:       remote,
