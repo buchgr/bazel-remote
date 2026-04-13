@@ -85,7 +85,9 @@ func (s *grpcServer) FetchBlob(ctx context.Context, req *asset.FetchBlobRequest)
 		if strings.HasPrefix(q.Name, QualifierHTTPHeaderPrefix) {
 			key := q.Name[len(QualifierHTTPHeaderPrefix):]
 
-			globalHeader[key] = strings.Split(q.Value, ",")
+			for _, value := range strings.Split(q.Value, ",") {
+				globalHeader.Add(key, value)
+			}
 			continue
 		} else if strings.HasPrefix(q.Name, QualifierHTTPHeaderUrlPrefix) {
 			idxAndKey := q.Name[len(QualifierHTTPHeaderUrlPrefix):]
@@ -212,6 +214,7 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, headers http.Hea
 	}
 
 	req.Header = headers
+	applyNetrcCredentials(req, s.netrcCredentials)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
