@@ -36,25 +36,13 @@ func (c *Creator) ranqd1() string {
 
 const flags = os.O_RDWR | os.O_CREATE | os.O_EXCL
 
-// The final permissions of the cache files, once they have finished
-// being uploaded.
-const FinalMode = 0664
-
-// The permissions to use for cache files that are still being uploaded.
-// The setgid bit will be unset when the upload has finished.
-const wipMode = FinalMode | os.ModeSetgid
+const mode = 0664
 
 var errNoTempfile = errors.New("failed to create a temp file")
 
 // Create attempts to create a file whose name is of the form
 // <base>-<randomstring> and with a ".v1" suffix if `legacy` is
-// true. The file will be created with the setgid bit set, which
-// indicates that it is not complete. The *os.File is returned
-// along with the random string, and an error if something went
-// wrong.
-//
-// Once the file has been successfully written by the caller, it
-// should be chmod'ed to `FinalMode` to mark it as complete.
+// true.
 func (c *Creator) Create(base string, legacy bool) (*os.File, string, error) {
 	var err error
 	var f *os.File
@@ -69,7 +57,7 @@ func (c *Creator) Create(base string, legacy bool) (*os.File, string, error) {
 			name = base + "-" + random
 		}
 
-		f, err = os.OpenFile(name, flags, wipMode)
+		f, err = os.OpenFile(name, flags, mode)
 		if err == nil {
 			return f, random, nil
 		}

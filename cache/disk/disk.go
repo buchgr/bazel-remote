@@ -285,12 +285,6 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 			if err != nil {
 				log.Printf("warning: failed to remove temp file: %q", blobFile)
 			}
-		} else if blobFile != "" {
-			// Mark the file as "complete".
-			err := os.Chmod(blobFile, tempfile.FinalMode)
-			if err != nil {
-				log.Println("failed to mark", blobFile, "as complete:", err)
-			}
 		}
 
 		if unreserve {
@@ -627,12 +621,6 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 			err := os.Remove(blobFile)
 			if err != nil {
 				log.Printf("warning: failed to remove temp file: %q", blobFile)
-			}
-		} else if blobFile != "" {
-			// Mark the file as "complete".
-			err := os.Chmod(blobFile, tempfile.FinalMode)
-			if err != nil {
-				log.Println("failed to mark", blobFile, "as complete:", err)
 			}
 		}
 
