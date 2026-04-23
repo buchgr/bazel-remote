@@ -14,6 +14,13 @@ Description=bazel-remote cache
 # to the cache directory specified in ExecStart below:
 User=bazel-remote
 Group=bazel-remote
+# Alternatively, use systemd DynamicUser= together with StateDirectory=.
+# This will automatically create a user and group, provision a writable
+# state directory, and sandbox the service.
+#
+# DynamicUser=true
+# StateDirectory=%N
+# ExecStart=/absolute/path/to/bazel-remote --max_size 1000 --dir ${STATE_DIRECTORY}
 
 # We need to have a lot of files open at once.
 LimitNOFILE=40000
