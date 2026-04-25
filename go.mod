@@ -19,7 +19,7 @@ require (
 	golang.org/x/oauth2 v0.34.0
 	golang.org/x/sync v0.19.0
 	golang.org/x/sys v0.40.0 // indirect
-	google.golang.org/grpc v1.78.0
+	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -31,9 +31,9 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.12
 	github.com/johannesboyne/gofakes3 v0.0.0-20230506070712-04da935ef877
 	github.com/valyala/gozstd v1.24.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20260114163908-3f89685c29c3
+	google.golang.org/genproto/googleapis/api v0.0.0-20260120221211-b8f7ae30c516
 	google.golang.org/genproto/googleapis/bytestream v0.0.0-20260114163908-3f89685c29c3
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260114163908-3f89685c29c3
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516
 )
 
 require (
