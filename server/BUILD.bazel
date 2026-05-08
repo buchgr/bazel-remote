@@ -11,6 +11,7 @@ go_library(
         "grpc_cas.go",
         "grpc_idle_timeout.go",
         "http.go",
+        "netrc.go",
     ],
     importpath = "github.com/buchgr/bazel-remote/v2/server",
     visibility = ["//visibility:public"],
@@ -49,6 +50,7 @@ go_library(
 go_test(
     name = "go_default_test",
     srcs = [
+        "grpc_asset_netrc_test.go",
         "grpc_asset_test.go",
         "grpc_cas_spliceblobs_test.go",
         "grpc_test.go",
