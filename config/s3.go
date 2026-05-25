@@ -28,6 +28,9 @@ type S3CloudStorageConfig struct {
 	AWSSharedCredentialsFile string `yaml:"aws_shared_credentials_file"`
 	BucketLookupType         string `yaml:"bucket_lookup_type"`
 	MaxIdleConns             int    `yaml:"max_idle_conns"`
+	// SharedFilesystemMode indicates the S3 bucket is mapped to the same filesystem
+	// as the local disk cache. Files use local disk naming format (<hash>-<size>-<random>).
+	SharedFilesystemMode bool `yaml:"shared_filesystem_mode"`
 }
 
 func (s3c S3CloudStorageConfig) GetCredentials() (*credentials.Credentials, error) {

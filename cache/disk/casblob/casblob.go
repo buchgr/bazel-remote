@@ -577,6 +577,10 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 					hash, actualHash)
 		}
 
+		if err := f.Sync(); err != nil {
+			return -1, fmt.Errorf("failed to sync file: %w", err)
+		}
+
 		return n + fileOffset, f.Close()
 	}
 

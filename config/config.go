@@ -127,6 +127,9 @@ type Config struct {
 	LogTimezone                 string                    `yaml:"log_timezone"`
 	MaxBlobSize                 int64                     `yaml:"max_blob_size"`
 	MaxProxyBlobSize            int64                     `yaml:"max_proxy_blob_size"`
+	SharedStorageMode           bool                      `yaml:"shared_storage_mode"`
+	SharedStorageLeader         bool                      `yaml:"shared_storage_leader"`
+	SharedStorageGCInterval     time.Duration             `yaml:"shared_storage_gc_interval"`
 
 	// Fields that are created by combinations of the flags above.
 	ProxyBackend cache.Proxy
@@ -185,7 +188,10 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	logTimezone string,
 	maxSizeHardLimit int,
 	maxBlobSize int64,
-	maxProxyBlobSize int64) (*Config, error) {
+	maxProxyBlobSize int64,
+	sharedStorageMode bool,
+	sharedStorageLeader bool,
+	sharedStorageGCInterval time.Duration) (*Config, error) {
 
 	c := Config{
 		HTTPAddress:                 httpAddress,
@@ -224,6 +230,9 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		LogTimezone:                 logTimezone,
 		MaxBlobSize:                 maxBlobSize,
 		MaxProxyBlobSize:            maxProxyBlobSize,
+		SharedStorageMode:           sharedStorageMode,
+		SharedStorageLeader:         sharedStorageLeader,
+		SharedStorageGCInterval:     sharedStorageGCInterval,
 	}
 
 	err := validateConfig(&c)
@@ -573,6 +582,7 @@ func get(ctx *cli.Context) (*Config, error) {
 			AWSProfile:               ctx.String("s3.aws_profile"),
 			AWSSharedCredentialsFile: ctx.String("s3.aws_shared_credentials_file"),
 			MaxIdleConns:             ctx.Int("s3.max_idle_conns"),
+			SharedFilesystemMode:     ctx.Bool("s3.shared_filesystem_mode"),
 		}
 	}
 
@@ -679,5 +689,8 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.Int("max_size_hard_limit"),
 		ctx.Int64("max_blob_size"),
 		ctx.Int64("max_proxy_blob_size"),
+		ctx.Bool("shared_storage_mode"),
+		ctx.Bool("shared_storage_leader"),
+		ctx.Duration("shared_storage_gc_interval"),
 	)
 }

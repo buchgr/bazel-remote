@@ -151,12 +151,21 @@ func run(ctx *cli.Context) error {
 		disk.WithProxyMaxBlobSize(c.MaxProxyBlobSize),
 		disk.WithMaxSizeHardLimit(int64(c.MaxSizeHardLimit) * 1024 * 1024 * 1024),
 		disk.WithAccessLogger(c.AccessLogger),
+		disk.WithSharedStorageMode(c.SharedStorageMode),
+		disk.WithSharedStorageLeader(c.SharedStorageLeader),
+		disk.WithSharedStorageGCInterval(c.SharedStorageGCInterval),
 	}
 	if c.ProxyBackend != nil {
 		opts = append(opts, disk.WithProxyBackend(c.ProxyBackend))
 	}
 	if c.EnableEndpointMetrics {
 		opts = append(opts, disk.WithEndpointMetrics())
+	}
+	if c.SharedStorageMode {
+		log.Println("Shared storage mode: enabled")
+		if c.SharedStorageLeader {
+			log.Println("Shared storage leader: this instance will handle garbage collection")
+		}
 	}
 
 	diskCache, err := disk.New(c.Dir, int64(c.MaxSize)*1024*1024*1024, opts...)

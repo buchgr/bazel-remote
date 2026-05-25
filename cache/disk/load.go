@@ -584,6 +584,14 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64, cc CacheConfig) error 
 	// This function is only called while the lock is not held
 	// by the current goroutine.
 	onEvict := func(key string, value lruItem) {
+		// In shared storage mode, don't delete files during LRU eviction.
+		// This includes both normal eviction AND overwrite eviction.
+		// The leader's periodic GC (atime-based) is the only thing that
+		// should delete files, to avoid race conditions where one pod
+		// deletes a file that another pod has in its LRU.
+		if c.sharedStorageMode {
+			return
+		}
 		f := c.getElementPath(key, value)
 		c.removeFile(f)
 	}
@@ -641,9 +649,170 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64, cc CacheConfig) error 
 
 	log.Println("Finished loading disk cache files.")
 
+	// Start the shared storage leader GC loop if enabled
+	if c.sharedStorageLeader {
+		go c.runSharedStorageLeaderGC(maxSizeBytes)
+	}
+
 	return nil
 }
 
 func bytesToGigaBytes(bytes int64) float64 {
 	return float64(bytes) / (1024.0 * 1024.0 * 1024.0)
+}
+
+// fileWithAtime holds file path and access time for sorting during GC
+type fileWithAtime struct {
+	path  string
+	size  int64
+	atime time.Time
+}
+
+// runSharedStorageLeaderGC runs the garbage collection loop for shared storage leader mode.
+// It periodically scans the filesystem and evicts files based on atime when over the size limit.
+func (c *diskCache) runSharedStorageLeaderGC(maxSizeBytes int64) {
+	if !c.sharedStorageLeader {
+		return
+	}
+
+	interval := c.sharedStorageGCInterval
+	if interval <= 0 {
+		interval = 5 * time.Minute
+	}
+
+	log.Printf("Starting shared storage leader GC loop (interval: %v, max size: %.2f GB)",
+		interval, bytesToGigaBytes(maxSizeBytes))
+
+	ticker := time.NewTicker(interval)
+	for range ticker.C {
+		c.runGCCycle(maxSizeBytes)
+	}
+}
+
+// runGCCycle performs one garbage collection cycle
+func (c *diskCache) runGCCycle(maxSizeBytes int64) {
+	// Scan filesystem to get all files with their sizes and atimes
+	files, totalSize, err := c.scanFilesWithAtime()
+	if err != nil {
+		log.Printf("Warning: failed to scan cache directory for GC: %v", err)
+		return
+	}
+
+	if totalSize <= maxSizeBytes {
+		// Under limit, nothing to do
+		return
+	}
+
+	bytesToFree := totalSize - maxSizeBytes
+	log.Printf("Shared storage GC: current size %.2f GB exceeds limit %.2f GB, need to free %.2f GB",
+		bytesToGigaBytes(totalSize), bytesToGigaBytes(maxSizeBytes), bytesToGigaBytes(bytesToFree))
+
+	// Sort files by atime (oldest first)
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].atime.Before(files[j].atime)
+	})
+
+	// Delete oldest files until we've freed enough space
+	var freed int64
+	var deletedCount int
+	for _, f := range files {
+		if freed >= bytesToFree {
+			break
+		}
+
+		// Remove from our LRU if present (best effort, may not be in our index)
+		c.removeFromLRUByPath(f.path)
+
+		// Delete the file
+		err := os.Remove(f.path)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				log.Printf("Warning: failed to remove file during GC: %s: %v", f.path, err)
+			}
+			continue
+		}
+
+		freed += f.size
+		deletedCount++
+	}
+
+	log.Printf("Shared storage GC: freed %.2f GB by deleting %d files",
+		bytesToGigaBytes(freed), deletedCount)
+}
+
+// scanFilesWithAtime scans the cache directory and returns all files with their atimes
+func (c *diskCache) scanFilesWithAtime() ([]fileWithAtime, int64, error) {
+	var files []fileWithAtime
+	var totalSize int64
+
+	// Walk through all cache directories
+	for _, kindDir := range []string{"ac.v2", "cas.v2", "raw.v2"} {
+		baseDir := filepath.Join(c.dir, kindDir)
+
+		err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil // Skip errors, continue walking
+			}
+
+			if info.IsDir() {
+				return nil
+			}
+
+			files = append(files, fileWithAtime{
+				path:  path,
+				size:  info.Size(),
+				atime: atime.Get(info),
+			})
+			totalSize += info.Size()
+
+			return nil
+		})
+
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+
+	return files, totalSize, nil
+}
+
+// removeFromLRUByPath attempts to remove a file from the LRU by its path
+func (c *diskCache) removeFromLRUByPath(filePath string) {
+	// Parse the path to extract kind and hash
+	// Path format: <dir>/<kind>.v2/<prefix>/<hash>-<random> or <hash>-<size>-<random>
+	rel, err := filepath.Rel(c.dir, filePath)
+	if err != nil {
+		return
+	}
+
+	parts := strings.Split(rel, string(filepath.Separator))
+	if len(parts) < 3 {
+		return
+	}
+
+	kindDir := parts[0]
+	filename := parts[2]
+
+	var kind cache.EntryKind
+	switch kindDir {
+	case "ac.v2":
+		kind = cache.AC
+	case "cas.v2":
+		kind = cache.CAS
+	case "raw.v2":
+		kind = cache.RAW
+	default:
+		return
+	}
+
+	// Extract hash from filename (first 64 hex chars)
+	if len(filename) < 64 {
+		return
+	}
+	hash := filename[:64]
+
+	key := cache.LookupKey(kind, hash)
+	c.mu.Lock()
+	c.lru.RemoveKey(key)
+	c.mu.Unlock()
 }

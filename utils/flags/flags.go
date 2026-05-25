@@ -417,6 +417,12 @@ func GetCliFlags() []cli.Flag {
 			DefaultText: "1024",
 			EnvVars:     []string{"BAZEL_REMOTE_S3_MAX_IDLE_CONNS"},
 		},
+		&cli.BoolFlag{
+			Name:        "s3.shared_filesystem_mode",
+			Usage:       "When true, the S3 bucket is mapped to the same filesystem as the local disk cache. Files use local disk naming format (<hash>-<size>-<random>) and uploads are disabled since local writes are visible via S3.",
+			DefaultText: "false",
+			EnvVars:     []string{"BAZEL_REMOTE_S3_SHARED_FILESYSTEM_MODE"},
+		},
 		&cli.StringFlag{
 			Name:    "azblob.tenant_id",
 			Value:   "",
@@ -526,6 +532,25 @@ func GetCliFlags() []cli.Flag {
 			Value:       "UTC",
 			DefaultText: "UTC, ie use UTC timezone",
 			EnvVars:     []string{"BAZEL_REMOTE_LOG_TIMEZONE"},
+		},
+		&cli.BoolFlag{
+			Name:        "shared_storage_mode",
+			Usage:       "Enable shared storage mode for multiple replicas on a shared filesystem. When enabled, cache lookups check the filesystem on LRU miss to discover files written by other replicas.",
+			DefaultText: "false",
+			EnvVars:     []string{"BAZEL_REMOTE_SHARED_STORAGE_MODE"},
+		},
+		&cli.BoolFlag{
+			Name:        "shared_storage_leader",
+			Usage:       "When using shared_storage_mode, designate this instance as the leader responsible for garbage collection. Only one replica should have this enabled.",
+			DefaultText: "false",
+			EnvVars:     []string{"BAZEL_REMOTE_SHARED_STORAGE_LEADER"},
+		},
+		&cli.DurationFlag{
+			Name:        "shared_storage_gc_interval",
+			Usage:       "When running as shared storage leader, how often to run garbage collection.",
+			Value:       300000000000, // 5 minutes in nanoseconds
+			DefaultText: "5m",
+			EnvVars:     []string{"BAZEL_REMOTE_SHARED_STORAGE_GC_INTERVAL"},
 		},
 	}
 }

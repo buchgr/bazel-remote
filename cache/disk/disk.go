@@ -90,6 +90,11 @@ type diskCache struct {
 	lru SizedLRU
 
 	gaugeCacheAge prometheus.Gauge
+
+	// Shared storage mode settings for multiple replicas on shared filesystem
+	sharedStorageMode       bool
+	sharedStorageLeader     bool
+	sharedStorageGCInterval time.Duration
 }
 
 const sha256HashStrSize = sha256.Size * 2 // Two hex characters per byte.
@@ -777,7 +782,21 @@ func (c *diskCache) Contains(ctx context.Context, kind cache.EntryKind, hash str
 	c.mu.Unlock()
 
 	if exists && !isSizeMismatch(size, foundSize) {
-		return true, foundSize
+		// In shared storage mode, verify file still exists (may have been deleted by leader GC)
+		if c.sharedStorageMode {
+			blobPath := filepath.Join(c.dir, c.FileLocation(kind, item.legacy, hash, item.size, item.random))
+			if _, err := os.Stat(blobPath); os.IsNotExist(err) {
+				// File was deleted by leader GC, remove from LRU
+				c.mu.Lock()
+				c.lru.RemoveKey(key)
+				c.mu.Unlock()
+				exists = false
+			} else {
+				return true, foundSize
+			}
+		} else {
+			return true, foundSize
+		}
 	}
 
 	if c.proxy != nil && size <= c.maxProxyBlobSize {

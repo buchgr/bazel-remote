@@ -3,6 +3,7 @@ package disk
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
@@ -114,6 +115,27 @@ func WithEndpointMetrics() Option {
 func WithMaxSizeHardLimit(maxSizeHardLimit int64) Option {
 	return func(cc *CacheConfig) error {
 		cc.maxSizeHardLimit = maxSizeHardLimit
+		return nil
+	}
+}
+
+func WithSharedStorageMode(enabled bool) Option {
+	return func(cc *CacheConfig) error {
+		cc.diskCache.sharedStorageMode = enabled
+		return nil
+	}
+}
+
+func WithSharedStorageLeader(enabled bool) Option {
+	return func(cc *CacheConfig) error {
+		cc.diskCache.sharedStorageLeader = enabled
+		return nil
+	}
+}
+
+func WithSharedStorageGCInterval(interval time.Duration) Option {
+	return func(cc *CacheConfig) error {
+		cc.diskCache.sharedStorageGCInterval = interval
 		return nil
 	}
 }
