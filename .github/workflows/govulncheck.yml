@@ -1,0 +1,18 @@
+name: govulncheck
+on:
+  push:
+    tags:
+      - v*
+    branches:
+      - master
+  pull_request:
+jobs:
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - id: govulncheck
+        uses: golang/govulncheck-action@v1
+        with:
+           go-version-input: 1.26.4
+           go-package: ./...
