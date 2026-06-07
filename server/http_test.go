@@ -8,17 +8,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk"
-	"github.com/buchgr/bazel-remote/v2/utils"
+	testutils "github.com/buchgr/bazel-remote/v2/utils"
 
 	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 	"google.golang.org/protobuf/proto"
@@ -562,5 +564,37 @@ func TestManglingACKeys(t *testing.T) {
 	h.CacheHandler(respWriter, req)
 	if statusCode != http.StatusNotFound {
 		t.Errorf("Wrong status code, expected %d, got %d", http.StatusNotFound, statusCode)
+	}
+}
+
+func TestResponseLog(t *testing.T) {
+	cacheDir := testutils.TempDir(t)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
+
+	blobSize := int64(1024)
+
+	data, hash := testutils.RandomDataAndHash(blobSize)
+
+	// Add some overhead for likely CAS blob storage expansion.
+	cacheSize := blobSize*2 + disk.BlockSize
+
+	c, err := disk.New(cacheDir, cacheSize, disk.WithAccessLogger(testutils.NewSilentLogger()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var w bytes.Buffer
+	logger := log.New(&w, "bz-remote", 0)
+	h := NewHTTPCache(c, logger, testutils.NewSilentLogger(), true, false, false, false, "", "", math.MaxInt64)
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(h.CacheHandler)
+
+	pr := httptest.NewRequest("PUT", "/cas/"+hash, bytes.NewReader(data))
+	pr.Header.Add("X-Forwarded-For", "10.11.12.13")
+	handler.ServeHTTP(rr, pr)
+
+	logLine := w.String()
+	if !strings.Contains(logLine, "10.11.12.13") {
+		t.Errorf("expected logged IP to use X-Forwarded-For header but saw `%s`", logLine)
 	}
 }
