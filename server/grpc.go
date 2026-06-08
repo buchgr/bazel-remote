@@ -43,6 +43,7 @@ type grpcServer struct {
 	depsCheck           bool
 	mangleACKeys        bool
 	maxCasBlobSizeBytes int64
+	netrcCredentials    netrcFileCredentials
 }
 
 var readOnlyMethods = map[string]struct{}{
@@ -94,6 +95,7 @@ func ServeGRPC(l net.Listener, srv *grpc.Server,
 	pb.RegisterContentAddressableStorageServer(srv, s)
 	bytestream.RegisterByteStreamServer(srv, s)
 	if enableRemoteAssetAPI {
+		s.netrcCredentials = loadNetrcCredentials(e)
 		asset.RegisterFetchServer(srv, s)
 	}
 
