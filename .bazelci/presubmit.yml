@@ -10,6 +10,9 @@ tasks:
       - "..."
   macos:
     platform: macos
+    environment:
+      ANDROID_HOME: ""
+      ANDROID_NDK_HOME: ""
     build_targets:
       # Skip the (linux) container image targets, just build the binary.
       - "//:bazel-remote"
