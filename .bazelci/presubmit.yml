@@ -9,7 +9,7 @@ tasks:
     test_targets:
       - "..."
   macos:
-    platform: macos
+    platform: macos_arm64
     build_targets:
       # Skip the (linux) container image targets, just build the binary.
       - "//:bazel-remote"
