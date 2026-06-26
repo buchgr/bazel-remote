@@ -166,16 +166,24 @@ func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
 		resourceName := fmt.Sprintf(template, uuid.New().String(), item.Hash, item.LogicalSize)
 
 		firstIteration := true
+		writeOffset := int64(0)
 		for {
-			n, err := item.Rc.Read(buf)
-			if err != nil && err != io.EOF {
-				logResponse(r.errorLogger, "Write", err.Error(), item.Kind, item.Hash)
+			n, readErr := item.Rc.Read(buf)
+			if readErr != nil && readErr != io.EOF {
+				logResponse(r.errorLogger, "Write", readErr.Error(), item.Kind, item.Hash)
 				err := stream.CloseSend()
 				if err != nil {
 					logResponse(r.errorLogger, "Write", err.Error(), item.Kind, item.Hash)
 				}
 				return
 			}
+
+			// The ByteStream Write protocol requires finish_write=true on the
+			// last WriteRequest. We set it when the reader signals EOF, whether
+			// that comes with the last data chunk (n>0, readErr==io.EOF) or as
+			// a standalone termination (n==0, readErr==io.EOF).
+			finishWrite := readErr == io.EOF
+
 			if n > 0 {
 				rn := ""
 				if firstIteration {
@@ -184,15 +192,40 @@ func (r *remoteGrpcProxyCache) UploadFile(item backendproxy.UploadReq) {
 				}
 				req := &bs.WriteRequest{
 					ResourceName: rn,
+					WriteOffset:  writeOffset,
 					Data:         buf[:n],
+					FinishWrite:  finishWrite,
 				}
-				err := stream.Send(req)
-				if err != nil {
+				if err := stream.Send(req); err != nil {
 					logResponse(r.errorLogger, "Write", err.Error(), item.Kind, item.Hash)
 					return
 				}
-			} else {
-				_, err = stream.CloseAndRecv()
+				writeOffset += int64(n)
+			}
+
+			if finishWrite {
+				if n == 0 {
+					// All data was sent in previous iterations without FinishWrite.
+					// io.Reader may return (n>0, nil) for the last chunk then
+					// (0, io.EOF) on the next call. Send a zero-data terminal
+					// message with the correct write_offset so the server sees
+					// finish_write=true at the right position.
+					rn := ""
+					if firstIteration {
+						firstIteration = false
+						rn = resourceName
+					}
+					req := &bs.WriteRequest{
+						ResourceName: rn,
+						WriteOffset:  writeOffset,
+						FinishWrite:  true,
+					}
+					if err := stream.Send(req); err != nil {
+						logResponse(r.errorLogger, "Write", err.Error(), item.Kind, item.Hash)
+						return
+					}
+				}
+				_, err := stream.CloseAndRecv()
 				if err != nil {
 					logResponse(r.errorLogger, "Write", err.Error(), item.Kind, item.Hash)
 					return
@@ -264,9 +297,15 @@ func (r *remoteGrpcProxyCache) Get(ctx context.Context, kind cache.EntryKind, ha
 		// is enabled. We can treat them as AC in this scope
 		fallthrough
 	case cache.AC:
+		actionDigestSize := int64(-1)
+		if v := ctx.Value(cache.ActionDigestSizeBytesKey); v != nil {
+			if sz, ok := v.(int64); ok {
+				actionDigestSize = sz
+			}
+		}
 		digest := pb.Digest{
 			Hash:      hash,
-			SizeBytes: -1,
+			SizeBytes: actionDigestSize,
 		}
 
 		req := &pb.GetActionResultRequest{ActionDigest: &digest}
