@@ -101,6 +101,15 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 		return status.Error(codes.OutOfRange, msg)
 	}
 
+	// Bound the memory used to serve concurrent reads: hold budget
+	// proportional to the blob size for the whole duration of the stream
+	// (the gRPC send buffers accumulate while streaming, after Get returns).
+	releaseInflight, err := s.acquireInflight(resp.Context(), size)
+	if err != nil {
+		return status.Error(codes.Canceled, err.Error())
+	}
+	defer releaseInflight()
+
 	var rc io.ReadCloser
 	var foundSize int64
 
@@ -366,6 +375,18 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 
 	cmp := casblob.Identity
 
+	// releaseInflight is assigned once (in the receive goroutine, after the
+	// blob size is known) and released when Write returns. Reading it here is
+	// safe: Write only returns after receiving from recvResult/putResult, which
+	// happens-after the assignment. It stays nil (no-op) on paths that never
+	// acquire (e.g. bad resource, blob already present, or limit disabled).
+	var releaseInflight func()
+	defer func() {
+		if releaseInflight != nil {
+			releaseInflight()
+		}
+	}()
+
 	go func() {
 		firstIteration := true
 		var resourceName string
@@ -434,6 +455,15 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 					recvResult <- err
 					return
 				}
+
+				// Bound the memory used to receive/compress concurrent uploads.
+				// Held for the whole Write (released by the outer defer).
+				release, aerr := s.acquireInflight(srv.Context(), size)
+				if aerr != nil {
+					recvResult <- status.Error(codes.Canceled, aerr.Error())
+					return
+				}
+				releaseInflight = release
 
 				var rc io.ReadCloser = pr
 				if cmp == casblob.Zstandard {
