@@ -39,7 +39,11 @@ type ZstdImpl interface {
 	GetDecoder(in io.ReadCloser) (io.ReadCloser, error)
 	GetEncoder(out io.WriteCloser) (zstdEncoder, error)
 	DecodeAll(in []byte) ([]byte, error)
-	EncodeAll(in []byte) []byte
+
+	// EncodeAll compresses src and appends the result to dst, returning the
+	// updated slice (like github.com/klauspost/compress/zstd's EncodeAll). A dst
+	// with spare capacity is reused instead of allocating; pass nil to allocate.
+	EncodeAll(src, dst []byte) []byte
 }
 
 type zstdEncoder interface {
