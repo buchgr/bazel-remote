@@ -1854,3 +1854,87 @@ func TestResultFromProxyTooLargeToReserve(t *testing.T) {
 
 	close(fakeProxy.getEvents)
 }
+
+// --- Read/decompress hot-path benchmarks ---
+//
+// CAS blobs are stored zstd-compressed (the default storageMode), so serving an
+// uncompressed Get decompresses on the fly. Unlike the write path (which
+// allocated a fresh compressed-output buffer per 1 MiB chunk), the read path
+// gets its zstd decoder from a sync.Pool and reuses it, so steady-state
+// per-request churn is expected to be modest. The memory that drives OOM under
+// download bursts is the *live* per-stream state (pooled decoder window buffers
+// plus gRPC send buffers) multiplied by unbounded concurrency, not per-request
+// garbage. These benchmarks quantify the per-request read allocations; the
+// serial-vs-parallel gap hints at how much extra state each concurrent reader
+// pins (e.g. an additional pooled decoder).
+const readBenchBlobSize = 16 * 1024 * 1024 // 16 MiB
+const readBenchChunk = 2 * 1024 * 1024     // mirror the server's maxChunkSize reads
+
+// benchReadSetup creates a cache holding one large incompressible CAS blob and
+// returns the cache and the blob's hash.
+func benchReadSetup(b *testing.B) (Cache, string) {
+	b.Helper()
+	dir := b.TempDir()
+	dc, err := New(dir, readBenchBlobSize*4, WithAccessLogger(testutils.NewSilentLogger()))
+	if err != nil {
+		b.Fatal(err)
+	}
+	data, hash := testutils.RandomDataAndHash(readBenchBlobSize)
+	if err := dc.Put(context.Background(), cache.CAS, hash, readBenchBlobSize, bytes.NewReader(data)); err != nil {
+		b.Fatal(err)
+	}
+	return dc, hash
+}
+
+// drainGet performs one Get + full decompressing read into a reused buffer.
+func drainGet(b *testing.B, dc Cache, hash string, buf []byte) {
+	rc, _, err := dc.Get(context.Background(), cache.CAS, hash, readBenchBlobSize, 0)
+	if err != nil {
+		b.Fatal(err)
+	}
+	for {
+		_, rerr := rc.Read(buf)
+		if rerr == io.EOF {
+			break
+		}
+		if rerr != nil {
+			_ = rc.Close()
+			b.Fatal(rerr)
+		}
+	}
+	if err := rc.Close(); err != nil {
+		b.Fatal(err)
+	}
+}
+
+// BenchmarkDiskCacheGetDecompress measures per-request allocations for serving
+// (decompressing) a single blob. Run with -benchmem.
+func BenchmarkDiskCacheGetDecompress(b *testing.B) {
+	dc, hash := benchReadSetup(b)
+	buf := make([]byte, readBenchChunk)
+
+	b.SetBytes(readBenchBlobSize)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		drainGet(b, dc, hash, buf)
+	}
+}
+
+// BenchmarkDiskCacheGetDecompressParallel serves the blob from many goroutines
+// at once, approximating a download burst. Each goroutine uses its own read
+// buffer; any growth in B/op vs the serial benchmark reflects extra live state
+// pinned per concurrent reader (notably additional pooled zstd decoders).
+func BenchmarkDiskCacheGetDecompressParallel(b *testing.B) {
+	dc, hash := benchReadSetup(b)
+
+	b.SetBytes(readBenchBlobSize)
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		buf := make([]byte, readBenchChunk)
+		for pb.Next() {
+			drainGet(b, dc, hash, buf)
+		}
+	})
+}
