@@ -22,6 +22,8 @@ const (
 	Zstandard CompressionType = 1
 )
 
+// If changed to < 128 KiB, WriteAndClose's output-buffer sizing must be updated
+// (see the compressedChunkBuffer comment there).
 const defaultChunkSize = 1024 * 1024 * 1 // 1M
 
 // 4 bytes, to be written to disk in little-endian format.
@@ -396,8 +398,7 @@ func GetZstdReadCloser(zstd zstdimpl.ZstdImpl, f *os.File, expectedSize int64, o
 	}
 
 	chunkToRecompress := uncompressedFirstChunk[remainder:]
-	dst := make([]byte, 0, compressBound(len(chunkToRecompress)))
-	recompressedChunk := zstd.EncodeAll(dst, chunkToRecompress)
+	recompressedChunk := zstd.EncodeAll(chunkToRecompress, nil)
 
 	br := bytes.NewReader(recompressedChunk)
 	if chunkNum == int64(len(h.chunkOffsets)-2) {
@@ -518,27 +519,6 @@ var chunkBufferPool = &sync.Pool{
 	},
 }
 
-// compressBound returns the guaranteed maximum compressed size of srcSize
-// bytes. It is a Go port of the ZSTD_COMPRESSBOUND() C macro from libzstd:
-//
-//	#define ZSTD_COMPRESSBOUND(srcSize) \
-//	    ((srcSize) + ((srcSize)>>8) + \
-//	     (((srcSize) < (128<<10)) ? (((128<<10) - (srcSize)) >> 11) : 0))
-//
-// zstd's own C.ZSTD_compressBound() is used by the cgo implementation; this
-// keeps the pure-Go path from depending on any single backend's internals.
-// We use it to size the reusable compressed-output buffer so that EncodeAll
-// never has to grow (and thus reallocate) it, even for incompressible chunks
-// whose output is slightly larger than the input.
-func compressBound(srcSize int) int {
-	const lowLimit = 128 << 10 // 128 KiB
-	margin := 0
-	if srcSize < lowLimit {
-		margin = (lowLimit - srcSize) >> 11
-	}
-	return srcSize + (srcSize >> 8) + margin
-}
-
 // Read from r and write to f, using CompressionType t.
 // Return the size on disk or an error if something went wrong.
 func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t CompressionType, hash string, size int64) (int64, error) {
@@ -614,10 +594,15 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 	}()
 	uncompressedChunk := *chunkBufferPtr
 
-	// Reusable output buffer for the compressed chunks. Sized to the maximum
-	// compressed size of a chunk so EncodeAll writes into it without growing,
-	// and reused for every chunk of this blob.
-	compressedChunkBuffer := make([]byte, 0, compressBound(int(chunkSize)))
+	// Output buffer reused for every chunk, sized to zstd's ZSTD_COMPRESSBOUND
+	// (srcSize + srcSize>>8 for a >= 128 KiB input, the incompressible worst
+	// case) so EncodeAll never grows it. This also bounds the pure-Go
+	// github.com/klauspost/compress/zstd backend for any such size:
+	// Encoder.MaxEncodedSize is srcSize + a <=14-byte frame header + 3 bytes per
+	// 64 KiB block (65 B for a 1 MiB chunk), far under the srcSize>>8 margin.
+	// An undersized buffer would only cost a reallocation, never fail, so this
+	// bound is best-effort, not a correctness requirement.
+	compressedChunkBuffer := make([]byte, 0, int(chunkSize+chunkSize>>8))
 
 	hasher := sha256.New()
 
@@ -636,7 +621,7 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 			return -1, fmt.Errorf("only managed to read %d of %d bytes: %w", numRead, chunkEnd, err)
 		}
 
-		compressedChunk := zstd.EncodeAll(compressedChunkBuffer[:0], uncompressedChunk[0:chunkEnd])
+		compressedChunk := zstd.EncodeAll(uncompressedChunk[0:chunkEnd], compressedChunkBuffer[:0])
 
 		hasher.Write(uncompressedChunk[0:chunkEnd])
 

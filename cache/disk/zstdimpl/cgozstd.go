@@ -35,8 +35,8 @@ func (cgoZstd) DecodeAll(in []byte) ([]byte, error) {
 	return gozstd.Decompress(nil, in)
 }
 
-func (cgoZstd) EncodeAll(dst, in []byte) []byte {
-	return gozstd.CompressLevel(dst, in, compressionLevel)
+func (cgoZstd) EncodeAll(src, dst []byte) []byte {
+	return gozstd.CompressLevel(dst, src, compressionLevel)
 }
 
 // -- Reader pool

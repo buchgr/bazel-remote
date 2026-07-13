@@ -83,16 +83,13 @@ func TestZstdFromLegacy(t *testing.T) {
 	}
 }
 
-// blobSizeForBenchmark is deliberately several times the 1 MiB chunk size, so
-// that WriteAndClose compresses the blob in multiple chunks. Each chunk in the
-// zstd write path currently allocates a fresh output buffer
-// (zstd.EncodeAll(in, nil)), so the transient garbage produced per Put scales
-// with the blob size. This is the allocation churn that drives the OOM under
-// concurrent upload bursts (see bazel-remote-oom-findings.md).
+// blobSizeForBenchmark spans several 1 MiB chunks so WriteAndClose compresses
+// in a loop, exercising the per-chunk output-buffer reuse.
+// See https://github.com/buchgr/bazel-remote/pull/907.
 const blobSizeForBenchmark = 16 * 1024 * 1024 // 16 MiB => 16 chunks
 
-// writeBlob runs a single WriteAndClose of the pre-generated blob to a fresh
-// temp file, then removes it. It is the unit of work for the benchmarks below.
+// writeBlob is the benchmarks' unit of work: one WriteAndClose to a fresh temp
+// file, then remove it.
 func writeBlob(tb testing.TB, zstd zstdimpl.ZstdImpl, dir string, data []byte, hash string) {
 	f, err := os.CreateTemp(dir, "blob-")
 	if err != nil {
@@ -109,18 +106,16 @@ func writeBlob(tb testing.TB, zstd zstdimpl.ZstdImpl, dir string, data []byte, h
 	}
 }
 
-// BenchmarkWriteAndCloseZstd measures the allocations of the zstd write path
-// for a single upload. Run with -benchmem; the "B/op" figure is dominated by
-// the per-chunk compressed-output buffers and is the regression metric for the
-// output-buffer pooling fix.
+// BenchmarkWriteAndCloseZstd measures allocations of the zstd write path for a
+// single upload. Run with -benchmem; B/op is the regression metric.
 func BenchmarkWriteAndCloseZstd(b *testing.B) {
 	zstd, err := zstdimpl.Get("go")
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	// Random (incompressible) data keeps each chunk's output buffer close to
-	// the full 1 MiB, i.e. the worst case for the per-chunk allocation.
+	// Incompressible data is the worst case: each chunk's output stays near the
+	// full 1 MiB.
 	data, hash := testutils.RandomDataAndHash(blobSizeForBenchmark)
 	dir := b.TempDir()
 
@@ -133,9 +128,8 @@ func BenchmarkWriteAndCloseZstd(b *testing.B) {
 	}
 }
 
-// BenchmarkWriteAndCloseZstdParallel reproduces the concurrent upload burst:
-// many Puts compressing at once, each churning per-chunk output buffers with no
-// memory backpressure. Run with -benchmem to see the aggregate allocation rate.
+// BenchmarkWriteAndCloseZstdParallel reproduces a concurrent upload burst: many
+// Puts compressing at once. Run with -benchmem for the aggregate alloc rate.
 func BenchmarkWriteAndCloseZstdParallel(b *testing.B) {
 	zstd, err := zstdimpl.Get("go")
 	if err != nil {

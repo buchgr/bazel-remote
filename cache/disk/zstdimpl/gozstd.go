@@ -65,6 +65,6 @@ func (goZstd) DecodeAll(in []byte) ([]byte, error) {
 	return decoder.DecodeAll(in, nil)
 }
 
-func (goZstd) EncodeAll(dst, in []byte) []byte {
-	return encoder.EncodeAll(in, dst)
+func (goZstd) EncodeAll(src, dst []byte) []byte {
+	return encoder.EncodeAll(src, dst)
 }
