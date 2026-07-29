@@ -30,7 +30,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.4
 	github.com/go-ldap/ldap/v3 v3.4.12
 	github.com/johannesboyne/gofakes3 v0.0.0-20230506070712-04da935ef877
-	github.com/valyala/gozstd v1.25.0
+	github.com/valyala/gozstd v1.26.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260414002931-afd174a4e478
 	google.golang.org/genproto/googleapis/bytestream v0.0.0-20260114163908-3f89685c29c3
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260720211330-0afa2a65878a
