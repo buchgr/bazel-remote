@@ -462,6 +462,7 @@ func startGrpcServer(c *config.Config, grpcServer **grpc.Server,
 		c.EnableACKeyInstanceMangling,
 		enableRemoteAssetAPI,
 		c.MaxBlobSize,
+		c.MaxInflightBytes,
 		diskCache, c.AccessLogger, c.ErrorLogger)
 }
 

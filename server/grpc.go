@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 
 	"google.golang.org/genproto/googleapis/bytestream"
 	"google.golang.org/grpc"
@@ -16,6 +17,8 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+
+	"golang.org/x/sync/semaphore"
 
 	asset "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/asset/v1"
 	pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
@@ -43,6 +46,39 @@ type grpcServer struct {
 	depsCheck           bool
 	mangleACKeys        bool
 	maxCasBlobSizeBytes int64
+
+	// maxInflightBytes bounds the total size of blobs being served/received
+	// concurrently, providing memory backpressure. Zero disables the limit.
+	// inflightSem is nil when the limit is disabled.
+	maxInflightBytes int64
+	inflightSem      *semaphore.Weighted
+}
+
+// acquireInflight reserves budget for a request handling a blob of the given
+// size, blocking (with backpressure) until the budget is available. It returns
+// a release function that must be called when the request completes. The weight
+// is clamped to [1, maxInflightBytes] so that a single blob larger than the
+// whole budget is still served (serialized) rather than deadlocking. When the
+// limit is disabled the returned release is a no-op.
+func (s *grpcServer) acquireInflight(ctx context.Context, size int64) (func(), error) {
+	if s.inflightSem == nil {
+		return func() {}, nil
+	}
+
+	w := size
+	if w < 1 {
+		w = 1
+	}
+	if w > s.maxInflightBytes {
+		w = s.maxInflightBytes
+	}
+
+	if err := s.inflightSem.Acquire(ctx, w); err != nil {
+		return func() {}, err
+	}
+
+	var once sync.Once
+	return func() { once.Do(func() { s.inflightSem.Release(w) }) }, nil
 }
 
 var readOnlyMethods = map[string]struct{}{
@@ -64,6 +100,7 @@ func ListenAndServeGRPC(
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
 	maxCasBlobSizeBytes int64,
+	maxInflightBytes int64,
 	c disk.Cache, a cache.Logger, e cache.Logger) error {
 
 	listener, err := net.Listen(network, addr)
@@ -71,7 +108,7 @@ func ListenAndServeGRPC(
 		return err
 	}
 
-	return ServeGRPC(listener, srv, validateACDeps, mangleACKeys, enableRemoteAssetAPI, maxCasBlobSizeBytes, c, a, e)
+	return ServeGRPC(listener, srv, validateACDeps, mangleACKeys, enableRemoteAssetAPI, maxCasBlobSizeBytes, maxInflightBytes, c, a, e)
 }
 
 func ServeGRPC(l net.Listener, srv *grpc.Server,
@@ -79,7 +116,13 @@ func ServeGRPC(l net.Listener, srv *grpc.Server,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
 	maxCasBlobSizeBytes int64,
+	maxInflightBytes int64,
 	c disk.Cache, a cache.Logger, e cache.Logger) error {
+
+	var inflightSem *semaphore.Weighted
+	if maxInflightBytes > 0 {
+		inflightSem = semaphore.NewWeighted(maxInflightBytes)
+	}
 
 	s := &grpcServer{
 		cache:               c,
@@ -88,6 +131,8 @@ func ServeGRPC(l net.Listener, srv *grpc.Server,
 		depsCheck:           validateACDepsCheck,
 		mangleACKeys:        mangleACKeys,
 		maxCasBlobSizeBytes: maxCasBlobSizeBytes,
+		maxInflightBytes:    maxInflightBytes,
+		inflightSem:         inflightSem,
 	}
 	pb.RegisterActionCacheServer(srv, s)
 	pb.RegisterCapabilitiesServer(srv, s)
