@@ -112,6 +112,15 @@ which can be enabled with the `--experimental_remote_asset_api` flag.
 To use this with Bazel, specify
 [--experimental_remote_downloader=grpc://replace-with-your.host:port](https://docs.bazel.build/versions/master/command-line-reference.html#flag--experimental_remote_downloader).
 
+#### HTTP authentication for remote asset
+
+When fetching `http` or `https` URIs, bazel-remote can use credentials from
+the `.netrc` file in the home directory of the bazel-remote process. Set the
+`NETRC` environment variable to use a different file. Credentials from `.netrc`
+are only used when the request does not already include an `Authorization`
+header and the URI does not include user info. `default` entries in `.netrc`
+are ignored, since they might mistakenly exfiltrate credentials.
+
 ### Byte Stream compressed-blobs
 
 This version of bazel-remote supports the
