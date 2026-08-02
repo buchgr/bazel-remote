@@ -200,12 +200,18 @@ func (h *httpCache) handleGetValidAC(w http.ResponseWriter, r *http.Request, has
 
 // Helper function for logging responses
 func (h *httpCache) logResponse(code int, r *http.Request) {
+	remoteAddr := r.RemoteAddr
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// XFF format: client, proxy1, proxy2
+		parts := strings.Split(xff, ",")
+		remoteAddr = strings.TrimSpace(parts[0])
+	}
 	// Parse the client ip:port
 	var clientAddress string
 	var err error
-	clientAddress, _, err = net.SplitHostPort(r.RemoteAddr)
+	clientAddress, _, err = net.SplitHostPort(remoteAddr)
 	if err != nil {
-		clientAddress = r.RemoteAddr
+		clientAddress = remoteAddr
 	}
 	h.accessLogger.Printf("%4s %d %15s %s", r.Method, code, clientAddress, r.URL.Path)
 }
