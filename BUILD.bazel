@@ -1,6 +1,6 @@
 load("@gazelle//:def.bzl", "gazelle")
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
-load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load", "oci_push")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
 load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 gazelle(
@@ -139,9 +139,9 @@ oci_image(
 )
 
 oci_load(
-    name = "bazel-remote-image-tarball",
+    name = "bazel-remote-image-amd64-tarball",
     image = ":bazel-remote-image",
-    repo_tags = ["buchgr/bazel-remote-cache:tmp-amd64"],
+    repo_tags = ["bazel-remote-cache:tmp-amd64"],
 )
 
 pkg_tar(
@@ -174,30 +174,5 @@ oci_image(
 oci_load(
     name = "bazel-remote-image-arm64-tarball",
     image = ":bazel-remote-image-arm64",
-    repo_tags = ["buchgr/bazel-remote-cache:tmp-arm64"],
-)
-
-# The following container_push targets push to "tmp-amd64" and "tmp-arm64"
-# tags, so they can be combined into a multiarch tag on dockerhub. This
-# isn't currently possible with rules_docker, so instead we rely on some
-# external commands to be run after the tmp-* tags are pushed. See the
-# docker/push_to_dockerhub script.
-#
-# Background:
-# https://github.com/bazelbuild/rules_docker/issues/1599
-
-oci_push(
-    name = "push_to_dockerhub_amd64",
-    image = ":bazel-remote-image",
-    remote_tags = ["tmp-amd64"],
-    repository = "buchgr/bazel-remote-cache",
-    visibility = ["//visibility:public"],
-)
-
-oci_push(
-    name = "push_to_dockerhub_arm64",
-    image = ":bazel-remote-image-arm64",
-    remote_tags = ["tmp-arm64"],
-    repository = "buchgr/bazel-remote-cache",
-    visibility = ["//visibility:public"],
+    repo_tags = ["bazel-remote-cache:tmp-arm64"],
 )

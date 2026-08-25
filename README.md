@@ -24,6 +24,7 @@ commodity hardware and AWS servers. Outgoing bandwidth can exceed 15 Gbit/s on t
 ## HTTP/1.1 REST API
 
 Cache entries are set and retrieved by key, and there are two types of keys that can be used:
+
 1. Content addressed storage (CAS), where the key is the lowercase SHA256 hash of the entry.
    The REST API for these entries is: `/cas/<key>` or with an optional but ignored instance name:
    `/<instance>/cas/<key>`.
@@ -60,6 +61,7 @@ for GET requests and `Content-type: application/json` for PUT requests.
 **/status**
 
 Returns the cache status/info.
+
 ```
 $ curl http://localhost:8080/status
 {
@@ -78,6 +80,7 @@ $ curl http://localhost:8080/status
 
 The empty CAS blob is always available, even if the cache is empty. This can be used to test that
 a bazel-remote instance is running and accepting requests.
+
 ```
 $ curl --head --fail http://localhost:8080/cas/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 HTTP/1.1 200 OK
@@ -487,7 +490,6 @@ max_size: 100
 # use unix:///path/to/socket.sock, where /path/to/socket.sock can be
 # either an absolute or relative path to a socket path.
 http_address: 0.0.0.0:8080
-
 # The server listener address for gRPC (unix sockets are also supported
 # as described above):
 #grpc_address: 0.0.0.0:9092
@@ -633,7 +635,7 @@ http_address: 0.0.0.0:8080
 #  auth_method: environment_credential
 #
 #  auth_method: default
-  
+
 # If set to a valid port number, then serve /debug/pprof/* URLs here:
 #profile_port: 7070
 # IP address to use, if profiling is enabled:
@@ -689,16 +691,16 @@ See [examples/docker-compose.yml](examples/docker-compose.yml) for an example co
 
 ### Kubernetes notes
 
-* See [examples/kubernetes.yml](examples/kubernetes.yml) for an example
+- See [examples/kubernetes.yml](examples/kubernetes.yml) for an example
   configuration.
 
-* Don't name your deployment `bazel-remote`!
-  
+- Don't name your deployment `bazel-remote`!
+
   Kubernetes sets some environment variables based on this name, which conflict
   with the `BAZEL_REMOTE_*` environment variables that bazel-remote tries to
   parse.
 
-* bazel-remote supports the `/grpc.health.v1.Health/Check` service, which you can
+- bazel-remote supports the `/grpc.health.v1.Health/Check` service, which you can
   configure like so:
   ```
   alb.ingress.kubernetes.io/backend-protocol: HTTP
@@ -715,9 +717,9 @@ See [examples/docker-compose.yml](examples/docker-compose.yml) for an example co
 The command below will build a docker image from source and install it into your local docker registry.
 
 ```bash
-$ bazel run :bazel-remote-image-tarball
+$ bazel run :bazel-remote-image-amd64-tarball
 # Ensure /your/path/to/data exists and is writable (e.g. by UID 65532)
-$ docker run -v /your/path/to/data:/data buchgr/bazel-remote-cache:tmp-amd64 --max_size 5 --dir /data
+$ docker run -v /your/path/to/data:/data bazel-remote-cache:tmp-amd64 --max_size 5 --dir /data
 ```
 
 ### ARM64 docker image
@@ -729,7 +731,7 @@ To build a docker image for ARM64:
 ```bash
 $ bazel run :bazel-remote-image-arm64-tarball
 # Ensure /your/path/to/data exists and is writable (e.g. by UID 65532)
-$ docker run -v /your/path/to/data:/data buchgr/bazel-remote-cache:tmp-arm64 --max_size 5 --dir /data
+$ docker run -v /your/path/to/data:/data bazel-remote-cache:tmp-arm64 --max_size 5 --dir /data
 ```
 
 ## Build a standalone Linux binary
@@ -852,6 +854,7 @@ To avoid leaking your password in log files, you can place this flag in a
 
 To use mutual TLS with bazel, use a `grpcs` URL for the `--remote_cache`
 argument, and add the following flags:
+
 ```bash
 	--tls_certificate=path/to/ca.cert
 	--tls_client_certificate=path/to/client/cert.cert
