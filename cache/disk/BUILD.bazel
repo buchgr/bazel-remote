@@ -37,6 +37,7 @@ go_test(
         "disk_test.go",
         "findmissing_test.go",
         "lru_test.go",
+        "proxy_verify_test.go",
     ],
     embed = [":go_default_library"],
     deps = [
