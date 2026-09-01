@@ -2,6 +2,7 @@ package disk
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -585,6 +586,21 @@ func (c *diskCache) GetZstd(ctx context.Context, hash string, size int64, offset
 	return c.get(ctx, cache.CAS, hash, size, offset, true)
 }
 
+// errReader remembers the first error of the reader it wraps, other than io.EOF. This tells
+// them apart from errors about the data, which may come back wrapped by a zstd decoder.
+type errReader struct {
+	r   io.Reader
+	err error
+}
+
+func (e *errReader) Read(p []byte) (int, error) {
+	n, err := e.r.Read(p)
+	if err != nil && err != io.EOF && e.err == nil {
+		e.err = err
+	}
+	return n, err
+}
+
 func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, size int64, offset int64, zstd bool) (rc io.ReadCloser, s int64, rErr error) {
 	// The hash format is checked properly in the http/grpc code.
 	// Just perform a simple/fast check here, to catch bad tests.
@@ -701,9 +717,41 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 
 	blobFile = tf.Name()
 
+	// Don't trust a proxy backend to return the blob that was asked for: verify CAS blobs.
+	// Each case closes tf.
 	var sizeOnDisk int64
-	sizeOnDisk, err = io.Copy(tf, r)
-	_ = tf.Close()
+	switch {
+	case legacy:
+		verifier := sha256verifier.New(hash, foundSize, tf)
+		sizeOnDisk, err = io.Copy(verifier, r)
+		// Keep a copy error rather than the size mismatch that it causes.
+		err = cmp.Or(err, verifier.Close())
+	case kind == cache.CAS:
+		// Proxy backends return compressed CAS blobs in the on-disk format, which is also a
+		// valid zstd stream. Decode and write it like an upload, so that neither its header
+		// nor its chunk table has to be trusted.
+		src := &errReader{r: r}
+		var dec io.ReadCloser
+		dec, err = c.zstd.GetDecoder(io.NopCloser(src))
+		if err != nil {
+			_ = tf.Close()
+			break
+		}
+		sizeOnDisk, err = casblob.WriteAndClose(c.zstd, dec, tf, c.storageMode, hash, foundSize)
+		_ = dec.Close()
+		// Failing to read from the proxy backend is an I/O error, not bad input.
+		err = cmp.Or(src.err, err)
+	default:
+		// AC and raw entries are keyed by action digest, not by a hash of their contents, so
+		// nothing can check them.
+		sizeOnDisk, err = io.Copy(tf, r)
+		err = cmp.Or(err, tf.Close())
+	}
+	// Bad data from the proxy backend is a cache miss, but I/O errors are internal errors.
+	if errors.Is(err, sha256verifier.ErrMismatch) || errors.Is(err, casblob.ErrBadInput) {
+		log.Printf("WARNING: proxy backend returned a bad CAS blob for %s: %v", hash, err)
+		return nil, -1, nil
+	}
 	if err != nil {
 		return nil, -1, internalErr(err)
 	}
