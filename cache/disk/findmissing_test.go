@@ -9,6 +9,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 	testutils "github.com/buchgr/bazel-remote/v2/utils"
@@ -88,6 +89,9 @@ func TestFilterNonNIl(t *testing.T) {
 
 type testCWProxy struct {
 	blob string
+
+	// Only read once the workers are done with it.
+	containsCalls int
 }
 
 func (p *testCWProxy) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
@@ -98,6 +102,7 @@ func (p *testCWProxy) Get(ctx context.Context, kind cache.EntryKind, hash string
 }
 
 func (p *testCWProxy) Contains(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (bool, int64) {
+	p.containsCalls++
 	if kind == cache.CAS && hash == p.blob {
 		return true, 42
 	}
@@ -153,6 +158,49 @@ func TestContainsWorker(t *testing.T) {
 
 	if digests[1] == nil {
 		t.Error("Expected digests[1] to not be found in the proxy and left as-is")
+	}
+}
+
+// A present blob is checked once, a missing one every time.
+func TestContainsWorkerCachesWhatTheProxyHas(t *testing.T) {
+	t.Parallel()
+
+	tp := testCWProxy{blob: "9205adc12a2c8b65e7cd77918ff8e6e20f39bdd0b7fc4b984abfd690c79d80c1"}
+
+	c := diskCache{
+		accessLogger:  testutils.NewSilentLogger(),
+		proxy:         &tp,
+		containsQueue: make(chan proxyCheck, 1),
+		containsCache: newContainsCache(10, time.Minute),
+	}
+
+	go c.containsWorker()
+
+	check := func(hash string) *pb.Digest {
+		digest := &pb.Digest{Hash: hash, SizeBytes: 42}
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		c.containsQueue <- proxyCheck{wg: &wg, digest: &digest}
+		wg.Wait()
+
+		return digest
+	}
+
+	for round := 1; round <= 2; round++ {
+		if check(tp.blob) != nil {
+			t.Errorf("Round %d: expected the blob to be found in the proxy and replaced by nil", round)
+		}
+		if check("423789fae66b9539c5622134c580700a154a15e355af4e3311a4e12ee0c9d243") == nil {
+			t.Errorf("Round %d: expected the missing blob to be left as-is", round)
+		}
+	}
+
+	close(c.containsQueue)
+
+	// One for the blob the proxy has, plus one per round for the blob it does not.
+	if tp.containsCalls != 3 {
+		t.Errorf("Expected 3 proxy checks, found %d", tp.containsCalls)
 	}
 }
 

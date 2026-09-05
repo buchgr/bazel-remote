@@ -57,6 +57,7 @@ log_timezone: local
 		MaxQueuedUploads:            1000000,
 		MaxBlobSize:                 math.MaxInt64,
 		MaxProxyBlobSize:            math.MaxInt64,
+		ProxyContainsCacheMax:       100000,
 		MetricsDurationBuckets:      []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:              "none",
 		LogTimezone:                 "local",
@@ -100,6 +101,7 @@ gcs_proxy:
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
 		MaxProxyBlobSize:       math.MaxInt64,
+		ProxyContainsCacheMax:  100000,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
@@ -144,6 +146,7 @@ http_proxy:
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
 		MaxProxyBlobSize:       math.MaxInt64,
+		ProxyContainsCacheMax:  100000,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
@@ -221,6 +224,7 @@ s3_proxy:
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
 		MaxProxyBlobSize:       math.MaxInt64,
+		ProxyContainsCacheMax:  100000,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
@@ -270,6 +274,7 @@ ldap:
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
 		MaxProxyBlobSize:       math.MaxInt64,
+		ProxyContainsCacheMax:  100000,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
@@ -304,6 +309,7 @@ profile_address: :7070
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
 		MaxProxyBlobSize:       math.MaxInt64,
+		ProxyContainsCacheMax:  100000,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
@@ -352,6 +358,7 @@ endpoint_metrics_duration_buckets: [.005, .1, 5]
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
 		MaxProxyBlobSize:       math.MaxInt64,
+		ProxyContainsCacheMax:  100000,
 		MetricsDurationBuckets: []float64{0.005, 0.1, 5},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
@@ -368,6 +375,7 @@ func TestMetricsDurationBucketsNoDuplicates(t *testing.T) {
 		MaxSize:                42,
 		MaxBlobSize:            200,
 		MaxProxyBlobSize:       math.MaxInt64,
+		ProxyContainsCacheMax:  100000,
 		Dir:                    "/opt/cache-dir",
 		StorageMode:            "uncompressed",
 		ZstdImplementation:     "go",
@@ -484,6 +492,7 @@ storage_mode: zstd
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
 		MaxProxyBlobSize:       math.MaxInt64,
+		ProxyContainsCacheMax:  100000,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
@@ -518,6 +527,7 @@ storage_mode: zstd
 		MaxQueuedUploads:       1000000,
 		MaxBlobSize:            math.MaxInt64,
 		MaxProxyBlobSize:       math.MaxInt64,
+		ProxyContainsCacheMax:  100000,
 		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
 		AccessLogLevel:         "all",
 		LogTimezone:            "UTC",
@@ -542,5 +552,40 @@ func TestSocketPathMissing(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "'http_address'") {
 		t.Fatal("Expected the error message to mention the missing 'http_address' key/flag")
+	}
+}
+
+func TestProxyContainsCache(t *testing.T) {
+	yaml := `host: localhost
+port: 1234
+dir: /opt/cache-dir
+max_size: 42
+proxy_contains_cache_ttl: 10m
+proxy_contains_cache_max: 7
+`
+	config, err := NewFromYaml([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.ProxyContainsCacheTTL != 10*time.Minute {
+		t.Errorf("Expected a TTL of 10m, got %s", config.ProxyContainsCacheTTL)
+	}
+	if config.ProxyContainsCacheMax != 7 {
+		t.Errorf("Expected a max of 7, got %d", config.ProxyContainsCacheMax)
+	}
+
+	// A size of 0 is only an error once the TTL turns the cache on.
+	yaml = strings.Replace(yaml, "proxy_contains_cache_max: 7", "proxy_contains_cache_max: 0", 1)
+	_, err = NewFromYaml([]byte(yaml))
+	if err == nil {
+		t.Fatal("Expected an error because 'proxy_contains_cache_max' is 0")
+	}
+	if !strings.Contains(err.Error(), "'proxy_contains_cache_max'") {
+		t.Fatal("Expected the error message to mention the 'proxy_contains_cache_max' key/flag")
+	}
+
+	yaml = strings.Replace(yaml, "proxy_contains_cache_ttl: 10m\n", "", 1)
+	if _, err = NewFromYaml([]byte(yaml)); err != nil {
+		t.Fatal(err)
 	}
 }

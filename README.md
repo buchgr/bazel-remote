@@ -244,6 +244,15 @@ OPTIONS:
       to preexisting blobs in the cache. (default: 9223372036854775807)
       [$BAZEL_REMOTE_MAX_PROXY_BLOB_SIZE]
 
+   --proxy_contains_cache_ttl value How long to cache that the proxy backend
+      has a blob, to avoid repeated existence checks. Negative results are not
+      cached. (default: 0s, ie disabled)
+      [$BAZEL_REMOTE_PROXY_CONTAINS_CACHE_TTL]
+
+   --proxy_contains_cache_max value Size of the proxy contains cache, oldest
+      entries get dropped first. (default: 100000)
+      [$BAZEL_REMOTE_PROXY_CONTAINS_CACHE_MAX]
+
    --num_uploaders value When using proxy backends, sets the number of
       Goroutines to process parallel uploads to backend. (default: 100)
       [$BAZEL_REMOTE_NUM_UPLOADERS]

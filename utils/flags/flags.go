@@ -200,6 +200,19 @@ func GetCliFlags() []cli.Flag {
 			DefaultText: strconv.FormatInt(math.MaxInt64, 10),
 			EnvVars:     []string{"BAZEL_REMOTE_MAX_PROXY_BLOB_SIZE"},
 		},
+		&cli.DurationFlag{
+			Name:        "proxy_contains_cache_ttl",
+			Value:       0,
+			Usage:       "How long to cache that the proxy backend has a blob, to avoid repeated existence checks. Negative results are not cached.",
+			DefaultText: "0s, ie disabled",
+			EnvVars:     []string{"BAZEL_REMOTE_PROXY_CONTAINS_CACHE_TTL"},
+		},
+		&cli.IntFlag{
+			Name:    "proxy_contains_cache_max",
+			Value:   100000,
+			Usage:   "Size of the proxy contains cache, oldest entries get dropped first.",
+			EnvVars: []string{"BAZEL_REMOTE_PROXY_CONTAINS_CACHE_MAX"},
+		},
 		&cli.IntFlag{
 			Name:    "num_uploaders",
 			Value:   100,

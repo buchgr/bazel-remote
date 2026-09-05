@@ -79,6 +79,9 @@ type diskCache struct {
 	accessLogger     *log.Logger
 	containsQueue    chan proxyCheck
 
+	// Nil unless configured. See containscache.go.
+	containsCache *containsCache
+
 	// Limit the number of simultaneous file removals and filesystem write
 	// operations (apart from atime updates, which we hope are fast).
 	// When acquiring both the "diskWaitSem" semaphore and the "mu" mutex,
@@ -114,6 +117,10 @@ func (c *diskCache) RegisterMetrics() {
 	c.lru.RegisterMetrics()
 
 	prometheus.MustRegister(c.gaugeCacheAge)
+
+	if c.containsCache != nil {
+		prometheus.MustRegister(c.containsCache.counter)
+	}
 
 	// Update the cache age metric on a static interval
 	// Note: this could be modeled as a GuageFunc that updates as needed
@@ -781,13 +788,29 @@ func (c *diskCache) Contains(ctx context.Context, kind cache.EntryKind, hash str
 	}
 
 	if c.proxy != nil && size <= c.maxProxyBlobSize {
-		exists, foundSize = c.proxy.Contains(ctx, kind, hash, size)
+		exists, foundSize = c.proxyContains(ctx, kind, hash, size)
 		if exists && foundSize <= c.maxProxyBlobSize && !isSizeMismatch(size, foundSize) {
 			return true, foundSize
 		}
 	}
 
 	return false, -1
+}
+
+// proxyContains is proxy.Contains behind containsCache, when that is enabled.
+func (c *diskCache) proxyContains(ctx context.Context, kind cache.EntryKind, hash string, size int64) (bool, int64) {
+	if c.containsCache != nil {
+		if foundSize, found := c.containsCache.Get(kind, hash); found {
+			return true, foundSize
+		}
+	}
+
+	exists, foundSize := c.proxy.Contains(ctx, kind, hash, size)
+	if exists && c.containsCache != nil {
+		c.containsCache.Add(kind, hash, foundSize)
+	}
+
+	return exists, foundSize
 }
 
 // MaxSize returns the maximum cache size in bytes.

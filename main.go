@@ -154,6 +154,15 @@ func run(ctx *cli.Context) error {
 	}
 	if c.ProxyBackend != nil {
 		opts = append(opts, disk.WithProxyBackend(c.ProxyBackend))
+
+		if c.ProxyContainsCacheTTL > 0 {
+			opts = append(opts, disk.WithProxyContainsCache(
+				c.ProxyContainsCacheMax, c.ProxyContainsCacheTTL))
+			log.Printf("Proxy contains cache: TTL %s, max %d entries",
+				c.ProxyContainsCacheTTL, c.ProxyContainsCacheMax)
+		} else {
+			log.Println("Proxy contains cache: disabled")
+		}
 	}
 	if c.EnableEndpointMetrics {
 		opts = append(opts, disk.WithEndpointMetrics())

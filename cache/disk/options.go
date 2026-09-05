@@ -3,6 +3,7 @@ package disk
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
@@ -75,6 +76,21 @@ func WithProxyMaxBlobSize(maxProxyBlobSize int64) Option {
 		}
 
 		c.diskCache.maxProxyBlobSize = maxProxyBlobSize
+		return nil
+	}
+}
+
+func WithProxyContainsCache(maxEntries int, ttl time.Duration) Option {
+	return func(c *CacheConfig) error {
+		if maxEntries <= 0 {
+			return fmt.Errorf("invalid ProxyContainsCacheMax: %d", maxEntries)
+		}
+		if ttl <= 0 {
+			return fmt.Errorf("invalid ProxyContainsCacheTTL: %s", ttl)
+		}
+
+		c.diskCache.containsCache = newContainsCache(maxEntries, ttl)
+
 		return nil
 	}
 }
