@@ -75,7 +75,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 
 		rdr, sizeBytes, err := s.cache.Get(ctx, cache.AC, req.ActionDigest.Hash, unknownActionResultSize, 0)
 		if err != nil {
-			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+			s.accessLogger.Printf("%s %s %q", logPrefix, req.ActionDigest.Hash, err)
 			return nil, status.Error(gRPCErrCode(err, codes.Unknown), err.Error())
 		}
 		if rdr == nil || sizeBytes <= 0 {
@@ -87,21 +87,21 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 
 		acdata, err := io.ReadAll(rdr)
 		if err != nil {
-			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+			s.accessLogger.Printf("%s %s %q", logPrefix, req.ActionDigest.Hash, err)
 			return nil, status.Error(codes.Unknown, err.Error())
 		}
 
 		result := &pb.ActionResult{}
 		err = proto.Unmarshal(acdata, result)
 		if err != nil {
-			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+			s.accessLogger.Printf("%s %s %q", logPrefix, req.ActionDigest.Hash, err)
 			return nil, status.Error(codes.Unknown, err.Error())
 		}
 
 		// This doesn't check deps, but does check for invalid fields.
 		err = validate.ActionResult(result)
 		if err != nil {
-			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+			s.accessLogger.Printf("%s %s %q", logPrefix, req.ActionDigest.Hash, err)
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 
@@ -111,7 +111,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 
 	result, _, err := s.cache.GetValidatedActionResult(ctx, req.ActionDigest.Hash)
 	if err != nil {
-		s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+		s.accessLogger.Printf("%s %s %q", logPrefix, req.ActionDigest.Hash, err)
 		return nil, status.Error(gRPCErrCode(err, codes.Unknown), err.Error())
 	}
 
@@ -128,14 +128,14 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 	err = s.maybeInline(ctx, req.InlineStdout,
 		&result.StdoutRaw, &result.StdoutDigest, &inlinedSoFar)
 	if err != nil {
-		s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+		s.accessLogger.Printf("%s %s %q", logPrefix, req.ActionDigest.Hash, err)
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
 
 	err = s.maybeInline(ctx, req.InlineStderr,
 		&result.StderrRaw, &result.StderrDigest, &inlinedSoFar)
 	if err != nil {
-		s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+		s.accessLogger.Printf("%s %s %q", logPrefix, req.ActionDigest.Hash, err)
 		return nil, status.Error(codes.Unknown, err.Error())
 	}
 
@@ -147,7 +147,7 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 		_, ok := inlinableFiles[of.Path]
 		err = s.maybeInline(ctx, ok, &of.Contents, &of.Digest, &inlinedSoFar)
 		if err != nil {
-			s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+			s.accessLogger.Printf("%s %s %q", logPrefix, req.ActionDigest.Hash, err)
 			return nil, status.Error(codes.Unknown, err.Error())
 		}
 	}
@@ -188,7 +188,7 @@ func (s *grpcServer) maybeInline(ctx context.Context, inline bool, slice *[]byte
 			} else {
 				// De-inline failed (possibly due to "resource overload"). Preserve
 				// inlined data regardless of desire to de-inline.
-				s.accessLogger.Printf("GRPC CAS PUT %s %s", (*digest).Hash, err)
+				s.accessLogger.Printf("GRPC CAS PUT %s %q", (*digest).Hash, err)
 				*inlinedSoFar += int64(len(*slice))
 				return nil
 			}
@@ -253,7 +253,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 
 	data, err := proto.Marshal(req.ActionResult)
 	if err != nil {
-		s.accessLogger.Printf("%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+		s.accessLogger.Printf("%s %s %q", logPrefix, req.ActionDigest.Hash, err)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
@@ -266,10 +266,11 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 	err = s.cache.Put(ctx, cache.AC, req.ActionDigest.Hash,
 		int64(len(data)), bytes.NewReader(data))
 	if err != nil && err != io.EOF {
-		s.logErrorPrintf(err, "%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+		s.logErrorPrintf(err, "%s %s %q", logPrefix, req.ActionDigest.Hash, err)
 		code := gRPCErrCode(err, codes.Internal)
 		return nil, status.Error(code, err.Error())
 	}
+	s.accessLogger.Printf("GRPC AC PUT %s OK user=%s peer=%s", req.ActionDigest.Hash, authenticatedUser(ctx), grpcPeer(ctx))
 
 	// Also cache any inlined blobs, separately in the CAS.
 	//
@@ -290,7 +291,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 			err = s.cache.Put(ctx, cache.CAS, f.Digest.Hash,
 				f.Digest.SizeBytes, bytes.NewReader(f.Contents))
 			if err != nil && err != io.EOF {
-				s.logErrorPrintf(err, "%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+				s.logErrorPrintf(err, "%s %s %q", logPrefix, req.ActionDigest.Hash, err)
 				code := gRPCErrCode(err, codes.Internal)
 				return nil, status.Error(code, err.Error())
 			}
@@ -313,7 +314,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 		err = s.cache.Put(ctx, cache.CAS, hash, sizeBytes,
 			bytes.NewReader(req.ActionResult.StdoutRaw))
 		if err != nil && err != io.EOF {
-			s.logErrorPrintf(err, "%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+			s.logErrorPrintf(err, "%s %s %q", logPrefix, req.ActionDigest.Hash, err)
 			code := gRPCErrCode(err, codes.Internal)
 			return nil, status.Error(code, err.Error())
 		}
@@ -335,14 +336,12 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 		err = s.cache.Put(ctx, cache.CAS, hash, sizeBytes,
 			bytes.NewReader(req.ActionResult.StderrRaw))
 		if err != nil && err != io.EOF {
-			s.logErrorPrintf(err, "%s %s %s", logPrefix, req.ActionDigest.Hash, err)
+			s.logErrorPrintf(err, "%s %s %q", logPrefix, req.ActionDigest.Hash, err)
 			code := gRPCErrCode(err, codes.Internal)
 			return nil, status.Error(code, err.Error())
 		}
 		s.accessLogger.Printf("GRPC CAS PUT %s OK", hash)
 	}
-
-	s.accessLogger.Printf("GRPC AC PUT %s OK user=%s peer=%s", req.ActionDigest.Hash, authenticatedUser(ctx), grpcPeer(ctx))
 
 	// Trivia: the RE API wants us to return the ActionResult from the
 	// request, in order to follow this standard method style guide:

@@ -221,7 +221,7 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, headers http.Hea
 	defer func() { _ = resp.Body.Close() }()
 	rc := resp.Body
 
-	s.accessLogger.Printf("GRPC ASSET FETCH %s %s", uri, resp.Status)
+	s.accessLogger.Printf("GRPC ASSET FETCH %q %q", uri, resp.Status)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", int64(-1), fmt.Errorf("unsuccessful HTTP status code: %d", resp.StatusCode)
 	}

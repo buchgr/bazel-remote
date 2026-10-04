@@ -60,7 +60,7 @@ func TestHTTPAuthenticatedWrite(t *testing.T) {
 				}
 			}
 			logs := output.String()
-			if !strings.Contains(logs, "/cas/"+hash+" user=writer peer=127.0.0.1:12345") || strings.Contains(logs, "forged") || strings.Contains(logs, "wrong") {
+			if !strings.Contains(logs, "\"/cas/"+hash+"\" user=writer peer=127.0.0.1:12345") || strings.Contains(logs, "forged") || strings.Contains(logs, "wrong") {
 				t.Fatalf("incorrect authentication attribution:\n%s", logs)
 			}
 			// Exercise the read-only bypass without attributing a supplied username.
@@ -73,6 +73,15 @@ func TestHTTPAuthenticatedWrite(t *testing.T) {
 				got, _ := io.ReadAll(w.Result().Body)
 				if w.Code != http.StatusOK || !bytes.Equal(got, data) || !strings.Contains(output.String(), "user=-") {
 					t.Fatalf("anonymous read: status=%d body=%q logs=%s", w.Code, got, output.String())
+				}
+				// A decoded newline in the URL path must remain log data, not
+				// a second physical record that resembles an authenticated write.
+				output.Reset()
+				r.URL.Path = "/prefix\nGRPC AC PUT " + hash + " OK user=forged peer=127.0.0.1:1"
+				w = httptest.NewRecorder()
+				handler(w, r)
+				if strings.Count(output.String(), "\n") != 1 || !strings.Contains(output.String(), "\\nGRPC AC PUT") {
+					t.Fatalf("HTTP path forged a log record: %q", output.String())
 				}
 			}
 		})

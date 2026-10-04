@@ -772,6 +772,11 @@ are URL-query escaped to keep each log entry on one line. `user=-` means no
 verified Basic username is available (including anonymous requests and other
 authentication mechanisms). The peer is the transport address, not an
 authenticated identity, and may identify a proxy rather than the original client.
+Client-controlled paths, resource names, remapping inputs, and error diagnostics
+are Go-quoted so embedded newlines cannot create additional physical log records.
+Consumers should match complete records, not success-like substrings inside
+quoted diagnostic fields. An action-cache success record describes the committed
+AC entry and is emitted even if a subsequent inline CAS upload makes the RPC fail.
 
 #### mTLS
 

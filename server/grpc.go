@@ -150,19 +150,19 @@ func (s *grpcServer) validateHash(hash string, size int64, logPrefix string) err
 		}
 
 		msg := "Invalid zero-length SHA256 hash"
-		s.accessLogger.Printf("%s %s: %s", logPrefix, hash, msg)
+		s.accessLogger.Printf("%s %q: %s", logPrefix, hash, msg)
 		return status.Error(codes.InvalidArgument, msg)
 	}
 
 	if len(hash) != hashKeyLength {
 		msg := fmt.Sprintf("Hash length must be length %d", hashKeyLength)
-		s.accessLogger.Printf("%s %s: %s", logPrefix, hash, msg)
+		s.accessLogger.Printf("%s %q: %s", logPrefix, hash, msg)
 		return status.Error(codes.InvalidArgument, msg)
 	}
 
 	if !validate.HashKeyRegex.MatchString(hash) {
 		msg := "Malformed hash"
-		s.accessLogger.Printf("%s %s: %s", logPrefix, hash, msg)
+		s.accessLogger.Printf("%s %q: %s", logPrefix, hash, msg)
 		return status.Error(codes.InvalidArgument, msg)
 	}
 

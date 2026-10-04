@@ -99,7 +99,7 @@ func TransformActionCacheKey(key, instance string, logger Logger) string {
 	b := h.Sum(nil)
 	newKey := hex.EncodeToString(b[:])
 
-	logger.Printf("REMAP AC HASH %s : %s => %s", key, instance, newKey)
+	logger.Printf("REMAP AC HASH %q : %q => %s", key, instance, newKey)
 
 	return newKey
 }

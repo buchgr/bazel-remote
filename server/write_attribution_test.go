@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -62,7 +63,7 @@ func TestAuthenticatedWriteAttribution(t *testing.T) {
 	}
 	defer gs.Stop()
 	defer listener.Close()
-	go func() { _ = ServeGRPC(listener, gs, false, false, false, 1000000, cache, logger, logger) }()
+	go func() { _ = ServeGRPC(listener, gs, false, true, false, 1000000, cache, logger, logger) }()
 	conn, err := grpc.NewClient(listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatal(err)
@@ -80,6 +81,28 @@ func TestAuthenticatedWriteAttribution(t *testing.T) {
 	_, err = pb.NewActionCacheClient(conn).UpdateActionResult(ctx, &pb.UpdateActionResultRequest{ActionDigest: digest, ActionResult: &pb.ActionResult{ExitCode: 42}})
 	if err != nil {
 		t.Fatal(err)
+	}
+	// AC storage commits before uploading inlined CAS data. Even a later
+	// digest mismatch must leave an attributed record for the committed AC.
+	committedHash := fmt.Sprintf("%x", sha256.Sum256([]byte("committed AC")))
+	committedDigest := &pb.Digest{Hash: committedHash, SizeBytes: 12}
+	inlineData := []byte("invalid-inline")
+	inlineHash := fmt.Sprintf("%x", sha256.Sum256([]byte("correct-inline")))
+	acClient := pb.NewActionCacheClient(conn)
+	_, err = acClient.UpdateActionResult(ctx, &pb.UpdateActionResultRequest{
+		ActionDigest: committedDigest,
+		ActionResult: &pb.ActionResult{
+			ExitCode:     99,
+			StdoutRaw:    inlineData,
+			StdoutDigest: &pb.Digest{Hash: inlineHash, SizeBytes: int64(len(inlineData))},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected inline CAS digest mismatch")
+	}
+	committed, err := acClient.GetActionResult(ctx, &pb.GetActionResultRequest{ActionDigest: committedDigest})
+	if err != nil || committed.GetExitCode() != 99 || !bytes.Equal(committed.GetStdoutRaw(), inlineData) {
+		t.Fatalf("AC not committed before inline failure: %v %v", committed, err)
 	}
 	stream, err := bytestream.NewByteStreamClient(conn).Write(ctx)
 	if err != nil {
@@ -120,7 +143,7 @@ func TestAuthenticatedWriteAttribution(t *testing.T) {
 		t.Fatal("unauthenticated write succeeded")
 	}
 	logs := output.contents()
-	for _, prefix := range []string{"GRPC CAS PUT " + hash + " OK", "GRPC AC PUT " + hash + " OK", "GRPC BYTESTREAM WRITE COMPLETED: " + resource, "/cas/" + hash} {
+	for _, prefix := range []string{"GRPC CAS PUT " + hash + " OK", "GRPC AC PUT " + hash + " OK", "GRPC AC PUT " + committedHash + " OK", "GRPC BYTESTREAM WRITE COMPLETED: " + strconv.Quote(resource), strconv.Quote("/cas/" + hash)} {
 		found := false
 		for _, line := range strings.Split(logs, "\n") {
 			if strings.Contains(line, prefix+" user=writer peer=127.0.0.1:") {
@@ -133,6 +156,37 @@ func TestAuthenticatedWriteAttribution(t *testing.T) {
 	}
 	if strings.Contains(logs, "user=imposter") || strings.Contains(logs, "password") {
 		t.Fatalf("unverified identity or password logged:\n%s", logs)
+	}
+	// Anonymous read clients cannot forge physical write records through
+	// remapping diagnostics, malformed hashes, or ByteStream resources.
+	forged := "GRPC AC PUT " + committedHash + " OK user=imposter peer=127.0.0.1:1"
+	for _, payload := range []string{"prefix " + forged, "prefix\n" + forged} {
+		before := output.contents()
+		_, _ = acClient.GetActionResult(context.Background(), &pb.GetActionResultRequest{ActionDigest: digest, InstanceName: payload})
+		_, _ = acClient.GetActionResult(context.Background(), &pb.GetActionResultRequest{ActionDigest: &pb.Digest{Hash: payload, SizeBytes: 1}})
+		read, err := bytestream.NewByteStreamClient(conn).Read(context.Background(), &bytestream.ReadRequest{ResourceName: payload + "/blobs/" + emptySha256 + "/0"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := read.Recv(); err != io.EOF {
+			t.Fatalf("empty blob read: %v", err)
+		}
+		read, err = bytestream.NewByteStreamClient(conn).Read(context.Background(), &bytestream.ReadRequest{ResourceName: payload})
+		if err == nil {
+			_, err = read.Recv()
+		}
+		if err == nil {
+			t.Fatal("malformed resource read succeeded")
+		}
+		appended := strings.TrimPrefix(output.contents(), before)
+		if !strings.Contains(appended, strconv.Quote(payload)) {
+			t.Fatalf("missing escaped client input: %s", appended)
+		}
+		for _, line := range strings.Split(strings.TrimSuffix(appended, "\n"), "\n") {
+			if !(strings.HasPrefix(line, "REMAP AC HASH ") || strings.HasPrefix(line, "GRPC AC GET ") || strings.HasPrefix(line, "GRPC BYTESTREAM READ")) {
+				t.Fatalf("client input forged a log record: %q", line)
+			}
+		}
 	}
 }
 
