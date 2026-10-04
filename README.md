@@ -765,6 +765,19 @@ $ docker run -v /path/to/cache/dir:/data \
 	--htpasswd_file /etc/bazel-remote/htpasswd --max_size 5
 ```
 
+HTTP access logs and successful gRPC action-cache, batch CAS, and ByteStream
+write logs append `user=<username> peer=<address>`. With htpasswd authentication,
+the username is recorded only after credentials have been verified; usernames
+are URL-query escaped to keep each log entry on one line. `user=-` means no
+verified Basic username is available (including anonymous requests and other
+authentication mechanisms). The peer is the transport address, not an
+authenticated identity, and may identify a proxy rather than the original client.
+Client-controlled paths, resource names, remapping inputs, and error diagnostics
+are Go-quoted so embedded newlines cannot create additional physical log records.
+Consumers should match complete records, not success-like substrings inside
+quoted diagnostic fields. An action-cache success record describes the committed
+AC entry and is emitted even if a subsequent inline CAS upload makes the RPC fail.
+
 #### mTLS
 
 If you prefer not using `.htpasswd` files it is also possible to

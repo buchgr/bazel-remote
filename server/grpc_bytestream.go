@@ -55,18 +55,18 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 
 	if size == 0 {
 		if cmp == casblob.Identity {
-			s.accessLogger.Printf("GRPC BYTESTREAM READ COMPLETED %s", req.ResourceName)
+			s.accessLogger.Printf("GRPC BYTESTREAM READ COMPLETED %q", req.ResourceName)
 			return nil
 		}
 
 		// The client asked for a zstd-compressed empty blob. Weird.
 		err := resp.Send(&bytestream.ReadResponse{Data: emptyZstdBlob})
 		if err != nil {
-			msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED TO SEND RESPONSE: %s %v", hash, err)
-			s.accessLogger.Printf(msg)
+			msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED TO SEND RESPONSE: %s %q", hash, err)
+			s.accessLogger.Printf("%s", msg)
 			return status.Error(codes.Unknown, msg)
 		}
-		s.accessLogger.Printf("GRPC BYTESTREAM READ COMPLETED %s", req.ResourceName)
+		s.accessLogger.Printf("GRPC BYTESTREAM READ COMPLETED %q", req.ResourceName)
 		return nil
 	}
 
@@ -95,7 +95,7 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 	sendLimitRemaining := req.ReadLimit
 
 	if req.ReadOffset > size {
-		msg := fmt.Sprintf("ReadOffset %d larger than expected data size %d resource: %s",
+		msg := fmt.Sprintf("ReadOffset %d larger than expected data size %d resource: %q",
 			req.ReadOffset, size, req.ResourceName)
 		s.accessLogger.Printf("GRPC BYTESTREAM READ FAILED %s: %s", hash, msg)
 		return status.Error(codes.OutOfRange, msg)
@@ -115,14 +115,14 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 	}
 
 	if err != nil {
-		msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED: %s %v", hash, err)
-		s.accessLogger.Printf(msg)
+		msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED: %s %q", hash, err)
+		s.accessLogger.Printf("%s", msg)
 		code := gRPCErrCode(err, codes.Internal)
 		return status.Error(code, msg)
 	}
 	if rc == nil {
 		msg := fmt.Sprintf("GRPC BYTESTREAM READ BLOB NOT FOUND: %s", hash)
-		s.accessLogger.Printf(msg)
+		s.accessLogger.Printf("%s", msg)
 		return status.Error(codes.NotFound, msg)
 	}
 
@@ -130,7 +130,7 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 		// This should have been caught above.
 		msg := fmt.Sprintf("GRPC BYTESTREAM READ BLOB SIZE MISMATCH: %s (EXPECTED %d, FOUND %d)",
 			hash, size, foundSize)
-		s.accessLogger.Printf(msg)
+		s.accessLogger.Printf("%s", msg)
 		return status.Error(codes.Internal, msg)
 	}
 
@@ -149,7 +149,7 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 			if limitedSend {
 				if (sendLimitRemaining - int64(n)) < 0 {
 					msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED: %s READ LIMIT EXCEEDED", hash)
-					s.accessLogger.Printf(msg)
+					s.accessLogger.Printf("%s", msg)
 					return status.Error(codes.OutOfRange, msg)
 				}
 				sendLimitRemaining -= int64(n)
@@ -158,21 +158,21 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 			chunkResp.Data = buf[:n]
 			sendErr := resp.Send(&chunkResp)
 			if sendErr != nil {
-				msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED TO SEND RESPONSE: %s %v", hash, sendErr)
-				s.accessLogger.Printf(msg)
+				msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED TO SEND RESPONSE: %s %q", hash, sendErr)
+				s.accessLogger.Printf("%s", msg)
 				return status.Error(codes.Unknown, msg)
 			}
 		}
 
 		if err == io.EOF {
-			s.accessLogger.Printf("GRPC BYTESTREAM READ COMPLETED %s",
+			s.accessLogger.Printf("GRPC BYTESTREAM READ COMPLETED %q",
 				req.ResourceName)
 			return nil
 		}
 
 		if err != nil {
-			msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED: %s %v", hash, err)
-			s.accessLogger.Printf(msg)
+			msg := fmt.Sprintf("GRPC BYTESTREAM READ FAILED: %s %q", hash, err)
+			s.accessLogger.Printf("%s", msg)
 			return status.Error(codes.Unknown, msg)
 		}
 	}
@@ -210,7 +210,7 @@ func (s *grpcServer) parseReadResource(name string, errorPrefix string) (string,
 
 	if foundBlobs {
 		if len(rem) != 2 {
-			msg := fmt.Sprintf("Unable to parse resource name: %s", name)
+			msg := fmt.Sprintf("Unable to parse resource name: %q", name)
 			s.accessLogger.Printf("%s: %s", errorPrefix, msg)
 			return "", 0, casblob.Identity,
 				status.Error(codes.InvalidArgument, msg)
@@ -220,7 +220,7 @@ func (s *grpcServer) parseReadResource(name string, errorPrefix string) (string,
 
 		size, err := strconv.ParseInt(rem[1], 10, 64)
 		if err != nil {
-			msg := fmt.Sprintf("Invalid size: %s from %q", rem[1], name)
+			msg := fmt.Sprintf("Invalid size: %q from %q", rem[1], name)
 			s.accessLogger.Printf("%s: %s", errorPrefix, msg)
 			return "", 0, casblob.Identity,
 				status.Error(codes.InvalidArgument, msg)
@@ -241,14 +241,14 @@ func (s *grpcServer) parseReadResource(name string, errorPrefix string) (string,
 	}
 
 	if !foundCompressedBlobs || len(rem) != 3 {
-		msg := fmt.Sprintf("Unable to parse resource name: %s", name)
+		msg := fmt.Sprintf("Unable to parse resource name: %q", name)
 		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
 		return "", 0, casblob.Identity,
 			status.Error(codes.InvalidArgument, msg)
 	}
 
 	if rem[0] != "zstd" {
-		msg := fmt.Sprintf("Unable to parse compressor in resource name: %s", name)
+		msg := fmt.Sprintf("Unable to parse compressor in resource name: %q", name)
 		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
 		return "", 0, casblob.Identity,
 			status.Error(codes.InvalidArgument, msg)
@@ -259,7 +259,7 @@ func (s *grpcServer) parseReadResource(name string, errorPrefix string) (string,
 
 	size, err := strconv.ParseInt(sizeStr, 10, 64)
 	if err != nil {
-		msg := fmt.Sprintf("Invalid size: %s from %q", sizeStr, name)
+		msg := fmt.Sprintf("Invalid size: %q from %q", sizeStr, name)
 		s.accessLogger.Printf("%s: %s", errorPrefix, msg)
 		return "", 0, casblob.Zstandard,
 			status.Error(codes.InvalidArgument, msg)
@@ -299,7 +299,7 @@ func (s *grpcServer) parseWriteResource(r string) (string, int64, casblob.Compre
 
 	if len(rem) < 4 {
 		return "", 0, casblob.Identity,
-			status.Errorf(codes.InvalidArgument, "Unable to parse resource name: %s", r)
+			status.Errorf(codes.InvalidArgument, "Unable to parse resource name: %q", r)
 	}
 
 	// rem[0] should hold the uuid, which we don't use- ignore it.
@@ -309,7 +309,7 @@ func (s *grpcServer) parseWriteResource(r string) (string, int64, casblob.Compre
 		size, err := strconv.ParseInt(rem[3], 10, 64)
 		if err != nil {
 			return "", 0, casblob.Identity,
-				status.Errorf(codes.InvalidArgument, "Unable to parse size: %s from %q", rem[3], r)
+				status.Errorf(codes.InvalidArgument, "Unable to parse size: %q from %q", rem[3], r)
 		}
 
 		if size < 0 {
@@ -327,7 +327,7 @@ func (s *grpcServer) parseWriteResource(r string) (string, int64, casblob.Compre
 
 	if rem[1] != "compressed-blobs" || len(rem) < 5 || rem[2] != "zstd" {
 		return "", 0, casblob.Zstandard,
-			status.Errorf(codes.InvalidArgument, "Unable to parse resource name: %s", r)
+			status.Errorf(codes.InvalidArgument, "Unable to parse resource name: %q", r)
 	}
 
 	sizeStr := rem[4]
@@ -335,7 +335,7 @@ func (s *grpcServer) parseWriteResource(r string) (string, int64, casblob.Compre
 	size, err := strconv.ParseInt(sizeStr, 10, 64)
 	if err != nil {
 		return "", 0, casblob.Zstandard,
-			status.Errorf(codes.InvalidArgument, "Unable to parse size: %s from %q", sizeStr, r)
+			status.Errorf(codes.InvalidArgument, "Unable to parse size: %q from %q", sizeStr, r)
 	}
 
 	if size < 0 {
@@ -403,7 +403,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 				var hash string
 				hash, size, cmp, err = s.parseWriteResource(resourceName)
 				if err != nil {
-					s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", err)
+					s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %q", err)
 					recvResult <- err
 					return
 				}
@@ -430,7 +430,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 				resp.CommittedSize = req.WriteOffset
 				if req.WriteOffset != 0 {
 					err = errWriteOffset
-					s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", err)
+					s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %q", err)
 					recvResult <- err
 					return
 				}
@@ -445,7 +445,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 					}
 					err = dec.Reset(pr)
 					if err != nil {
-						s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s", err)
+						s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %q", err)
 						recvResult <- err
 						return
 					}
@@ -507,8 +507,8 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 			default:
 			}
 
-			msg := fmt.Sprintf("GRPC BYTESTREAM WRITE FAILED: %s Receive loop closed unexpectedly.", resourceName)
-			s.accessLogger.Printf(msg)
+			msg := fmt.Sprintf("GRPC BYTESTREAM WRITE FAILED: %q Receive loop closed unexpectedly.", resourceName)
+			s.accessLogger.Printf("%s", msg)
 			return status.Error(codes.Internal, msg)
 		}
 		if err == io.EOF {
@@ -522,7 +522,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 			}
 
 			_ = pw.CloseWithError(err)
-			s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %s %s",
+			s.accessLogger.Printf("GRPC BYTESTREAM WRITE FAILED: %q %q",
 				resourceName, err.Error())
 			return err
 		}
@@ -534,12 +534,12 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 		}
 
 		if err == io.EOF {
-			s.accessLogger.Printf("GRPC BYTESTREAM SKIPPED WRITE: %s", resourceName)
+			s.accessLogger.Printf("GRPC BYTESTREAM SKIPPED WRITE: %q", resourceName)
 
 			err = srv.SendAndClose(&resp)
 			if err != nil {
-				msg := fmt.Sprintf("GRPC BYTESTREAM SKIPPED WRITE FAILED: %s %v", resourceName, err)
-				s.accessLogger.Printf(msg)
+				msg := fmt.Sprintf("GRPC BYTESTREAM SKIPPED WRITE FAILED: %q %q", resourceName, err)
+				s.accessLogger.Printf("%s", msg)
 				return status.Error(codes.Internal, msg)
 			}
 			return nil
@@ -547,13 +547,13 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 
 		if err == nil {
 			// Unexpected early return. Should not happen.
-			msg := fmt.Sprintf("GRPC BYTESTREAM WRITE INTERNAL ERROR %s", resourceName)
-			s.accessLogger.Printf(msg)
+			msg := fmt.Sprintf("GRPC BYTESTREAM WRITE INTERNAL ERROR %q", resourceName)
+			s.accessLogger.Printf("%s", msg)
 			return status.Error(codes.Internal, msg)
 		}
 
-		msg := fmt.Sprintf("GRPC BYTESTREAM WRITE CACHE ERROR: %s %v", resourceName, err)
-		s.logErrorPrintf(err, msg)
+		msg := fmt.Sprintf("GRPC BYTESTREAM WRITE CACHE ERROR: %q %q", resourceName, err)
+		s.logErrorPrintf(err, "%s", msg)
 		return status.Error(gRPCErrCode(err, codes.Internal), msg)
 	}
 
@@ -564,31 +564,31 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 
 	err := <-putResult
 	if err == io.EOF {
-		s.accessLogger.Printf("GRPC BYTESTREAM SKIPPED WRITE: %s", resourceName)
+		s.accessLogger.Printf("GRPC BYTESTREAM SKIPPED WRITE: %q", resourceName)
 
 		err = srv.SendAndClose(&resp)
 		if err != nil {
-			msg := fmt.Sprintf("GRPC BYTESTREAM SKIPPED WRITE FAILED: %s %v", resourceName, err)
-			s.accessLogger.Printf(msg)
+			msg := fmt.Sprintf("GRPC BYTESTREAM SKIPPED WRITE FAILED: %q %q", resourceName, err)
+			s.accessLogger.Printf("%s", msg)
 			return status.Error(codes.Internal, msg)
 		}
 		return nil
 	}
 	if err != nil {
-		msg := fmt.Sprintf("GRPC BYTESTREAM WRITE FAILED: %s Cache Put failed: %v", resourceName, err)
-		s.accessLogger.Printf(msg)
+		msg := fmt.Sprintf("GRPC BYTESTREAM WRITE FAILED: %q Cache Put failed: %q", resourceName, err)
+		s.accessLogger.Printf("%s", msg)
 		code := gRPCErrCode(err, codes.Internal)
 		return status.Error(code, msg)
 	}
 
 	err = srv.SendAndClose(&resp)
 	if err != nil {
-		msg := fmt.Sprintf("GRPC BYTESTREAM WRITE FAILED: %s %v", resourceName, err)
-		s.accessLogger.Printf(msg)
+		msg := fmt.Sprintf("GRPC BYTESTREAM WRITE FAILED: %q %q", resourceName, err)
+		s.accessLogger.Printf("%s", msg)
 		return status.Error(codes.Unknown, msg)
 	}
 
-	s.accessLogger.Printf("GRPC BYTESTREAM WRITE COMPLETED: %s", resourceName)
+	s.accessLogger.Printf("GRPC BYTESTREAM WRITE COMPLETED: %q user=%s peer=%s", resourceName, authenticatedUser(srv.Context()), grpcPeer(srv.Context()))
 	return nil
 }
 

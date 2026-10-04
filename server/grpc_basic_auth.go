@@ -3,11 +3,13 @@ package server
 import (
 	"context"
 	"encoding/base64"
+	"net/url"
 	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	grpc_status "google.golang.org/grpc/status"
 
 	auth "github.com/abbot/go-http-auth"
@@ -21,6 +23,35 @@ var (
 	errAccessDenied = grpc_status.Error(codes.Unauthenticated,
 		"access denied")
 )
+
+type authenticatedUserKey struct{}
+
+// WithAuthenticatedUser records a username after successful authentication.
+func WithAuthenticatedUser(ctx context.Context, username string) context.Context {
+	return context.WithValue(ctx, authenticatedUserKey{}, username)
+}
+
+func authenticatedUser(ctx context.Context) string {
+	username, _ := ctx.Value(authenticatedUserKey{}).(string)
+	if username == "" {
+		return "-"
+	}
+	return url.QueryEscape(username)
+}
+
+func grpcPeer(ctx context.Context) string {
+	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
+		return p.Addr.String()
+	}
+	return "-"
+}
+
+type authenticatedServerStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (s authenticatedServerStream) Context() context.Context { return s.ctx }
 
 // GrpcBasicAuth wraps an auth.SecretProvider, and provides gRPC interceptors
 // that verify that requests can be authenticated using HTTP basic auth.
@@ -66,7 +97,7 @@ func (b *GrpcBasicAuth) StreamServerInterceptor(srv interface{}, ss grpc.ServerS
 		return errAccessDenied
 	}
 
-	return handler(srv, ss)
+	return handler(srv, authenticatedServerStream{ServerStream: ss, ctx: WithAuthenticatedUser(ss.Context(), username)})
 }
 
 // UnaryServerInterceptor verifies that each request can be authenticated
@@ -97,7 +128,7 @@ func (b *GrpcBasicAuth) UnaryServerInterceptor(ctx context.Context, req interfac
 		return nil, errAccessDenied
 	}
 
-	return handler(ctx, req)
+	return handler(WithAuthenticatedUser(ctx, username), req)
 }
 
 func getLogin(ctx context.Context) (username, password string, err error) {
