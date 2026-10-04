@@ -588,7 +588,7 @@ func (s *grpcServer) Write(srv bytestream.ByteStream_WriteServer) error {
 		return status.Error(codes.Unknown, msg)
 	}
 
-	s.accessLogger.Printf("GRPC BYTESTREAM WRITE COMPLETED: %s", resourceName)
+	s.accessLogger.Printf("GRPC BYTESTREAM WRITE COMPLETED: %s user=%s peer=%s", resourceName, authenticatedUser(srv.Context()), grpcPeer(srv.Context()))
 	return nil
 }
 

@@ -342,7 +342,7 @@ func (s *grpcServer) UpdateActionResult(ctx context.Context,
 		s.accessLogger.Printf("GRPC CAS PUT %s OK", hash)
 	}
 
-	s.accessLogger.Printf("GRPC AC PUT %s OK", req.ActionDigest.Hash)
+	s.accessLogger.Printf("GRPC AC PUT %s OK user=%s peer=%s", req.ActionDigest.Hash, authenticatedUser(ctx), grpcPeer(ctx))
 
 	// Trivia: the RE API wants us to return the ActionResult from the
 	// request, in order to follow this standard method style guide:

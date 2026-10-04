@@ -473,7 +473,10 @@ type authenticator interface {
 // A http.HandlerFunc wrapper which requires successful basic
 // authentication for all requests.
 func basicAuthWrapper(handler http.HandlerFunc, authenticator *auth.BasicAuth) http.HandlerFunc {
-	return auth.JustCheck(authenticator, handler)
+	return authenticator.Wrap(func(w http.ResponseWriter, r *auth.AuthenticatedRequest) {
+		r.Header.Set(auth.AuthUsernameHeader, r.Username)
+		handler(w, r.WithContext(server.WithAuthenticatedUser(r.Context(), r.Username)))
+	})
 }
 
 func ldapAuthWrapper(handler http.HandlerFunc, authenticator authenticator) http.HandlerFunc {
@@ -492,8 +495,8 @@ func unauthenticatedReadWrapper(handler http.HandlerFunc, secrets auth.SecretPro
 			return
 		}
 
-		if authenticator.CheckAuth(r) != "" {
-			handler(w, r)
+		if username := authenticator.CheckAuth(r); username != "" {
+			handler(w, r.WithContext(server.WithAuthenticatedUser(r.Context(), username)))
 			return
 		}
 

@@ -765,6 +765,14 @@ $ docker run -v /path/to/cache/dir:/data \
 	--htpasswd_file /etc/bazel-remote/htpasswd --max_size 5
 ```
 
+HTTP access logs and successful gRPC action-cache, batch CAS, and ByteStream
+write logs append `user=<username> peer=<address>`. With htpasswd authentication,
+the username is recorded only after credentials have been verified; usernames
+are URL-query escaped to keep each log entry on one line. `user=-` means no
+verified Basic username is available (including anonymous requests and other
+authentication mechanisms). The peer is the transport address, not an
+authenticated identity, and may identify a proxy rather than the original client.
+
 #### mTLS
 
 If you prefer not using `.htpasswd` files it is also possible to

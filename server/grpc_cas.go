@@ -129,7 +129,7 @@ func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 			continue
 		}
 
-		s.accessLogger.Printf("GRPC CAS PUT %s OK", req.Digest.Hash)
+		s.accessLogger.Printf("GRPC CAS PUT %s OK user=%s peer=%s", req.Digest.Hash, authenticatedUser(ctx), grpcPeer(ctx))
 	}
 
 	return &resp, nil

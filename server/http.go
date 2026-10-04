@@ -207,7 +207,7 @@ func (h *httpCache) logResponse(code int, r *http.Request) {
 	if err != nil {
 		clientAddress = r.RemoteAddr
 	}
-	h.accessLogger.Printf("%4s %d %15s %s", r.Method, code, clientAddress, r.URL.Path)
+	h.accessLogger.Printf("%4s %d %15s %s user=%s peer=%s", r.Method, code, clientAddress, r.URL.Path, authenticatedUser(r.Context()), r.RemoteAddr)
 }
 
 func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
