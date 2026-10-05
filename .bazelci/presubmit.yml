@@ -1,8 +1,8 @@
 ---
 validate_config: 1
 tasks:
-  ubuntu2004:
-    platform: ubuntu2004
+  ubuntu2204:
+    platform: ubuntu2204
     build_targets:
       - "//:bazel-remote"
       - "//:bazel-remote-image"
@@ -18,7 +18,7 @@ tasks:
   # A series of checks, each in a separate job due to
   # https://github.com/bazelbuild/continuous-integration/issues/938
   check_modules:
-    platform: ubuntu2004
+    platform: ubuntu2204
     name: "gazelle & bazel mod tidy"
     shell_commands:
       - "bazel run //:gazelle"
@@ -26,63 +26,63 @@ tasks:
       - "git diff --exit-code" # If there is a diff, fail.
     skip_in_bazel_downstream_pipeline: "Lockfile could change when building with Bazel@HEAD"
   check_gofmt:
-    platform: ubuntu2004
+    platform: ubuntu2204
     name: "go fmt"
     shell_commands:
       - ".bazelci/buildkite-install-go.sh"
       - "echo +++ Check go format"
       - "PATH=$HOME/go/bin:$PATH .bazelci/check-gofmt.sh `find . -name '*.go'`"
   check_go_vet:
-    platform: ubuntu2004
+    platform: ubuntu2204
     name: "go vet"
     shell_commands:
       - ".bazelci/buildkite-install-go.sh"
       - "echo +++ Check go vet"
       - "PATH=$HOME/go/bin:$PATH go vet ./..."
   check_go_test_race:
-    platform: ubuntu2004
+    platform: ubuntu2204
     name: "go test --race"
     shell_commands:
       - ".bazelci/buildkite-install-go.sh"
       - "echo +++ Running go test with race detector"
       - "PATH=$HOME/go/bin:$PATH go test -race ./..."
   end_to_end_test_go:
-    platform: ubuntu2004
+    platform: ubuntu2204
     name: "end-to-end test - pure go zstd"
     shell_commands:
       - ".bazelci/buildkite-install-go.sh"
       - "echo +++ Run end-to-end system test - pure go zstd"
       - "PATH=$HOME/go/bin:$PATH timeout 45m .bazelci/system-test.sh"
   end_to_end_test_cgo:
-    platform: ubuntu2004
+    platform: ubuntu2204
     name: "end-to-end test - cgo zstd"
     shell_commands:
       - ".bazelci/buildkite-install-go.sh"
       - "echo +++ Run end-to-end system test - cgo zstd"
       - "PATH=$HOME/go/bin:$PATH EXTRA_FLAGS=\"--zstd_implementation=cgo\" timeout 45m .bazelci/system-test.sh"
   tls_tests:
-    platform: ubuntu2004
+    platform: ubuntu2204
     name: "TLS tests"
     shell_commands:
       - ".bazelci/buildkite-install-go.sh"
       - "echo +++ Run TLS tests"
       - "PATH=$HOME/go/bin:$PATH timeout 30m .bazelci/tls-tests.sh"
   basic_auth_tests:
-    platform: ubuntu2004
+    platform: ubuntu2204
     name: "basic auth tests"
     shell_commands:
       - ".bazelci/buildkite-install-go.sh"
       - "echo +++ Run basic auth tests"
       - "PATH=$HOME/go/bin:$PATH timeout 30m .bazelci/basic-auth-tests.sh"
   ldap_tests:
-    platform: ubuntu2004
+    platform: ubuntu2204
     name: "LDAP tests"
     shell_commands:
       - ".bazelci/buildkite-install-go.sh"
       - "echo +++ Run LDAP tests"
       - "PATH=$HOME/go/bin:$PATH timeout 30m .bazelci/ldap-tests.sh"
   migration_tests:
-    platform: ubuntu2004
+    platform: ubuntu2204
     name: "migration tests"
     shell_commands:
       - ".bazelci/buildkite-install-go.sh"
