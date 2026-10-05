@@ -27,6 +27,9 @@ import (
 	syncpool "github.com/mostynb/zstdpool-syncpool"
 )
 
+// Status code to log when the client closed the connection before we responded.
+const statusClientClosedRequest = 499
+
 var blobNameSHA256 = regexp.MustCompile("^/?(.*/)?(ac/|cas/)([a-f0-9]{64})$")
 
 var decoder, _ = zstd.NewReader(nil) // TODO: raise WithDecoderConcurrency ?
@@ -248,6 +251,11 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			rdr, sizeBytes, err = h.cache.Get(r.Context(), kind, hash, -1, 0)
 		}
 		if err != nil {
+			if clientGone(r.Context(), err) {
+				h.accessLogger.Printf("GET %s: client gone: %s", path(kind, hash), err)
+				h.logResponse(statusClientClosedRequest, r)
+				return
+			}
 			if e, ok := err.(*cache.Error); ok {
 				http.Error(w, e.Error(), e.Code)
 			} else {
@@ -276,6 +284,11 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 		_, err := io.Copy(w, rdr)
 		if err != nil {
 			// No point calling http.Error here because we've already started writing data
+			if clientGone(r.Context(), err) {
+				h.accessLogger.Printf("GET %s/%s: client gone: %s", kind.String(), hash, err)
+				h.logResponse(statusClientClosedRequest, r)
+				return
+			}
 			h.errorLogger.Printf("Error writing %s/%s err: %s", kind.String(), hash, err.Error())
 			h.logResponse(http.StatusInternalServerError, r)
 			return

@@ -124,7 +124,7 @@ func (s *grpcServer) BatchUpdateBlobs(ctx context.Context,
 		err = s.cache.Put(ctx, cache.CAS, req.Digest.Hash,
 			int64(len(req.Data)), bytes.NewReader(req.Data))
 		if err != nil && err != io.EOF {
-			s.logErrorPrintf(err, "%s %s %s", errorPrefix, req.Digest.Hash, err)
+			s.logErrorPrintf(ctx, err, "%s %s %s", errorPrefix, req.Digest.Hash, err)
 			rr.Status.Code = int32(gRPCErrCode(err, codes.Internal))
 			continue
 		}
@@ -186,7 +186,7 @@ func (s *grpcServer) getBlobResponse(ctx context.Context, digest *pb.Digest, all
 		}
 
 		if err != nil {
-			s.errorLogger.Printf("GRPC CAS GET %s INTERNAL ERROR: %v", digest.Hash, err)
+			s.logErrorPrintf(ctx, err, "GRPC CAS GET %s INTERNAL ERROR: %v", digest.Hash, err)
 			// Using codes.NotFound as default, in order to keep historical behaviour.
 			// That ensures that clients handle for example corrupted headers
 			// as normal cache misses and allows clients to gracefully replace corrupted
@@ -204,7 +204,7 @@ func (s *grpcServer) getBlobResponse(ctx context.Context, digest *pb.Digest, all
 
 		data, err := io.ReadAll(rc)
 		if err != nil {
-			s.errorLogger.Printf("GRPC CAS GET %s INTERNAL ERROR: %v", digest.Hash, err)
+			s.logErrorPrintf(ctx, err, "GRPC CAS GET %s INTERNAL ERROR: %v", digest.Hash, err)
 			r.Status = &status.Status{Code: int32(code.Code_INTERNAL)}
 			return &r
 		}
@@ -223,7 +223,7 @@ func (s *grpcServer) getBlobResponse(ctx context.Context, digest *pb.Digest, all
 	}
 
 	if err != nil {
-		s.errorLogger.Printf("GRPC CAS GET %s INTERNAL ERROR: %v",
+		s.logErrorPrintf(ctx, err, "GRPC CAS GET %s INTERNAL ERROR: %v",
 			digest.Hash, err)
 		// TODO The case above with allowZstd have codes.NotFound as default
 		//      for unknown erros, but this has codes.Internal. Is that difference

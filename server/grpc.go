@@ -289,8 +289,29 @@ func translateGRPCErrCodeFromClient(err error) codes.Code {
 	return resultingCode
 }
 
-func (s *grpcServer) logErrorPrintf(err error, format string, a ...any) {
-	if translateGRPCErrCodeFromClient(err) == codes.ResourceExhausted {
+// clientGone returns true if err is a contect cancellation or deadline error,
+// which usually means that the client disconnected.
+func clientGone(ctx context.Context, err error) bool {
+	if err == nil || ctx.Err() == nil {
+		return false
+	}
+
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+
+	switch status.Code(err) {
+	case codes.Canceled, codes.DeadlineExceeded:
+		return true
+	}
+
+	return false
+}
+
+func (s *grpcServer) logErrorPrintf(ctx context.Context, err error, format string, a ...any) {
+	if translateGRPCErrCodeFromClient(err) == codes.ResourceExhausted ||
+		translateGRPCErrCodeFromClient(err) == codes.Canceled ||
+		clientGone(ctx, err) {
 		// Using accessLogger to prevent too verbose logging to errorLogger.
 		s.accessLogger.Printf(format, a...)
 	} else {
