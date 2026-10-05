@@ -11,6 +11,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -77,6 +79,12 @@ func grpcTestSetup(t *testing.T) (tc grpcTestFixtureWithTmpDirCache) {
 
 var testMaxCasBlobSizeBytes int64 = 123456789
 
+// testMaxInflightBytes is the in-flight memory budget passed to ServeGRPC by the
+// shared test setup. It defaults to 0 (unlimited) so existing tests are
+// unaffected; tests that exercise the limit set it (non-parallel) and restore
+// it via defer.
+var testMaxInflightBytes int64 = 0
+
 func grpcTestSetupInternal(t *testing.T, mangleACKeys bool) (tc grpcTestFixtureWithTmpDirCache) {
 
 	dir, err := os.MkdirTemp("", "bazel-remote-grpc-tests-"+t.Name())
@@ -124,6 +132,7 @@ func grpcTestSetupWithCustomCache(t *testing.T, mangleACKeys bool, validateAC bo
 			mangleACKeys,
 			enableRemoteAssetAPI,
 			testMaxCasBlobSizeBytes,
+			testMaxInflightBytes,
 			diskCache, accessLogger, errorLogger)
 		if err2 != nil {
 			fmt.Println(err2)
@@ -2836,5 +2845,106 @@ func TestInsufficientStorageWhenProxyTriesToStoreAc(t *testing.T) {
 		}
 		_, err := fixture.acClient.GetActionResult(ctx, &getACReq)
 		assertStatusCodeFromError(t, err, codes.ResourceExhausted)
+	}
+}
+
+// blockingCountingCache is a disk.Cache whose Get blocks until released, while
+// recording the number of concurrent Get calls. It lets a test observe how many
+// reads the in-flight-bytes limit allows to proceed at once.
+type blockingCountingCache struct {
+	*StubCache
+	blobSize      int64
+	entered       chan struct{} // one send per Get entry
+	release       chan struct{} // closed to unblock all Gets
+	concurrent    int32
+	maxConcurrent int32
+}
+
+func (c *blockingCountingCache) Get(ctx context.Context, kind cache.EntryKind, hash string, size int64, offset int64) (io.ReadCloser, int64, error) {
+	n := atomic.AddInt32(&c.concurrent, 1)
+	for {
+		m := atomic.LoadInt32(&c.maxConcurrent)
+		if n <= m || atomic.CompareAndSwapInt32(&c.maxConcurrent, m, n) {
+			break
+		}
+	}
+	c.entered <- struct{}{}
+	<-c.release
+	atomic.AddInt32(&c.concurrent, -1)
+	return io.NopCloser(bytes.NewReader(make([]byte, c.blobSize))), c.blobSize, nil
+}
+
+// TestGrpcInflightLimitBoundsConcurrentReads verifies that --max_inflight_bytes
+// caps the number of concurrent reads: with a budget of K*blobSize, at most K
+// reads may be in flight at once, and the rest block (backpressure) until
+// budget frees. Without the limit, all N would proceed and OOM under a burst.
+func TestGrpcInflightLimitBoundsConcurrentReads(t *testing.T) {
+	// Not parallel: mutates the package-global test budget.
+	const blobSize = int64(1 << 20) // 1 MiB
+	const budgetK = int64(4)
+	const numReaders = 16
+
+	prev := testMaxInflightBytes
+	testMaxInflightBytes = budgetK * blobSize
+	defer func() { testMaxInflightBytes = prev }()
+
+	bc := &blockingCountingCache{
+		StubCache: &StubCache{},
+		blobSize:  blobSize,
+		entered:   make(chan struct{}, numReaders),
+		release:   make(chan struct{}),
+	}
+
+	fixture := grpcTestSetupWithCustomCache(t, false, true, bc)
+
+	_, hash := testutils.RandomDataAndHash(blobSize)
+	resource := fmt.Sprintf("blobs/%s/%d", hash, blobSize)
+
+	var wg sync.WaitGroup
+	for i := 0; i < numReaders; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rc, err := fixture.bsClient.Read(ctx, &bytestream.ReadRequest{ResourceName: resource})
+			if err != nil {
+				return
+			}
+			for {
+				if _, e := rc.Recv(); e != nil {
+					return
+				}
+			}
+		}()
+	}
+
+	// Exactly budgetK reads should get through the limiter and reach Get.
+	for i := int64(0); i < budgetK; i++ {
+		select {
+		case <-bc.entered:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("only %d/%d reads reached Get; expected %d", i, numReaders, budgetK)
+		}
+	}
+
+	// A (budgetK+1)th read must NOT reach Get while the first K hold the budget.
+	select {
+	case <-bc.entered:
+		t.Fatalf("more than budget/blobSize=%d concurrent reads reached Get: limit not enforced", budgetK)
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	// Release everything; all reads should now drain through in waves.
+	close(bc.release)
+
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(15 * time.Second):
+		t.Fatal("timed out waiting for reads to complete after release")
+	}
+
+	if got := atomic.LoadInt32(&bc.maxConcurrent); int64(got) > budgetK {
+		t.Fatalf("max concurrent reads in Get = %d, want <= %d (budget/blobSize)", got, budgetK)
 	}
 }
