@@ -11,9 +11,11 @@ import (
 	"testing"
 
 	asset "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/asset/v1"
-	//pb "github.com/buchgr/bazel-remote/v2/genproto/build/bazel/remote/execution/v2"
 
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	testutils "github.com/buchgr/bazel-remote/v2/utils"
 )
@@ -60,6 +62,86 @@ func TestAssetFetchBlob(t *testing.T) {
 	}
 	if resp.BlobDigest.Hash != hexSha256 {
 		t.Fatal("mismatching BlobDigest hash returned")
+	}
+}
+
+func TestAssetMismatchingSRIAlgorithm(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
+
+	ts := newTestGetServer()
+
+	req := asset.FetchBlobRequest{
+		Uris: []string{
+			ts.srv.URL + "/" + ts.path, // This URL should work.
+		},
+		Qualifiers: []*asset.Qualifier{
+			{
+				Name: "checksum.sri",
+				// This is a mismatching algorithm
+				// and also a mismatching hash.
+				// This should cause an error.
+				Value: "sha512-ieYjnbXfruIhY0rGSc4H5uYoEFP42Bj6jtnVK0dlzORoEOE0nJxDBRcjJdN9KHIQkB1y4UYdvHKe1u8/ELU+Ow==",
+			},
+		},
+	}
+
+	_, err := fixture.assetClient.FetchBlob(ctx, &req)
+	if err == nil {
+		t.Fatal("expected rpc error from fetch")
+	}
+}
+
+func TestAssetUnsupportedQualifier(t *testing.T) {
+	t.Parallel()
+
+	fixture := grpcTestSetup(t)
+	defer os.Remove(fixture.tempdir)
+
+	ts := newTestGetServer()
+
+	req := asset.FetchBlobRequest{
+		Uris: []string{
+			ts.srv.URL + "/" + ts.path, // This URL should work.
+		},
+		Qualifiers: []*asset.Qualifier{
+			{
+				Name:  "unknown-qualifier",
+				Value: "some-value",
+			},
+		},
+	}
+
+	_, err := fixture.assetClient.FetchBlob(ctx, &req)
+	if err == nil {
+		t.Fatal(err, "expected rpc error from fetch")
+	}
+	gstatus, ok := status.FromError(err)
+	if !ok {
+		t.Fatal("expected a status in rpc error")
+	}
+	if gstatus.Code() != codes.InvalidArgument {
+		t.Fatalf("expected %v status code, got %v", codes.InvalidArgument, gstatus.Code())
+	}
+	if len(gstatus.Details()) != 1 {
+		t.Fatal("expected one detail in rpc status")
+	}
+	expectedDetail := &errdetails.BadRequest{
+		FieldViolations: []*errdetails.BadRequest_FieldViolation{
+			{
+				Field:       "qualifiers.name",
+				Description: `"unknown-qualifier" not supported`,
+			},
+		},
+	}
+	protoDetail, ok := gstatus.Details()[0].(*errdetails.BadRequest)
+	if !ok {
+		t.Fatal("expected BadRequest detail in rpc status")
+	}
+	if !proto.Equal(protoDetail, expectedDetail) {
+		t.Fatalf("expected %v BadRequest, got %v", expectedDetail, protoDetail)
 	}
 }
 
