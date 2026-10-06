@@ -70,6 +70,10 @@ func (s *grpcServer) GetActionResult(ctx context.Context,
 	// checked by the the disk cache.
 	const unknownActionResultSize = -1
 
+	// Thread the action digest size_bytes to the proxy via context; the
+	// Proxy.Get interface only carries the (unknown) ActionResult size.
+	ctx = context.WithValue(ctx, cache.ActionDigestSizeBytesKey, req.ActionDigest.SizeBytes)
+
 	if !s.depsCheck {
 		logPrefix = "GRPC AC GET NODEPSCHECK"
 
