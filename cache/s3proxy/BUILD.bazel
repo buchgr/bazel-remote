@@ -23,5 +23,10 @@ go_test(
     name = "go_default_test",
     srcs = ["s3proxy_test.go"],
     embed = [":go_default_library"],
-    deps = ["//cache:go_default_library"],
+    deps = [
+        "//cache:go_default_library",
+        "//utils:go_default_library",
+        "@com_github_minio_minio_go_v7//:go_default_library",
+        "@com_github_minio_minio_go_v7//pkg/credentials:go_default_library",
+    ],
 )
