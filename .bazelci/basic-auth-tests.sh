@@ -144,6 +144,7 @@ bazel build //:bazel-remote --remote_cache=grpc://localhost:9092 \
 kill -9 $server_pid
 sleep 2
 ./bazel-remote --dir "$tmpdir/cache" --max_size 1 --http_address "0.0.0.0:$HTTP_PORT" \
+  --enable_endpoint_metrics \
 	--htpasswd_file "$tmpdir/htpasswd" > "$tmpdir/bazel-remote-authenticated.log" 2>&1 &
 server_pid=$!
 
@@ -180,6 +181,15 @@ wget --inet4-only -d -O - --timeout=2 \
 # Unauthenticated read should fail.
 if wget --inet4-only -d -O - --timeout=2 \
 	"http://localhost:$HTTP_PORT/cas/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+then
+	echo "Error: expected unauthenticated read to fail"
+	kill -9 $server_pid
+	exit 1
+fi
+
+# Unauthenticated status read should fail.
+if wget --inet4-only -d -O - --timeout=2 \
+	"http://localhost:$HTTP_PORT/status"
 then
 	echo "Error: expected unauthenticated read to fail"
 	kill -9 $server_pid
