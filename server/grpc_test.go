@@ -827,7 +827,7 @@ func TestGrpcByteStream(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bsrResp, err := bsrc.Recv()
+	_, err = bsrc.Recv()
 	if err == nil {
 		t.Fatal("Expected NotFound")
 	}
@@ -894,6 +894,8 @@ func TestGrpcByteStream(t *testing.T) {
 	}
 
 	downloadedBlob := make([]byte, 0, len(testBlob))
+
+	var bsrResp *bytestream.ReadResponse
 
 	for {
 		bsrResp, err = bsrc.Recv()
@@ -1902,12 +1904,14 @@ func TestBadUpdateActionResultRequest(t *testing.T) {
 		{
 			description: "nil pointer in OutputFileSymlinks",
 			actionResult: &pb.ActionResult{
+				//nolint:staticcheck // OutputSymlink is deprecated but we still handle it.
 				OutputFileSymlinks: []*pb.OutputSymlink{nil},
 			},
 		},
 		{
 			description: "absolute path in OutputFileSymlinks",
 			actionResult: &pb.ActionResult{
+				//nolint:staticcheck // OutputSymlink is deprecated but we still handle it.
 				OutputFileSymlinks: []*pb.OutputSymlink{
 					{
 						Path:   "/foo/bar", // Note: absolute path.
@@ -1919,6 +1923,7 @@ func TestBadUpdateActionResultRequest(t *testing.T) {
 		{
 			description: "empty path in OutputFileSymlinks",
 			actionResult: &pb.ActionResult{
+				//nolint:staticcheck // OutputSymlink is deprecated but we still handle it.
 				OutputFileSymlinks: []*pb.OutputSymlink{
 					{
 						// Note: empty path.
@@ -1930,6 +1935,7 @@ func TestBadUpdateActionResultRequest(t *testing.T) {
 		{
 			description: "empty target in OutputFileSymlinks",
 			actionResult: &pb.ActionResult{
+				//nolint:staticcheck // OutputSymlink is deprecated but we still handle it.
 				OutputFileSymlinks: []*pb.OutputSymlink{
 					{
 						Path: "foo/bar",
@@ -1982,12 +1988,14 @@ func TestBadUpdateActionResultRequest(t *testing.T) {
 		{
 			description: "nil pointer in OutputDirectorySymlinks",
 			actionResult: &pb.ActionResult{
+				//nolint:staticcheck // OutputSymlink is deprecated but we still handle it.
 				OutputDirectorySymlinks: []*pb.OutputSymlink{nil},
 			},
 		},
 		{
 			description: "absolute path in OutputDirectorySymlinks",
 			actionResult: &pb.ActionResult{
+				//nolint:staticcheck // OutputSymlink is deprecated but we still handle it.
 				OutputDirectorySymlinks: []*pb.OutputSymlink{
 					{
 						Path:   "/foo/bar", // Note: absolute path.
@@ -1999,6 +2007,7 @@ func TestBadUpdateActionResultRequest(t *testing.T) {
 		{
 			description: "empty path in OutputDirectorySymlinks",
 			actionResult: &pb.ActionResult{
+				//nolint:staticcheck // OutputSymlink is deprecated but we still handle it.
 				OutputDirectorySymlinks: []*pb.OutputSymlink{
 					{
 						// Note: empty path.
@@ -2010,6 +2019,7 @@ func TestBadUpdateActionResultRequest(t *testing.T) {
 		{
 			description: "empty target in OutputDirectorySymlinks",
 			actionResult: &pb.ActionResult{
+				//nolint:staticcheck // OutputSymlink is deprecated but we still handle it.
 				OutputDirectorySymlinks: []*pb.OutputSymlink{
 					{
 						Path: "foo/bar",

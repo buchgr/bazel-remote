@@ -32,6 +32,7 @@ func TestValidateNilPointers(t *testing.T) {
 		{
 			description: "nil *OutputSymlink in OutputFileSymlinks",
 			actionResult: &pb.ActionResult{
+				//nolint:staticcheck // OutputSymlink is deprecated but we still handle it.
 				OutputFileSymlinks: []*pb.OutputSymlink{nil},
 			},
 			expected: errNilOuputFileSymlink,
@@ -46,6 +47,7 @@ func TestValidateNilPointers(t *testing.T) {
 		{
 			description: "nil *OutputSymlink in OutputDirectorySymlinks",
 			actionResult: &pb.ActionResult{
+				//nolint:staticcheck // OutputSymlink is deprecated but we still handle it.
 				OutputDirectorySymlinks: []*pb.OutputSymlink{nil},
 			},
 			expected: errNilOuputDirSymlink,
