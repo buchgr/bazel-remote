@@ -392,6 +392,11 @@ func GetCliFlags() []cli.Flag {
 			DefaultText: "false",
 			EnvVars:     []string{"BAZEL_REMOTE_S3_UPDATE_TIMESTAMPS"},
 		},
+		&cli.DurationFlag{
+			Name:    "s3.cas_refresh_age",
+			Usage:   "Copy CAS blobs found or fetched from S3 onto themselves in the background once they are older than this, so lifecycle rules that expire by last write keep them. 0 disables. Ignored with s3.update_timestamps.",
+			EnvVars: []string{"BAZEL_REMOTE_S3_CAS_REFRESH_AGE"},
+		},
 		&cli.StringFlag{
 			Name:    "s3.iam_role_endpoint",
 			Value:   "",

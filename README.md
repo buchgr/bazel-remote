@@ -369,6 +369,11 @@ OPTIONS:
    --s3.update_timestamps Whether to update timestamps of object on cache
       hit. (default: false) [$BAZEL_REMOTE_S3_UPDATE_TIMESTAMPS]
 
+   --s3.cas_refresh_age value Copy CAS blobs found or fetched from S3 onto
+      themselves in the background once they are older than this, so lifecycle
+      rules that expire by last write keep them. 0 disables. Ignored with
+      s3.update_timestamps. (default: 0s) [$BAZEL_REMOTE_S3_CAS_REFRESH_AGE]
+
    --s3.iam_role_endpoint value Endpoint for using IAM security credentials.
       By default it will look for credentials in the standard locations for the
       AWS platform. Applies to s3 auth method(s): iam_role.
@@ -570,6 +575,9 @@ http_address: 0.0.0.0:8080
 #  disable_ssl: true
 #  bucket_lookup_type: auto
 #  max_idle_conns: 1024
+# Keep CAS blobs that are still in use alive under an S3 lifecycle rule that
+# expires by last write. Expire ac/ at least this long before cas.v2/.
+#  cas_refresh_age: 168h
 #
 # Provide exactly one auth_method (access_key, iam_role, or credentials_file) and accompanying configuration.
 #
