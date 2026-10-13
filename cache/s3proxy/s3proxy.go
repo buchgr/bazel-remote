@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"path"
+	"time"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
@@ -27,6 +28,8 @@ type s3Cache struct {
 	errorLogger      cache.Logger
 	v2mode           bool
 	updateTimestamps bool
+	casRefreshAge    time.Duration
+	refreshQueue     chan string
 	objectKey        func(hash string, kind cache.EntryKind) string
 }
 
@@ -54,6 +57,7 @@ func New(
 	Credentials *credentials.Credentials,
 	DisableSSL bool,
 	UpdateTimestamps bool,
+	CASRefreshAge time.Duration,
 	Region string,
 	MaxIdleConns int,
 
@@ -105,6 +109,7 @@ func New(
 		errorLogger:      errorLogger,
 		v2mode:           storageMode == "zstd",
 		updateTimestamps: UpdateTimestamps,
+		casRefreshAge:    CASRefreshAge,
 	}
 
 	if c.v2mode {
@@ -118,6 +123,13 @@ func New(
 	}
 
 	c.uploadQueue = backendproxy.StartUploaders(c, numUploaders, maxQueuedUploads)
+
+	if c.casRefreshAge > 0 && !c.updateTimestamps {
+		c.refreshQueue = make(chan string, maxQueuedUploads)
+		for range numUploaders {
+			go c.refreshWorker()
+		}
+	}
 
 	return c
 }
@@ -214,6 +226,44 @@ func (c *s3Cache) UpdateModificationTimestamp(ctx context.Context, bucket string
 	logResponse(c.accessLogger, "COMPOSE", bucket, object, err)
 }
 
+// queueCASRefresh copies a CAS blob onto itself in the background once it is
+// older than casRefreshAge. A lifecycle rule that expires objects by last write
+// then never deletes a blob that is still being found or fetched, so AC entries
+// written in the meantime keep their outputs.
+func (c *s3Cache) queueCASRefresh(kind cache.EntryKind, key string, lastModified time.Time) {
+	if c.refreshQueue == nil || kind != cache.CAS || time.Since(lastModified) < c.casRefreshAge {
+		return
+	}
+
+	select {
+	case c.refreshQueue <- key:
+	default:
+		c.errorLogger.Printf("too many refreshes queued\n")
+	}
+}
+
+func (c *s3Cache) refreshWorker() {
+	for key := range c.refreshQueue {
+		_, err := c.mcore.Client.CopyObject(
+			context.Background(),
+			minio.CopyDestOptions{
+				Bucket:          c.bucket,
+				Object:          key,
+				ReplaceMetadata: true,
+				UserMetadata: map[string]string{
+					"Content-Type": "application/octet-stream",
+				},
+			},
+			minio.CopySrcOptions{
+				Bucket: c.bucket,
+				Object: key,
+			},
+		)
+
+		logResponse(c.accessLogger, "REFRESH", c.bucket, key, err)
+	}
+}
+
 func (c *s3Cache) Get(ctx context.Context, kind cache.EntryKind, hash string, _ int64) (io.ReadCloser, int64, error) {
 
 	rc, info, _, err := c.mcore.GetObject(
@@ -237,6 +287,7 @@ func (c *s3Cache) Get(ctx context.Context, kind cache.EntryKind, hash string, _ 
 	if c.updateTimestamps {
 		c.UpdateModificationTimestamp(ctx, c.bucket, c.objectKey(hash, kind))
 	}
+	c.queueCASRefresh(kind, c.objectKey(hash, kind), info.LastModified)
 
 	logResponse(c.accessLogger, "DOWNLOAD", c.bucket, c.objectKey(hash, kind), nil)
 
@@ -261,8 +312,11 @@ func (c *s3Cache) Contains(ctx context.Context, kind cache.EntryKind, hash strin
 	exists = (err == nil)
 	if err != nil {
 		err = errNotFound
-	} else if kind != cache.CAS || !c.v2mode {
-		size = s.Size
+	} else {
+		if kind != cache.CAS || !c.v2mode {
+			size = s.Size
+		}
+		c.queueCASRefresh(kind, c.objectKey(hash, kind), s.LastModified)
 	}
 
 	logResponse(c.accessLogger, "CONTAINS", c.bucket, c.objectKey(hash, kind), err)
