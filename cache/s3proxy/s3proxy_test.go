@@ -57,10 +57,17 @@ type fakeBucket struct {
 	mu       sync.Mutex
 	modified map[string]time.Time
 	copied   []string
+
+	// When set, copies wait for it to be closed.
+	copyGate chan struct{}
 }
 
 func (b *fakeBucket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	key := strings.TrimPrefix(r.URL.Path, "/"+testBucketName+"/")
+
+	if b.copyGate != nil && r.Header.Get("x-amz-copy-source") != "" {
+		<-b.copyGate
+	}
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -195,5 +202,25 @@ func TestCASRefreshAgeDisabled(t *testing.T) {
 
 	if copied := bucket.copiedKeys(t); len(copied) != 0 {
 		t.Fatalf("refreshed %v with cas_refresh_age disabled", copied)
+	}
+}
+
+func TestCASRefreshAgeCopiesOnceWhileQueued(t *testing.T) {
+	ctx := context.Background()
+	oldCAS := objectKeyV1("", "aaaa", cache.CAS)
+	bucket := &fakeBucket{
+		modified: map[string]time.Time{oldCAS: time.Now().Add(-48 * time.Hour)},
+		copyGate: make(chan struct{}),
+	}
+	proxy := newTestProxy(t, bucket, 24*time.Hour)
+
+	// Every lookup sees the old timestamp while the first copy is in flight.
+	for range 5 {
+		_, _ = proxy.Contains(ctx, cache.CAS, "aaaa", 4)
+	}
+	close(bucket.copyGate)
+
+	if copied := bucket.copiedKeys(t); len(copied) != 1 {
+		t.Fatalf("refreshed %v, want one refresh", copied)
 	}
 }

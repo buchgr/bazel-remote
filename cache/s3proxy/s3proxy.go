@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"path"
+	"sync"
 	"time"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
@@ -30,6 +31,7 @@ type s3Cache struct {
 	updateTimestamps bool
 	casRefreshAge    time.Duration
 	refreshQueue     chan string
+	refreshing       sync.Map // keys queued or being copied
 	objectKey        func(hash string, kind cache.EntryKind) string
 }
 
@@ -235,9 +237,16 @@ func (c *s3Cache) queueCASRefresh(kind cache.EntryKind, key string, lastModified
 		return
 	}
 
+	// A blob that many lookups find at once is copied once; repeated copies of
+	// one key would also be throttled by S3.
+	if _, queued := c.refreshing.LoadOrStore(key, struct{}{}); queued {
+		return
+	}
+
 	select {
 	case c.refreshQueue <- key:
 	default:
+		c.refreshing.Delete(key)
 		c.errorLogger.Printf("too many refreshes queued\n")
 	}
 }
@@ -260,6 +269,7 @@ func (c *s3Cache) refreshWorker() {
 			},
 		)
 
+		c.refreshing.Delete(key)
 		logResponse(c.accessLogger, "REFRESH", c.bucket, key, err)
 	}
 }
