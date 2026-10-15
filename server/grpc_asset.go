@@ -216,7 +216,7 @@ func (s *grpcServer) fetchItem(ctx context.Context, uri string, headers http.Hea
 	req.Header = headers
 	applyNetrcCredentials(req, s.netrcCredentials)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		s.errorLogger.Printf("failed to get URI: %s err: %v", uri, err)
 		return "", int64(-1), err

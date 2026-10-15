@@ -114,12 +114,33 @@ To use this with Bazel, specify
 
 #### HTTP authentication for remote asset
 
-When fetching `http` or `https` URIs, bazel-remote can use credentials from
-the `.netrc` file in the home directory of the bazel-remote process. Set the
-`NETRC` environment variable to use a different file. Credentials from `.netrc`
-are only used when the request does not already include an `Authorization`
-header and the URI does not include user info. `default` entries in `.netrc`
-are ignored, since they might mistakenly exfiltrate credentials.
+**Security warning:** the remote asset API lets any client that can reach
+bazel-remote make it fetch arbitrary `http`/`https` URIs and store the result
+in the CAS, where any client can then read it. If you enable `.netrc`
+credentials, every client of this bazel-remote instance can therefore fetch
+and read any private artifact that those credentials give access to. Only
+enable this if all clients are trusted with that access.
+
+This is disabled by default. To enable it, set the `--netrc_file` flag (or the
+`netrc_file` config key, or `BAZEL_REMOTE_NETRC_FILE`) to the path of a
+`.netrc` file. bazel-remote does not read `~/.netrc` or `NETRC` implicitly, and
+fails to start if the file can't be read or `--experimental_remote_asset_api`
+is not enabled.
+
+When a fetched URI's host matches a `machine` entry, its `login` and `password`
+are sent as HTTP Basic Auth. Values containing whitespace can be wrapped in
+double quotes, with `\"` and `\\` escapes. Credentials are:
+
+* only sent over `https`, never plain `http`.
+* not used if the request already has an `Authorization` header (eg from an
+  `http_header:Authorization` qualifier) or the URI includes user info.
+* only forwarded on redirects to the exact same scheme and host, not to
+  subdomains or other hosts. Redirect targets never get their own `.netrc`
+  lookup.
+* read once at startup. bazel-remote must be restarted to pick up changes.
+
+`default` entries in `.netrc` are ignored, since they might mistakenly
+exfiltrate credentials.
 
 ### Byte Stream compressed-blobs
 
@@ -457,6 +478,11 @@ OPTIONS:
       asset API implementation. (default: false, ie disable remote asset API)
       [$BAZEL_REMOTE_EXPERIMENTAL_REMOTE_ASSET_API]
 
+   --netrc_file value Path to a .netrc file whose credentials are used as HTTP
+      basic auth when the remote asset API fetches https URIs. Requires
+      --experimental_remote_asset_api. The file is only read at startup.
+      [$BAZEL_REMOTE_NETRC_FILE]
+
    --access_log_level value The access logger verbosity level. If supplied,
       must be one of "none" or "all". (default: all, ie enable full access
       logging) [$BAZEL_REMOTE_ACCESS_LOG_LEVEL]
@@ -650,6 +676,11 @@ http_address: 0.0.0.0:8080
 
 # If true, enable experimental remote asset API support:
 #experimental_remote_asset_api: true
+
+# Path to a .netrc file with credentials for remote asset https fetches.
+# Requires experimental_remote_asset_api. Only read at startup. See the
+# security warning in the "HTTP authentication for remote asset" section.
+#netrc_file: /path/to/.netrc
 
 # If supplied, controls the verbosity of the access logger ("none" or "all"):
 #access_log_level: none

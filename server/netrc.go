@@ -2,135 +2,81 @@ package server
 
 import (
 	"bufio"
+	"errors"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/buchgr/bazel-remote/v2/cache"
 )
+
+const maxAssetRedirects = 10
 
 type netrcCredentials struct {
 	login    string
 	password string
 }
 
-type netrcEntry struct {
-	machine  string
-	login    string
-	password string
-}
-
-type netrcFileCredentials struct {
-	hosts map[string]netrcCredentials
-}
-
-func applyNetrcCredentials(req *http.Request, loadedCredentials netrcFileCredentials) {
-	if req.URL == nil {
-		return
-	}
-
-	if hasAuthorizationHeader(req.Header) {
-		return
-	}
-
-	if req.URL.User != nil {
-		return
-	}
-
-	creds := lookupNetrcCredentials(req.URL.Hostname(), loadedCredentials)
-	if creds == nil {
-		return
-	}
-
-	req.SetBasicAuth(creds.login, creds.password)
-}
-
-func hasAuthorizationHeader(header http.Header) bool {
-	for key, values := range header {
-		if !strings.EqualFold(key, "Authorization") {
-			continue
-		}
-
-		for _, value := range values {
-			if value != "" {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-func loadNetrcCredentials(logger cache.Logger) netrcFileCredentials {
-	path, err := netrcPath()
-	if err != nil {
-		if logger != nil {
-			logger.Printf("failed to read .netrc credentials: %v", err)
-		}
-		return emptyNetrcFileCredentials()
-	}
-	if path == "" {
-		return emptyNetrcFileCredentials()
-	}
-
-	return loadNetrcCredentialsForPath(path, logger)
-}
-
-func lookupNetrcCredentials(host string, credsByPath netrcFileCredentials) *netrcCredentials {
-	return credsByPath.lookup(host)
-}
-
-func loadNetrcCredentialsForPath(path string, logger cache.Logger) netrcFileCredentials {
+// loadNetrcFile parses the .netrc file at path, returning credentials keyed
+// by lower-cased machine name.
+func loadNetrcFile(path string, logger cache.Logger) (map[string]netrcCredentials, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return emptyNetrcFileCredentials()
-		}
-		if logger != nil {
-			logger.Printf("failed to read .netrc credentials: %v", err)
-		}
-		return emptyNetrcFileCredentials()
+		return nil, err
 	}
 
-	entries := parseNetrcEntries(string(data), logger)
-
-	return newNetrcFileCredentials(entries)
+	return parseNetrc(string(data), logger), nil
 }
 
-func netrcPath() (string, error) {
-	if path := os.Getenv("NETRC"); path != "" {
-		return path, nil
+// applyNetrcCredentials sets basic auth from creds on req, but only for HTTPS
+// requests that don't already carry credentials of their own.
+func applyNetrcCredentials(req *http.Request, creds map[string]netrcCredentials) {
+	if req.URL.Scheme != "https" || req.URL.User != nil || req.Header.Get("Authorization") != "" {
+		return
 	}
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	if home == "" {
-		return "", nil
+	c, ok := creds[strings.ToLower(req.URL.Hostname())]
+	if !ok {
+		return
 	}
 
-	return filepath.Join(home, ".netrc"), nil
+	req.SetBasicAuth(c.login, c.password)
 }
 
-func parseNetrcEntries(data string, logger cache.Logger) []netrcEntry {
+// stripAuthorizationOnRedirect is an http.Client.CheckRedirect function which
+// only forwards the Authorization header to the exact scheme and host of the
+// original request. net/http would also forward it to subdomains.
+func stripAuthorizationOnRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= maxAssetRedirects {
+		return errors.New("stopped after too many redirects")
+	}
+
+	if req.URL.Scheme != via[0].URL.Scheme || req.URL.Host != via[0].URL.Host {
+		req.Header.Del("Authorization")
+	}
+
+	return nil
+}
+
+func parseNetrc(data string, logger cache.Logger) map[string]netrcCredentials {
 	scanner := bufio.NewScanner(strings.NewReader(data))
 
 	var (
-		entries []netrcEntry
-		entry   netrcEntry
+		hosts   = make(map[string]netrcCredentials)
+		machine string
+		creds   netrcCredentials
 		inMacro bool
 		lineNum int
 	)
 
-	commitEntry := func() {
-		if entry.machine == "" || entry.login == "" || entry.password == "" {
+	commit := func() {
+		if machine == "" || creds.login == "" || creds.password == "" {
 			return
 		}
 
-		entries = append(entries, entry)
-		entry = netrcEntry{}
+		hosts[strings.ToLower(machine)] = creds
+		machine = ""
+		creds = netrcCredentials{}
 	}
 
 	for scanner.Scan() {
@@ -144,126 +90,127 @@ func parseNetrcEntries(data string, logger cache.Logger) []netrcEntry {
 			continue
 		}
 
-		fields := netrcFields(line)
+		fields, err := netrcFields(line)
+		if err != nil {
+			logger.Printf("malformed .netrc: %v on line %d", err, lineNum)
+		}
+
 		for i := 0; i < len(fields); {
-			switch fields[i] {
-			case "machine":
-				if i+1 >= len(fields) {
-					logMalformedNetrc(logger, "missing machine name", lineNum)
-					i++
-					continue
-				}
+			keyword := fields[i]
 
-				entry = netrcEntry{machine: fields[i+1]}
-				i += 2
+			switch keyword {
 			case "default":
-				if logger != nil {
-					logger.Printf(".netrc default entry found; explicitly ignoring default credentials")
-				}
-				entry = netrcEntry{}
+				logger.Printf(".netrc default entry found; explicitly ignoring default credentials")
+				machine = ""
+				creds = netrcCredentials{}
 				i++
-			case "login":
-				if i+1 >= len(fields) {
-					logMalformedNetrc(logger, "missing login value", lineNum)
-					i++
-					continue
-				}
-
-				entry.login = fields[i+1]
-				i += 2
-			case "password":
-				if i+1 >= len(fields) {
-					logMalformedNetrc(logger, "missing password value", lineNum)
-					i++
-					continue
-				}
-
-				entry.password = fields[i+1]
-				i += 2
-			case "account":
-				if i+1 >= len(fields) {
-					logMalformedNetrc(logger, "missing account value", lineNum)
-					i++
-					continue
-				}
-
-				i += 2
-			case "macdef":
-				if i+1 >= len(fields) {
-					logMalformedNetrc(logger, "missing macro name", lineNum)
-					i++
-					continue
-				}
-
-				i += 2
-				inMacro = true
+				continue
+			case "machine", "login", "password", "account", "macdef":
 			default:
-				if i+1 < len(fields) {
-					i += 2
-				} else {
-					i++
-				}
+				// Unknown keyword, skip it and its value.
+				i += 2
+				continue
 			}
 
-			commitEntry()
+			if i+1 >= len(fields) {
+				logger.Printf("malformed .netrc: missing value for %q on line %d", keyword, lineNum)
+				break
+			}
+
+			value := fields[i+1]
+			i += 2
+
+			switch keyword {
+			case "machine":
+				machine = value
+				creds = netrcCredentials{}
+			case "login":
+				creds.login = value
+			case "password":
+				creds.password = value
+			case "macdef":
+				inMacro = true
+			}
+
+			commit()
 			if inMacro {
 				break
 			}
 		}
 	}
 
-	commitEntry()
+	commit()
 
 	if err := scanner.Err(); err != nil {
-		if logger != nil {
-			logger.Printf("failed to read .netrc credentials: %v", err)
-		}
+		logger.Printf("failed to read .netrc credentials: %v", err)
 	}
 
-	return entries
+	return hosts
 }
 
-func emptyNetrcFileCredentials() netrcFileCredentials {
-	return netrcFileCredentials{hosts: make(map[string]netrcCredentials)}
-}
-
-func netrcFields(line string) []string {
+// netrcFields splits a .netrc line into whitespace separated tokens. As with
+// curl, a token can be wrapped in double quotes to include whitespace, with
+// backslash escapes for \", \\, \n, \r and \t. Lines starting with '#' are
+// comments. On an error the tokens parsed so far are returned.
+func netrcFields(line string) ([]string, error) {
 	if strings.HasPrefix(strings.TrimSpace(line), "#") {
-		return nil
+		return nil, nil
 	}
 
-	return strings.Fields(line)
-}
+	var fields []string
 
-func logMalformedNetrc(logger cache.Logger, msg string, lineNum int) {
-	if logger != nil {
-		logger.Printf("malformed .netrc: %s on line %d", msg, lineNum)
-	}
-}
-
-func newNetrcFileCredentials(entries []netrcEntry) netrcFileCredentials {
-	credsByHost := netrcFileCredentials{
-		hosts: make(map[string]netrcCredentials, len(entries)),
-	}
-
-	for _, entry := range entries {
-		creds := netrcCredentials{
-			login:    entry.login,
-			password: entry.password,
+	for i := 0; i < len(line); {
+		if isNetrcSpace(line[i]) {
+			i++
+			continue
 		}
 
-		key := strings.ToLower(entry.machine)
-		credsByHost.hosts[key] = creds
+		if line[i] != '"' {
+			start := i
+			for i < len(line) && !isNetrcSpace(line[i]) {
+				i++
+			}
+			fields = append(fields, line[start:i])
+			continue
+		}
+
+		i++ // Opening quote.
+		var sb strings.Builder
+		closed := false
+		for i < len(line) && !closed {
+			c := line[i]
+			i++
+
+			switch {
+			case c == '"':
+				closed = true
+				continue
+			case c == '\\' && i < len(line):
+				c = line[i]
+				i++
+				switch c {
+				case 'n':
+					c = '\n'
+				case 'r':
+					c = '\r'
+				case 't':
+					c = '\t'
+				}
+			}
+
+			sb.WriteByte(c)
+		}
+
+		if !closed {
+			return fields, errors.New("unterminated quoted string")
+		}
+
+		fields = append(fields, sb.String())
 	}
 
-	return credsByHost
+	return fields, nil
 }
 
-func (c netrcFileCredentials) lookup(host string) *netrcCredentials {
-	if creds, ok := c.hosts[strings.ToLower(host)]; ok {
-		hostCreds := creds
-		return &hostCreds
-	}
-
-	return nil
+func isNetrcSpace(c byte) bool {
+	return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f'
 }

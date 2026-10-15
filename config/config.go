@@ -121,6 +121,7 @@ type Config struct {
 	MetricsDurationBuckets      []float64                 `yaml:"endpoint_metrics_duration_buckets"`
 	HttpMetricsPrefix           bool                      `yaml:"http_metrics_prefix"`
 	ExperimentalRemoteAssetAPI  bool                      `yaml:"experimental_remote_asset_api"`
+	NetrcFile                   string                    `yaml:"netrc_file"`
 	HTTPReadTimeout             time.Duration             `yaml:"http_read_timeout"`
 	HTTPWriteTimeout            time.Duration             `yaml:"http_write_timeout"`
 	AccessLogLevel              string                    `yaml:"access_log_level"`
@@ -179,6 +180,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	enableEndpointMetrics bool,
 	httpMetricsPrefix bool,
 	experimentalRemoteAssetAPI bool,
+	netrcFile string,
 	httpReadTimeout time.Duration,
 	httpWriteTimeout time.Duration,
 	accessLogLevel string,
@@ -218,6 +220,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		MetricsDurationBuckets:      defaultDurationBuckets,
 		HttpMetricsPrefix:           httpMetricsPrefix,
 		ExperimentalRemoteAssetAPI:  experimentalRemoteAssetAPI,
+		NetrcFile:                   netrcFile,
 		HTTPReadTimeout:             httpReadTimeout,
 		HTTPWriteTimeout:            httpWriteTimeout,
 		AccessLogLevel:              accessLogLevel,
@@ -374,6 +377,10 @@ func validateConfig(c *Config) error {
 
 	if c.GRPCAddress == disabledGRPCListener && c.ExperimentalRemoteAssetAPI {
 		return errors.New("remote Asset API support depends on gRPC being enabled")
+	}
+
+	if c.NetrcFile != "" && !c.ExperimentalRemoteAssetAPI {
+		return errors.New("'netrc_file' requires the remote Asset API to be enabled")
 	}
 
 	if (c.TLSCertFile != "" && c.TLSKeyFile == "") || (c.TLSCertFile == "" && c.TLSKeyFile != "") {
@@ -672,6 +679,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.Bool("enable_endpoint_metrics"),
 		ctx.Bool("http_metrics_prefix"),
 		ctx.Bool("experimental_remote_asset_api"),
+		ctx.String("netrc_file"),
 		ctx.Duration("http_read_timeout"),
 		ctx.Duration("http_write_timeout"),
 		ctx.String("access_log_level"),

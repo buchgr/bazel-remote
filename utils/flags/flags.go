@@ -514,6 +514,11 @@ func GetCliFlags() []cli.Flag {
 			EnvVars:     []string{"BAZEL_REMOTE_EXPERIMENTAL_REMOTE_ASSET_API"},
 		},
 		&cli.StringFlag{
+			Name:    "netrc_file",
+			Usage:   "Path to a .netrc file whose credentials are used as HTTP basic auth when the remote asset API fetches https URIs. Requires --experimental_remote_asset_api. The file is only read at startup.",
+			EnvVars: []string{"BAZEL_REMOTE_NETRC_FILE"},
+		},
+		&cli.StringFlag{
 			Name:        "access_log_level",
 			Usage:       "The access logger verbosity level. If supplied, must be one of \"none\" or \"all\".",
 			Value:       "all",
