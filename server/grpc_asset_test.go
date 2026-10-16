@@ -66,8 +66,11 @@ func TestAssetFetchBlob(t *testing.T) {
 type testGetServer struct {
 	srv *httptest.Server
 
-	blob []byte
-	path string
+	blob             []byte
+	path             string
+	username         string
+	password         string
+	requireBasicAuth bool
 }
 
 func (s *testGetServer) handler(w http.ResponseWriter, r *http.Request) {
@@ -80,6 +83,15 @@ func (s *testGetServer) handler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/"+s.path {
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
+	}
+
+	if s.requireBasicAuth {
+		username, password, ok := r.BasicAuth()
+		if !ok || username != s.username || password != s.password {
+			w.Header().Set("WWW-Authenticate", `Basic realm="test"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -103,4 +115,12 @@ func newTestGetServer() *testGetServer {
 	ts.srv = httptest.NewServer(http.HandlerFunc(ts.handler))
 
 	return &ts
+}
+
+func newAuthenticatedTestGetServer(username, password string) *testGetServer {
+	ts := newTestGetServer()
+	ts.username = username
+	ts.password = password
+	ts.requireBasicAuth = true
+	return ts
 }
