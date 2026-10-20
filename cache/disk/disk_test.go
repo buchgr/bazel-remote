@@ -1843,7 +1843,8 @@ func TestResultFromProxyTooLargeToReserve(t *testing.T) {
 
 	// Wait for the first retrieval to complete. After that we know it is not reserved
 	// any longer and can be evicted to make room for blob2.
-	<-getResultsFromBackground
+	err = <-getResultsFromBackground
+	testutils.AssertSuccess(t, err)
 
 	// Verify that a new attempt of blob2 download succeed. This implicitly verifies that
 	// any internal mutexes involved during the previous failed reservation has been released
