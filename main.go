@@ -139,6 +139,16 @@ func run(ctx *cli.Context) error {
 		}()
 	}()
 
+	if c.ProfileAddress != "" {
+		go func() {
+			// Start profiling before loading the disk cache.
+			log.Printf("Starting HTTP server for profiling on address %s",
+				c.ProfileAddress)
+			log.Fatal(`Failed to listen on address: "`, c.ProfileAddress,
+				`": `, http.ListenAndServe(c.ProfileAddress, nil))
+		}()
+	}
+
 	log.Println("Storage mode:", c.StorageMode)
 	if c.StorageMode == "zstd" {
 		log.Println("Zstandard implementation:", c.ZstdImplementation)
@@ -213,16 +223,6 @@ func run(ctx *cli.Context) error {
 			}
 			return nil
 		})
-	}
-
-	if c.ProfileAddress != "" {
-		go func() {
-			// Allow access to /debug/pprof/ URLs.
-			log.Printf("Starting HTTP server for profiling on address %s",
-				c.ProfileAddress)
-			log.Fatal(`Failed to listen on address: "`, c.ProfileAddress,
-				`": `, http.ListenAndServe(c.ProfileAddress, nil))
-		}()
 	}
 
 	if idleTimer != nil {
