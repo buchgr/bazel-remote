@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -355,6 +356,37 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 	return nil
 }
 
+// Re-reads a compressed CAS blob just fetched from a proxy backend and confirms that
+// its logical bytes match their expected digest.
+func verifyCompressedCasBlob(zstd zstdimpl.ZstdImpl, blobFile string, hash string, size int64) error {
+	f, err := os.Open(blobFile)
+	if err != nil {
+		return err
+	}
+
+	rc, err := casblob.GetUncompressedReadCloser(zstd, f, size, 0)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rc.Close() }()
+
+	hasher := sha256.New()
+	n, err := io.Copy(hasher, rc)
+	if err != nil {
+		return err
+	}
+	if n != size {
+		return fmt.Errorf("sizes don't match. Expected %d, found %d", size, n)
+	}
+
+	actualHash := hex.EncodeToString(hasher.Sum(nil))
+	if actualHash != hash {
+		return fmt.Errorf("checksums don't match. Expected %s, found %s", hash, actualHash)
+	}
+
+	return nil
+}
+
 func (c *diskCache) writeAndCloseFile(ctx context.Context, r io.Reader, kind cache.EntryKind, hash string, size int64, f *os.File) (int64, error) {
 	closeFile := true
 	defer func() {
@@ -691,6 +723,7 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 	}
 
 	legacy := kind == cache.CAS && c.storageMode == casblob.Identity
+	compressed := kind == cache.CAS && !legacy
 
 	blobPathBase := path.Join(c.dir, c.FileLocationBase(kind, legacy, hash, foundSize))
 	tf, random, err := tfc.Create(blobPathBase, legacy)
@@ -701,11 +734,37 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 
 	blobFile = tf.Name()
 
+	// Don't trust a proxy backend to return the blob that was asked for. Validate it has expected digest.
 	var sizeOnDisk int64
-	sizeOnDisk, err = io.Copy(tf, r)
-	_ = tf.Close()
+	if legacy {
+		verifier := sha256verifier.New(hash, foundSize, tf)
+		sizeOnDisk, err = io.Copy(verifier, r)
+		if err == nil {
+			// Closes tf too, and reports a size or digest mismatch.
+			err = verifier.Close()
+			if err != nil {
+				log.Printf("WARNING: proxy backend returned a bad CAS blob for %s: %v", hash, err)
+				return nil, -1, nil
+			}
+		} else {
+			_ = tf.Close()
+		}
+	} else {
+		// A compressed CAS blob is checked below. AC and raw entries are keyed by action
+		// digest, not by a hash of their contents, so nothing can check them.
+		sizeOnDisk, err = io.Copy(tf, r)
+		_ = tf.Close()
+	}
 	if err != nil {
 		return nil, -1, internalErr(err)
+	}
+
+	if compressed {
+		err = verifyCompressedCasBlob(c.zstd, blobFile, hash, foundSize)
+		if err != nil {
+			log.Printf("WARNING: proxy backend returned a bad CAS blob for %s: %v", hash, err)
+			return nil, -1, nil
+		}
 	}
 
 	rcf, err := os.Open(blobFile)
