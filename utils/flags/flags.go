@@ -206,6 +206,12 @@ func GetCliFlags() []cli.Flag {
 			Usage:   "When using proxy backends, sets the number of Goroutines to process parallel uploads to backend.",
 			EnvVars: []string{"BAZEL_REMOTE_NUM_UPLOADERS"},
 		},
+		&cli.Int64Flag{
+			Name:    "max_inflight_bytes",
+			Value:   0,
+			Usage:   "Limits the total logical/uncompressed size of gRPC blobs being uploaded or downloaded concurrently, providing memory backpressure under bursts. Requests block until budget is available rather than exhausting memory. 0 (the default) disables the limit. A single blob larger than the limit is still served, serialized against others.",
+			EnvVars: []string{"BAZEL_REMOTE_MAX_INFLIGHT_BYTES"},
+		},
 		&cli.StringFlag{
 			Name:    "grpc_proxy.url",
 			Value:   "",

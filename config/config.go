@@ -127,6 +127,7 @@ type Config struct {
 	LogTimezone                 string                    `yaml:"log_timezone"`
 	MaxBlobSize                 int64                     `yaml:"max_blob_size"`
 	MaxProxyBlobSize            int64                     `yaml:"max_proxy_blob_size"`
+	MaxInflightBytes            int64                     `yaml:"max_inflight_bytes"`
 
 	// Fields that are created by combinations of the flags above.
 	ProxyBackend cache.Proxy
@@ -185,7 +186,8 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	logTimezone string,
 	maxSizeHardLimit int,
 	maxBlobSize int64,
-	maxProxyBlobSize int64) (*Config, error) {
+	maxProxyBlobSize int64,
+	maxInflightBytes int64) (*Config, error) {
 
 	c := Config{
 		HTTPAddress:                 httpAddress,
@@ -224,6 +226,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		LogTimezone:                 logTimezone,
 		MaxBlobSize:                 maxBlobSize,
 		MaxProxyBlobSize:            maxProxyBlobSize,
+		MaxInflightBytes:            maxInflightBytes,
 	}
 
 	err := validateConfig(&c)
@@ -397,6 +400,10 @@ func validateConfig(c *Config) error {
 
 	if c.MaxProxyBlobSize <= 0 {
 		return errors.New("the 'max_proxy_blob_size' flag/key must be a positive integer")
+	}
+
+	if c.MaxInflightBytes < 0 {
+		return errors.New("the 'max_inflight_bytes' flag/key must not be negative (0 disables the limit)")
 	}
 
 	if c.GoogleCloudStorage != nil && c.HTTPBackend != nil && c.S3CloudStorage != nil {
@@ -679,5 +686,6 @@ func get(ctx *cli.Context) (*Config, error) {
 		ctx.Int("max_size_hard_limit"),
 		ctx.Int64("max_blob_size"),
 		ctx.Int64("max_proxy_blob_size"),
+		ctx.Int64("max_inflight_bytes"),
 	)
 }
