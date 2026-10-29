@@ -142,6 +142,13 @@ func GetCliFlags() []cli.Flag {
 			Usage:   "Path to a .htpasswd file. This flag is optional. Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.",
 			EnvVars: []string{"BAZEL_REMOTE_HTPASSWD_FILE"},
 		},
+		&cli.BoolFlag{
+			Name:        "disable_htpasswd_cache",
+			Value:       false,
+			Usage:       "If --htpasswd_file is set, check the password hash on every request instead of remembering credentials that passed.",
+			DefaultText: "false, ie credentials that passed are remembered until their htpasswd entry changes",
+			EnvVars:     []string{"BAZEL_REMOTE_DISABLE_HTPASSWD_CACHE"},
+		},
 		&cli.StringFlag{
 			Name:    "min_tls_version",
 			Value:   "1.0",

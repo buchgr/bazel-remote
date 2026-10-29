@@ -1,0 +1,16 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["authcache.go"],
+    importpath = "github.com/buchgr/bazel-remote/v2/utils/authcache",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_abbot_go_http_auth//:go_default_library"],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = ["authcache_test.go"],
+    embed = [":go_default_library"],
+    deps = ["@com_github_abbot_go_http_auth//:go_default_library"],
+)

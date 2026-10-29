@@ -19,6 +19,7 @@ grpc_port: 9092
 dir: /opt/cache-dir
 max_size: 100
 htpasswd_file: /opt/.htpasswd
+disable_htpasswd_cache: true
 tls_cert_file: /opt/tls.cert
 tls_key_file:  /opt/tls.key
 disable_http_ac_validation: true
@@ -44,6 +45,7 @@ log_timezone: local
 		StorageMode:                 "zstd",
 		ZstdImplementation:          "go",
 		HtpasswdFile:                "/opt/.htpasswd",
+		DisableHtpasswdCache:        true,
 		MinTLSVersion:               "1.0",
 		TLSCertFile:                 "/opt/tls.cert",
 		TLSKeyFile:                  "/opt/tls.key",
@@ -439,6 +441,24 @@ storage_mode: gzip
 		if cfg.StorageMode != tc.expected {
 			t.Errorf("Expected %q, got %q", tc.expected, cfg.StorageMode)
 		}
+	}
+}
+
+func TestDisableHtpasswdCacheRequiresHtpasswdFile(t *testing.T) {
+	yaml := `dir: /opt/cache-dir
+max_size: 100
+disable_htpasswd_cache: true
+`
+	_, err := NewFromYaml([]byte(yaml))
+	if err == nil {
+		t.Fatal("Expected an error because 'disable_htpasswd_cache' was set without 'htpasswd_file'")
+	}
+	if !strings.Contains(err.Error(), "'disable_htpasswd_cache'") {
+		t.Fatalf("Expected the error message to mention 'disable_htpasswd_cache', got %q", err)
+	}
+
+	if _, err := NewFromYaml([]byte(yaml + "htpasswd_file: /opt/.htpasswd\n")); err != nil {
+		t.Fatalf("Expected no error with 'htpasswd_file' set, got %q", err)
 	}
 }
 

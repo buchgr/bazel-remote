@@ -20,6 +20,7 @@ import (
 	"github.com/buchgr/bazel-remote/v2/config"
 	"github.com/buchgr/bazel-remote/v2/ldap"
 	"github.com/buchgr/bazel-remote/v2/server"
+	"github.com/buchgr/bazel-remote/v2/utils/authcache"
 	"github.com/buchgr/bazel-remote/v2/utils/flags"
 	"github.com/buchgr/bazel-remote/v2/utils/idle"
 	"github.com/buchgr/bazel-remote/v2/utils/rlimit"
@@ -178,6 +179,14 @@ func run(ctx *cli.Context) error {
 	}
 	log.Println("Authentication:", authMode)
 
+	if htpasswdSecrets != nil {
+		htpasswdCacheStatus := "enabled"
+		if c.DisableHtpasswdCache {
+			htpasswdCacheStatus = "disabled"
+		}
+		log.Println("htpasswd credential cache:", htpasswdCacheStatus)
+	}
+
 	if authMode != "disabled" {
 		if c.AllowUnauthenticatedReads {
 			log.Println("Access mode: authentication required for writes, unauthenticated reads allowed")
@@ -254,23 +263,24 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 
 	cacheHandler := h.CacheHandler
 	var ldapAuthenticator authenticator
-	var basicAuthenticator auth.BasicAuth
+	var basicAuthenticator *authcache.BasicAuth
 	if c.HtpasswdFile != "" {
+		basicAuthenticator = authcache.NewBasicAuth(c.HTTPAddress, newHtpasswdChecker(c, htpasswdSecrets))
 		if c.AllowUnauthenticatedReads {
-			cacheHandler = unauthenticatedReadWrapper(cacheHandler, htpasswdSecrets, c.HTTPAddress)
+			cacheHandler = unauthenticatedReadWrapper(cacheHandler, basicAuthenticator)
 		} else {
-			basicAuthenticator = auth.BasicAuth{Realm: c.HTTPAddress, Secrets: htpasswdSecrets}
-			cacheHandler = basicAuthWrapper(cacheHandler, &basicAuthenticator)
+			cacheHandler = basicAuthWrapper(cacheHandler, basicAuthenticator)
 		}
 	} else if c.LDAP != nil {
 		if c.AllowUnauthenticatedReads {
-			cacheHandler = unauthenticatedReadWrapper(cacheHandler, htpasswdSecrets, c.HTTPAddress)
+			cacheHandler = unauthenticatedReadWrapper(cacheHandler,
+				&auth.BasicAuth{Realm: c.HTTPAddress, Secrets: htpasswdSecrets})
 		} else {
 			var ldap_err error
 			if ldapAuthenticator, ldap_err = ldap.New(c.LDAP); ldap_err != nil {
 				log.Fatal("Failed to create LDAP connection: ", ldap_err)
 			}
-			cacheHandler = ldapAuthWrapper(cacheHandler, ldapAuthenticator)
+			cacheHandler = basicAuthWrapper(cacheHandler, ldapAuthenticator)
 		}
 	}
 
@@ -288,9 +298,9 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 		if c.TLSCaFile != "" {
 			statusHandler = h.VerifyClientCertHandler(statusHandler).ServeHTTP
 		} else if c.HtpasswdFile != "" {
-			statusHandler = basicAuthWrapper(statusHandler, &basicAuthenticator)
+			statusHandler = basicAuthWrapper(statusHandler, basicAuthenticator)
 		} else if c.LDAP != nil {
-			statusHandler = ldapAuthWrapper(statusHandler, ldapAuthenticator)
+			statusHandler = basicAuthWrapper(statusHandler, ldapAuthenticator)
 		}
 	}
 
@@ -314,9 +324,9 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 			if c.TLSCaFile != "" {
 				middlewareHandler = h.VerifyClientCertHandler(middlewareHandler)
 			} else if c.HtpasswdFile != "" {
-				middlewareHandler = basicAuthWrapper(middlewareHandler.ServeHTTP, &basicAuthenticator)
+				middlewareHandler = basicAuthWrapper(middlewareHandler.ServeHTTP, basicAuthenticator)
 			} else if c.LDAP != nil {
-				middlewareHandler = ldapAuthWrapper(middlewareHandler.ServeHTTP, ldapAuthenticator)
+				middlewareHandler = basicAuthWrapper(middlewareHandler.ServeHTTP, ldapAuthenticator)
 			}
 		}
 		mux.Handle("/metrics", middlewareHandler)
@@ -412,7 +422,7 @@ func startGrpcServer(c *config.Config, grpcServer **grpc.Server,
 	}
 
 	if htpasswdSecrets != nil {
-		gba := server.NewGrpcBasicAuth(htpasswdSecrets, c.AllowUnauthenticatedReads)
+		gba := server.NewGrpcBasicAuth(newHtpasswdChecker(c, htpasswdSecrets), c.AllowUnauthenticatedReads)
 		streamInterceptors = append(streamInterceptors, gba.StreamServerInterceptor)
 		unaryInterceptors = append(unaryInterceptors, gba.UnaryServerInterceptor)
 	}
@@ -465,27 +475,32 @@ func startGrpcServer(c *config.Config, grpcServer **grpc.Server,
 		diskCache, c.AccessLogger, c.ErrorLogger)
 }
 
+func newHtpasswdChecker(c *config.Config, secrets auth.SecretProvider) *authcache.Checker {
+	if c.DisableHtpasswdCache {
+		return authcache.NewUncached(secrets)
+	}
+	return authcache.New(secrets)
+}
+
 type authenticator interface {
 	NewContext(ctx context.Context, r *http.Request) context.Context
 	Wrap(auth.AuthenticatedHandlerFunc) http.HandlerFunc
 }
 
-// A http.HandlerFunc wrapper which requires successful basic
-// authentication for all requests.
-func basicAuthWrapper(handler http.HandlerFunc, authenticator *auth.BasicAuth) http.HandlerFunc {
-	return auth.JustCheck(authenticator, handler)
+type credentialChecker interface {
+	CheckAuth(r *http.Request) string
 }
 
-func ldapAuthWrapper(handler http.HandlerFunc, authenticator authenticator) http.HandlerFunc {
+// A http.HandlerFunc wrapper which requires successful basic
+// authentication for all requests.
+func basicAuthWrapper(handler http.HandlerFunc, authenticator authenticator) http.HandlerFunc {
 	return auth.JustCheck(authenticator, handler)
 }
 
 // A http.HandlerFunc wrapper which requires successful basic
 // authentication for write requests, but allows unauthenticated
 // read requests.
-func unauthenticatedReadWrapper(handler http.HandlerFunc, secrets auth.SecretProvider, addr string) http.HandlerFunc {
-	authenticator := &auth.BasicAuth{Realm: addr, Secrets: secrets}
-
+func unauthenticatedReadWrapper(handler http.HandlerFunc, authenticator credentialChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet || r.Method == http.MethodHead {
 			handler(w, r)

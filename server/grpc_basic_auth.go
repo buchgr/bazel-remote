@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	grpc_status "google.golang.org/grpc/status"
 
-	auth "github.com/abbot/go-http-auth"
+	"github.com/buchgr/bazel-remote/v2/utils/authcache"
 )
 
 var (
@@ -22,18 +22,18 @@ var (
 		"access denied")
 )
 
-// GrpcBasicAuth wraps an auth.SecretProvider, and provides gRPC interceptors
+// GrpcBasicAuth wraps an authcache.Checker, and provides gRPC interceptors
 // that verify that requests can be authenticated using HTTP basic auth.
 type GrpcBasicAuth struct {
-	secrets                      auth.SecretProvider
+	checker                      *authcache.Checker
 	allowUnauthenticatedReadOnly bool
 }
 
 // NewGrpcBasicAuth returns a GrpcBasicAuth that wraps the given
-// auth.SecretProvider.
-func NewGrpcBasicAuth(secrets auth.SecretProvider, allowUnauthenticatedReadOnly bool) *GrpcBasicAuth {
+// authcache.Checker.
+func NewGrpcBasicAuth(checker *authcache.Checker, allowUnauthenticatedReadOnly bool) *GrpcBasicAuth {
 	return &GrpcBasicAuth{
-		secrets:                      secrets,
+		checker:                      checker,
 		allowUnauthenticatedReadOnly: allowUnauthenticatedReadOnly,
 	}
 }
@@ -147,11 +147,5 @@ func getLogin(ctx context.Context) (username, password string, err error) {
 }
 
 func (b *GrpcBasicAuth) allowed(username, password string) bool {
-	ignoredRealm := ""
-	requiredSecret := b.secrets(username, ignoredRealm)
-	if requiredSecret == "" {
-		return false // User does not exist.
-	}
-
-	return auth.CheckSecret(password, requiredSecret)
+	return b.checker.Check(username, password)
 }

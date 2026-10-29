@@ -100,6 +100,7 @@ type Config struct {
 	StorageMode                 string                    `yaml:"storage_mode"`
 	ZstdImplementation          string                    `yaml:"zstd_implementation"`
 	HtpasswdFile                string                    `yaml:"htpasswd_file"`
+	DisableHtpasswdCache        bool                      `yaml:"disable_htpasswd_cache"`
 	LDAP                        *LDAPConfig               `yaml:"ldap,omitempty"`
 	MinTLSVersion               string                    `yaml:"min_tls_version"`
 	TLSCaFile                   string                    `yaml:"tls_ca_file"`
@@ -159,6 +160,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	httpAddress string, grpcAddress string,
 	profileAddress string,
 	htpasswdFile string,
+	disableHtpasswdCache bool,
 	maxQueuedUploads int,
 	numUploaders int,
 	minTLSVersion string,
@@ -197,6 +199,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		StorageMode:                 storageMode,
 		ZstdImplementation:          zstdImplementation,
 		HtpasswdFile:                htpasswdFile,
+		DisableHtpasswdCache:        disableHtpasswdCache,
 		MaxQueuedUploads:            maxQueuedUploads,
 		NumUploaders:                numUploaders,
 		MinTLSVersion:               minTLSVersion,
@@ -389,6 +392,10 @@ func validateConfig(c *Config) error {
 
 	if c.AllowUnauthenticatedReads && c.TLSCaFile == "" && c.HtpasswdFile == "" && c.LDAP == nil {
 		return errors.New("AllowUnauthenticatedReads setting is only available when authentication is enabled")
+	}
+
+	if c.DisableHtpasswdCache && c.HtpasswdFile == "" {
+		return errors.New("the 'disable_htpasswd_cache' flag/key requires 'htpasswd_file'")
 	}
 
 	if c.MaxBlobSize <= 0 {
@@ -652,6 +659,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		grpcAddress,
 		profileAddress,
 		ctx.String("htpasswd_file"),
+		ctx.Bool("disable_htpasswd_cache"),
 		ctx.Int("max_queued_uploads"),
 		ctx.Int("num_uploaders"),
 		ctx.String("min_tls_version"),

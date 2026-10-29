@@ -206,6 +206,11 @@ OPTIONS:
       Please read https://httpd.apache.org/docs/2.4/programs/htpasswd.html.
       [$BAZEL_REMOTE_HTPASSWD_FILE]
 
+   --disable_htpasswd_cache If --htpasswd_file is set, check the password
+      hash on every request instead of remembering credentials that passed.
+      (default: false, ie credentials that passed are remembered until their
+      htpasswd entry changes) [$BAZEL_REMOTE_DISABLE_HTPASSWD_CACHE]
+
    --min_tls_version value The minimum TLS version that is acceptable for
       incoming requests (does not apply to proxy backends). Allowed values: 1.0,
       1.1, 1.2, 1.3. (default: "1.0") [$BAZEL_REMOTE_MIN_TLS_VERSION]
@@ -516,6 +521,11 @@ http_address: 0.0.0.0:8080
 
 # Alternatively, you can use simple authentication:
 #htpasswd_file: path/to/.htpasswd
+
+# Credentials that pass an htpasswd check are remembered, so a slow hash
+# (eg bcrypt) is only computed once per user. To check the hash on every
+# request instead:
+#disable_htpasswd_cache: false
 
 # At most one authentication mechanism can be used
 #ldap:
