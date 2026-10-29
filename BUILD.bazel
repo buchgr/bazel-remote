@@ -18,6 +18,7 @@ go_library(
         "//config:go_default_library",
         "//ldap:go_default_library",
         "//server:go_default_library",
+        "//utils/authcache:go_default_library",
         "//utils/flags:go_default_library",
         "//utils/idle:go_default_library",
         "//utils/rlimit:go_default_library",
