@@ -43,6 +43,8 @@ type grpcServer struct {
 	depsCheck           bool
 	mangleACKeys        bool
 	maxCasBlobSizeBytes int64
+	netrcCredentials    map[string]netrcCredentials
+	httpClient          *http.Client
 }
 
 var readOnlyMethods = map[string]struct{}{
@@ -63,6 +65,7 @@ func ListenAndServeGRPC(
 	validateACDeps bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
+	netrcFile string,
 	maxCasBlobSizeBytes int64,
 	c disk.Cache, a cache.Logger, e cache.Logger) error {
 
@@ -71,13 +74,14 @@ func ListenAndServeGRPC(
 		return err
 	}
 
-	return ServeGRPC(listener, srv, validateACDeps, mangleACKeys, enableRemoteAssetAPI, maxCasBlobSizeBytes, c, a, e)
+	return ServeGRPC(listener, srv, validateACDeps, mangleACKeys, enableRemoteAssetAPI, netrcFile, maxCasBlobSizeBytes, c, a, e)
 }
 
 func ServeGRPC(l net.Listener, srv *grpc.Server,
 	validateACDepsCheck bool,
 	mangleACKeys bool,
 	enableRemoteAssetAPI bool,
+	netrcFile string,
 	maxCasBlobSizeBytes int64,
 	c disk.Cache, a cache.Logger, e cache.Logger) error {
 
@@ -94,6 +98,15 @@ func ServeGRPC(l net.Listener, srv *grpc.Server,
 	pb.RegisterContentAddressableStorageServer(srv, s)
 	bytestream.RegisterByteStreamServer(srv, s)
 	if enableRemoteAssetAPI {
+		s.httpClient = &http.Client{CheckRedirect: stripAuthorizationOnRedirect}
+		if netrcFile != "" {
+			creds, err := loadNetrcFile(netrcFile, e)
+			if err != nil {
+				return fmt.Errorf("failed to load netrc file: %w", err)
+			}
+			s.netrcCredentials = creds
+			a.Printf("loaded netrc credentials for %d host(s) from %s", len(creds), netrcFile)
+		}
 		asset.RegisterFetchServer(srv, s)
 	}
 
