@@ -519,8 +519,14 @@ var chunkBufferPool = &sync.Pool{
 	},
 }
 
+// ErrBadInput is wrapped by the errors of WriteAndClose about the data read from r.
+var ErrBadInput = errors.New("bad input")
+
 // Read from r and write to f, using CompressionType t.
 // Return the size on disk or an error if something went wrong.
+//
+// Errors about the data read from r wrap ErrBadInput: a wrong size or hash, or, with
+// Zstandard compression, a failure to read it.
 func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t CompressionType, hash string, size int64) (int64, error) {
 	var err error
 	defer func() { _ = f.Close() }()
@@ -568,14 +574,14 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 			return -1, err
 		}
 		if n != size {
-			return -1, fmt.Errorf("expected to copy %d bytes, actually copied %d bytes",
+			return -1, fmt.Errorf("%w: expected to copy %d bytes, actually copied %d bytes", ErrBadInput,
 				size, n)
 		}
 
 		actualHash := hex.EncodeToString(hasher.Sum(nil))
 		if actualHash != hash {
 			return -1,
-				fmt.Errorf("checksums don't match. Expected %s, found %s",
+				fmt.Errorf("%w: checksums don't match. Expected %s, found %s", ErrBadInput,
 					hash, actualHash)
 		}
 
@@ -618,7 +624,7 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 
 		numRead, err = io.ReadFull(r, uncompressedChunk[0:chunkEnd])
 		if err != nil {
-			return -1, fmt.Errorf("only managed to read %d of %d bytes: %w", numRead, chunkEnd, err)
+			return -1, fmt.Errorf("%w: only managed to read %d of %d bytes: %w", ErrBadInput, numRead, chunkEnd, err)
 		}
 
 		compressedChunk := zstd.EncodeAll(uncompressedChunk[0:chunkEnd], compressedChunkBuffer[:0])
@@ -637,14 +643,14 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 	// Confirm that there is no data left to be read.
 	bytesAfter, err := io.ReadFull(r, uncompressedChunk)
 	if err == nil {
-		return -1, fmt.Errorf("expected %d bytes but got at least %d more", size, bytesAfter)
+		return -1, fmt.Errorf("%w: expected %d bytes but got at least %d more", ErrBadInput, size, bytesAfter)
 	} else if err != io.EOF {
-		return -1, fmt.Errorf("failed to read chunk of size %d: %w", len(uncompressedChunk), err)
+		return -1, fmt.Errorf("%w: failed to read chunk of size %d: %w", ErrBadInput, len(uncompressedChunk), err)
 	}
 
 	actualHash := hex.EncodeToString(hasher.Sum(nil))
 	if actualHash != hash {
-		return -1, fmt.Errorf("checksums don't match. Expected %s, found %s",
+		return -1, fmt.Errorf("%w: checksums don't match. Expected %s, found %s", ErrBadInput,
 			hash, actualHash)
 	}
 
