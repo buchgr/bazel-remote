@@ -2,17 +2,32 @@ package sha256verifier
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 )
 
 type bufferWithFakeCloser struct {
 	bytes.Buffer
 	closed bool
+	// Returned by Close.
+	closeErr error
 }
 
 func (b *bufferWithFakeCloser) Close() error {
 	b.closed = true
-	return nil
+	return b.closeErr
+}
+
+// An error from closing the underlying writer must not be mistaken for a mismatch.
+func TestCloseError(t *testing.T) {
+	errClose := errors.New("close error")
+	buf := bufferWithFakeCloser{closeErr: errClose}
+
+	h := New("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", 0, &buf)
+	err := h.Close()
+	if !errors.Is(err, errClose) || errors.Is(err, ErrMismatch) {
+		t.Fatal("Expected the close error only, got", err)
+	}
 }
 
 func TestHashVerification(t *testing.T) {
@@ -62,8 +77,8 @@ func TestHashVerification(t *testing.T) {
 			}
 
 		} else {
-			if err == nil {
-				t.Fatal("Expected failure for", tt.data)
+			if !errors.Is(err, ErrMismatch) {
+				t.Fatal("Expected a mismatch for", tt.data, "got", err)
 			}
 		}
 	}

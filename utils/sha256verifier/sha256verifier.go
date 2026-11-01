@@ -3,6 +3,7 @@ package sha256verifier
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"hash"
 	"io"
@@ -39,18 +40,21 @@ func (s *sha256verifier) Write(p []byte) (int, error) {
 	return n, err
 }
 
+// ErrMismatch is wrapped by the errors of Close about a size or hash mismatch.
+var ErrMismatch = errors.New("mismatch")
+
 // Close closes the underlying writer, and reports a size or hash mismatch, or else the error
 // from closing.
 func (s *sha256verifier) Close() error {
 	closeErr := s.originalWriteCloser.Close()
 
 	if s.actualSize != s.expectedSize {
-		return fmt.Errorf("error: expected %d bytes, got %d", s.expectedSize, s.actualSize)
+		return fmt.Errorf("size %w: expected %d bytes, got %d", ErrMismatch, s.expectedSize, s.actualSize)
 	}
 
 	actualHash := hex.EncodeToString(s.Sum(nil))
 	if actualHash != s.expectedHash {
-		return fmt.Errorf("error: expected hash %s, got %s", s.expectedHash, actualHash)
+		return fmt.Errorf("hash %w: expected %s, got %s", ErrMismatch, s.expectedHash, actualHash)
 	}
 
 	return closeErr
