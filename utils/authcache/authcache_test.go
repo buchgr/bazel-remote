@@ -144,10 +144,10 @@ func TestCheckFollowsChangedSecret(t *testing.T) {
 
 	s.set("u", hash2)
 	expectCheck(t, c, "u", password1, false)
-	expectCachedUsers(t, c, 0)
 	expectCheck(t, c, "u", password2, true)
 	expectCheck(t, c, "u", password2, true)
 	expectCompares(t, n, 3)
+	expectCachedUsers(t, c, 1)
 }
 
 func TestCheckRejectsRemovedUser(t *testing.T) {
@@ -159,7 +159,13 @@ func TestCheckRejectsRemovedUser(t *testing.T) {
 	s.set("u", "")
 	expectCheck(t, c, "u", password1, false)
 	expectCompares(t, n, 1)
-	expectCachedUsers(t, c, 0)
+
+	// The entry was verified against this same secret, so it is valid again.
+	s.set("u", hash1)
+	expectCheck(t, c, "u", password1, true)
+	expectCompares(t, n, 1)
+	expectCheck(t, c, "u", "wrong", false)
+	expectCompares(t, n, 2)
 }
 
 // A rotation that lands while a full comparison is running must not leave

@@ -17,10 +17,11 @@ import (
 // Checker verifies passwords against an auth.SecretProvider.
 //
 // Only successful checks are remembered, at most one per user, together
-// with the stored secret that the password was verified against. A changed
-// or removed htpasswd entry therefore takes effect on the next request, and
-// that request drops the stale entry. A wrong password always gets a full
-// check.
+// with the stored secret that the password was verified against. An entry
+// only counts while that secret is unchanged, so a changed or removed
+// htpasswd entry takes effect on the next request. A stale entry stays in
+// memory until the user next passes a check. A wrong password always gets
+// a full check.
 type Checker struct {
 	secrets auth.SecretProvider
 	compare func(password, secret string) bool
@@ -62,26 +63,20 @@ func NewUncached(secrets auth.SecretProvider) *Checker {
 // Check reports whether password is the password of username.
 func (c *Checker) Check(username, password string) bool {
 	secret := c.secrets(username, "")
+	if secret == "" {
+		return false // User does not exist.
+	}
 
 	if !c.cache {
-		return secret != "" && c.compare(password, secret)
+		return c.compare(password, secret)
 	}
 
 	c.mu.RLock()
 	v, cached := c.verified[username]
 	c.mu.RUnlock()
 
-	if cached && v.secret != secret {
-		c.forget(username, v.secret)
-		cached = false
-	}
-
-	if secret == "" {
-		return false // User does not exist.
-	}
-
 	mac := c.mac(password)
-	if cached && hmac.Equal(v.mac[:], mac[:]) {
+	if cached && v.secret == secret && hmac.Equal(v.mac[:], mac[:]) {
 		return true
 	}
 
@@ -94,16 +89,6 @@ func (c *Checker) Check(username, password string) bool {
 	c.mu.Unlock()
 
 	return true
-}
-
-// forget drops username's entry, unless a concurrent Check has already
-// replaced it with one for a different secret.
-func (c *Checker) forget(username, secret string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if v, ok := c.verified[username]; ok && v.secret == secret {
-		delete(c.verified, username)
-	}
 }
 
 func (c *Checker) mac(password string) [sha256.Size]byte {

@@ -523,8 +523,10 @@ http_address: 0.0.0.0:8080
 #htpasswd_file: path/to/.htpasswd
 
 # Credentials that pass an htpasswd check are remembered, so a slow hash
-# (eg bcrypt) is only computed once per user. To check the hash on every
-# request instead:
+# (eg bcrypt) is only computed once per user. They are kept as HMACs under
+# a random per-process key, so anyone who can read the process memory (eg a
+# heap dump) can test password guesses at HMAC-SHA256 speed. To check the
+# hash on every request instead:
 #disable_htpasswd_cache: false
 
 # At most one authentication mechanism can be used
