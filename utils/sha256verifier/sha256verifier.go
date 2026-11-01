@@ -39,7 +39,11 @@ func (s *sha256verifier) Write(p []byte) (int, error) {
 	return n, err
 }
 
+// Close closes the underlying writer, and reports a size or hash mismatch, or else the error
+// from closing.
 func (s *sha256verifier) Close() error {
+	closeErr := s.originalWriteCloser.Close()
+
 	if s.actualSize != s.expectedSize {
 		return fmt.Errorf("error: expected %d bytes, got %d", s.expectedSize, s.actualSize)
 	}
@@ -49,10 +53,5 @@ func (s *sha256verifier) Close() error {
 		return fmt.Errorf("error: expected hash %s, got %s", s.expectedHash, actualHash)
 	}
 
-	err := s.originalWriteCloser.Close()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return closeErr
 }
