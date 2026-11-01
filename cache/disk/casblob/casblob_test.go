@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"testing"
+	"testing/iotest"
 	"unsafe"
 
 	"github.com/buchgr/bazel-remote/v2/cache/disk/casblob"
@@ -80,6 +82,65 @@ func TestZstdFromLegacy(t *testing.T) {
 	hs := hex.EncodeToString(h[:])
 	if hs != hash {
 		t.Fatalf("Unexpected content sha %s, expected %s", hs, hash)
+	}
+}
+
+// Errors about the data read must wrap ErrBadInput, errors writing the file must not.
+func TestWriteAndCloseBadInput(t *testing.T) {
+	zstd, err := zstdimpl.Get("go")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Two chunks.
+	size := int64(1024*1024 + 1000)
+	data, hash := testutils.RandomDataAndHash(size)
+	_, otherHash := testutils.RandomDataAndHash(size)
+	errRead := errors.New("read error")
+
+	tests := []struct {
+		name     string
+		r        io.Reader
+		hash     string
+		readOnly bool
+		badInput bool
+		// If not nil, must be wrapped by the error.
+		cause error
+	}{
+		{"wrong hash", bytes.NewReader(data), otherHash, false, true, nil},
+		{"too short", bytes.NewReader(data[:size-1]), hash, false, true, nil},
+		{"too long", bytes.NewReader(append(bytes.Clone(data), 0)), hash, false, true, nil},
+		{"read error", io.MultiReader(bytes.NewReader(data[:size/2]), iotest.ErrReader(errRead)), hash, false, true, errRead},
+		{"write error", bytes.NewReader(data), hash, true, false, nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := t.TempDir() + "/blob"
+			err := os.WriteFile(path, nil, 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+			flag := os.O_WRONLY
+			if tt.readOnly {
+				flag = os.O_RDONLY
+			}
+			f, err := os.OpenFile(path, flag, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = casblob.WriteAndClose(zstd, tt.r, f, casblob.Zstandard, tt.hash, size)
+			if err == nil {
+				t.Fatal("expected an error")
+			}
+			if errors.Is(err, casblob.ErrBadInput) != tt.badInput {
+				t.Fatalf("expected ErrBadInput: %v, got %v", tt.badInput, err)
+			}
+			if tt.cause != nil && !errors.Is(err, tt.cause) {
+				t.Fatalf("expected %v to be wrapped, got %v", tt.cause, err)
+			}
+		})
 	}
 }
 
