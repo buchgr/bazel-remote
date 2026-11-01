@@ -395,12 +395,12 @@ func (c *diskCache) writeAndCloseFile(ctx context.Context, r io.Reader, kind cac
 		return -1, fmt.Errorf("failed to sync file to disk: %w", err)
 	}
 
+	// This closes f, whether it is f itself or a verifier wrapping it.
+	closeFile = false
 	err = writeCloser.Close()
 	if err != nil {
 		return -1, fmt.Errorf("failed to verify hash: %w", err)
 	}
-
-	closeFile = false
 
 	return sizeOnDisk, nil
 }

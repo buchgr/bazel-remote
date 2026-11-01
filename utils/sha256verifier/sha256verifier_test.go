@@ -7,9 +7,11 @@ import (
 
 type bufferWithFakeCloser struct {
 	bytes.Buffer
+	closed bool
 }
 
 func (b *bufferWithFakeCloser) Close() error {
+	b.closed = true
 	return nil
 }
 
@@ -47,6 +49,9 @@ func TestHashVerification(t *testing.T) {
 		}
 
 		err = h.Close()
+		if !buf.closed {
+			t.Fatal("Error: underlying writer not closed")
+		}
 		if tt.success {
 			if err != nil {
 				t.Fatal("Error: ", err, "expected hash", tt.expectedSize, tt.expectedHash)
