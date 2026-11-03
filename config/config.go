@@ -568,6 +568,7 @@ func get(ctx *cli.Context) (*Config, error) {
 			SignatureType:            ctx.String("s3.signature_type"),
 			DisableSSL:               ctx.Bool("s3.disable_ssl"),
 			UpdateTimestamps:         ctx.Bool("s3.update_timestamps"),
+			CASRefreshAge:            ctx.Duration("s3.cas_refresh_age"),
 			IAMRoleEndpoint:          ctx.String("s3.iam_role_endpoint"),
 			Region:                   ctx.String("s3.region"),
 			AWSProfile:               ctx.String("s3.aws_profile"),
