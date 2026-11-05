@@ -154,6 +154,39 @@ http_proxy:
 	}
 }
 
+func TestValidGrpcProxyTLSConfig(t *testing.T) {
+	yaml := `host: localhost
+port: 8080
+grpc_port: 9092
+dir: /opt/cache-dir
+max_size: 100
+grpc_proxy:
+  url: grpcs://remote-cache.com:9092
+  cert_file: /opt/client.crt
+  key_file: /opt/client.key
+  ca_file: /opt/ca.crt
+`
+	config, err := NewFromYaml([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	url, err := url.Parse("grpcs://remote-cache.com:9092")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := &URLBackendConfig{
+		BaseURL:  url,
+		CertFile: "/opt/client.crt",
+		KeyFile:  "/opt/client.key",
+		CaFile:   "/opt/ca.crt",
+	}
+
+	if !cmp.Equal(config.GRPCBackend, expected) {
+		t.Fatalf("Expected '%+v' but got '%+v'", expected, config.GRPCBackend)
+	}
+}
+
 func TestDirRequired(t *testing.T) {
 	testConfig := &Config{
 		HTTPAddress: "localhost:8080",

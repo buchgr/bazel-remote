@@ -48,23 +48,29 @@ type LDAPConfig struct {
 	CacheTime         time.Duration `yaml:"cache_time"`
 }
 
+// UnmarshalYAML decodes a proxy backend config. The fields are listed explicitly
+// in raw, so any new field on URLBackendConfig must be added here too or it will
+// be silently ignored.
 func (c *URLBackendConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type Aux URLBackendConfig
-	aux := &struct {
-		URLStr string `yaml:"url"`
-		*Aux
-	}{
-		Aux: (*Aux)(c),
+	var raw struct {
+		URL      string `yaml:"url"`
+		CertFile string `yaml:"cert_file"`
+		KeyFile  string `yaml:"key_file"`
+		CaFile   string `yaml:"ca_file"`
 	}
-
-	if err := unmarshal(aux); err != nil {
+	if err := unmarshal(&raw); err != nil {
 		return err
 	}
-	u, err := url.Parse(aux.URLStr)
+	u, err := url.Parse(raw.URL)
 	if err != nil {
 		return err
 	}
-	c.BaseURL = u
+	*c = URLBackendConfig{
+		BaseURL:  u,
+		CertFile: raw.CertFile,
+		KeyFile:  raw.KeyFile,
+		CaFile:   raw.CaFile,
+	}
 	return nil
 }
 
