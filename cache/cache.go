@@ -7,6 +7,14 @@ import (
 	"io"
 )
 
+type contextKey int
+
+const (
+	// ActionDigestSizeBytesKey carries the action digest size_bytes to the proxy,
+	// which needs it to issue a valid GetActionResult request.
+	ActionDigestSizeBytesKey contextKey = iota
+)
+
 // EntryKind describes the kind of cache entry
 type EntryKind int
 
