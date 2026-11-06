@@ -21,7 +21,7 @@ type SizedLRU struct {
 	// Eviction double-linked list. Most recently accessed elements are at the front.
 	ll *list.List
 	// Map to access the items in O(1) time
-	cache map[interface{}]*list.Element
+	cache map[string]*list.Element
 
 	// Total cache size including reserved bytes and estimated filesystem overhead.
 	currentSize int64
@@ -104,7 +104,7 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback, initialCapacity int) Size
 	return SizedLRU{
 		maxSize: maxSize,
 		ll:      list.New(),
-		cache:   make(map[interface{}]*list.Element, initialCapacity),
+		cache:   make(map[string]*list.Element, initialCapacity),
 		onEvict: onEvict,
 
 		gaugeCacheSizeBytes: prometheus.NewGauge(prometheus.GaugeOpts{
@@ -171,6 +171,15 @@ func (c *SizedLRU) RegisterMetrics() {
 // BlockSize (4096) bytes, as an estimate of actual disk usage since
 // most linux filesystems default to 4kb blocks.
 func (c *SizedLRU) Add(key string, value lruItem) (ok bool) {
+	return c.add(key, value, true)
+}
+
+// addExisting adds an item during startup without updating per-item metrics.
+func (c *SizedLRU) addExisting(key string, value lruItem) (ok bool) {
+	return c.add(key, value, false)
+}
+
+func (c *SizedLRU) add(key string, value lruItem, updateMetrics bool) (ok bool) {
 
 	roundedUpSizeOnDisk := roundUp4k(value.sizeOnDisk)
 
@@ -196,7 +205,9 @@ func (c *SizedLRU) Add(key string, value lruItem) (ok bool) {
 		}
 		uncompressedSizeDelta = roundUp4k(value.size) - roundUp4k(ee.Value.(*entry).value.size)
 		c.ll.MoveToFront(ee)
-		c.counterOverwrittenBytes.Add(float64(ee.Value.(*entry).value.sizeOnDisk))
+		if updateMetrics {
+			c.counterOverwrittenBytes.Add(float64(ee.Value.(*entry).value.sizeOnDisk))
+		}
 
 		kv := ee.Value.(*entry)
 		kvCopy := &entry{kv.key, kv.value}
@@ -225,10 +236,17 @@ func (c *SizedLRU) Add(key string, value lruItem) (ok bool) {
 	c.currentSize += sizeDelta
 	c.uncompressedSize += uncompressedSizeDelta
 
-	c.gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
-	c.summaryCacheItemBytes.Observe(float64(sizeDelta))
+	if updateMetrics {
+		c.gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
+		c.summaryCacheItemBytes.Observe(float64(sizeDelta))
+	}
 
 	return true
+}
+
+// finishAddingExisting publishes aggregate metrics after startup loading.
+func (c *SizedLRU) finishAddingExisting() {
+	c.gaugeCacheLogicalBytes.Set(float64(c.uncompressedSize))
 }
 
 // Get looks up a key in the cache. The lruItem is only valid if *list.Element is not nil.

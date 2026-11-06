@@ -616,7 +616,7 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64, cc CacheConfig) error 
 	go c.lru.performQueuedEvictionsContinuously()
 
 	for i := 0; i < len(result.item); i++ {
-		ok := c.lru.Add(result.metadata[i].lookupKey, *result.item[i])
+		ok := c.lru.addExisting(result.metadata[i].lookupKey, *result.item[i])
 		if !ok {
 			err = os.Remove(filepath.Join(c.dir, result.metadata[i].lookupKey))
 			if err != nil {
@@ -624,6 +624,7 @@ func (c *diskCache) loadExistingFiles(maxSizeBytes int64, cc CacheConfig) error 
 			}
 		}
 	}
+	c.lru.finishAddingExisting()
 
 	if c.lru.queuedEvictionsSize.Load() > 0 {
 		// We were either restarted with a lower cache size, or there is still
