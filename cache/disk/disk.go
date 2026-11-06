@@ -105,14 +105,10 @@ func internalErr(err error) *cache.Error {
 	}
 }
 
-// isProxyNotFound returns true if a proxy backend said that the blob does not exist
-// with a gRPC NotFound status. Other statuses are real failures.
-func isProxyNotFound(err error) bool {
-	if err == nil {
-		return false
-	}
-	st, ok := status.FromError(err)
-	return ok && st.Code() == codes.NotFound
+// isGRPCNotFound returns true if err carries the gRPC NotFound status code,
+// which a proxy backend returns when the blob does not exist
+func isGRPCNotFound(err error) bool {
+	return status.Code(err) == codes.NotFound
 }
 
 func badReqErr(format string, a ...interface{}) *cache.Error {
@@ -703,7 +699,7 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 	if r != nil {
 		defer func() { _ = r.Close() }()
 	}
-	if isProxyNotFound(err) {
+	if isGRPCNotFound(err) {
 		return nil, -1, nil
 	}
 	if err != nil {
@@ -769,7 +765,7 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 	}
 	// A gRPC proxy backend reports a missing blob while we read the stream, not when
 	// Get returns, so this is also where a miss shows up.
-	if isProxyNotFound(err) {
+	if isGRPCNotFound(err) {
 		return nil, -1, nil
 	}
 	if err != nil {
