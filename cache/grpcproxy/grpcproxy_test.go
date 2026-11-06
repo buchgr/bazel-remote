@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -20,7 +21,9 @@ import (
 	"github.com/buchgr/bazel-remote/v2/server"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 
@@ -149,6 +152,9 @@ func (p *testProxy) Read(req *bs.ReadRequest, resp bs.ByteStream_ReadServer) err
 	parts := strings.Split(req.ResourceName, "/")
 	hash := parts[len(parts)-2]
 	f, err := os.Open(filepath.Join(p.dir, cache.CAS.DirName(), hash))
+	if errors.Is(err, os.ErrNotExist) {
+		return status.Error(codes.NotFound, "blob not found")
+	}
 	if err != nil {
 		return err
 	}
@@ -382,4 +388,51 @@ func TestEverything(t *testing.T) {
 
 func TestEverythingZstd(t *testing.T) {
 	runTest(t, "zstd")
+}
+
+func testMissingBlob(t *testing.T, storageMode string) {
+	proxyFixture := newProxy(t, testutils.TempDir(t), storageMode)
+	f := newFixture(t, proxyFixture.proxy, storageMode)
+	time.Sleep(time.Second)
+
+	// A blob that neither cache has.
+	_, digest := testutils.RandomDataAndDigest(1024)
+	ctx := context.Background()
+
+	for _, zstd := range []bool{false, true} {
+		req := &pb.BatchReadBlobsRequest{Digests: []*pb.Digest{&digest}}
+		prefix := "blobs"
+		if zstd {
+			req.AcceptableCompressors = []pb.Compressor_Value{pb.Compressor_ZSTD}
+			prefix = "compressed-blobs/zstd"
+		}
+		resp, err := f.clients.cas.BatchReadBlobs(ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(resp.Responses) != 1 {
+			t.Fatalf("zstd=%v: expected 1 response, got %d", zstd, len(resp.Responses))
+		}
+		if got := codes.Code(resp.Responses[0].Status.GetCode()); got != codes.NotFound {
+			t.Errorf("BatchReadBlobs zstd=%v: got %s, want NotFound", zstd, got)
+		}
+
+		stream, err := f.clients.bs.Read(ctx, &bs.ReadRequest{
+			ResourceName: fmt.Sprintf("%s/%s/%d", prefix, digest.Hash, digest.SizeBytes),
+		})
+		if err == nil {
+			_, err = stream.Recv()
+		}
+		if got := status.Code(err); got != codes.NotFound {
+			t.Errorf("ByteStream.Read zstd=%v: got %s (%v), want NotFound", zstd, got, err)
+		}
+	}
+}
+
+func TestMissingBlob(t *testing.T) {
+	testMissingBlob(t, "uncompressed")
+}
+
+func TestMissingBlobZstd(t *testing.T) {
+	testMissingBlob(t, "zstd")
 }
