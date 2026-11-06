@@ -33,6 +33,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"golang.org/x/sync/semaphore"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var tfc = tempfile.NewCreator()
@@ -101,6 +103,12 @@ func internalErr(err error) *cache.Error {
 		Code: http.StatusInternalServerError,
 		Text: err.Error(),
 	}
+}
+
+// isGRPCNotFound returns true if err carries the gRPC NotFound status code,
+// which a proxy backend returns when the blob does not exist
+func isGRPCNotFound(err error) bool {
+	return status.Code(err) == codes.NotFound
 }
 
 func badReqErr(format string, a ...interface{}) *cache.Error {
@@ -691,6 +699,9 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 	if r != nil {
 		defer func() { _ = r.Close() }()
 	}
+	if isGRPCNotFound(err) {
+		return nil, -1, nil
+	}
 	if err != nil {
 		return nil, -1, internalErr(err)
 	}
@@ -750,6 +761,11 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 	// Bad data from the proxy backend is a cache miss, but I/O errors are internal errors.
 	if errors.Is(err, sha256verifier.ErrMismatch) || errors.Is(err, casblob.ErrBadInput) {
 		log.Printf("WARNING: proxy backend returned a bad CAS blob for %s: %v", hash, err)
+		return nil, -1, nil
+	}
+	// A gRPC proxy backend reports a missing blob while we read the stream, not when
+	// Get returns, so this is also where a miss shows up.
+	if isGRPCNotFound(err) {
 		return nil, -1, nil
 	}
 	if err != nil {
