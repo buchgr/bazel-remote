@@ -86,6 +86,54 @@ func TestDownloadFile(t *testing.T) {
 	}
 }
 
+// unknownSizeProxy reports every blob as present with an unknown size,
+// like the s3 proxy does for compressed CAS blobs.
+type unknownSizeProxy struct{}
+
+func (p unknownSizeProxy) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
+	_ = rc.Close()
+}
+
+func (p unknownSizeProxy) Get(ctx context.Context, kind cache.EntryKind, hash string, size int64) (io.ReadCloser, int64, error) {
+	return nil, -1, nil
+}
+
+func (p unknownSizeProxy) Contains(ctx context.Context, kind cache.EntryKind, hash string, size int64) (bool, int64) {
+	return true, -1
+}
+
+func TestHeadUnknownSize(t *testing.T) {
+	cacheDir := testutils.TempDir(t)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
+
+	c, err := disk.New(cacheDir, 1024*1024,
+		disk.WithProxyBackend(unknownSizeProxy{}),
+		disk.WithAccessLogger(testutils.NewSilentLogger()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewHTTPCache(c, testutils.NewSilentLogger(), testutils.NewSilentLogger(), true, false, false, false, "", "", math.MaxInt64)
+
+	_, hash := testutils.RandomDataAndHash(1024)
+
+	srv := httptest.NewServer(http.HandlerFunc(h.CacheHandler))
+	defer srv.Close()
+
+	rsp, err := http.Head(srv.URL + "/cas/" + hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = rsp.Body.Close() }()
+
+	if rsp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rsp.StatusCode)
+	}
+
+	if cl, found := rsp.Header["Content-Length"]; found {
+		t.Errorf("expected no Content-Length header for a blob of unknown size, got %q", cl)
+	}
+}
+
 func TestUploadFilesConcurrently(t *testing.T) {
 	cacheDir := testutils.TempDir(t)
 	defer func() { _ = os.RemoveAll(cacheDir) }()
