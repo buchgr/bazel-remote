@@ -486,7 +486,12 @@ func (h *httpCache) CacheHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
+		// Proxy backends may know a blob exists without knowing its size
+		// (eg the s3 proxy for compressed CAS blobs), so leave out
+		// Content-Length rather than sending an invalid value of -1.
+		if size >= 0 {
+			w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
+		}
 		w.WriteHeader(http.StatusOK)
 		h.logResponse(http.StatusOK, r)
 
