@@ -21,7 +21,7 @@ type SizedLRU struct {
 	// Eviction double-linked list. Most recently accessed elements are at the front.
 	ll *list.List
 	// Map to access the items in O(1) time
-	cache map[interface{}]*list.Element
+	cache map[string]*list.Element
 
 	// Total cache size including reserved bytes and estimated filesystem overhead.
 	currentSize int64
@@ -104,7 +104,7 @@ func NewSizedLRU(maxSize int64, onEvict EvictCallback, initialCapacity int) Size
 	return SizedLRU{
 		maxSize: maxSize,
 		ll:      list.New(),
-		cache:   make(map[interface{}]*list.Element, initialCapacity),
+		cache:   make(map[string]*list.Element, initialCapacity),
 		onEvict: onEvict,
 
 		gaugeCacheSizeBytes: prometheus.NewGauge(prometheus.GaugeOpts{
