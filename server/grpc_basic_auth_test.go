@@ -35,6 +35,19 @@ func TestGrpcBasicAuthInterceptors(t *testing.T) {
 	testGrpcBasicAuthInterceptors(t, NewGrpcBasicAuth(authcache.New(secrets), false))
 }
 
+// fakeChecker stands in for other CredentialChecker implementations, such as
+// ldap.Cache, which need an external server.
+type fakeChecker map[string]string
+
+func (f fakeChecker) Check(username, password string) bool {
+	want, ok := f[username]
+	return ok && want == password
+}
+
+func TestGrpcBasicAuthInterceptorsCredentialChecker(t *testing.T) {
+	testGrpcBasicAuthInterceptors(t, NewGrpcBasicAuth(fakeChecker{"u": "correct-horse"}, false))
+}
+
 func testGrpcBasicAuthInterceptors(t *testing.T, gba *GrpcBasicAuth) {
 	const method = "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs"
 

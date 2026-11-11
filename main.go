@@ -179,11 +179,18 @@ func run(ctx *cli.Context) error {
 	servers := new(errgroup.Group)
 
 	var htpasswdChecker *authcache.Checker
+	var ldapAuth *ldap.Cache
 
 	authMode := "disabled"
 	if c.HtpasswdFile != "" {
 		authMode = "basic"
 		htpasswdChecker = authcache.New(auth.HtpasswdFileProvider(c.HtpasswdFile))
+	} else if c.LDAP != nil {
+		authMode = "ldap"
+		ldapAuth, err = ldap.New(c.LDAP)
+		if err != nil {
+			log.Fatal("Failed to create LDAP connection: ", err)
+		}
 	} else if c.TLSCaFile != "" {
 		authMode = "mTLS"
 	}
@@ -209,7 +216,7 @@ func run(ctx *cli.Context) error {
 	log.Println("Mangling non-empty instance names with AC keys:", acKeyManglingStatus)
 
 	servers.Go(func() error {
-		err := startHttpServer(c, &httpServer, htpasswdChecker, idleTimer, httpSem, diskCache)
+		err := startHttpServer(c, &httpServer, htpasswdChecker, ldapAuth, idleTimer, httpSem, diskCache)
 		if err != nil {
 			log.Fatal("HTTP server returned fatal error:", err)
 		}
@@ -218,7 +225,7 @@ func run(ctx *cli.Context) error {
 
 	if c.GRPCAddress != "none" {
 		servers.Go(func() error {
-			err := startGrpcServer(c, &grpcServer, htpasswdChecker, idleTimer, grpcSem, diskCache)
+			err := startGrpcServer(c, &grpcServer, htpasswdChecker, ldapAuth, idleTimer, grpcSem, diskCache)
 			if err != nil {
 				log.Fatal("gRPC server returned fatal error:", err)
 			}
@@ -235,7 +242,7 @@ func run(ctx *cli.Context) error {
 }
 
 func startHttpServer(c *config.Config, httpServer **http.Server,
-	htpasswdChecker *authcache.Checker, idleTimer *idle.Timer,
+	htpasswdChecker *authcache.Checker, ldapAuth *ldap.Cache, idleTimer *idle.Timer,
 	httpSem *semaphore.Weighted, diskCache disk.Cache) error {
 
 	mux := http.NewServeMux()
@@ -254,7 +261,6 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 		c.MaxBlobSize)
 
 	cacheHandler := h.CacheHandler
-	var ldapAuthenticator authenticator
 	var basicAuthenticator *authcache.BasicAuth
 	if c.HtpasswdFile != "" {
 		basicAuthenticator = authcache.NewBasicAuth(c.HTTPAddress, htpasswdChecker)
@@ -263,15 +269,11 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 		} else {
 			cacheHandler = basicAuthWrapper(cacheHandler, basicAuthenticator)
 		}
-	} else if c.LDAP != nil {
+	} else if ldapAuth != nil {
 		if c.AllowUnauthenticatedReads {
 			cacheHandler = unauthenticatedReadWrapper(cacheHandler, &auth.BasicAuth{Realm: c.HTTPAddress})
 		} else {
-			var ldap_err error
-			if ldapAuthenticator, ldap_err = ldap.New(c.LDAP); ldap_err != nil {
-				log.Fatal("Failed to create LDAP connection: ", ldap_err)
-			}
-			cacheHandler = basicAuthWrapper(cacheHandler, ldapAuthenticator)
+			cacheHandler = basicAuthWrapper(cacheHandler, ldapAuth)
 		}
 	}
 
@@ -290,8 +292,8 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 			statusHandler = h.VerifyClientCertHandler(statusHandler).ServeHTTP
 		} else if c.HtpasswdFile != "" {
 			statusHandler = basicAuthWrapper(statusHandler, basicAuthenticator)
-		} else if c.LDAP != nil {
-			statusHandler = basicAuthWrapper(statusHandler, ldapAuthenticator)
+		} else if ldapAuth != nil {
+			statusHandler = basicAuthWrapper(statusHandler, ldapAuth)
 		}
 	}
 
@@ -316,8 +318,8 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 				middlewareHandler = h.VerifyClientCertHandler(middlewareHandler)
 			} else if c.HtpasswdFile != "" {
 				middlewareHandler = basicAuthWrapper(middlewareHandler.ServeHTTP, basicAuthenticator)
-			} else if c.LDAP != nil {
-				middlewareHandler = basicAuthWrapper(middlewareHandler.ServeHTTP, ldapAuthenticator)
+			} else if ldapAuth != nil {
+				middlewareHandler = basicAuthWrapper(middlewareHandler.ServeHTTP, ldapAuth)
 			}
 		}
 		mux.Handle("/metrics", middlewareHandler)
@@ -388,7 +390,7 @@ func startHttpServer(c *config.Config, httpServer **http.Server,
 }
 
 func startGrpcServer(c *config.Config, grpcServer **grpc.Server,
-	htpasswdChecker *authcache.Checker, idleTimer *idle.Timer,
+	htpasswdChecker *authcache.Checker, ldapAuth *ldap.Cache, idleTimer *idle.Timer,
 	grpcSem *semaphore.Weighted, diskCache disk.Cache) error {
 
 	opts := []grpc.ServerOption{}
@@ -414,6 +416,10 @@ func startGrpcServer(c *config.Config, grpcServer **grpc.Server,
 
 	if htpasswdChecker != nil {
 		gba := server.NewGrpcBasicAuth(htpasswdChecker, c.AllowUnauthenticatedReads)
+		streamInterceptors = append(streamInterceptors, gba.StreamServerInterceptor)
+		unaryInterceptors = append(unaryInterceptors, gba.UnaryServerInterceptor)
+	} else if ldapAuth != nil {
+		gba := server.NewGrpcBasicAuth(ldapAuth, c.AllowUnauthenticatedReads)
 		streamInterceptors = append(streamInterceptors, gba.StreamServerInterceptor)
 		unaryInterceptors = append(unaryInterceptors, gba.UnaryServerInterceptor)
 	}

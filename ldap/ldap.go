@@ -108,6 +108,12 @@ func (c *Cache) query(user, password string) bool {
 	return conn.Bind(sr.Entries[0].DN, password) == nil
 }
 
+// Check reports whether username and password are valid LDAP credentials
+// for a member of the configured groups. Results are cached like CheckAuth's.
+func (c *Cache) Check(username, password string) bool {
+	return c.checkLdap(username, password)
+}
+
 // Below mostly copied from github.com/abbot/go-http-auth
 // in order to "override" CheckAuth
 
