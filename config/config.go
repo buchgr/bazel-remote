@@ -621,7 +621,7 @@ func get(ctx *cli.Context) (*Config, error) {
 	}
 
 	var azblob *AzBlobStorageConfig
-	if ctx.String("azblob.tenant_id") != "" {
+	if ctx.IsSet("azblob.storage_account") || ctx.IsSet("azblob.container_name") {
 		azblob = &AzBlobStorageConfig{
 			TenantID:         ctx.String("azblob.tenant_id"),
 			StorageAccount:   ctx.String("azblob.storage_account"),
