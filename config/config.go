@@ -459,8 +459,39 @@ func validateConfig(c *Config) error {
 			return errors.New("the 'container_name' field is required for 'azblob_proxy'")
 		}
 
+		if c.AzBlobConfig.AuthMethod == "" {
+			return errors.New("the 'auth_method' field is required for 'azblob_proxy'")
+		}
+
 		if !azblobproxy.IsValidAuthMethod(c.AzBlobConfig.AuthMethod) {
 			return fmt.Errorf("invalid azblob.auth_method: %s", c.AzBlobConfig.AuthMethod)
+		}
+
+		switch c.AzBlobConfig.AuthMethod {
+		case azblobproxy.AuthMethodSharedKey:
+			if c.AzBlobConfig.SharedKey == "" {
+				return errors.New("the 'shared_key' field is required for 'azblob_proxy' with auth_method 'shared_key'")
+			}
+		case azblobproxy.AuthMethodClientSecret:
+			if c.AzBlobConfig.TenantID == "" {
+				return errors.New("the 'tenant_id' field is required for 'azblob_proxy' with auth_method 'client_secret'")
+			}
+			if c.AzBlobConfig.ClientID == "" {
+				return errors.New("the 'client_id' field is required for 'azblob_proxy' with auth_method 'client_secret'")
+			}
+			if c.AzBlobConfig.ClientSecret == "" {
+				return errors.New("the 'client_secret' field is required for 'azblob_proxy' with auth_method 'client_secret'")
+			}
+		case azblobproxy.AuthMethodClientCertificate:
+			if c.AzBlobConfig.TenantID == "" {
+				return errors.New("the 'tenant_id' field is required for 'azblob_proxy' with auth_method 'client_certificate'")
+			}
+			if c.AzBlobConfig.ClientID == "" {
+				return errors.New("the 'client_id' field is required for 'azblob_proxy' with auth_method 'client_certificate'")
+			}
+			if c.AzBlobConfig.CertPath == "" {
+				return errors.New("the 'cert_path' field is required for 'azblob_proxy' with auth_method 'client_certificate'")
+			}
 		}
 	}
 
