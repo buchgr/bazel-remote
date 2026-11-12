@@ -54,10 +54,16 @@ type Error struct {
 	Code int
 	// A human-readable string describing the error
 	Text string
+	// Cause retains the underlying error for protocol-specific error mapping.
+	Cause error
 }
 
 func (e *Error) Error() string {
 	return e.Text
+}
+
+func (e *Error) Unwrap() error {
+	return e.Cause
 }
 
 // Proxy is the interface that (optional) proxy backends must implement.
