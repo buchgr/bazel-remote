@@ -149,6 +149,7 @@ func (c *Config) setProxy() error {
 			creds,
 			c.S3CloudStorage.DisableSSL,
 			c.S3CloudStorage.UpdateTimestamps,
+			c.S3CloudStorage.CASRefreshAge,
 			c.S3CloudStorage.Region,
 			c.S3CloudStorage.MaxIdleConns,
 			c.StorageMode, c.AccessLogger, c.ErrorLogger, c.NumUploaders, c.MaxQueuedUploads)

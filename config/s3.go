@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/buchgr/bazel-remote/v2/cache/s3proxy"
 
@@ -11,23 +12,24 @@ import (
 
 // S3CloudStorageConfig stores the configuration of an S3 API proxy backend.
 type S3CloudStorageConfig struct {
-	Endpoint                 string `yaml:"endpoint"`
-	Bucket                   string `yaml:"bucket"`
-	Prefix                   string `yaml:"prefix"`
-	AuthMethod               string `yaml:"auth_method"`
-	AccessKeyID              string `yaml:"access_key_id"`
-	SecretAccessKey          string `yaml:"secret_access_key"`
-	SessionToken             string `yaml:"session_token"`
-	SignatureType            string `yaml:"signature_type"`
-	DisableSSL               bool   `yaml:"disable_ssl"`
-	UpdateTimestamps         bool   `yaml:"update_timestamps"`
-	IAMRoleEndpoint          string `yaml:"iam_role_endpoint"`
-	Region                   string `yaml:"region"`
-	KeyVersion               *int   `yaml:"key_version"`
-	AWSProfile               string `yaml:"aws_profile"`
-	AWSSharedCredentialsFile string `yaml:"aws_shared_credentials_file"`
-	BucketLookupType         string `yaml:"bucket_lookup_type"`
-	MaxIdleConns             int    `yaml:"max_idle_conns"`
+	Endpoint                 string        `yaml:"endpoint"`
+	Bucket                   string        `yaml:"bucket"`
+	Prefix                   string        `yaml:"prefix"`
+	AuthMethod               string        `yaml:"auth_method"`
+	AccessKeyID              string        `yaml:"access_key_id"`
+	SecretAccessKey          string        `yaml:"secret_access_key"`
+	SessionToken             string        `yaml:"session_token"`
+	SignatureType            string        `yaml:"signature_type"`
+	DisableSSL               bool          `yaml:"disable_ssl"`
+	UpdateTimestamps         bool          `yaml:"update_timestamps"`
+	CASRefreshAge            time.Duration `yaml:"cas_refresh_age"`
+	IAMRoleEndpoint          string        `yaml:"iam_role_endpoint"`
+	Region                   string        `yaml:"region"`
+	KeyVersion               *int          `yaml:"key_version"`
+	AWSProfile               string        `yaml:"aws_profile"`
+	AWSSharedCredentialsFile string        `yaml:"aws_shared_credentials_file"`
+	BucketLookupType         string        `yaml:"bucket_lookup_type"`
+	MaxIdleConns             int           `yaml:"max_idle_conns"`
 }
 
 func (s3c S3CloudStorageConfig) GetCredentials() (*credentials.Credentials, error) {
