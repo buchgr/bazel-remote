@@ -157,14 +157,30 @@ func logResponse(log cache.Logger, method, bucket, key string, err error) {
 }
 
 func (c *s3Cache) UploadFile(item backendproxy.UploadReq) {
+	defer func() { _ = item.Rc.Close() }()
+
+	ctx := context.Background()
+	key := c.objectKey(item.Hash, item.Kind)
+
+	// Avoid re-uploading already existing blobs. A HEAD request is much cheaper than the PUT, same
+	// as in the http proxy backend.
+	if _, err := c.mcore.StatObject(ctx, c.bucket, key, minio.StatObjectOptions{}); err == nil {
+		if c.updateTimestamps {
+			// keep the blob current (lifecycle rules)
+			c.UpdateModificationTimestamp(ctx, c.bucket, key)
+		}
+		logResponse(c.accessLogger, "SKIP UPLOAD", c.bucket, key, nil)
+		return
+	}
+
 	_, err := c.mcore.PutObject(
-		context.Background(),
-		c.bucket,                          // bucketName
-		c.objectKey(item.Hash, item.Kind), // objectName
-		item.Rc,                           // reader
-		item.SizeOnDisk,                   // objectSize
-		"",                                // md5base64
-		"",                                // sha256
+		ctx,
+		c.bucket,        // bucketName
+		key,             // objectName
+		item.Rc,         // reader
+		item.SizeOnDisk, // objectSize
+		"",              // md5base64
+		"",              // sha256
 		minio.PutObjectOptions{
 			UserMetadata: map[string]string{
 				"Content-Type": "application/octet-stream",
@@ -172,9 +188,7 @@ func (c *s3Cache) UploadFile(item backendproxy.UploadReq) {
 		}, // metadata
 	)
 
-	logResponse(c.accessLogger, "UPLOAD", c.bucket, c.objectKey(item.Hash, item.Kind), err)
-
-	_ = item.Rc.Close()
+	logResponse(c.accessLogger, "UPLOAD", c.bucket, key, err)
 }
 
 func (c *s3Cache) Put(ctx context.Context, kind cache.EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) {
