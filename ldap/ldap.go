@@ -64,17 +64,22 @@ func (c *Cache) checkLdap(user, password string) bool {
 	// Not initialized; actually do the query and record the result
 	authed := c.query(user, password)
 	ce.authed = &authed
-	timeout := c.config.CacheTime * time.Second
-	// Don't cache a negative result for a long time; likely wrong password
-	if !authed {
-		timeout = 5 * time.Second
-	}
+	timeout := c.cacheTimeout(authed)
 	go func() {
 		<-time.After(timeout)
 		c.m.Delete(k)
 	}()
 
 	return authed
+}
+
+// cacheTimeout returns how long a query result is cached.
+func (c *Cache) cacheTimeout(authed bool) time.Duration {
+	// Don't cache a negative result for a long time; likely wrong password
+	if !authed {
+		return 5 * time.Second
+	}
+	return c.config.CacheTime
 }
 
 func (c *Cache) query(user, password string) bool {

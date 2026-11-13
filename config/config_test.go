@@ -9,7 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buchgr/bazel-remote/v2/utils/flags"
+
 	"github.com/google/go-cmp/cmp"
+	"github.com/urfave/cli/v2"
 )
 
 func TestValidServerConfig(t *testing.T) {
@@ -343,6 +346,59 @@ ldap:
 
 	if !cmp.Equal(config, expectedConfig) {
 		t.Fatalf("Expected '%+v' but got '%+v'", expectedConfig, config)
+	}
+}
+
+func TestLDAPCacheTimeDefault(t *testing.T) {
+	yaml := `host: localhost
+port: 8080
+dir: /opt/cache-dir
+max_size: 100
+ldap:
+  url: ldap://ldap.example.com
+  base_dn: OU=My Users,DC=example,DC=com
+`
+	config, err := NewFromYaml([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if config.LDAP.CacheTime != time.Hour {
+		t.Fatalf("Expected the default LDAP cache time to be %v, got %v", time.Hour, config.LDAP.CacheTime)
+	}
+}
+
+func TestLDAPCacheTimeFlag(t *testing.T) {
+	testCases := []struct {
+		args     []string
+		expected time.Duration
+	}{
+		{args: nil, expected: time.Hour},
+		{args: []string{"--ldap.cache_time", "100"}, expected: 100 * time.Second},
+	}
+
+	for _, tc := range testCases {
+		var cfg *Config
+		app := &cli.App{
+			Flags: flags.GetCliFlags(),
+			Action: func(ctx *cli.Context) error {
+				var err error
+				cfg, err = get(ctx)
+				return err
+			},
+		}
+
+		args := append([]string{"bazel-remote",
+			"--dir", t.TempDir(), "--max_size", "1",
+			"--ldap.url", "ldap://ldap.example.com",
+			"--ldap.base_dn", "DC=example,DC=com"}, tc.args...)
+		if err := app.Run(args); err != nil {
+			t.Fatal(err)
+		}
+
+		if cfg.LDAP.CacheTime != tc.expected {
+			t.Errorf("With %v: expected an LDAP cache time of %v, got %v", tc.args, tc.expected, cfg.LDAP.CacheTime)
+		}
 	}
 }
 
