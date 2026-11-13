@@ -46,6 +46,7 @@ type LDAPConfig struct {
 	UsernameAttribute string        `yaml:"username_attribute"`
 	GroupsQuery       string        `yaml:"groups_query"`
 	CacheTime         time.Duration `yaml:"cache_time"`
+	Timeout           time.Duration `yaml:"timeout"`
 }
 
 // UnmarshalYAML decodes a proxy backend config. The fields are listed explicitly
@@ -523,6 +524,9 @@ func validateConfig(c *Config) error {
 		if c.LDAP.CacheTime <= 0 {
 			c.LDAP.CacheTime = 3600
 		}
+		if c.LDAP.Timeout <= 0 {
+			c.LDAP.Timeout = 10 * time.Second
+		}
 	}
 
 	switch c.AccessLogLevel {
@@ -677,6 +681,7 @@ func get(ctx *cli.Context) (*Config, error) {
 			UsernameAttribute: ctx.String("ldap.username_attribute"),
 			GroupsQuery:       ctx.String("ldap.groups_query"),
 			CacheTime:         ctx.Duration("ldap.cache_time"),
+			Timeout:           ctx.Duration("ldap.timeout"),
 		}
 	}
 

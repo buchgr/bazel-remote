@@ -5,6 +5,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/buchgr/bazel-remote/v2/cache/azblobproxy"
 	"github.com/buchgr/bazel-remote/v2/cache/disk/zstdimpl"
@@ -313,6 +314,12 @@ func GetCliFlags() []cli.Flag {
 			Value:   3600,
 			Usage:   "The amount of time to cache a successful authentication in seconds.",
 			EnvVars: []string{"BAZEL_REMOTE_LDAP_CACHE_TIME"},
+		},
+		&cli.DurationFlag{
+			Name:    "ldap.timeout",
+			Value:   10 * time.Second,
+			Usage:   "The timeout for connecting to the LDAP server and for each LDAP request. A login that times out is refused.",
+			EnvVars: []string{"BAZEL_REMOTE_LDAP_TIMEOUT"},
 		},
 		&cli.StringFlag{
 			Name:    "s3.endpoint",

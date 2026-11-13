@@ -330,6 +330,7 @@ ldap:
 			UsernameAttribute: "sAMAccountName",
 			GroupsQuery:       "(|(memberOf=CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com)(memberOf=CN=other-users,OU=Groups2,OU=Alien Users,DC=foo,DC=org))",
 			CacheTime:         3600 * time.Second,
+			Timeout:           10 * time.Second,
 		},
 		NumUploaders:           100,
 		MinTLSVersion:          "1.0",

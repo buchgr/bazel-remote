@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -31,7 +32,7 @@ type cacheEntry struct {
 }
 
 func New(config *config.LDAPConfig) (*Cache, error) {
-	conn, err := ldap.DialURL(config.URL)
+	conn, err := dial(config)
 	if err != nil {
 		return nil, err
 	}
@@ -48,6 +49,19 @@ func New(config *config.LDAPConfig) (*Cache, error) {
 			Realm: "Bazel remote cache",
 		},
 	}, nil
+}
+
+// dial connects to the LDAP server. config.Timeout bounds the connection
+// (including the TLS handshake) and each request on it, so an LDAP server
+// that stops answering cannot hold up logins indefinitely.
+func dial(config *config.LDAPConfig) (*ldap.Conn, error) {
+	conn, err := ldap.DialURL(config.URL,
+		ldap.DialWithDialer(&net.Dialer{Timeout: config.Timeout}))
+	if err != nil {
+		return nil, err
+	}
+	conn.SetTimeout(config.Timeout)
+	return conn, nil
 }
 
 // Either query LDAP for a result or retrieve it from the cache
@@ -85,7 +99,7 @@ func (c *Cache) checkLdap(user, password string) bool {
 // the LDAP server cannot be reached or rejects the configured bind user,
 // so that an LDAP outage refuses requests instead of stopping the server.
 func (c *Cache) query(user, password string) (bool, error) {
-	conn, err := ldap.DialURL(c.config.URL)
+	conn, err := dial(c.config)
 	if err != nil {
 		return false, fmt.Errorf("no valid LDAP connection could be established: %w", err)
 	}

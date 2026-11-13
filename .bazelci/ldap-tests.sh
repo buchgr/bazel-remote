@@ -83,7 +83,8 @@ sleep 5
 	--ldap.url ldap://127.0.0.1:3893 \
 	--ldap.base_dn dc=glauth,dc=com \
 	--ldap.bind_user "$BIND_USER_NAME" \
-	--ldap.bind_password "$BIND_USER_PASSWORD" &
+	--ldap.bind_password "$BIND_USER_PASSWORD" \
+	--ldap.timeout 2s &
 bazel_remote_pid=$!
 
 # Wait a bit for bazel-remote to start up...
@@ -160,6 +161,34 @@ if ! grep -q Unauthenticated grpc_wrong_password.log
 then
 	cat grpc_wrong_password.log
 	echo "Error: gRPC requests with a wrong password failed for another reason."
+	kill -9 $bazel_remote_pid $glauth_pid
+	exit 1
+fi
+
+# Pause the LDAP server: it still accepts connections but never answers.
+# A login that needs LDAP must be refused after --ldap.timeout instead of
+# waiting indefinitely.
+kill -STOP $glauth_pid
+
+SECONDS=0
+if wget --inet4-only -O - --timeout=30 --tries=1 \
+	--http-user "$END_USER_NAME" --http-password "uncached-password-hang" \
+	"http://127.0.0.1:$HTTP_PORT/status"
+then
+	echo "Error: uncached credentials were accepted while LDAP was not answering."
+	kill -9 $bazel_remote_pid $glauth_pid
+	exit 1
+fi
+hang_seconds=$SECONDS
+if ! ps -p $bazel_remote_pid > /dev/null
+then
+	echo "Error: bazel-remote exited when LDAP was not answering."
+	kill -9 $glauth_pid
+	exit 1
+fi
+if [ $hang_seconds -gt 10 ]
+then
+	echo "Error: a login took ${hang_seconds}s to be refused while LDAP was not answering; --ldap.timeout is 2s."
 	kill -9 $bazel_remote_pid $glauth_pid
 	exit 1
 fi
