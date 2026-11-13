@@ -123,6 +123,7 @@ func grpcTestSetupWithCustomCache(t *testing.T, mangleACKeys bool, validateAC bo
 			validateAC,
 			mangleACKeys,
 			enableRemoteAssetAPI,
+			"",
 			testMaxCasBlobSizeBytes,
 			diskCache, accessLogger, errorLogger)
 		if err2 != nil {
