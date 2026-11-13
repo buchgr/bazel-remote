@@ -10,6 +10,7 @@ SRC_ROOT=$(realpath "$SRC_ROOT")
 cd "$SRC_ROOT"
 
 HTTP_PORT=8089
+GRPC_PORT=9092
 
 [ -f bazel-remote ] || ./linux-build.sh
 
@@ -17,6 +18,9 @@ HTTP_PORT=8089
 chmod +x glauth-linux-amd64
 
 tmpdir=$(mktemp -d bazel-remote-ldap-tests.XXXXXXX --tmpdir=${TMPDIR:-/tmp})
+
+go build -o "$tmpdir/grpcreadclient" ./utils/grpcreadclient
+
 cd $tmpdir
 
 BIND_USER_NAME="bazel-remote-ldap-user"
@@ -74,6 +78,7 @@ glauth_pid=$!
 sleep 5
 
 "$SRC_ROOT/bazel-remote" --dir data --max_size 1 --http_address "0.0.0.0:$HTTP_PORT" \
+	--grpc_address "0.0.0.0:$GRPC_PORT" \
 	--enable_endpoint_metrics \
 	--ldap.url ldap://127.0.0.1:3893 \
 	--ldap.base_dn dc=glauth,dc=com \
@@ -124,6 +129,40 @@ then
 fi
 set -e
 
+# Check that gRPC requests without credentials are refused.
+if ! ./grpcreadclient -server-addr "127.0.0.1:$GRPC_PORT"
+then
+	echo "Error: gRPC requests without credentials were not refused."
+	kill -9 $bazel_remote_pid $glauth_pid
+	exit 1
+fi
+
+# Check that gRPC reads and writes work with valid LDAP credentials.
+if ! ./grpcreadclient -server-addr "127.0.0.1:$GRPC_PORT" \
+	-basic-auth-user "$END_USER_NAME" -basic-auth-pass "$END_USER_PASSWORD"
+then
+	echo "Error: gRPC requests with valid LDAP credentials failed."
+	kill -9 $bazel_remote_pid $glauth_pid
+	exit 1
+fi
+
+# Check that gRPC requests with a wrong password are refused.
+if ./grpcreadclient -server-addr "127.0.0.1:$GRPC_PORT" \
+	-basic-auth-user "$END_USER_NAME" -basic-auth-pass "wrong-password" \
+	> grpc_wrong_password.log 2>&1
+then
+	cat grpc_wrong_password.log
+	echo "Error: gRPC requests with a wrong password were not refused."
+	kill -9 $bazel_remote_pid $glauth_pid
+	exit 1
+fi
+if ! grep -q Unauthenticated grpc_wrong_password.log
+then
+	cat grpc_wrong_password.log
+	echo "Error: gRPC requests with a wrong password failed for another reason."
+	kill -9 $bazel_remote_pid $glauth_pid
+	exit 1
+fi
 
 echo LDAP tests passed, cleaning up...
 kill -9 $bazel_remote_pid $glauth_pid
