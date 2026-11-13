@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -31,7 +32,7 @@ type cacheEntry struct {
 }
 
 func New(config *config.LDAPConfig) (*Cache, error) {
-	conn, err := ldap.DialURL(config.URL)
+	conn, err := dial(config)
 	if err != nil {
 		return nil, err
 	}
@@ -50,6 +51,19 @@ func New(config *config.LDAPConfig) (*Cache, error) {
 	}, nil
 }
 
+// dial connects to the LDAP server. config.Timeout bounds the connection
+// (including the TLS handshake) and each request on it, so an LDAP server
+// that stops answering cannot hold up logins indefinitely.
+func dial(config *config.LDAPConfig) (*ldap.Conn, error) {
+	conn, err := ldap.DialURL(config.URL,
+		ldap.DialWithDialer(&net.Dialer{Timeout: config.Timeout}))
+	if err != nil {
+		return nil, err
+	}
+	conn.SetTimeout(config.Timeout)
+	return conn, nil
+}
+
 // Either query LDAP for a result or retrieve it from the cache
 func (c *Cache) checkLdap(user, password string) bool {
 	k := [2]string{user, password}
@@ -62,10 +76,14 @@ func (c *Cache) checkLdap(user, password string) bool {
 	}
 
 	// Not initialized; actually do the query and record the result
-	authed := c.query(user, password)
+	authed, err := c.query(user, password)
+	if err != nil {
+		log.Printf("Refusing LDAP authentication, the LDAP server could not be queried: %v", err)
+	}
 	ce.authed = &authed
 	timeout := c.config.CacheTime * time.Second
-	// Don't cache a negative result for a long time; likely wrong password
+	// Don't cache a negative result for a long time; likely wrong password,
+	// or the LDAP server is unavailable and should be retried soon.
 	if !authed {
 		timeout = 5 * time.Second
 	}
@@ -77,16 +95,18 @@ func (c *Cache) checkLdap(user, password string) bool {
 	return authed
 }
 
-func (c *Cache) query(user, password string) bool {
-	// This should always succeed since it was tested at instantiation
-	conn, err := ldap.DialURL(c.config.URL)
+// query reports whether the credentials are valid. It returns an error if
+// the LDAP server cannot be reached or rejects the configured bind user,
+// so that an LDAP outage refuses requests instead of stopping the server.
+func (c *Cache) query(user, password string) (bool, error) {
+	conn, err := dial(c.config)
 	if err != nil {
-		log.Fatal("No valid LDAP connection could be established:", err)
+		return false, fmt.Errorf("no valid LDAP connection could be established: %w", err)
 	}
 	defer func() { _ = conn.Close() }()
 
 	if err = conn.Bind(c.config.BindUser+","+c.config.BaseDN, c.config.BindPassword); err != nil {
-		log.Fatal("LDAP connection with username and password failed:", err)
+		return false, fmt.Errorf("LDAP connection with username and password failed: %w", err)
 	}
 
 	query := fmt.Sprintf("(&(%s=%s)%s)", c.config.UsernameAttribute, user, c.config.GroupsQuery)
@@ -101,11 +121,17 @@ func (c *Cache) query(user, password string) bool {
 
 	sr, err := conn.Search(searchRequest)
 	if err != nil || len(sr.Entries) != 1 {
-		return false
+		return false, nil
 	}
 
 	// Do they have the right credentials?
-	return conn.Bind(sr.Entries[0].DN, password) == nil
+	return conn.Bind(sr.Entries[0].DN, password) == nil, nil
+}
+
+// Check reports whether username and password are valid LDAP credentials
+// for a member of the configured groups. Results are cached like CheckAuth's.
+func (c *Cache) Check(username, password string) bool {
+	return c.checkLdap(username, password)
 }
 
 // Below mostly copied from github.com/abbot/go-http-auth

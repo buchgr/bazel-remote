@@ -317,6 +317,10 @@ OPTIONS:
    --ldap.cache_time value The amount of time to cache a successful
       authentication in seconds. (default: 3600) [$BAZEL_REMOTE_LDAP_CACHE_TIME]
 
+   --ldap.timeout value The timeout for connecting to the LDAP server and for
+      each LDAP request. A login that times out is refused. (default: 10s)
+      [$BAZEL_REMOTE_LDAP_TIMEOUT]
+
    --s3.endpoint value The S3/minio endpoint to use when using S3 proxy
       backend. [$BAZEL_REMOTE_S3_ENDPOINT]
 
@@ -530,6 +534,7 @@ http_address: 0.0.0.0:8080
 #  bind_user: ldapuser
 #  bind_password: ldappassword
 #  cache_time: 3600                        # in seconds (default 1 hour)
+#  timeout: 10s                            # connect and per-request timeout (default 10s)
 #  groups_query: (memberOf=CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com)
 
 # If tls_ca_file or htpasswd_file are specified, you can choose

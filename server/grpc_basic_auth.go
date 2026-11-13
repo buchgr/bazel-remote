@@ -22,16 +22,24 @@ var (
 		"access denied")
 )
 
-// GrpcBasicAuth wraps an authcache.Checker, and provides gRPC interceptors
+// CredentialChecker reports whether a username and password are valid.
+// It is implemented by authcache.Checker (htpasswd) and ldap.Cache.
+type CredentialChecker interface {
+	Check(username, password string) bool
+}
+
+var _ CredentialChecker = (*authcache.Checker)(nil)
+
+// GrpcBasicAuth wraps a CredentialChecker, and provides gRPC interceptors
 // that verify that requests can be authenticated using HTTP basic auth.
 type GrpcBasicAuth struct {
-	checker                      *authcache.Checker
+	checker                      CredentialChecker
 	allowUnauthenticatedReadOnly bool
 }
 
 // NewGrpcBasicAuth returns a GrpcBasicAuth that wraps the given
-// authcache.Checker.
-func NewGrpcBasicAuth(checker *authcache.Checker, allowUnauthenticatedReadOnly bool) *GrpcBasicAuth {
+// CredentialChecker.
+func NewGrpcBasicAuth(checker CredentialChecker, allowUnauthenticatedReadOnly bool) *GrpcBasicAuth {
 	return &GrpcBasicAuth{
 		checker:                      checker,
 		allowUnauthenticatedReadOnly: allowUnauthenticatedReadOnly,
