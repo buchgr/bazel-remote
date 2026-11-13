@@ -248,6 +248,10 @@ func gRPCErrCode(err error, dflt codes.Code) codes.Code {
 		return codes.OK
 	}
 
+	if st, ok := status.FromError(err); ok {
+		return st.Code()
+	}
+
 	var cerr *cache.Error
 	if errors.As(err, &cerr) {
 		switch cerr.Code {
