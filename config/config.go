@@ -521,7 +521,7 @@ func validateConfig(c *Config) error {
 			c.LDAP.UsernameAttribute = "uid"
 		}
 		if c.LDAP.CacheTime <= 0 {
-			c.LDAP.CacheTime = 3600
+			c.LDAP.CacheTime = time.Hour
 		}
 	}
 
@@ -676,7 +676,7 @@ func get(ctx *cli.Context) (*Config, error) {
 			BindPassword:      ctx.String("ldap.bind_password"),
 			UsernameAttribute: ctx.String("ldap.username_attribute"),
 			GroupsQuery:       ctx.String("ldap.groups_query"),
-			CacheTime:         ctx.Duration("ldap.cache_time"),
+			CacheTime:         time.Duration(ctx.Int("ldap.cache_time")) * time.Second,
 		}
 	}
 

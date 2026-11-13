@@ -529,7 +529,7 @@ http_address: 0.0.0.0:8080
 #  username_attribute: sAMAccountName      # defaults to "uid"
 #  bind_user: ldapuser
 #  bind_password: ldappassword
-#  cache_time: 3600                        # in seconds (default 1 hour)
+#  cache_time: 1h                          # a duration, eg 30m or 3600s (default 1h)
 #  groups_query: (memberOf=CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com)
 
 # If tls_ca_file or htpasswd_file are specified, you can choose
