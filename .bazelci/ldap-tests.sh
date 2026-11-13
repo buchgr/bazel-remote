@@ -164,7 +164,59 @@ then
 	exit 1
 fi
 
+# Stop the LDAP server. bazel-remote must keep running: credentials it has
+# already verified keep working, and new ones are refused.
+kill -9 $glauth_pid
+wait $glauth_pid 2>/dev/null || true
+
+if ! wget --inet4-only -O - \
+	--http-user "$END_USER_NAME" --http-password "$END_USER_PASSWORD" \
+	"http://127.0.0.1:$HTTP_PORT/status"
+then
+	echo "Error: cached LDAP credentials were refused while LDAP was down."
+	kill -9 $bazel_remote_pid
+	exit 1
+fi
+
+# These credentials have not been checked yet, so LDAP must be queried.
+if wget --inet4-only -O - \
+	--http-user "$END_USER_NAME" --http-password "uncached-password-http" \
+	"http://127.0.0.1:$HTTP_PORT/status"
+then
+	echo "Error: uncached credentials were accepted while LDAP was down."
+	kill -9 $bazel_remote_pid
+	exit 1
+fi
+if ! ps -p $bazel_remote_pid > /dev/null
+then
+	echo "Error: bazel-remote exited when LDAP was unavailable for an HTTP request."
+	exit 1
+fi
+
+if ./grpcreadclient -server-addr "127.0.0.1:$GRPC_PORT" \
+	-basic-auth-user "$END_USER_NAME" -basic-auth-pass "uncached-password-grpc" \
+	> grpc_ldap_down.log 2>&1
+then
+	cat grpc_ldap_down.log
+	echo "Error: gRPC requests were not refused while LDAP was down."
+	kill -9 $bazel_remote_pid
+	exit 1
+fi
+if ! ps -p $bazel_remote_pid > /dev/null
+then
+	cat grpc_ldap_down.log
+	echo "Error: bazel-remote exited when LDAP was unavailable for a gRPC request."
+	exit 1
+fi
+if ! grep -q Unauthenticated grpc_ldap_down.log
+then
+	cat grpc_ldap_down.log
+	echo "Error: gRPC requests failed for another reason while LDAP was down."
+	kill -9 $bazel_remote_pid
+	exit 1
+fi
+
 echo LDAP tests passed, cleaning up...
-kill -9 $bazel_remote_pid $glauth_pid
+kill -9 $bazel_remote_pid
 cd "$SRC_ROOT"
 rm -rf "$tmpdir"
