@@ -31,7 +31,11 @@ func readStatusConn(t *testing.T, srv *grpc.Server, listener *bufconn.Listener) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { conn.Close(); srv.Stop(); listener.Close() })
+	t.Cleanup(func() {
+		_ = conn.Close()
+		srv.Stop()
+		_ = listener.Close()
+	})
 	return conn
 }
 
