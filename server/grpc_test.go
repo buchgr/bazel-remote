@@ -2848,3 +2848,47 @@ func TestInsufficientStorageWhenProxyTriesToStoreAc(t *testing.T) {
 		assertStatusCodeFromError(t, err, codes.ResourceExhausted)
 	}
 }
+
+func TestGRPCErrCode(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		want codes.Code
+	}{
+		{"nil", nil, codes.OK},
+		{"plain", errors.New("disk failure"), codes.Internal},
+		{"http storage", &cache.Error{Code: http.StatusInsufficientStorage}, codes.ResourceExhausted},
+		{"http argument", &cache.Error{Code: http.StatusBadRequest}, codes.InvalidArgument},
+		{"http missing", &cache.Error{Code: http.StatusNotFound}, codes.NotFound},
+		{"wrapped http", fmt.Errorf("wrapped: %w", &cache.Error{Code: http.StatusInsufficientStorage}), codes.ResourceExhausted},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := gRPCErrCode(tc.err, codes.Internal); got != tc.want {
+				t.Fatalf("got %s, want %s", got, tc.want)
+			}
+		})
+	}
+	for _, code := range []codes.Code{codes.NotFound, codes.Unavailable, codes.DeadlineExceeded, codes.PermissionDenied, codes.Unauthenticated, codes.Canceled, codes.ResourceExhausted, codes.Unknown} {
+		t.Run(code.String(), func(t *testing.T) {
+			cause := status.Error(code, "upstream failure")
+			for _, err := range []error{cause, fmt.Errorf("wrapped: %w", cause), &cache.Error{Code: http.StatusInternalServerError, Text: cause.Error(), Cause: cause}} {
+				if got := gRPCErrCode(err, codes.Internal); got != code {
+					t.Errorf("got %s, want %s", got, code)
+				}
+			}
+		})
+	}
+}
+
+func TestBatchReadUnknownError(t *testing.T) {
+	fixture := grpcTestSetupWithCustomCache(t, false, true, &StubCache{ProgrammedGetError: errors.New("injected disk failure")})
+	for _, compressors := range [][]pb.Compressor_Value{nil, {pb.Compressor_ZSTD}} {
+		response, err := fixture.casClient.BatchReadBlobs(context.Background(), &pb.BatchReadBlobsRequest{Digests: []*pb.Digest{{Hash: fmt.Sprintf("%x", sha256.Sum256([]byte("missing"))), SizeBytes: 7}}, AcceptableCompressors: compressors})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := codes.Code(response.Responses[0].Status.GetCode()); got != codes.Internal {
+			t.Errorf("compressors=%v: got %s, want Internal", compressors, got)
+		}
+	}
+}

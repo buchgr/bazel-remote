@@ -1,10 +1,16 @@
 package grpcproxy
 
-import "io"
+import (
+	"io"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
 
 type StreamReadCloser[M DataMessage] struct {
-	Stream RecvStream[M]
-	buf    []byte
+	Stream       RecvStream[M]
+	buf          []byte
+	receivedData bool
 }
 
 type DataMessage interface {
@@ -39,15 +45,20 @@ func (s *StreamReadCloser[M]) Read(p []byte) (int, error) {
 		return n, nil
 	}
 	msg, err := s.Stream.Recv()
-	if err == io.EOF {
-		err := s.Stream.CloseSend()
-		if err != nil {
-			return -1, err
+	if err != nil {
+		if err == io.EOF {
+			if closeErr := s.Stream.CloseSend(); closeErr != nil {
+				return n, closeErr
+			}
+		} else if s.receivedData && status.Code(err) == codes.NotFound {
+			// An absence after payload is an incomplete transfer, not a cache miss.
+			err = status.Errorf(codes.Internal, "upstream read failed after payload: %v", err)
 		}
-	} else if err != nil {
-		return -1, err
+		return n, err
 	}
+
 	s.buf = msg.GetData()
+	s.receivedData = s.receivedData || len(s.buf) > 0
 	n += s.readFromBuf(p[n:])
 	return n, err
 }

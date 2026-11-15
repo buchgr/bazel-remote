@@ -98,8 +98,9 @@ const emptySha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b785
 
 func internalErr(err error) *cache.Error {
 	return &cache.Error{
-		Code: http.StatusInternalServerError,
-		Text: err.Error(),
+		Code:  http.StatusInternalServerError,
+		Text:  err.Error(),
+		Cause: err,
 	}
 }
 
