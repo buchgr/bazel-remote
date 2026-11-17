@@ -30,6 +30,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"golang.org/x/sync/semaphore"
 )
 
 func tempDir(t *testing.T) string {
@@ -95,6 +96,59 @@ func TestCacheBasics(t *testing.T) {
 	err = expectContentEquals(rdr, sizeBytes, data)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Opening a blob on disk is a blocking syscall that holds an OS thread, like a
+// write, so a Get that hits on disk must wait for the same semaphore.
+func TestCacheGetLocalHitWaitsForDiskSemaphore(t *testing.T) {
+	ctx := context.Background()
+
+	cacheDir := tempDir(t)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
+
+	itemSize := int64(256)
+	testCacheI, err := New(cacheDir, itemSize*2+BlockSize, WithAccessLogger(testutils.NewSilentLogger()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	testCache := testCacheI.(*diskCache)
+
+	data, hash := testutils.RandomDataAndHash(itemSize)
+	err = testCache.Put(ctx, cache.CAS, hash, itemSize, io.NopCloser(bytes.NewReader(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Stand in for a burst of requests that holds every slot.
+	testCache.diskWaitSem = semaphore.NewWeighted(1)
+	if !testCache.diskWaitSem.TryAcquire(1) {
+		t.Fatal("failed to acquire the disk semaphore")
+	}
+
+	got := make(chan error, 1)
+	go func() {
+		rdr, sizeBytes, err := testCache.Get(ctx, cache.CAS, hash, itemSize, 0)
+		if err == nil {
+			err = expectContentEquals(rdr, sizeBytes, data)
+		}
+		got <- err
+	}()
+
+	select {
+	case err := <-got:
+		t.Fatalf("Get opened a blob while the disk semaphore was exhausted (err: %v)", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	testCache.diskWaitSem.Release(1)
+	select {
+	case err := <-got:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Get did not return after the disk semaphore was released")
 	}
 }
 
