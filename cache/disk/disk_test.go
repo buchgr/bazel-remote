@@ -30,6 +30,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"golang.org/x/sync/semaphore"
 )
 
 func tempDir(t *testing.T) string {
@@ -95,6 +96,71 @@ func TestCacheBasics(t *testing.T) {
 	err = expectContentEquals(rdr, sizeBytes, data)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Opening a blob is a blocking syscall that holds an OS thread, like a write,
+// so a Get that hits on disk must wait for the disk semaphore. A miss does not
+// touch the disk and must not wait.
+func TestCacheGetWaitsForDiskSemaphoreOnHit(t *testing.T) {
+	ctx := context.Background()
+
+	cacheDir := tempDir(t)
+	defer func() { _ = os.RemoveAll(cacheDir) }()
+
+	itemSize := int64(256)
+	testCacheI, err := New(cacheDir, itemSize*2+BlockSize, WithAccessLogger(testutils.NewSilentLogger()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	testCache := testCacheI.(*diskCache)
+
+	data, hash := testutils.RandomDataAndHash(itemSize)
+	err = testCache.Put(ctx, cache.CAS, hash, itemSize, io.NopCloser(bytes.NewReader(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, missingHash := testutils.RandomDataAndHash(itemSize)
+
+	// Stand in for a burst of requests that holds every slot.
+	testCache.diskWaitSem = semaphore.NewWeighted(1)
+	if !testCache.diskWaitSem.TryAcquire(1) {
+		t.Fatal("failed to acquire the disk semaphore")
+	}
+
+	get := func(hash string) <-chan io.ReadCloser {
+		got := make(chan io.ReadCloser, 1)
+		go func() {
+			rdr, _, _ := testCache.Get(ctx, cache.CAS, hash, itemSize, 0)
+			got <- rdr
+		}()
+		return got
+	}
+
+	select {
+	case rdr := <-get(missingHash):
+		if rdr != nil {
+			t.Fatal("expected a cache miss")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("a cache miss waited for the disk semaphore")
+	}
+
+	hit := get(hash)
+	select {
+	case <-hit:
+		t.Fatal("a cache hit opened its blob while the disk semaphore was exhausted")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	testCache.diskWaitSem.Release(1)
+	select {
+	case rdr := <-hit:
+		if err := expectContentEquals(rdr, itemSize, data); err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("a cache hit did not return after the disk semaphore was released")
 	}
 }
 

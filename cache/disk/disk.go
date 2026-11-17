@@ -80,8 +80,9 @@ type diskCache struct {
 	accessLogger     *log.Logger
 	containsQueue    chan proxyCheck
 
-	// Limit the number of simultaneous file removals and filesystem write
-	// operations (apart from atime updates, which we hope are fast).
+	// Limit the number of simultaneous file removals, filesystem write
+	// operations and blob opens (apart from atime updates, which we hope
+	// are fast).
 	// When acquiring both the "diskWaitSem" semaphore and the "mu" mutex,
 	// the "diskWaitSem" must be acquired before "mu" in order to avoid
 	// potential deadlocks.
@@ -462,6 +463,16 @@ func (c *diskCache) availableOrTryProxy(kind cache.EntryKind, hash string, size 
 		blobPath := path.Join(c.dir, c.FileLocation(kind, item.legacy, hash, item.size, item.random))
 
 		if !isSizeMismatch(size, item.size) {
+			// Opening the blob is a blocking file syscall which consumes an
+			// operating system thread until it returns, like a write. On a slow
+			// disk a burst of cache hits can otherwise pass Go's 10,000 thread
+			// limit by itself.
+			if err := c.diskWaitSem.Acquire(context.Background(), 1); err != nil {
+				log.Printf("ERROR: failed to acquire semaphore: %v", err)
+				return nil, -1, false, internalErr(err)
+			}
+			defer c.diskWaitSem.Release(1)
+
 			var f *os.File
 			fastPath := true
 			f, err = os.Open(blobPath)
@@ -673,10 +684,9 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 		return nil, -1, nil
 	}
 
-	// Non-proxied Get requests do not seem to consume any significant amount of OS threads,
-	// and are therefore not throttled. However, it is assumed that proxied Get requests might,
-	// at least when storing the result from the proxy to disk, and perhaps also when
-	// waiting for the proxy. Proxied Get requests are therefore throttled by a semaphore.
+	// Like local hits, proxied Get requests consume OS threads, at least when storing the
+	// result from the proxy to disk, and perhaps also when waiting for the proxy. They are
+	// therefore throttled by the semaphore too.
 	// Unfortunately, this proxy-specific throttling does not limit the size reservation
 	// performed inside availableOrTryProxy. It should still be effective in limiting the number
 	// of OS threads, but it does not help reduce the risk of http.StatusInsufficientStorage.

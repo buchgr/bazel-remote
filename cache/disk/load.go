@@ -75,10 +75,10 @@ func New(dir string, maxSizeBytes int64, opts ...Option) (Cache, error) {
 		maxBlobSize:      math.MaxInt64,
 		maxProxyBlobSize: math.MaxInt64,
 
-		// Acquire 1 of these before starting filesystem writes/deletes, or
-		// reject filesystem writes upon failure (since this will create a
-		// new OS thread and we don't want to hit Go's default 10,000 OS
-		// thread limit.
+		// Acquire 1 of these before opening blobs or starting filesystem
+		// writes/deletes, or reject the request upon failure (since this
+		// will create a new OS thread and we don't want to hit Go's default
+		// 10,000 OS thread limit.
 		diskWaitSem: semaphore.NewWeighted(semaphoreWeight),
 
 		gaugeCacheAge: prometheus.NewGauge(prometheus.GaugeOpts{
