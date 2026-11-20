@@ -610,6 +610,8 @@ func get(ctx *cli.Context) (*Config, error) {
 			AWSProfile:               ctx.String("s3.aws_profile"),
 			AWSSharedCredentialsFile: ctx.String("s3.aws_shared_credentials_file"),
 			MaxIdleConns:             ctx.Int("s3.max_idle_conns"),
+			SyncUpload:               ctx.Bool("s3.sync_upload"),
+			SyncUploadMaxAttempts:    ctx.Int("s3.sync_upload_max_attempts"),
 		}
 	}
 

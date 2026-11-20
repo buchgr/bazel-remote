@@ -338,7 +338,22 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 
 	r = nil // We read all the data from r.
 
-	if c.proxy != nil {
+	if sp, ok := c.proxy.(cache.SyncProxy); ok {
+		// Upload before committing, so that a failed upload leaves no
+		// local copy (the deferred cleanup removes the tempfile) and the
+		// blob is not reported present.
+		rc, err := os.Open(blobFile)
+		if err != nil {
+			return internalErr(err)
+		}
+		err = sp.PutSync(ctx, kind, hash, size, sizeOnDisk, rc)
+		if err != nil {
+			return &cache.Error{
+				Code: http.StatusServiceUnavailable,
+				Text: fmt.Sprintf("Failed to upload %s to the proxy backend: %v", key, err),
+			}
+		}
+	} else if c.proxy != nil {
 		rc, err := os.Open(blobFile)
 		if err != nil {
 			log.Println("Failed to proxy Put:", err)

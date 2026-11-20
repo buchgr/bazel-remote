@@ -417,6 +417,18 @@ func GetCliFlags() []cli.Flag {
 			DefaultText: "1024",
 			EnvVars:     []string{"BAZEL_REMOTE_S3_MAX_IDLE_CONNS"},
 		},
+		&cli.BoolFlag{
+			Name:        "s3.sync_upload",
+			Usage:       "Whether to acknowledge a CAS or AC write only after the S3 upload succeeds. A write whose upload still fails after retries returns an error (gRPC UNAVAILABLE, HTTP 503) and is not stored locally.",
+			DefaultText: "false",
+			EnvVars:     []string{"BAZEL_REMOTE_S3_SYNC_UPLOAD"},
+		},
+		&cli.IntFlag{
+			Name:        "s3.sync_upload_max_attempts",
+			Usage:       "The maximum number of upload attempts per write when s3.sync_upload is enabled, with exponential backoff and jitter between attempts, bounded by the request's context.",
+			DefaultText: "5",
+			EnvVars:     []string{"BAZEL_REMOTE_S3_SYNC_UPLOAD_MAX_ATTEMPTS"},
+		},
 		&cli.StringFlag{
 			Name:    "azblob.tenant_id",
 			Value:   "",

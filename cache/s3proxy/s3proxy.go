@@ -56,6 +56,8 @@ func New(
 	UpdateTimestamps bool,
 	Region string,
 	MaxIdleConns int,
+	SyncUpload bool,
+	SyncUploadMaxAttempts int,
 
 	storageMode string, accessLogger cache.Logger,
 	errorLogger cache.Logger, numUploaders, maxQueuedUploads int) cache.Proxy {
@@ -114,6 +116,27 @@ func New(
 	} else {
 		c.objectKey = func(hash string, kind cache.EntryKind) string {
 			return objectKeyV1(c.prefix, hash, kind)
+		}
+	}
+
+	if SyncUpload {
+		// PutSync does its own retries, so its client makes one attempt
+		// per call. Get and Contains keep minio's default retries.
+		opts.MaxRetries = 1
+		syncCore, err := minio.NewCore(Endpoint, opts)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		if SyncUploadMaxAttempts <= 0 {
+			SyncUploadMaxAttempts = defaultSyncUploadMaxAttempts
+		}
+		fmt.Printf("S3 sync upload enabled, max %d attempts per write.\n", SyncUploadMaxAttempts)
+		return &syncS3Cache{
+			s3Cache:     c,
+			syncCore:    syncCore,
+			maxAttempts: SyncUploadMaxAttempts,
+			baseBackoff: defaultSyncUploadBaseBackoff,
+			maxBackoff:  defaultSyncUploadMaxBackoff,
 		}
 	}
 

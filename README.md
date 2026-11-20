@@ -385,6 +385,16 @@ OPTIONS:
       when using the S3 proxy backend. (default: 1024)
       [$BAZEL_REMOTE_S3_MAX_IDLE_CONNS]
 
+   --s3.sync_upload Whether to acknowledge a CAS or AC write only after the
+      S3 upload succeeds. A write whose upload still fails after retries
+      returns an error (gRPC UNAVAILABLE, HTTP 503) and is not stored
+      locally. (default: false) [$BAZEL_REMOTE_S3_SYNC_UPLOAD]
+
+   --s3.sync_upload_max_attempts value The maximum number of upload attempts
+      per write when s3.sync_upload is enabled, with exponential backoff and
+      jitter between attempts, bounded by the request's context. (default: 5)
+      [$BAZEL_REMOTE_S3_SYNC_UPLOAD_MAX_ATTEMPTS]
+
    --azblob.tenant_id value The Azure blob storage tenant id to use when
       using azblob proxy backend. [$BAZEL_REMOTE_AZBLOB_TENANT_ID,
       $AZURE_TENANT_ID]
@@ -575,6 +585,8 @@ http_address: 0.0.0.0:8080
 #  disable_ssl: true
 #  bucket_lookup_type: auto
 #  max_idle_conns: 1024
+#  sync_upload: false
+#  sync_upload_max_attempts: 5
 #
 # Provide exactly one auth_method (access_key, iam_role, or credentials_file) and accompanying configuration.
 #
