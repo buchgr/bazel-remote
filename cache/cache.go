@@ -85,6 +85,20 @@ type Proxy interface {
 	Contains(ctx context.Context, kind EntryKind, hash string, size int64) (bool, int64)
 }
 
+// SyncProxy is implemented by proxy backends that are configured to
+// upload synchronously. When the disk cache's proxy implements it, a
+// Put is acknowledged only after PutSync returns nil, and a failed
+// PutSync fails the Put and leaves no local copy behind, so the blob is
+// never reported present unless the proxy backend holds it.
+type SyncProxy interface {
+	Proxy
+
+	// PutSync uploads the cache item like Put, but returns only once the
+	// proxy backend holds it, or with an error once retries are spent or
+	// ctx is done. It closes rc.
+	PutSync(ctx context.Context, kind EntryKind, hash string, logicalSize int64, sizeOnDisk int64, rc io.ReadCloser) error
+}
+
 // TransformActionCacheKey takes an ActionCache key and an instance name
 // and returns a new ActionCache key to use instead. If the instance name
 // is empty, then the original key is returned unchanged.

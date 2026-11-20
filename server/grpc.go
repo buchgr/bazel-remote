@@ -257,6 +257,8 @@ func gRPCErrCode(err error, dflt codes.Code) codes.Code {
 			return codes.InvalidArgument
 		case http.StatusNotFound:
 			return codes.NotFound
+		case http.StatusServiceUnavailable:
+			return codes.Unavailable
 		}
 
 	}
